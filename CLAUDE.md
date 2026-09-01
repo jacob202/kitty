@@ -20,15 +20,19 @@ Before relying on inherited context:
    handoff/current assignment supplies a durable message id, load that exact
    `room_thread`. Use `room_recent` only for bounded shared situational context,
    not as an assignment index. Acknowledge messages actually received.
-4. When the room is available, run `./kitty context --agent
-   --skip-legacy-continuity`; when the room is unavailable, report that and use
-   the strict `./kitty context --agent` compatibility receipt instead.
+4. Choose the receipt from the continuation source:
+   - GAR has an unread handoff/known durable thread for this assignment: run
+     `./kitty context --agent --skip-legacy-continuity`;
+   - GAR is available but has no locator and the legacy checkpoint is needed as
+     the temporary fallback: run strict `./kitty context --agent` and use the
+     checkpoint only if validation succeeds;
+   - GAR is unavailable: report that and use strict `./kitty context --agent`.
+   A legacy-skipping receipt never validates a legacy fallback.
 5. Follow the receipt's reading order beginning with `docs/AUTHORITY_MAP.md`.
 6. Read `docs/ROADMAP.md` and `docs/ACTIVE_MISSION.md` when relevant.
 7. Treat `.claude/STATE.md` and `.claude/HANDOFF.md` as compatibility fallback,
-   not primary live continuity. Use them only when no durable room locator exists
-   yet or a compatibility tool explicitly requires them, and validate their
-   identity first.
+   not primary live continuity. Use them only through the strict validated
+   fallback above or when a compatibility tool explicitly requires them.
 8. Inspect Builder through supported read-only projections when Builder state is
    relevant.
 9. Re-verify scope, execution ownership, evidence, and authorization before
@@ -54,11 +58,13 @@ Git/GitHub own publication evidence.
 
 ## Context engineering default
 
-Follow `docs/reference/CONTEXT_ENGINEERING.md`: after proving room availability,
+Follow `docs/reference/CONTEXT_ENGINEERING.md`. With a known GAR handoff/thread,
 begin with `./kitty context --agent --skip-legacy-continuity`, load the minimum
 authority set for the task type, and expand only for unresolved evidence
-questions. If the room is unavailable, use the strict compatibility receipt.
-For code changes, finish the full canonical reading order before mutation.
+questions. If no durable GAR locator exists and legacy fallback is required, or
+if GAR is unavailable, use strict `./kitty context --agent` before trusting the
+checkpoint. For code changes, finish the full canonical reading order before
+mutation.
 
 ## Two execution lanes
 
@@ -270,10 +276,11 @@ artifacts while existing validators, adapters, and the session-end workflow stil
 consume them. They are not the default source for current coordination and must
 never override fresher room, Git, GitHub, Builder, or runtime evidence. Do not
 manually rewrite them during ordinary work. If no durable room locator exists
-yet, they remain the validated fallback until assignment-scoped GAR retrieval is
-implemented. If the session-end skill requires a compatibility snapshot, write
-it once at the end, validate it, and keep it minimal. Builder workers edit these
-files only when their packet explicitly owns those paths.
+yet and legacy fallback is required, run the strict context receipt and trust
+them only when that validation succeeds. If the session-end skill requires a
+compatibility snapshot, write it once at the end, validate it, and keep it
+minimal. Builder workers edit these files only when their packet explicitly owns
+those paths.
 
 If a legacy checkpoint is used, verify branch, HEAD, worktree, PR, timestamp,
 and invalidation conditions before relying on it. The `merge=ours` driver remains
