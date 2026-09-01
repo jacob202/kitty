@@ -33,7 +33,7 @@ def _parser() -> argparse.ArgumentParser:
     inbox = sub.add_parser("inbox")
     inbox.add_argument("--as", dest="participant_id", required=True)
     inbox.add_argument("--unread", action="store_true")
-    inbox.add_argument("--direct", action="store_true", dest="direct_only")
+    inbox.add_argument("--direct-only", action="store_true", dest="direct_only")
     inbox.add_argument("--limit", type=int, default=100)
     _json_flag(inbox)
 
