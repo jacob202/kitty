@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
+import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -92,3 +95,28 @@ def test_cli_json_ensure_status_recent_and_invalid_participant(room_db, capsys):
     assert code == 2
     assert captured.out == ""
     assert "unknown global participant" in captured.err
+
+
+def test_room_launcher_uses_canonical_data_root_from_linked_worktree(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    git = fake_bin / "git"
+    git.write_text("#!/bin/sh\necho /tmp/canonical-kitty/.git\n")
+    git.chmod(0o755)
+    python = fake_bin / "python3.12"
+    python.write_text(
+        "#!/usr/bin/env python3\nimport os\nprint(os.environ.get('KITTY_DATA_ROOT', ''))\n"
+    )
+    python.chmod(0o755)
+
+    env = dict(os.environ)
+    env.pop("KITTY_DATA_ROOT", None)
+    env["PYTHON_BIN"] = str(python)
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    result = subprocess.run(
+        [str(root / "kitty"), "room", "status", "--json"],
+        env=env, capture_output=True, text=True, timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "/tmp/canonical-kitty/data"
