@@ -1,39 +1,15 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(npm run build)",
-      "Bash(npm run test)",
-      "Bash(npx tsc --noEmit)",
-      "Bash(git fetch *)",
-      "Bash(python3* -m pytest*)",
-      "Bash(uv *)",
-      "Bash(gh *)",
-      "Bash(cat ~/.claude/*)"
-    ],
-    "deny": [
-      "Bash(curl * | bash*)",
-      "Bash(wget * | bash*)",
-      "Bash(npm publish*)",
-      "Bash(git push --force *)"
-    ]
-  },
+  "permissions": {"allow":["Bash(npm run build)","Bash(npm run test)","Bash(npx tsc --noEmit)","Bash(git fetch *)","Bash(python3* -m pytest*)","Bash(uv *)","Bash(gh *)","Bash(cat ~/.claude/*)"],"deny":["Bash(curl * | bash*)","Bash(wget * | bash*)","Bash(npm publish*)","Bash(git push --force *)"]},
   "hooks": {
     "PreToolUse": [
       {"matcher":"Bash","hooks":[{"type":"command","command":"bash .claude/hooks/scan-secrets.sh"},{"type":"command","command":"bash .claude/hooks/block-dangerous-commands.sh"},{"type":"command","command":"bash .claude/hooks/block-polling.sh"}]},
       {"matcher":"Write|Edit|NotebookEdit","hooks":[{"type":"command","command":"bash .claude/hooks/scan-secrets.sh"},{"type":"command","command":"bash .claude/hooks/warn-large-files.sh"}]},
       {"matcher":"Write|Edit","hooks":[{"type":"command","command":"bash .claude/hooks/build-it-hook.sh evidence-lint.py"}]}
     ],
-    "PostToolUse": [
-      {"matcher":"Write|Edit|NotebookEdit","hooks":[{"type":"command","command":"bash .claude/hooks/notify.sh"},{"type":"command","command":"if [[ \"${CLAUDE_FILE_PATH:-}\" == *.py ]] && command -v ruff &>/dev/null; then ruff check --quiet \"$CLAUDE_FILE_PATH\" 2>&1 | head -20 || true; fi"}]}
-    ],
-    "SessionStart": [
-      {"hooks":[{"type":"command","command":"bash .claude/hooks/session-start.sh"},{"type":"command","command":"bash .claude/hooks/recall-thread.sh"}]},
-      {"hooks":[{"type":"command","command":"bash .claude/hooks/build-it-hook.sh --check"}]}
-    ],
-    "SessionEnd": [
-      {"hooks":[{"type":"command","command":"bash .claude/hooks/session-end.sh","timeout":10}]}
-    ],
-    "Stop": [
+    "PostToolUse":[{"matcher":"Write|Edit|NotebookEdit","hooks":[{"type":"command","command":"bash .claude/hooks/notify.sh"},{"type":"command","command":"if [[ \"${CLAUDE_FILE_PATH:-}\" == *.py ]] && command -v ruff &>/dev/null; then ruff check --quiet \"$CLAUDE_FILE_PATH\" 2>&1 | head -20 || true; fi"}]}],
+    "SessionStart":[{"hooks":[{"type":"command","command":"bash .claude/hooks/session-start.sh"},{"type":"command","command":"bash .claude/hooks/recall-thread.sh"}]},{"hooks":[{"type":"command","command":"bash .claude/hooks/build-it-hook.sh --check"}]}],
+    "SessionEnd":[{"hooks":[{"type":"command","command":"bash .claude/hooks/session-end.sh","timeout":10}]}],
+    "Stop":[
       {"hooks":[{"type":"command","command":"bash .claude/hooks/session-stop.sh"}]},
       {"hooks":[{"type":"prompt","timeout":10,"prompt":"Decide whether this Stop is an ordinary turn or the genuine completion of substantial user-assigned work. Hook input: $ARGUMENTS. Inspect last_assistant_message and session_id. Return {\"ok\":true} for an ordinary turn, a question, partial progress, a status/checkpoint, waiting on CI/review/background work, or any case where more work remains. Also return ok=true when the last_assistant_message says the matching workspace_global handoff/result with gar-session:<session_id> was already completed. ONLY when the substantial assignment is genuinely finished and no matching session-end handoff was completed, return {\"ok\":false,\"reason\":\"Run /session-end now. Post the verified workspace_global handoff/result with receipt token gar-session:<session_id>, then finish.\"}. Never force /session-end for casual conversation or an ordinary turn."}]},
       {"hooks":[{"type":"command","command":"bash .claude/hooks/build-it-hook.sh turn-end-gate.py"}]},
