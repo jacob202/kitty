@@ -5,7 +5,7 @@ Make Kitty's existing abilities visible and launchable from one keyboard-first s
 
 ## Product contract
 - Cmd-K remains the global entry point but becomes capability-first, not navigation-first.
-- Gateway exposes a read-only capability catalog composed from Kitty-owned surfaces plus discovered Skills.
+- Gateway exposes a read-only capability catalog composed from Kitty-owned surfaces plus Skills explicitly marked safe for this chat runtime.
 - Every capability declares a launch mode. Initial modes are `view` and `skill`.
 - `view` capabilities route to the existing owning surface.
 - `skill` capabilities compose an explicit `Use skill: <name>` directive into Chat; Kitty's context assembler resolves that exact installed skill and injects its prompt.
@@ -14,7 +14,7 @@ Make Kitty's existing abilities visible and launchable from one keyboard-first s
 
 ## Initial catalog
 Core: Work, Projects, Image Lab, Library, Automations, Agents, Tutor, Journal.
-Dynamic: every currently discovered non-archived Skill.
+Dynamic: currently discovered non-archived Skills whose own metadata explicitly sets `chat_launchable: true`. Unmarked skills remain discoverable through their owning runtime but are not advertised as launchable in no-tool Chat.
 
 ## Safety / authority
 The catalog is projection only. Views keep their existing authorities. Skills are loaded from the existing Skill Registry. Mutation approvals, Builder, automations, Image Lab, and ActionQueue semantics are unchanged.

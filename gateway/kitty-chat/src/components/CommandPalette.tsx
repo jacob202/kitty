@@ -69,9 +69,18 @@ export function CommandPalette({
     setQuery(value)
   }
 
+  const loadCapabilities = () => {
+    setCapabilityError(null)
+    void fetchCapabilities().then((payload) => {
+      setCapabilities(payload.capabilities)
+      setCapabilityError(payload.error)
+    })
+  }
+
   useEffect(() => {
     if (!open) return
     let active = true
+    setCapabilityError(null)
     void fetchCapabilities().then((payload) => {
       if (!active) return
       setCapabilities(payload.capabilities)
@@ -284,7 +293,12 @@ export function CommandPalette({
           </Command.List>
           {capabilityError && capabilities.length === 0 && (
             <div role="status" style={{ padding: '8px 12px', borderTop: '1px solid var(--line)', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
-              live capabilities unavailable — navigation fallback shown.
+              <div>live capabilities unavailable — navigation fallback shown.</div>
+              <details>
+                <summary>technical details</summary>
+                <div>{capabilityError}</div>
+              </details>
+              <button type="button" onClick={loadCapabilities}>retry capabilities</button>
             </div>
           )}
           {(degradedStores.length > 0 || degradedErrors.length > 0) && (
