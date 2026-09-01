@@ -1,53 +1,72 @@
-# Session State — UI failure-copy and status truthfulness power run
+# Session State — PR conflicts review and close-out
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-30T18:46:12.782344+00:00",
-  "head_sha": "4b8cb7e0ce8d60acd7cd6a0fa62ec0db63ea51fa",
-  "branch": "claude/kitty-power-run-l4dvwx",
+  "updated_at": "2026-08-31T20:55:00+00:00",
+  "head_sha": "f5b2f38c098dcdd7f46d1d58abb672ef15b75c5f",
+  "branch": "claude/pr-conflicts-review-8v3ms2",
   "worktree": ".",
-  "status": "complete",
+  "status": "blocked",
   "completed_items": [
-    "Booted the real product (production build + hermetic gateway) and exercised all eight surfaces at 1440x900 and iPhone 14/14 Pro under available, degraded, and fully-stopped backend states",
-    "Added describeFailure() as the single render-boundary translator for thrown gateway/query errors; routed Home, Projects, Documents and Library through it with working retry controls",
-    "Reworded RuntimeBadge so it describes the backend connection only, ending the contradictory 'ready' + 'Kitty status unknown' pairing",
-    "Persisted the Safari install-prompt dismissal to localStorage so it survives reload",
-    "Gave the chat composer, chat search and Image Lab prompt accessible names that survive typing",
-    "Ran the independent product acceptance review requested on head c648eb52 and returned FAIL on one clause of three",
-    "Fixed that FAIL in c15defa; it was later superseded by the #672 merge, which solved the same defect more broadly",
-    "Reconciled the #672 merge in 9c60762: took their model-availability rework, restored two fixes their merge reverted by accident, and fixed the brief row leak it newly exposed",
-    "Verified three pushes from a concurrent lane (17f7341, 7ffd740, 3e022bf) without changing them: project-copy.ts strips developer vocabulary from project text, and modelStatusMessage now translates model transport diagnostics instead of passing them through",
-    "Confirmed the model-picker 503 leak this session flagged is closed: the raw strings are now test inputs and the tests assert the user never sees them",
-    "Reconciled PR #675 with current main at 19c4f085 and verified the combined tree",
-    "Resolved all addressed PR #675 review threads after confirming the fixes are present",
-    "Independent exact-head Product Acceptance passed on a19ec69a across desktop/mobile and live/degraded/down states with zero unexpected fixture requests",
-    "Corrected the PR #675 body: the acceptance section claimed no independent reviewer existed while the checkbox was ticked, and the test counts named a superseded head",
-    "Reviewed 1b54452 from the concurrent lane and found its health-reason denylist leaked every one of the nineteen degraded/unavailable strings gateway/health_surface.py builds, and truncated one into the fragment 'embedding runtime returned'",
-    "Replaced that scrub with an allowlist translation plus a collapsed Technical details disclosure, keeping the cause reachable as the Codex P2 asked while the primary message stays plain language",
-    "Verified the fix in the running product against a stub gateway reporting real degraded reasons: plain sentence visible, raw reason collapsed, zero jargon in visible text at 1440x1600 and iPhone 14 Pro",
-    "PR #675 merged into main as 1e9ed573 at 2026-08-30T18:44:04Z, carrying the health-reason fix at 4b8cb7e"
+    "Surveyed all 9 open PRs (#722,#725,#726,#727,#728,#729,#730,#731,#732,#733) for real git merge conflicts: found none",
+    "Diagnosed each PR's actual blocker via mergeable_state, check_runs, and job logs rather than assuming conflicts",
+    "Merged PR #728 (docs/packets INSTANT wave) into main as c11c6f1 -- clean, all checks green, docs-only",
+    "Fixed PR #722 (image module rename): 3 ruff import-order errors, verified against CI's exact lint scope (gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py, not all of scripts/); merged main into its branch twice as main advanced mid-session; pushed both fixes to a5/image-module-rename directly",
+    "Merged PR #722 into main as f5b2f38",
+    "Held PR #725 (deadline escalation) for Jacob: policy-gate now green after its acceptance checkboxes were completed, looks ready but not merged without his go-ahead",
+    "Held PR #726 (capability launcher, Wave 1) for Jacob: policy-gate genuinely blocked -- its description has no Product acceptance section at all; did not fabricate one",
+    "Held the 6-wave wow-campaign stack (#727 Artifact Canvas, #729 Activity Center, #730 Project Workspace, #731 Chat action cards, #732 @-mentions, #733 Home 'Kitty noticed') for Jacob: each is stacked on the PR before it, not on main, and none can merge until #726 lands with real acceptance evidence; explicitly did not merge or approve any of them per the standing rule that autonomous overnight runs need Jacob's explicit approval before merge",
+    "Resolved the carried dead-eslint-config recommendation (deferred 3x): gateway/kitty-chat/eslint.config.mjs was already deleted on main in commit b2bbe58 on 2026-08-29; dropped, not re-carried",
+    "Recorded KB effectiveness receipt kbr_a3011375ba018d0a0aef and one workflow-learning signal (pr-policy-gate-missing-acceptance, observe status)",
+    "Staged two verified findings to docs/session-notes/2026-08-31-kb-payload.md since ~/kb is absent in this cloud session"
   ],
   "blockers": [],
-  "next_action": "none",
+  "next_action": "ready:pr-725-merge",
   "invalidation_conditions": [
-    "origin/main advances past 1e9ed573 with further changes to gateway/kitty-chat/src/components/",
-    "Someone force-pushes or rewrites claude/kitty-power-run-l4dvwx so 4b8cb7e0 is no longer in its history"
+    "PR #725 gets merged or closed by anyone else",
+    "PR #726's description gains a real Product acceptance section, changing its merge eligibility",
+    "Any of #727/#729/#730/#731/#732/#733 gets retargeted to main or merged"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null,
-  "parallel_work": [],
+  "parallel_work": [
+    {
+      "kind": "pr",
+      "ref": "#734 fix/builder-reviewer-seatbelt-staging-20260831",
+      "owner": "other",
+      "observed_at": "2026-08-31T20:44:00+00:00",
+      "touches": [
+        "gateway/builder_initiative.py",
+        "gateway/builder_loop.py",
+        "scripts/kittybuilder_opencode_reviewer.sh",
+        "scripts/kittybuilder_opencode_worker.sh",
+        "scripts/run_with_timeout.py"
+      ]
+    }
+  ],
   "recommendations": [
     {
-      "id": "dead-eslint-config",
-      "what": "Delete gateway/kitty-chat/eslint.config.mjs, or restore the eslint dev dependencies it imports",
-      "why": "It imports @eslint/eslintrc and eslint-config-next, neither in package.json, and nothing in the Makefile or CI invokes eslint, so JS/TS linting cannot have run for some time; make lint is Python ruff only",
+      "id": "pr-725-merge",
+      "what": "Merge PR #725 (fix(deadlines): wire escalation delivery) into main",
+      "why": "CI is fully green (policy-gate passed after its acceptance checkboxes were completed) and there is no conflict; only holding for Jacob's explicit go-ahead since this session does not auto-merge overnight Builder work",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "wow-wave-stack-hold",
+      "what": "Do not merge #727/#729/#730/#731/#732/#733 until #726 (Wave 1) has a real, verified Product acceptance section written from an actual run of the app, and Jacob approves merging the six-feature UI stack",
+      "why": "Standing preference: autonomous overnight runs must not push, open a PR, or merge without Jacob's explicit approval. None of these six large UI features have been reviewed or tested by a human yet",
       "class": "code",
       "status": "deferred",
-      "blocked_by": "Out of scope for PR #675; address separately after this merge",
-      "release_check": "test -f gateway/kitty-chat/eslint.config.mjs",
-      "deferred_count": 3,
-      "first_deferred": "2026-08-29"
+      "blocked_by": "PR #726 (feat/wow-capability-launcher-20260831) has not merged to main yet, and merging it is not itself Jacob's approval for the rest of the stack -- his explicit go-ahead is still needed once this check passes",
+      "release_check": "git merge-base --is-ancestor 55ffbc11074cf6cd3a7077f485c6e15477fc21d9 origin/main",
+      "deferred_count": 1,
+      "first_deferred": "2026-08-31"
     }
   ]
 }
@@ -55,50 +74,54 @@
 
 ## Current work
 
-PR #675 (`fix(ui): one truthful status, in plain language`) **merged** into `main`
-as `1e9ed573` on 2026-08-30 at 18:44:04Z. The checkpoint records the merged head
-`4b8cb7e0`; this continuity-only commit sits ahead of it and goes to `main`
-separately.
+Jacob asked, in plain terms, to review the open PR queue for conflicts and
+start closing things out. Checked all 9 open PRs directly against GitHub
+(mergeable_state, check runs, job logs) instead of assuming anything from
+branch names or PR titles.
 
-After the a19ec69a acceptance pass, an independent read of `1b54452` from the
-concurrent lane found a regression it had introduced. That commit correctly
-restored the degraded-domain reason the Codex P2 asked for, but scrubbed it with
-a denylist. Run against the nineteen degraded/unavailable strings
-`gateway/health_surface.py` actually builds, every one still reached the user
-(`LiteLLM unreachable`, `sqlite open failed OperationalError database is locked`,
-`HTTPConnectionPool(host='localhost' port=)`), and `embedding runtime returned
-HTTP 503` was truncated into the fragment `embedding runtime returned`, which
-then replaced the status fallback because it was non-empty. `4b8cb7e` replaces
-the scrub with an allowlist translation and keeps the exact reason behind a
-collapsed "Technical details" disclosure.
+**Finding: no PR had a real git merge conflict.** What was actually blocking
+each was CI policy/lint gates or PR stacking, not colliding code.
+
+**Closed this session:**
+- #728 (docs/packets) — clean, green, merged as `c11c6f1`.
+- #722 (image module rename) — had 3 mechanical ruff import-order errors and
+  fell behind main twice as other PRs merged during the session. Fixed both,
+  pushed to its branch (`a5/image-module-rename`), merged as `f5b2f38`.
+
+**Held for Jacob, not merged:**
+- #725 — looks ready (green after acceptance checkboxes were completed) but
+  needs his word.
+- #726 — genuinely blocked: its description is missing the required Product
+  acceptance section entirely. Not going to write one to get past the gate;
+  someone needs to actually run it.
+- #727, #729, #730, #731, #732, #733 — the six-feature "wow" campaign wave
+  stack, each based on the PR before it. Can't merge to main until #726 does
+  and each gets re-pointed downward. This is unreviewed overnight Builder
+  output; per the standing rule it needs Jacob's explicit sign-off before any
+  of it merges, and this session did not give that sign-off on its own.
 
 ## Verified result
 
-- UI unit/component suite: **582/582 passed across 76 files**.
-- `npx tsc --noEmit -p tsconfig.json`: clean.
-- `npm run build`: succeeded.
-- `make lint`: Ruff clean.
-- Hermetic Playwright smoke: **3/3 passed**.
-- Independent Product Acceptance on exact parent `a19ec69a`: **PASS** across
-  desktop and iPhone-class viewports, all eight product surfaces, live/degraded/down
-  service states, retry, reload persistence, accessibility-after-typing, and layout;
-  zero unexpected hermetic requests.
-- `4b8cb7e` re-verified in the running product against a stub gateway serving the
-  real degraded reason strings: the health card shows the translated sentence, the
-  raw reason is present but collapsed, and a scan of visible text found no
-  exception name, provider id, host, port or HTTP code at either viewport.
-- `python3 scripts/check_continuity_state.py` at `4b8cb7e`: 0 failed;
-  `tests/test_check_continuity_state.py` 9 passed.
-- All addressed review conversations were resolved after verifying their fixes.
+- PR #722: full CI green on the exact-scoped lint command
+  (`ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py`)
+  and on the repo's own pytest/pytest-integration/typecheck/merge-gate/policy-gate
+  suite, at head `c41f28a` before squash-merge.
+- PR #728: merged with all checks already green, no changes made.
+- KB effectiveness receipt `kbr_a3011375ba018d0a0aef` recorded to
+  `docs/session-notes/kb-effectiveness.jsonl` (repo-fallback scope; `~/kb`
+  absent in this cloud session).
+- One workflow-learning signal recorded
+  (`pr-policy-gate-missing-acceptance`, `docs/session-notes/workflow-signals/`),
+  status `observe` — not promoted, single occurrence this session.
 
 ## Session state
 
-The implementation session is complete and #675 is merged. There is no remaining
-in-session action. The dead ESLint config remains a separately deferred cleanup.
+No local code changes were made on this branch — all engineering work
+happened directly against other PRs' branches (worktrees, since this
+session's own branch is `claude/pr-conflicts-review-8v3ms2`) and via the
+GitHub API. This branch's own diff against main is limited to this
+continuity checkpoint and the KB/workflow-signal files above.
 
-Note for the next session: this container's clone is **shallow**, which makes
-`scripts/check_continuity_state.py` report two failures that are artifacts, not
-defects — `mission:base_sha` (the mission base object is simply absent locally;
-`git fetch origin <sha>` makes it appear) and `repo:canonical_checkout` (set
-`KITTY_EXPECTED_CANONICAL_CHECKOUT` to the real checkout path, as CI does). With
-both handled the script exits 0.
+Next interactive move: none until Jacob answers on #725 and the wave stack.
+This is a genuine human decision, not a technical blocker — nothing to
+auto-check.
