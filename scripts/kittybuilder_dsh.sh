@@ -42,8 +42,25 @@ if [[ "$provider" == "openrouter" && "$model" == openrouter/* && "$model" != "op
 fi
 
 task="$(cat "$task_file")"
-patch="$(mktemp "${TMPDIR:-/tmp}/kitty-dsh-patch.XXXXXX")"
-cleanup() { rm -f "$patch"; }
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+preset_source="${repo_root}/config/dsh/presets/${preset}/agent.cordis.yml"
+[[ -f "$preset_source" ]] || { echo "ERROR: Kitty DSH preset missing: $preset_source" >&2; exit 1; }
+runtime_root="$(mktemp -d "${TMPDIR:-/tmp}/kitty-dsh-runtime.XXXXXX")"
+runtime_home="${runtime_root}/home"
+user_preset_root="${runtime_home}/.agent-presets"
+mkdir -p "${user_preset_root}/${preset}"
+cp "$preset_source" "${user_preset_root}/${preset}/agent.cordis.yml"
+cat > "${runtime_home}/settings.yaml" <<'SETTINGS'
+llm-pi-ai:
+  providers:
+    openrouter:
+      apiKeyEnv: OPENROUTER_API_KEY
+      retryPolicy:
+        mode: normal
+        maxRetries: 0
+SETTINGS
+patch="${runtime_root}/cordis.patch.yml"
+cleanup() { rm -rf "$runtime_root"; }
 trap cleanup EXIT
 runner_uri="$(python3 - "$RUNNER" <<'PY'
 import sys
@@ -61,6 +78,7 @@ cat > "$patch" <<EOF
       name: '@deepseek-ai/dsh-agent-presets'
       config:
         default: ${preset}
+        includeUserRoot: true
     - id: kitty-headless-runner
       name: '${runner_uri}'
       inject: [headlessStartup, agentPresets]
@@ -73,5 +91,5 @@ export KITTY_DSH_PRESET="$preset"
 export KITTY_DSH_PROVIDER="$provider"
 export KITTY_DSH_MODEL="$model"
 export DSH_PERMISSION_MODE="$permission"
-export DSH_HOME="${DSH_HOME:-$HOME/.dsh}"
+export DSH_HOME="$runtime_home"
 exec "$DSH_BIN" --profile headless --patch "$patch" "$task"

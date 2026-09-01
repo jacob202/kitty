@@ -32,6 +32,8 @@ def _parts(path: str) -> tuple[str, ...]:
 
 
 def _overlap(left: str, right: str) -> bool:
+    if left.strip() in {".", "./"} or right.strip() in {".", "./"}:
+        return True
     a, b = _parts(left), _parts(right)
     if not a or not b:
         return False
