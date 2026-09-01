@@ -46,6 +46,16 @@ async def automation_runs(
     return {"runs": list_runs(automation_id=automation_id, action=action, limit=limit)}
 
 
+@router.get("/automations/runs/{run_id}")
+async def automation_run(run_id: str):
+    from gateway import automation_runs
+
+    run = automation_runs.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id!r} not found")
+    return {"run": run}
+
+
 @router.get("/automations/status")
 async def automation_status():
     return {

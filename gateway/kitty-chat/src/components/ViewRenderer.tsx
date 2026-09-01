@@ -18,6 +18,7 @@ const TutorShell = dynamic(() => import('./TutorShell'))
 const JournalPanel = dynamic(() => import('./JournalPanel'))
 const TerminalView = dynamic(() => import('./TerminalView'))
 const AgentWorkspacePanel = dynamic(() => import('./AgentWorkspacePanel').then((mod) => mod.AgentWorkspacePanel))
+const AgentSessionsPanel = dynamic(() => import('./AgentSessionsPanel').then((mod) => mod.AgentSessionsPanel))
 const TodoPanel = dynamic(() => import('./TodoPanel').then((mod) => mod.TodoPanel))
 
 // -- view renderer --------------------------------------------------------------
@@ -46,6 +47,8 @@ interface ViewRendererProps {
   }
   builderProps?: { onBack: () => void }
   workProps?: { isMobile: boolean }
+  selectedAgentSessionId?: number | null
+  automationProps?: { selectedRunId?: string | null }
   toolsProps?: {
     loops: any[]
     insights: any[]
@@ -70,6 +73,8 @@ export function ViewRenderer({
   homeProps,
   builderProps,
   workProps,
+  selectedAgentSessionId = null,
+  automationProps,
   toolsProps,
 }: ViewRendererProps) {
   const isMobile = compact
@@ -95,13 +100,15 @@ export function ViewRenderer({
         return <WorkView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
       case 'agents':
         return <AgentWorkspacePanel />
+      case 'agent-sessions':
+        return <AgentSessionsPanel selectedSessionId={selectedAgentSessionId} isMobile={isMobile} />
       case 'library':
       case 'docs':
         return <LibraryView isMobile={isMobile} />
       case 'projects':
         return <ProjectsView isMobile={isMobile} />
       case 'automations':
-        return <AutomationsView isMobile={isMobile} loops={toolsProps?.loops ?? []} loopsLoading={toolsProps?.loopsLoading ?? false} loopsError={toolsProps?.loopsError ?? null} onLoopToggle={toolsProps?.onLoopToggle ?? (() => {})} />
+        return <AutomationsView isMobile={isMobile} loops={toolsProps?.loops ?? []} loopsLoading={toolsProps?.loopsLoading ?? false} loopsError={toolsProps?.loopsError ?? null} onLoopToggle={toolsProps?.onLoopToggle ?? (() => {})} selectedRunId={automationProps?.selectedRunId ?? null} />
     case 'settings':
     case 'providers':
     case 'tools':

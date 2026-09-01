@@ -130,6 +130,13 @@ async function installHermeticStubs(
       })
     }
     if (path === '/actions') return json(route, { actions: [] })
+    if (path === '/activity') {
+      return json(route, {
+        items: [],
+        counts: { total: 0, waiting: 0, running: 0, failed: 0, completed: 0 },
+        sources: {},
+      })
+    }
     if (path === '/inbox/triaged') return json(route, { entries: [] })
     if (path === '/projects') return json(route, { projects: [] })
     if (path === '/projects/next-steps') return json(route, [])

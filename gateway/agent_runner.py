@@ -423,19 +423,34 @@ def get_output(session_id: int) -> str:
     return "\n\n---\n\n".join(outputs)
 
 
-def list_agents(limit: int = 20) -> list[dict[str, Any]]:
-    """List recent agents, newest first."""
+def list_agents(
+    limit: int = 20,
+    *,
+    statuses: set[str] | frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
+    """List bounded agent sessions, optionally filtered by durable status."""
     import sqlite3
 
     from gateway.autonomy_state import STATE_DB, init_db
 
     init_db()
+    bounded_limit = max(1, min(int(limit), 200))
 
     with db_connect(STATE_DB) as conn:
         conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT * FROM autonomy_sessions ORDER BY created_at DESC LIMIT ?", (limit,)
-        ).fetchall()
+        if statuses:
+            ordered_statuses = sorted(statuses)
+            placeholders = ",".join("?" for _ in ordered_statuses)
+            rows = conn.execute(
+                f"SELECT * FROM autonomy_sessions WHERE status IN ({placeholders}) "
+                "ORDER BY created_at DESC LIMIT ?",
+                (*ordered_statuses, bounded_limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM autonomy_sessions ORDER BY created_at DESC LIMIT ?",
+                (bounded_limit,),
+            ).fetchall()
 
     agents = []
     for row in rows:

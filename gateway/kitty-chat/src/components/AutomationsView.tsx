@@ -11,9 +11,10 @@ interface Props {
   loopsLoading: boolean
   loopsError?: string | null
   onLoopToggle: (id: string) => void
+  selectedRunId?: string | null
 }
 
-export default function AutomationsView({ isMobile, loops, loopsLoading, loopsError, onLoopToggle }: Props) {
+export default function AutomationsView({ isMobile, loops, loopsLoading, loopsError, onLoopToggle, selectedRunId = null }: Props) {
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 12px 124px' : '24px 32px 40px' }}>
       <div style={{ width: '100%', maxWidth: 1120, margin: '0 auto', display: 'grid', gap: 24 }}>
@@ -28,7 +29,7 @@ export default function AutomationsView({ isMobile, loops, loopsLoading, loopsEr
 
         <section aria-labelledby="automation-schedules-heading" style={{ display: 'grid', gap: 10 }}>
           <h2 id="automation-schedules-heading" style={sectionHeadingStyle}>Schedules</h2>
-          <CronPanel variant="full" isMobile={isMobile} />
+          <CronPanel variant="full" isMobile={isMobile} selectedRunId={selectedRunId} />
         </section>
 
         <section aria-labelledby="automation-routines-heading" style={{ display: 'grid', gap: 10 }}>
