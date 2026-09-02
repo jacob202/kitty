@@ -161,6 +161,7 @@ async function installHermeticStubs(
     if (path === '/studio/characters') {
       return json(route, { characters: [] })
     }
+    
     if (path === '/studio/estimate') {
       return json(route, {
         estimate: {
@@ -169,6 +170,8 @@ async function installHermeticStubs(
         },
       })
     }
+    if (path === '/artifacts') return json(route, { artifacts: [] })
+    if (path.startsWith('/intelligence')) return json(route, { items: [], summary: null, error: null })
     unexpectedPaths.push(`${method} ${path}`)
     return json(route, { error: `Unexpected hermetic request: ${method} ${path}` }, 501)
   })
