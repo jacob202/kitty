@@ -46,3 +46,15 @@ def test_previous_process_running_run_reconciles_to_interrupted(monkeypatch, tmp
     assert current['status'] == 'interrupted'
     assert current['stage'] == 'interrupted'
     assert 'gateway restarted' in current['error']
+
+
+def test_corrupt_sources_json_fails_loud(monkeypatch, tmp_path):
+    db_file = _patch_db(monkeypatch, tmp_path)
+    run = research_runs.begin_run(topic='corrupt')
+    from gateway import db as kitty_db
+    with kitty_db.connect(db_file) as conn:
+        conn.execute("UPDATE research_runs SET sources_json = '{broken' WHERE id = ?", (run['id'],))
+        conn.commit()
+    import pytest
+    with pytest.raises(research_runs.ResearchRunError, match='sources_json'):
+        research_runs.get_run(run['id'])

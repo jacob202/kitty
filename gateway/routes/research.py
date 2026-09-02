@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from gateway import research_execution, research_runs
+from gateway import project_store, research_execution, research_runs
 
 router = APIRouter(tags=["research"])
 
@@ -15,6 +15,8 @@ class StartResearchRequest(BaseModel):
 
 @router.post("/research/runs", status_code=status.HTTP_202_ACCEPTED)
 def start_research(request: StartResearchRequest, background_tasks: BackgroundTasks) -> dict:
+    if request.project_id is not None and project_store.get(request.project_id) is None:
+        raise HTTPException(status_code=404, detail=f"project {request.project_id} not found")
     try:
         run = research_runs.begin_run(topic=request.topic, project_id=request.project_id)
     except research_runs.ResearchRunError as exc:

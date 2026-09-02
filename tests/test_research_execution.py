@@ -42,3 +42,40 @@ async def test_persisted_research_saves_markdown_artifact(monkeypatch, tmp_path)
     assert 'Evidence body' in text
     assert completed['artifact_id'] == 'artifact_r1'
     assert completed['sources'] == ['https://example.com/a']
+
+
+@pytest.mark.asyncio
+async def test_failure_is_persisted_logged_and_propagated(monkeypatch, caplog):
+    monkeypatch.setattr(research_execution.research_runs, 'get_run', lambda run_id: {'id': run_id, 'topic': 'x', 'project_id': None, 'status': 'running'})
+    failed = {}
+    monkeypatch.setattr(research_execution.research_runs, 'fail_run', lambda run_id, **kw: failed.update(kw) or {'id': run_id})
+    researcher = AsyncMock()
+    researcher.technical_deep_dive_report.side_effect = RuntimeError('provider offline')
+    monkeypatch.setattr(research_execution, 'DeepResearcher', lambda: researcher)
+    with pytest.raises(RuntimeError, match='provider offline'):
+        await research_execution.run_persisted_research('rrun_fail')
+    assert 'provider offline' in failed['error']
+    assert any('Research run rrun_fail failed' in record.message for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_artifact_and_completion_share_one_transaction(monkeypatch, tmp_path):
+    db_file = tmp_path / 'kitty.db'
+    monkeypatch.setattr(research_execution.research_runs, 'DB_FILE', db_file)
+    monkeypatch.setattr(research_execution.artifact_store, 'ARTIFACTS_DB_FILE', db_file)
+    monkeypatch.setattr(research_execution, 'RESEARCH_OUTPUT_DIR', tmp_path / 'reports')
+    run = research_execution.research_runs.begin_run(topic='atomic research')
+    researcher = AsyncMock()
+    researcher.technical_deep_dive_report.return_value = {'summary': 'done', 'sources': [], 'findings': 'evidence'}
+    monkeypatch.setattr(research_execution, 'DeepResearcher', lambda: researcher)
+    original_complete = research_execution.research_runs.complete_run
+    def broken_complete(*args, **kwargs):
+        raise RuntimeError('completion write failed')
+    monkeypatch.setattr(research_execution.research_runs, 'complete_run', broken_complete)
+    with pytest.raises(RuntimeError, match='completion write failed'):
+        await research_execution.run_persisted_research(run['id'])
+    monkeypatch.setattr(research_execution.research_runs, 'complete_run', original_complete)
+    from gateway import db as kitty_db
+    with kitty_db.connect(db_file) as conn:
+        artifacts = conn.execute("SELECT COUNT(*) FROM artifacts WHERE source_ref = ?", (f"research_run:{run['id']}",)).fetchone()[0]
+    assert artifacts == 0

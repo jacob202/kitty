@@ -4,6 +4,7 @@ from gateway.routes import research as research_route
 
 
 def test_start_research_returns_durable_run_and_schedules_worker(monkeypatch):
+    monkeypatch.setattr(research_route.project_store, 'get', lambda project_id: {'id': project_id})
     monkeypatch.setattr(research_route.research_runs, 'begin_run', lambda **kw: {'id': 'rrun_1', 'topic': kw['topic'], 'project_id': kw.get('project_id'), 'status': 'running', 'stage': 'queued'})
     tasks = BackgroundTasks()
 
@@ -19,6 +20,17 @@ def test_get_research_run_404s_when_missing(monkeypatch):
     monkeypatch.setattr(research_route.research_runs, 'get_run', lambda run_id: None)
     try:
         research_route.get_research_run('missing')
+    except Exception as exc:
+        assert getattr(exc, 'status_code', None) == 404
+    else:
+        raise AssertionError('expected 404')
+
+
+def test_start_research_rejects_missing_project(monkeypatch):
+    monkeypatch.setattr(research_route.project_store, 'get', lambda project_id: None, raising=False)
+    monkeypatch.setattr(research_route.research_runs, 'begin_run', lambda **kw: (_ for _ in ()).throw(AssertionError('must not create dangling run')))
+    try:
+        research_route.start_research(research_route.StartResearchRequest(topic='battery chemistry', project_id=999), BackgroundTasks())
     except Exception as exc:
         assert getattr(exc, 'status_code', None) == 404
     else:

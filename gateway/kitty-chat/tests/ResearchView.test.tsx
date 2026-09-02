@@ -72,4 +72,46 @@ describe('ResearchView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open report' }))
     expect(screen.getByRole('dialog', { name: 'research.md' })).toBeInTheDocument()
   })
+
+  it('shows stale polling failure alongside cached research runs', () => {
+    vi.mocked(useActiveProject).mockReturnValue({ data: null, isLoading: false, error: null } as never)
+    vi.mocked(useStartResearch).mockReturnValue({ mutateAsync: vi.fn(), isPending: false } as never)
+    vi.mocked(useResearchRuns).mockReturnValue({ data: { runs: [completed] }, isLoading: false, error: new Error('Gateway returned 503') } as never)
+    vi.mocked(useArtifact).mockReturnValue({ data: undefined } as never)
+    render(<ResearchView />)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText('battery chemistry')).toBeInTheDocument()
+  })
+
+  it('shows report preview load failures after Open report', () => {
+    vi.mocked(useActiveProject).mockReturnValue({ data: null, isLoading: false, error: null } as never)
+    vi.mocked(useStartResearch).mockReturnValue({ mutateAsync: vi.fn(), isPending: false } as never)
+    vi.mocked(useResearchRuns).mockReturnValue({ data: { runs: [completed] }, isLoading: false, error: null } as never)
+    vi.mocked(useArtifact).mockReturnValue({ data: undefined, isLoading: false, error: new Error('Gateway returned 404') } as never)
+    render(<ResearchView />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open report' }))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /close report preview/i })).toBeInTheDocument()
+  })
+
+  it('blocks submission while active project scope is unresolved', () => {
+    vi.mocked(useActiveProject).mockReturnValue({ data: undefined, isLoading: true, error: null } as never)
+    vi.mocked(useStartResearch).mockReturnValue({ mutateAsync: vi.fn(), isPending: false } as never)
+    vi.mocked(useResearchRuns).mockReturnValue({ data: { runs: [] }, isLoading: false, error: null } as never)
+    vi.mocked(useArtifact).mockReturnValue({ data: undefined } as never)
+    render(<ResearchView />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Research topic' }), { target: { value: 'topic' } })
+    expect(screen.getByRole('button', { name: 'Start research' })).toBeDisabled()
+    expect(screen.getByText(/checking active project/i)).toBeInTheDocument()
+  })
+
+  it('surfaces active project lookup failure instead of claiming no project', () => {
+    vi.mocked(useActiveProject).mockReturnValue({ data: undefined, isLoading: false, error: new Error('Gateway returned 500') } as never)
+    vi.mocked(useStartResearch).mockReturnValue({ mutateAsync: vi.fn(), isPending: false } as never)
+    vi.mocked(useResearchRuns).mockReturnValue({ data: { runs: [] }, isLoading: false, error: null } as never)
+    vi.mocked(useArtifact).mockReturnValue({ data: undefined } as never)
+    render(<ResearchView />)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByText(/No active project/i)).not.toBeInTheDocument()
+  })
 })

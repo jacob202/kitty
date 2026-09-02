@@ -8,6 +8,18 @@ import httpx
 logger = logging.getLogger("kitty.researcher")
 
 
+class ResearcherError(RuntimeError):
+    pass
+
+
+class ResearchSearchUnavailable(ResearcherError):
+    pass
+
+
+class ResearchSynthesisError(ResearcherError):
+    pass
+
+
 class DeepResearcher:
     """
     Legacy technical research wrapper.
@@ -62,8 +74,7 @@ class DeepResearcher:
     async def _find_sources(self, topic: str) -> List[str]:
         """Uses Tavily to find technical documentation and forum threads."""
         if not self.tavily_key:
-            logger.warning("No TAVILY_API_KEY. Falling back to basic search.")
-            return []
+            raise ResearchSearchUnavailable("TAVILY_API_KEY is not configured")
 
         try:
             client = await self._get_client()
@@ -87,8 +98,8 @@ class DeepResearcher:
             data = resp.json()
             return [r["url"] for r in data.get("results", [])]
         except Exception as e:
-            logger.error("Tavily search failed: %s", e)
-            return []
+            logger.exception("Tavily search failed")
+            raise ResearchSearchUnavailable(f"Tavily search failed: {e}") from e
 
     async def _scrape_sources(self, urls: List[str]) -> str:
         """Uses Tavily to extract technical context from URLs."""
@@ -152,8 +163,8 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
                 temperature=0.3,
             )
         except Exception as e:
-            logger.error("Synthesis failed: %s", e)
-            return "I found the data, but couldn't synthesize it properly. Check the logs."
+            logger.exception("Research synthesis failed")
+            raise ResearchSynthesisError(f"Research synthesis failed: {e}") from e
 
     async def _ingest_findings(self, topic: str, findings: str, summary: str) -> bool:
         """Promote findings to knowledge. Returns True only after successful ingest."""

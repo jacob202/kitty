@@ -45,7 +45,7 @@ def test_activity_projection_normalizes_existing_authorities():
     assert body['items'][1]['destination'] == 'work'
     assert body['items'][2]['destination'] == 'research'
     assert body['items'][3]['destination'] == 'automations'
-    assert body['items'][4]['destination'] == 'agents'
+    assert body['items'][4]['destination'] == 'agent-sessions'
     assert all(source['state'] == 'available' for source in body['sources'].values())
 
 

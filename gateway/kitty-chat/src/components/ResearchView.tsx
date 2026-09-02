@@ -15,11 +15,14 @@ export default function ResearchView({ isMobile = false }: { isMobile?: boolean 
   const [previewArtifactId, setPreviewArtifactId] = useState<string | null>(null)
   const projectId = activeProject.data?.project_id ?? null
   const projectName = activeProject.data?.project?.name ?? null
+  const projectScopeLoading = activeProject.isLoading
+  const projectScopeError = activeProject.error
+  const projectScopeKnown = !projectScopeLoading && !projectScopeError
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
     const trimmed = topic.trim()
-    if (!trimmed || start.isPending) return
+    if (!trimmed || start.isPending || !projectScopeKnown) return
     await start.mutateAsync({ topic: trimmed, project_id: projectId })
     setTopic('')
   }
@@ -43,18 +46,27 @@ export default function ResearchView({ isMobile = false }: { isMobile?: boolean 
             style={textareaStyle}
           />
           <div style={composerFooterStyle}>
-            <span style={metaStyle}>{projectName ? `Attach report to ${projectName}` : 'No active project — report stays in Library'}</span>
-            <button type="submit" aria-label="Start research" disabled={!topic.trim() || start.isPending} style={primaryButtonStyle}>
+            <span style={metaStyle}>
+              {projectScopeLoading
+                ? 'Checking active project…'
+                : projectScopeError
+                  ? 'Active project unavailable'
+                  : projectName
+                    ? `Attach report to ${projectName}`
+                    : 'No active project — report stays in Library'}
+            </span>
+            <button type="submit" aria-label="Start research" disabled={!topic.trim() || start.isPending || !projectScopeKnown} style={primaryButtonStyle}>
               {start.isPending ? 'Starting…' : 'Start research'}
             </button>
           </div>
+          {projectScopeError && <p role="alert" style={errorStyle}>{describeFailure(projectScopeError)}</p>}
           {start.error && <p role="alert" style={errorStyle}>{describeFailure(start.error)}</p>}
         </form>
 
         <section aria-label="Research runs" style={{ display: 'grid', gap: 10 }}>
           <div style={sectionHeaderStyle}><h2 style={sectionTitleStyle}>Runs</h2><span style={metaStyle}>{runs.data?.runs.length ?? 0} recent</span></div>
           {runs.isLoading && !runs.data && <p style={mutedStyle}>Reading research runs…</p>}
-          {runs.error && !runs.data && <p role="alert" style={errorStyle}>{describeFailure(runs.error)}</p>}
+          {runs.error && <p role="alert" style={errorStyle}>{describeFailure(runs.error)} {runs.data ? 'Showing the last loaded runs.' : ''}</p>}
           {runs.data?.runs.length === 0 && <div style={emptyStyle}>No research runs yet. Start with a question above.</div>}
           {runs.data?.runs.map((run) => <ResearchRunCard key={run.id} run={run} onOpenReport={setPreviewArtifactId} />)}
         </section>
@@ -88,7 +100,22 @@ function ResearchRunCard({ run, onOpenReport }: { run: GatewayResearchRun; onOpe
 
 function ResearchArtifactPreview({ artifactId, isMobile, onClose }: { artifactId: string; isMobile: boolean; onClose: () => void }) {
   const artifact = useArtifact(artifactId)
-  if (artifact.isLoading || !artifact.data) return null
+  if (artifact.isLoading) {
+    return (
+      <div role="dialog" aria-label="Research report preview" style={previewStateStyle}>
+        <p style={mutedStyle}>Loading report…</p>
+        <button type="button" aria-label="Close report preview" onClick={onClose} style={secondaryButtonStyle}>Close</button>
+      </div>
+    )
+  }
+  if (artifact.error || !artifact.data) {
+    return (
+      <div role="dialog" aria-label="Research report preview" style={previewStateStyle}>
+        <p role="alert" style={errorStyle}>{describeFailure(artifact.error ?? new Error('Report artifact is unavailable'))}</p>
+        <button type="button" aria-label="Close report preview" onClick={onClose} style={secondaryButtonStyle}>Close</button>
+      </div>
+    )
+  }
   return <ArtifactCanvas artifact={artifact.data} isMobile={isMobile} onClose={onClose} />
 }
 
@@ -134,3 +161,5 @@ const errorStyle: CSSProperties = { margin: 0, fontSize: 12, color: 'var(--color
 const emptyStyle: CSSProperties = { padding: 16, border: '1px dashed var(--color-separator)', borderRadius: 10, color: 'var(--color-text-secondary)', fontSize: 12 }
 const sourceListStyle: CSSProperties = { display: 'flex', gap: 7, flexWrap: 'wrap' }
 const sourceStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-accent)', textDecoration: 'none', padding: '4px 7px', borderRadius: 999, border: '1px solid var(--color-separator)' }
+
+const previewStateStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 80, display: 'grid', placeContent: 'center', gap: 12, padding: 24, background: 'var(--color-canvas)', color: 'var(--color-text-primary)' }

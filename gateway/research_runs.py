@@ -34,8 +34,8 @@ def _row(row: sqlite3.Row | None) -> dict[str, Any] | None:
     result = dict(row)
     try:
         result['sources'] = json.loads(result.pop('sources_json') or '[]')
-    except json.JSONDecodeError:
-        result['sources'] = []
+    except json.JSONDecodeError as exc:
+        raise ResearchRunError(f"corrupt sources_json for research run {result.get('id')}: {exc}") from exc
     return result
 
 
@@ -106,19 +106,38 @@ def update_stage(run_id: str, *, stage: str, sources: list[str] | None = None, u
     return get_run(run_id) or (_ for _ in ()).throw(ResearchRunNotFound(run_id))
 
 
-def complete_run(run_id: str, *, summary: str, artifact_id: str, sources: list[str], completed_at: float | None = None) -> dict[str, Any]:
+def complete_run(
+    run_id: str,
+    *,
+    summary: str,
+    artifact_id: str,
+    sources: list[str],
+    completed_at: float | None = None,
+    connection: Any | None = None,
+) -> dict[str, Any]:
     now = time.time() if completed_at is None else float(completed_at)
     init_db()
-    with kitty_db.connect(DB_FILE) as conn:
+
+    def _complete(conn: Any) -> dict[str, Any]:
         cursor = conn.execute(
             "UPDATE research_runs SET status = 'completed', stage = 'completed', summary = ?, artifact_id = ?, "
             "sources_json = ?, error = NULL, updated_at = ?, completed_at = ? WHERE id = ? AND status = 'running'",
             (summary, artifact_id, json.dumps(list(dict.fromkeys(sources))), now, now, run_id),
         )
-        conn.commit()
         if cursor.rowcount != 1:
             raise ResearchRunError(f'research run {run_id} is not running')
-    return get_run(run_id) or (_ for _ in ()).throw(ResearchRunNotFound(run_id))
+        row = conn.execute('SELECT * FROM research_runs WHERE id = ?', (run_id,)).fetchone()
+        result = _row(row)
+        if result is None:
+            raise ResearchRunNotFound(run_id)
+        return result
+
+    if connection is not None:
+        return _complete(connection)
+    with kitty_db.connect(DB_FILE) as conn:
+        result = _complete(conn)
+        conn.commit()
+        return result
 
 
 def fail_run(run_id: str, *, error: str, status: str = 'failed', completed_at: float | None = None) -> dict[str, Any]:

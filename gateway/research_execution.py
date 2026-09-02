@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from gateway import artifact_store, research_runs
+from gateway import db as kitty_db
 from gateway.paths import DATA_DIR
 from gateway.researcher import DeepResearcher
 
 RESEARCH_OUTPUT_DIR = DATA_DIR / "research"
+logger = logging.getLogger("kitty.research_execution")
 
 
 def _markdown(topic: str, summary: str, sources: list[str], findings: str) -> str:
@@ -38,25 +41,32 @@ async def run_persisted_research(run_id: str) -> None:
             _markdown(run["topic"], str(report.get("summary") or ""), sources, str(report.get("findings") or "")),
             encoding="utf-8",
         )
-        artifact = artifact_store.register_file(
-            output_path,
-            kind="research_report",
-            media_type="text/markdown",
-            project_id=run.get("project_id"),
-            created_by="research",
-            source_ref=f"research_run:{run_id}",
-            metadata={"research_run_id": run_id, "sources": sources},
-        )
-        research_runs.complete_run(
-            run_id,
-            summary=str(report.get("summary") or ""),
-            artifact_id=artifact["id"],
-            sources=sources,
-        )
+        if artifact_store.ARTIFACTS_DB_FILE != research_runs.DB_FILE:
+            raise research_runs.ResearchRunError("research artifact and run stores must share one database")
+        with kitty_db.connect(research_runs.DB_FILE) as conn:
+            artifact = artifact_store.register_file(
+                output_path,
+                kind="research_report",
+                media_type="text/markdown",
+                project_id=run.get("project_id"),
+                created_by="research",
+                source_ref=f"research_run:{run_id}",
+                metadata={"research_run_id": run_id, "sources": sources},
+                connection=conn,
+            )
+            research_runs.complete_run(
+                run_id,
+                summary=str(report.get("summary") or ""),
+                artifact_id=artifact["id"],
+                sources=sources,
+                connection=conn,
+            )
     except Exception as exc:
         current = research_runs.get_run(run_id)
         if current is not None and current.get("status") == "running":
             research_runs.fail_run(run_id, error=f"{type(exc).__name__}: {exc}")
+        logger.exception("Research run %s failed", run_id)
+        raise
 
 
 def run_persisted_research_background(run_id: str) -> None:
