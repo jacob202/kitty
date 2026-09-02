@@ -14,6 +14,7 @@ const NAV_ITEMS = [
 const SECONDARY_ITEMS = [
   { id: 'projects', label: 'Projects' },
   { id: 'agents', label: 'Agents' },
+  { id: 'research', label: 'Research' },
   { id: 'automations', label: 'Automations' },
   { id: 'settings', label: 'Settings' },
 ]
