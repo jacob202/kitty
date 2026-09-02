@@ -380,6 +380,25 @@ export interface GatewayIntelligenceProjection {
   sources: Record<string, { state: 'available' | 'unavailable'; reason: string | null }>
 }
 
+export interface GatewayResearchRun {
+  id: string
+  topic: string
+  project_id: number | null
+  status: 'running' | 'completed' | 'failed' | 'interrupted' | string
+  stage: 'queued' | 'searching' | 'reading' | 'synthesizing' | 'saving' | 'completed' | 'failed' | 'interrupted' | string
+  sources: string[]
+  summary: string | null
+  artifact_id: string | null
+  error: string | null
+  created_at: number
+  updated_at: number
+  completed_at: number | null
+}
+
+export interface GatewayResearchRunsPayload {
+  runs: GatewayResearchRun[]
+}
+
 export interface GatewayWeather {
   temp_c?: number
   feels_like_c?: number
@@ -1115,6 +1134,18 @@ export async function fetchIntelligence(limit = 3): Promise<GatewayIntelligenceP
 
 export async function refreshIntelligenceConnections(): Promise<GatewayIntelligenceProjection> {
   return await gfetch<GatewayIntelligenceProjection>('/intelligence/refresh-connections', { method: 'POST' }, 60_000)
+}
+
+export async function fetchResearchRuns(limit = 30): Promise<GatewayResearchRunsPayload> {
+  return await gfetch<GatewayResearchRunsPayload>(`/research/runs?limit=${limit}`)
+}
+
+export async function startResearch(input: { topic: string; project_id?: number | null }): Promise<{ run: GatewayResearchRun }> {
+  return await gfetch<{ run: GatewayResearchRun }>('/research/runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic: input.topic, project_id: input.project_id ?? null }),
+  }, 10_000)
 }
 
 export async function fetchCapabilities(): Promise<GatewayCapabilitiesPayload> {

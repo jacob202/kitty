@@ -8,6 +8,18 @@ import httpx
 logger = logging.getLogger("kitty.researcher")
 
 
+class ResearcherError(RuntimeError):
+    pass
+
+
+class ResearchSearchUnavailable(ResearcherError):
+    pass
+
+
+class ResearchSynthesisError(ResearcherError):
+    pass
+
+
 class DeepResearcher:
     """
     Legacy technical research wrapper.
@@ -29,26 +41,31 @@ class DeepResearcher:
             self._client = httpx.AsyncClient(timeout=20)
         return self._client
 
-    async def technical_deep_dive(self, topic: str, ingest: bool = False) -> str:
-        """Conduct technical research and optionally promote it to knowledge."""
+    async def technical_deep_dive_report(self, topic: str, progress=None) -> dict:
+        """Run research and return structured evidence without promoting it to memory."""
         logger.info("Starting deep technical dive: %s", topic)
-
-        # 1. Search for high-authority sources
+        if progress:
+            progress("searching", None)
         urls = await self._find_sources(topic)
         if not urls:
-            return "I couldn't find any external sources for that topic."
-
-        # 2. Scrape the top technical results
+            return {"summary": "I couldn't find any external sources for that topic.", "sources": [], "findings": ""}
+        if progress:
+            progress("reading", urls)
         findings = await self._scrape_sources(urls)
         if not findings:
-            return "I found sources but couldn't extract any meaningful technical data."
-
-        # 3. Synthesize. Persistence is a separate, explicit step.
+            return {"summary": "I found sources but couldn't extract any meaningful technical data.", "sources": urls, "findings": ""}
+        if progress:
+            progress("synthesizing", urls)
         summary = self._synthesize_findings(topic, findings)
+        return {"summary": summary, "sources": urls, "findings": findings}
 
-        if not ingest:
+    async def technical_deep_dive(self, topic: str, ingest: bool = False) -> str:
+        """Conduct technical research and optionally promote it to knowledge."""
+        report = await self.technical_deep_dive_report(topic)
+        summary = report["summary"]
+        findings = report["findings"]
+        if not ingest or not findings:
             return summary
-
         ingested = await self._ingest_findings(topic, findings, summary)
         if ingested:
             return f"{summary}\n\nSaved to Kitty's knowledge base."
@@ -57,8 +74,7 @@ class DeepResearcher:
     async def _find_sources(self, topic: str) -> List[str]:
         """Uses Tavily to find technical documentation and forum threads."""
         if not self.tavily_key:
-            logger.warning("No TAVILY_API_KEY. Falling back to basic search.")
-            return []
+            raise ResearchSearchUnavailable("TAVILY_API_KEY is not configured")
 
         try:
             client = await self._get_client()
@@ -82,8 +98,8 @@ class DeepResearcher:
             data = resp.json()
             return [r["url"] for r in data.get("results", [])]
         except Exception as e:
-            logger.error("Tavily search failed: %s", e)
-            return []
+            logger.exception("Tavily search failed")
+            raise ResearchSearchUnavailable(f"Tavily search failed: {e}") from e
 
     async def _scrape_sources(self, urls: List[str]) -> str:
         """Uses Tavily to extract technical context from URLs."""
@@ -147,8 +163,8 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
                 temperature=0.3,
             )
         except Exception as e:
-            logger.error("Synthesis failed: %s", e)
-            return "I found the data, but couldn't synthesize it properly. Check the logs."
+            logger.exception("Research synthesis failed")
+            raise ResearchSynthesisError(f"Research synthesis failed: {e}") from e
 
     async def _ingest_findings(self, topic: str, findings: str, summary: str) -> bool:
         """Promote findings to knowledge. Returns True only after successful ingest."""
