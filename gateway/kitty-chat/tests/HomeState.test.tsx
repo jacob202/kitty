@@ -336,7 +336,7 @@ describe('HomeState', () => {
       isError: false,
     });
     render(<HomeState />);
-    expect(screen.getByText(/not enough signal yet/)).toBeInTheDocument();
+    expect(screen.getByText(/home is quiet for now/)).toBeInTheDocument();
     expect(screen.getByText(/no projects registered — add one from the projects view/)).toBeInTheDocument();
     expect(screen.getByText('nothing new since last snapshot')).toBeInTheDocument();
     expect(screen.getByText('nothing waiting for you')).toBeInTheDocument();
@@ -695,7 +695,7 @@ describe('HomeState', () => {
     });
     rerender(<HomeState />);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.getByText(/not enough signal yet/)).toBeInTheDocument();
+    expect(screen.getByText(/home is quiet for now/)).toBeInTheDocument();
   });
 
   // ── active projects ──
