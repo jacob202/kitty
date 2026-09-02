@@ -1,4 +1,7 @@
+<!-- kitty-handoff: schema=v1 -->
 # Handoff — Polish, SM-2, and Heist Launch
+
+
 
 **Date:** 2026-09-01
 **Head SHA:** 8a735903d3aaf15798cb671b64eba631f35a6aac
