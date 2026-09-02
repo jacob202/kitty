@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AlertTriangle, CheckCircle2, Image as ImageIcon, Plus, RefreshCw, Square, Upload, User, X } from 'lucide-react'
 import { useImageStatus } from '@/lib/queries'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 
 type QualityTier = 'fast' | 'quality' | 'maximum'
 type IdentityMode = 'creative' | 'balanced' | 'identity_first'
@@ -1311,18 +1312,13 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
 }
 
 function CompareDialog({ candidates, onClose }: { candidates: CompareCandidate[]; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const dialogRef = useDialogFocus({ open: true, onClose })
 
   return (
     <div style={compareBackdropStyle} onMouseDown={event => { if (event.currentTarget === event.target) onClose() }}>
-      <section role="dialog" aria-modal="true" aria-label="Compare generated images" style={compareDialogStyle}>
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="Compare generated images" style={compareDialogStyle}>
         <div style={compareHeaderStyle}>
           <div>
-            <div style={preflightLabelStyle}>candidate comparison</div>
             <h2 style={{ ...sectionTitleStyle, fontSize: 22 }}>Compare generated images</h2>
           </div>
           <button type="button" aria-label="Close comparison" onClick={onClose} style={quietIconButtonStyle}><X size={18} /></button>
@@ -1360,8 +1356,8 @@ const preflightMetaStyle: CSSProperties = { fontSize: 10.5, color: 'var(--color-
 const preflightReasonStyle: CSSProperties = { display: 'flex', gap: 8, alignItems: 'baseline', padding: '7px 8px 2px', fontSize: 11, color: 'var(--color-text-secondary)', borderTop: '1px solid var(--color-separator)' }
 const selectedCompareButtonStyle: CSSProperties = { background: 'var(--color-selected)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
 const quietCompareButtonStyle: CSSProperties = { minHeight: 40, border: 0, background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: '6px 8px', fontSize: 12 }
-const compareBackdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1350, background: 'rgba(0,0,0,.72)', display: 'grid', placeItems: 'center', padding: 18 }
-const compareDialogStyle: CSSProperties = { width: 'min(1100px, 96vw)', maxHeight: '92vh', overflow: 'auto', display: 'grid', gap: 14, padding: 16, border: '1px solid var(--color-separator)', borderRadius: 14, background: 'var(--color-canvas)', boxShadow: 'var(--shadow)' }
+const compareBackdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1350, background: 'var(--overlay-backdrop-strong)', display: 'grid', placeItems: 'center', padding: 18 }
+const compareDialogStyle: CSSProperties = { width: 'min(1100px, 96vw)', maxHeight: '92vh', overflow: 'auto', display: 'grid', gap: 14, padding: 16, border: '1px solid var(--color-separator)', borderRadius: 14, background: 'var(--color-surface)', boxShadow: 'var(--shadow-overlay)' }
 const compareHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }
 const compareGridStyle: CSSProperties = { display: 'grid', gap: 12, minWidth: 0 }
 const compareCardStyle: CSSProperties = { display: 'grid', gap: 8, minWidth: 0, padding: 10, border: '1px solid var(--color-separator)', borderRadius: 10, background: 'var(--color-surface)' }

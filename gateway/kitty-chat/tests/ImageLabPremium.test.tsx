@@ -178,6 +178,8 @@ describe('Image Lab premium workspace', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Compare generated images' })
     expect(dialog).toBeInTheDocument()
+    expect(dialog).not.toHaveTextContent('candidate comparison')
+    expect(screen.getByRole('button', { name: 'Close comparison' })).toHaveFocus()
     expect(dialog).toHaveTextContent('job_1')
     expect(dialog).toHaveTextContent('job_2')
     expect(screen.getByRole('img', { name: 'Comparison image 1' })).toHaveAttribute('src', '/proxy/image/view/one.png')

@@ -2,6 +2,8 @@
 import type { ReactNode, CSSProperties } from 'react'
 import { X } from 'lucide-react'
 
+import { useDialogFocus } from '@/hooks/useDialogFocus'
+
 export interface DialogProps {
   open: boolean
   onClose: () => void
@@ -11,66 +13,28 @@ export interface DialogProps {
 }
 
 export function Dialog({ open, onClose, title, children, width = 420 }: DialogProps) {
+  const dialogRef = useDialogFocus<HTMLDivElement>({ open, onClose })
   if (!open) return null
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 200,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.6)',
-        padding: 16,
-      }}
+      style={backdropStyle}
     >
       <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--line)',
-          borderRadius: 16,
-          maxWidth: width,
-          width: '100%',
-          maxHeight: '85vh',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: 'var(--shadow)',
-        }}
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        style={{ ...dialogStyle, maxWidth: width }}
       >
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '14px 18px',
-          borderBottom: '1px solid var(--line)',
-        }}>
-          <h2 style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 18,
-            fontWeight: 700,
-            color: 'var(--ink)',
-            margin: 0,
-          }}>
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            style={closeBtnStyle}
-          >
+        <div style={headerStyle}>
+          <h2 style={titleStyle}>{title}</h2>
+          <button onClick={onClose} aria-label="Close" style={closeBtnStyle}>
             <X size={18} />
           </button>
         </div>
-        <div style={{ overflowY: 'auto', padding: '14px 18px', flex: 1 }}>
-          {children}
-        </div>
+        <div style={dialogBodyStyle}>{children}</div>
       </div>
     </div>
   )
@@ -83,67 +47,88 @@ function Sheet({ open, onClose, title, children, side = 'right' }: {
   children: ReactNode
   side?: 'left' | 'right'
 }) {
+  const dialogRef = useDialogFocus<HTMLDivElement>({ open, onClose })
   if (!open) return null
 
   const isLeft = side === 'left'
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        display: 'flex',
-        background: 'rgba(0,0,0,0.4)',
-      }}
+      style={{ ...backdropStyle, justifyContent: isLeft ? 'flex-start' : 'flex-end', alignItems: 'stretch' }}
     >
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        bottom: 0,
-        [isLeft ? 'left' : 'right']: 0,
-        width: 'min(85vw, 360px)',
-        background: 'var(--surface)',
-        borderLeft: isLeft ? 'none' : '1px solid var(--line)',
-        borderRight: isLeft ? '1px solid var(--line)' : 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        boxShadow: 'var(--shadow)',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '14px 16px',
-          borderBottom: '1px solid var(--line)',
-        }}>
-          <h2 style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 18,
-            fontWeight: 700,
-            color: 'var(--ink)',
-            margin: 0,
-          }}>
-            {title}
-          </h2>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        style={{ ...sheetStyle, borderLeft: isLeft ? 'none' : '1px solid var(--line)', borderRight: isLeft ? '1px solid var(--line)' : 'none' }}
+      >
+        <div style={headerStyle}>
+          <h2 style={titleStyle}>{title}</h2>
           <button onClick={onClose} aria-label="Close" style={closeBtnStyle}>
             <X size={18} />
           </button>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1, padding: 12 }}>
-          {children}
-        </div>
+        <div style={sheetBodyStyle}>{children}</div>
       </div>
     </div>
   )
 }
 
 export { Sheet }
+
+const backdropStyle: CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 200,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'var(--overlay-backdrop)',
+  padding: 16,
+}
+
+const dialogStyle: CSSProperties = {
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
+  borderRadius: 'var(--r-surface)',
+  width: '100%',
+  maxHeight: '85vh',
+  display: 'flex',
+  flexDirection: 'column',
+  boxShadow: 'var(--shadow-overlay)',
+}
+
+const sheetStyle: CSSProperties = {
+  width: 'min(88vw, 400px)',
+  height: '100%',
+  background: 'var(--surface)',
+  display: 'flex',
+  flexDirection: 'column',
+  boxShadow: 'var(--shadow-overlay)',
+}
+
+const headerStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 16,
+  minHeight: 64,
+  padding: '10px 14px 10px 18px',
+  borderBottom: '1px solid var(--line)',
+}
+
+const titleStyle: CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontSize: 18,
+  fontWeight: 700,
+  color: 'var(--ink)',
+  margin: 0,
+}
+
+const dialogBodyStyle: CSSProperties = { overflowY: 'auto', padding: '16px 18px 18px', flex: 1 }
+const sheetBodyStyle: CSSProperties = { overflowY: 'auto', flex: 1, padding: 14 }
 
 const closeBtnStyle: CSSProperties = {
   background: 'transparent',
@@ -153,7 +138,8 @@ const closeBtnStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: 36,
-  height: 36,
-  borderRadius: 8,
+  width: 44,
+  height: 44,
+  borderRadius: 'var(--r-control)',
+  flexShrink: 0,
 }

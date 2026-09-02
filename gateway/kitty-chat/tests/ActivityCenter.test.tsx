@@ -28,6 +28,7 @@ describe('ActivityCenter', () => {
 
     const dialog = screen.getByRole('dialog', { name: /activity/i })
     expect(within(dialog).getByText('Needs you')).toBeVisible()
+    expect(within(dialog).queryByText('live work', { exact: true })).not.toBeInTheDocument()
     expect(within(dialog).getByText('In motion')).toBeVisible()
     expect(within(dialog).getByText('Recently finished')).toBeVisible()
     expect(within(dialog).getByText('Approve calendar event')).toBeVisible()
@@ -65,7 +66,9 @@ describe('ActivityCenter', () => {
     document.body.appendChild(trigger)
     trigger.focus()
     render(<ActivityCenter open projection={projection as any} isLoading={false} error={null} onClose={vi.fn()} onNavigate={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /close activity/i })).toHaveFocus()
+    const close = screen.getByRole('button', { name: /close activity/i })
+    expect(close).toHaveFocus()
+    expect(close).toHaveStyle({ width: '44px', height: '44px', flexShrink: '0' })
     trigger.remove()
   })
 
