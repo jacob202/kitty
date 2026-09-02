@@ -21,9 +21,12 @@ const baseProps = {
 }
 
 describe('StatusBar', () => {
-  it('renders nothing when no condition is active', () => {
+  it('shows a connected indicator when everything is healthy', () => {
     const { container } = render(<StatusBar {...baseProps} />)
-    expect(container.firstChild).toBeNull()
+    const status = container.firstChild as HTMLElement | null
+    expect(status).not.toBeNull()
+    expect(status).toHaveAttribute('role', 'status')
+    expect(status).toHaveTextContent('connected')
   })
 
   it('ranks attachment errors above model availability failure', () => {
