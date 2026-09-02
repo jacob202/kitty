@@ -28,6 +28,7 @@ describe('ActivityCenter', () => {
 
     const dialog = screen.getByRole('dialog', { name: /activity/i })
     expect(within(dialog).getByText('Needs you')).toBeVisible()
+    expect(within(dialog).queryByText('live work', { exact: true })).not.toBeInTheDocument()
     expect(within(dialog).getByText('In motion')).toBeVisible()
     expect(within(dialog).getByText('Recently finished')).toBeVisible()
     expect(within(dialog).getByText('Approve calendar event')).toBeVisible()

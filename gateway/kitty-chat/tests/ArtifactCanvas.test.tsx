@@ -39,6 +39,7 @@ describe('ArtifactCanvas', () => {
 
     const image = screen.getByRole('img', { name: 'reference.png' })
     expect(image).toHaveAttribute('src', '/proxy/artifacts/artifact%2Fimage%20one/content')
+    expect(screen.queryByText('artifact', { exact: true })).not.toBeInTheDocument()
   })
 
   it('renders a PDF inline through the artifact-id content route', () => {
