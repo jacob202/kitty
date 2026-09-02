@@ -195,7 +195,7 @@ def test_missing_build_is_built_before_starting(tmp_path):
     assert calls[0].startswith("npm run build")
 
 
-def test_dirty_ui_source_is_not_built_or_stamped_as_clean_head(tmp_path):
+def test_dirty_ui_source_warns_but_still_builds_and_stamps_head(tmp_path):
     root = _fake_repo(tmp_path, build_id=False)
     (root / "gateway" / "kitty-chat" / "src" / "page.tsx").write_text(
         "export default function Page() { return null }\n", encoding="utf-8"
@@ -203,13 +203,18 @@ def test_dirty_ui_source_is_not_built_or_stamped_as_clean_head(tmp_path):
 
     result, calls = _run(root, tmp_path)
 
-    assert result.returncode != 0
-    assert "refusing to build uncommitted Kitty UI source" in result.stderr
-    assert not any("run build" in call for call in calls)
-    assert not (root / "gateway" / "kitty-chat" / ".next" / "KITTY_SOURCE_SHA").exists()
+    assert result.returncode == 0
+    assert "uncommitted UI source found" in result.stderr
+    assert any("run build" in call for call in calls)
+    stamp = root / "gateway" / "kitty-chat" / ".next" / "KITTY_SOURCE_SHA"
+    assert stamp.exists()
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    assert stamp.read_text(encoding="utf-8").strip() == head
 
 
-def test_dirty_newer_ui_source_is_not_rebuilt_or_stamped_as_clean_head(tmp_path):
+def test_dirty_newer_ui_source_warns_but_still_rebuilds(tmp_path):
     root = _fake_repo(tmp_path, build_id=True)
     _set_source_newer_than_build(root)
     (root / "gateway" / "kitty-chat" / "src" / "page.tsx").write_text(
@@ -218,12 +223,12 @@ def test_dirty_newer_ui_source_is_not_rebuilt_or_stamped_as_clean_head(tmp_path)
 
     result, calls = _run(root, tmp_path)
 
-    assert result.returncode != 0
-    assert "refusing to build uncommitted Kitty UI source" in result.stderr
-    assert not any("run build" in call for call in calls)
+    assert result.returncode == 0
+    assert "uncommitted UI source found" in result.stderr
+    assert any("run build" in call for call in calls)
 
 
-def test_dirty_unstamped_ui_build_is_not_rebuilt_or_stamped_as_clean_head(tmp_path):
+def test_dirty_unstamped_ui_build_warns_but_still_rebuilds(tmp_path):
     root = _fake_repo(tmp_path, build_id=True, source_stamp=False)
     _set_build_newer_than_source(root)
     (root / "gateway" / "kitty-chat" / "src" / "page.tsx").write_text(
@@ -232,9 +237,9 @@ def test_dirty_unstamped_ui_build_is_not_rebuilt_or_stamped_as_clean_head(tmp_pa
 
     result, calls = _run(root, tmp_path)
 
-    assert result.returncode != 0
-    assert "refusing to build uncommitted Kitty UI source" in result.stderr
-    assert not any("run build" in call for call in calls)
+    assert result.returncode == 0
+    assert "uncommitted UI source found" in result.stderr
+    assert any("run build" in call for call in calls)
 
 
 def test_failed_build_stops_the_service_instead_of_serving_stale_code(tmp_path):
