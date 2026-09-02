@@ -31,6 +31,7 @@ export default function KittyChat() {
   const [activityOpen, setActivityOpen] = useState(false)
   const [selectedAgentSessionId, setSelectedAgentSessionId] = useState<number | null>(null)
   const [selectedAutomationRunId, setSelectedAutomationRunId] = useState<string | null>(null)
+  const [projectWorkspaceId, setProjectWorkspaceId] = useState<number | null>(null)
   const activity = useActivity()
   const artifacts = useArtifacts(40)
   const activityAttentionCount = (activity.data?.counts.waiting ?? 0) + (activity.data?.counts.failed ?? 0)
@@ -183,10 +184,13 @@ export default function KittyChat() {
                 onDecideInChat: k.handleDecideInChat,
                 onNavigate: k.setActiveView,
                 onExpertClick: (expert: any) => { k.handleNewExpertChat(expert); k.setActiveView('chat') },
+                onOpenProject: (projectId: number) => { k.handleSelectProject(projectId); setProjectWorkspaceId(projectId); k.setActiveView('projects') },
+                onPromptSelect: (text: string) => { k.setActiveView('chat'); k.handlePromptSelect(text) },
               }}
               builderProps={{ onBack: () => k.setActiveView('work') }}
               selectedAgentSessionId={selectedAgentSessionId}
               automationProps={{ selectedRunId: selectedAutomationRunId }}
+              projectsProps={{ initialProjectId: projectWorkspaceId }}
               toolsProps={{
                 loops: k.loops, insights: k.insights, promptTemplates: k.promptTemplates,
                 onLoopToggle: k.handleLoopToggle, onInsightDismiss: k.handleInsightDismiss,

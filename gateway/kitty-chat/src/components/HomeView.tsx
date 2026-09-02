@@ -1,7 +1,7 @@
 'use client'
 import { HomeState } from '@/components/HomeState'
 
-export default function HomeView({ compact, preferredName, onDecideInChat, onNavigate, onExpertClick }: any) {
+export default function HomeView({ compact, preferredName, onDecideInChat, onNavigate, onExpertClick, onOpenProject, onPromptSelect }: any) {
   return (
     <HomeState
       compact={compact}
@@ -9,6 +9,8 @@ export default function HomeView({ compact, preferredName, onDecideInChat, onNav
       onDecideInChat={onDecideInChat}
       onNavigate={onNavigate}
       onExpertClick={onExpertClick}
+      onOpenProject={onOpenProject}
+      onPromptSelect={onPromptSelect}
     />
   )
 }

@@ -1,5 +1,5 @@
 'use client'
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useProjects, useProjectNextSteps, useProjectResume, useRefreshProject } from '@/lib/queries'
 import type { GatewayNextStep, GatewayProject } from '@/lib/gateway'
 import { Button } from '@/components/ui/Button'
@@ -12,10 +12,13 @@ export function ProjectsPanel({
   onNavigate = () => {},
   onStartChat = () => {},
   isMobile = false,
+  initialProjectId,
 }: {
   onNavigate?: (view: string) => void
   onStartChat?: () => void
   isMobile?: boolean
+  initialProjectId?: number | null
+
 }) {
   const projectsQuery = useProjects()
   const refresh = useRefreshProject()
@@ -40,6 +43,11 @@ export function ProjectsPanel({
           ? `Project refreshed with unavailable sources — ${degradedRefreshSources.join('; ')}`
           : null
     : null
+
+  useEffect(() => {
+    if (initialProjectId == null) return
+    setWorkspaceProjectId(initialProjectId)
+  }, [initialProjectId])
 
   if (projectsQuery.isLoading) {
     return <p style={mutedStyle}>loading projects…</p>

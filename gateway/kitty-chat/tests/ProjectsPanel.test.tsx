@@ -30,19 +30,24 @@ const project: GatewayProject = {
   links: [],
 }
 
-function renderPanel() {
+function renderPanel(initialProjectId?: number) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   const rendered = render(
     <QueryClientProvider client={client}>
-      <ProjectsPanel />
+      <ProjectsPanel initialProjectId={initialProjectId} />
     </QueryClientProvider>,
   )
   return { ...rendered, client }
 }
 
 describe('ProjectsPanel recent files (Project Resume: Artifacts, slice 1)', () => {
+  it('opens the requested project workspace directly', () => {
+    renderPanel(1)
+    expect(screen.getByRole('dialog', { name: /kitty project workspace/i })).toBeInTheDocument()
+  })
+
   beforeEach(() => {
     vi.mocked(queries.useProjects).mockReturnValue({
       data: [project], isLoading: false, isError: false, error: null,

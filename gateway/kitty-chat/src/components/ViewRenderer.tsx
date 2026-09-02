@@ -45,8 +45,11 @@ interface ViewRendererProps {
     onDecideInChat: (entry: any) => void
     onNavigate: (view: string) => void
     onExpertClick?: (expert: any) => void
+    onOpenProject?: (projectId: number) => void
+    onPromptSelect?: (text: string) => void
   }
   builderProps?: { onBack: () => void }
+  projectsProps?: { initialProjectId?: number | null }
   workProps?: { isMobile: boolean }
   selectedAgentSessionId?: number | null
   automationProps?: { selectedRunId?: string | null }
@@ -73,6 +76,7 @@ export function ViewRenderer({
   chatProps,
   homeProps,
   builderProps,
+  projectsProps,
   workProps,
   selectedAgentSessionId = null,
   automationProps,
@@ -107,7 +111,7 @@ export function ViewRenderer({
       case 'docs':
         return <LibraryView isMobile={isMobile} />
       case 'projects':
-        return <ProjectsView isMobile={isMobile} />
+        return <ProjectsView isMobile={isMobile} initialProjectId={projectsProps?.initialProjectId} />
       case 'automations':
         return <AutomationsView isMobile={isMobile} loops={toolsProps?.loops ?? []} loopsLoading={toolsProps?.loopsLoading ?? false} loopsError={toolsProps?.loopsError ?? null} onLoopToggle={toolsProps?.onLoopToggle ?? (() => {})} selectedRunId={automationProps?.selectedRunId ?? null} />
     case 'settings':
