@@ -569,6 +569,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   }, [handleNewChat, isMobile])
 
   const handleCloseChat = useCallback((id: string) => {
+    if (id === activeChatId) setContextRefs([])
     setChats((prev) => {
       const next = prev.filter((c) => c.id !== id)
       if (next.length === 0) {
@@ -583,7 +584,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       const remaining = chats.filter((c) => c.id !== id)
       return remaining[remaining.length - 1]?.id ?? null
     })
-  }, [chats])
+  }, [chats, activeChatId])
 
   const handleSelectModel = useCallback((m: Model) => {
     setActiveModel(m)
@@ -781,8 +782,11 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       const result = await uploadCaptureFile(file, { conversationId: activeChat.id, projectId: activeProject?.id })
       if (result?.artifact_id) added.push({ id: result.artifact_id, display_name: file.name, media_type: file.type || 'application/octet-stream', size: file.size })
     }
-    if (added.length) setAttachments((prev) => [...prev, ...added])
-  }, [activeChat, activeProject?.id])
+    if (added.length) {
+      setAttachments((prev) => [...prev, ...added])
+      queryClient.invalidateQueries({ queryKey: ['artifacts'] })
+    }
+  }, [activeChat, activeProject?.id, queryClient])
 
   const handleRemoveAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id))

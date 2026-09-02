@@ -30,6 +30,9 @@ export default function KittyChat() {
   const artifacts = useArtifacts(40)
   const activityAttentionCount = (activity.data?.counts.waiting ?? 0) + (activity.data?.counts.failed ?? 0)
   const activityIncomplete = Boolean(activity.error) || Object.values(activity.data?.sources ?? {}).some(source => source.state === 'unavailable')
+  const contextError = artifacts.error
+    ? 'Artifact results are unavailable right now — projects and conversations still work.'
+    : null
 
   const contextCandidates: ContextCandidate[] = [
     ...k.projects.map((project) => ({
@@ -210,6 +213,8 @@ export default function KittyChat() {
               contextRefs={k.contextRefs}
               onAddContextRef={k.handleAddContextRef}
               onRemoveContextRef={k.handleRemoveContextRef}
+              contextError={contextError}
+              onContextRetry={contextError ? () => { void artifacts.refetch() } : undefined}
               models={k.availableModels}
               overrideModel={k.overrideModel}
               onOverrideModel={k.setOverrideModel}

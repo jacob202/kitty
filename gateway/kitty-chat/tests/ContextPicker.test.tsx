@@ -67,4 +67,24 @@ describe('InputBar @ context picker', () => {
     expect(textarea).toHaveValue('@kitty ')
     expect(screen.queryByRole('button', { name: 'Remove context kitty' })).not.toBeInTheDocument()
   })
+
+  it('surfaces a candidate-source failure inside the picker with a retry', () => {
+    render(
+      <InputBar
+        value=""
+        onChange={() => {}}
+        onSend={() => {}}
+        contextCandidates={[]}
+        contextError="Artifact results are unavailable right now — projects and conversations still work."
+        onContextRetry={() => {}}
+        onAddContextRef={() => {}}
+      />,
+    )
+    const textarea = screen.getByRole('textbox', { name: 'Message Kitty' })
+
+    fireEvent.change(textarea, { target: { value: '@' } })
+
+    expect(screen.getByText(/Artifact results are unavailable/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'retry context list' })).toBeInTheDocument()
+  })
 })

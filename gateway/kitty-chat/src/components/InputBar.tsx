@@ -25,6 +25,9 @@ interface Props {
   contextRefs?: ContextReference[]
   onAddContextRef?: (ref: ContextReference) => void
   onRemoveContextRef?: (kind: ContextReferenceKind, id: string) => void
+  /** Shown inside the @ picker when a candidate source (e.g. artifacts) failed to load. */
+  contextError?: string | null
+  onContextRetry?: () => void
   /** CR-07: model list + one-shot override for the next message only. */
   models?: Model[]
   overrideModel?: Model | null
@@ -51,6 +54,8 @@ export function InputBar({
   contextRefs = [],
   onAddContextRef,
   onRemoveContextRef,
+  contextError = null,
+  onContextRetry,
   models = [],
   overrideModel = null,
   onOverrideModel,
@@ -77,7 +82,7 @@ export function InputBar({
       return !query || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query)
     })
     .slice(0, 8)
-  const contextOpen = Boolean(onAddContextRef && contextQuery !== null && filteredContextCandidates.length > 0)
+  const contextOpen = Boolean(onAddContextRef && contextQuery !== null && (filteredContextCandidates.length > 0 || contextError))
 
   useEffect(() => {
     if (!modelMenuOpen) return
@@ -352,6 +357,27 @@ export function InputBar({
               boxShadow: 'var(--shadow)', display: 'grid', gap: 2,
             }}
           >
+            {contextError && (
+              <div role="note" style={{
+                padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                fontSize: 11, color: 'var(--color-text-secondary)', borderBottom: '1px solid var(--color-separator)',
+              }}>
+                <span>{contextError}</span>
+                {onContextRetry && (
+                  <button
+                    type="button"
+                    aria-label="retry context list"
+                    onClick={onContextRetry}
+                    style={{
+                      border: '1px solid var(--color-separator)', borderRadius: 8, background: 'transparent',
+                      color: 'var(--color-text-primary)', fontSize: 11, padding: '2px 8px', cursor: 'pointer',
+                    }}
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+            )}
             {filteredContextCandidates.map((candidate, index) => (
               <button
                 key={`${candidate.kind}:${candidate.id}`}

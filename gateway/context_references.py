@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from gateway import artifact_store, chats_store, project_store
+from gateway import artifact_store, chat_lifecycle, chats_store, project_store
 
 _CONTEXT_RE = re.compile(
     r"(?m)^\s*<!--\s*kitty-context:(project|artifact|chat):([^\s>]+)\s*-->\s*$"
@@ -40,6 +40,8 @@ def extract_context_references(text: str) -> tuple[str, list[ContextReference]]:
         if kind in _ALLOWED_KINDS and ref_id and key not in seen and len(refs) < _MAX_REFS:
             refs.append(ContextReference(kind=kind, ref_id=ref_id))
             seen.add(key)
+    if not refs:
+        return text, []
     clean = _CONTEXT_RE.sub("", text).strip()
     clean = re.sub(r"\n{3,}", "\n\n", clean)
     return clean, refs
@@ -111,23 +113,54 @@ def _artifact_block(ref_id: str) -> str:
         path = Path(storage_uri)
         if not path.is_file():
             raise LookupError("artifact backing file is missing")
-        text = path.read_text(encoding="utf-8", errors="replace")[:_MAX_ARTIFACT_CHARS]
+        current_hash, current_size = artifact_store._hash_file(path)
+        if current_hash != str(artifact.get("content_hash") or "") or current_size != artifact.get("size_bytes"):
+            raise ValueError("artifact changed on disk; refresh or re-import it before referencing it")
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("artifact content is not valid UTF-8 text") from exc
+        text = text[:_MAX_ARTIFACT_CHARS]
         if text:
             lines.extend(["Content:", text])
     return "\n".join(lines)
 
 
+def _lifecycle_chat_messages(ref_id: str) -> list[dict] | None:
+    """Turns from the durable lifecycle ledger, or None when unavailable.
+
+    The chats blob is a cache that can miss turns recovered into the lifecycle
+    ledger, so referenced conversations read from the ledger first.
+    """
+    try:
+        snapshot = chat_lifecycle.list_conversation(ref_id)
+    except Exception:
+        return None
+    messages: list[dict] = []
+    for turn in snapshot.get("turns") or []:
+        for message in turn.get("messages") or []:
+            if not isinstance(message, dict) or message.get("status") == "interrupted":
+                continue
+            role = str(message.get("role") or "")
+            content = message.get("content")
+            if role in {"user", "assistant"} and isinstance(content, str) and content.strip():
+                messages.append({"role": role, "content": content})
+    return messages or None
+
+
 def _chat_block(ref_id: str) -> str:
     chat = chats_store.get_chat(ref_id)
-    if chat is None:
+    ledger_messages = _lifecycle_chat_messages(ref_id)
+    if chat is None and ledger_messages is None:
         raise LookupError("conversation not found")
-    title = chat.get("title") or "Untitled conversation"
+    title = (chat or {}).get("title") or "Untitled conversation"
     lines = [f"### Conversation: {title}"]
-    objective = chat.get("objective")
+    objective = (chat or {}).get("objective")
     if objective:
         lines.append(f"Objective: {objective}")
     used = 0
-    for message in (chat.get("messages") or [])[-_MAX_CHAT_MESSAGES:]:
+    history = ledger_messages if ledger_messages is not None else ((chat or {}).get("messages") or [])
+    for message in history[-_MAX_CHAT_MESSAGES:]:
         if not isinstance(message, dict):
             continue
         role = str(message.get("role") or "unknown")

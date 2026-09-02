@@ -33,7 +33,7 @@ from gateway.model_routing import resolve_chat_route
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
-_DURABLE_CHAT_OBJECT_LIMIT = 50
+_DURABLE_CHAT_OBJECT_LIMIT = 6
 
 logger = logging.getLogger("kitty.gateway")
 router = APIRouter(tags=["completions"])
@@ -167,8 +167,22 @@ def _strip_context_markers_from_content(content):
     return content
 
 
+def _merge_explicit_context_into_user_content(content, context_block: str):
+    if isinstance(content, str):
+        return f"{context_block}\n\n{content}" if content else context_block
+    if isinstance(content, list):
+        return [*content, {"type": "text", "text": context_block}]
+    return context_block
+
+
 def _prepare_explicit_context(messages: list[dict]):
-    """Strip persisted markers from model-visible history and resolve latest refs."""
+    """Strip persisted markers from user turns and resolve latest refs.
+
+    Marker stripping applies only to user messages so pasted assistant/tool
+    content survives byte-for-byte. The resolved context block rides inside the
+    user turn instead of the system message: referenced object content is
+    user-selected data and must never gain system-level authority.
+    """
     latest_user_index = None
     raw_user_text = ""
     for index in range(len(messages) - 1, -1, -1):
@@ -179,14 +193,23 @@ def _prepare_explicit_context(messages: list[dict]):
 
     clean_messages = [
         {**message, "content": _strip_context_markers_from_content(message.get("content", ""))}
+        if message.get("role") == "user"
+        else message
         for message in messages
     ]
     if latest_user_index is None:
-        return clean_messages, "", "", "", []
+        return clean_messages, "", "", []
 
     clean_user_text, refs = context_references.extract_context_references(raw_user_text)
     context_block, warnings = context_references.resolve_context_references(refs)
-    return clean_messages, clean_user_text, raw_user_text, context_block, warnings
+    if context_block:
+        clean_messages[latest_user_index] = {
+            **clean_messages[latest_user_index],
+            "content": _merge_explicit_context_into_user_content(
+                clean_messages[latest_user_index].get("content"), context_block
+            ),
+        }
+    return clean_messages, clean_user_text, raw_user_text, warnings
 
 
 def _message_budget_units(message: dict) -> int:
@@ -490,7 +513,7 @@ async def chat_completions(request: Request):
             detail=f"project_id must be a positive integer, got {raw_project_id!r}",
         )
     messages = body.get("messages", [])
-    messages, user_text, raw_user_text, explicit_context_block, explicit_context_warnings = (
+    messages, user_text, raw_user_text, explicit_context_warnings = (
         _prepare_explicit_context(messages)
     )
     stream = body.get("stream", True)
@@ -703,8 +726,6 @@ async def chat_completions(request: Request):
                 f"explicit_context: {warning}" for warning in explicit_context_warnings
             )
         bundle_system = bundle.system
-        if explicit_context_block:
-            bundle_system = f"{bundle_system}\n\n{explicit_context_block}"
         runtime_system = compact_runtime_context(runtime_manifest)
         project_name = (
             manifest_project.get("name")
@@ -1101,7 +1122,15 @@ async def close_session(payload: CloseSessionRequest):
     """End a chat session — consolidate short-term memory to long-term."""
     from gateway.memory import consolidate_session
 
-    consolidate_session(payload.session_id, payload.messages)
+    # Strip context markers before consolidation so durable ids never reach
+    # long-term memory as if they were user-authored text.
+    cleaned = [
+        {**message, "content": context_references.strip_context_markers(message["content"])}
+        if message.get("role") == "user" and isinstance(message.get("content"), str)
+        else message
+        for message in payload.messages
+    ]
+    consolidate_session(payload.session_id, cleaned)
     return {"status": "ok", "session_id": payload.session_id}
 
 
