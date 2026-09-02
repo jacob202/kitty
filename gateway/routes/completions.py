@@ -33,6 +33,8 @@ from gateway.model_routing import resolve_chat_route
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
+_DURABLE_CHAT_OBJECT_LIMIT = 50
+
 logger = logging.getLogger("kitty.gateway")
 router = APIRouter(tags=["completions"])
 
