@@ -15,6 +15,7 @@ interface KittyThreadContextValue {
   onRetry?: () => void
   retryBranches?: Record<number, Message[][]>
   onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
+  onOpenWork?: () => void
 }
 
 const KittyThreadContext = createContext<KittyThreadContextValue>({
@@ -36,6 +37,7 @@ interface KittyThreadProps {
   onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
   onChipClick?: (text: string) => void
   onStartClick?: () => void
+  onOpenWork?: () => void
 }
 
 export function KittyThread({
@@ -49,6 +51,7 @@ export function KittyThread({
   onSwitchBranch,
   onChipClick,
   onStartClick,
+  onOpenWork,
 }: KittyThreadProps) {
   const ctx: KittyThreadContextValue = {
     messages,
@@ -59,6 +62,7 @@ export function KittyThread({
     onRetry,
     retryBranches,
     onSwitchBranch,
+    onOpenWork,
   }
 
   return (
@@ -112,6 +116,7 @@ function MessageList() {
             branchCount={rawMsg.role === 'assistant' ? branches : 0}
             totalBranches={rawMsg.role === 'assistant' ? total : 0}
             onSwitchBranch={rawMsg.role === 'assistant' && ctx.onSwitchBranch ? (bi: number) => ctx.onSwitchBranch!(message.index - 1, bi) : undefined}
+            onOpenWork={ctx.onOpenWork}
             onRetry={
               message.isLast && rawMsg.role === 'assistant' && !ctx.isStreaming
                 ? ctx.onRetry

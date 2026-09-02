@@ -38,6 +38,7 @@ interface ViewRendererProps {
     onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
     onStartClick: () => void
     onChipClick: (chip: string) => void
+    onOpenWork?: () => void
   }
   homeProps?: {
     preferredName: string

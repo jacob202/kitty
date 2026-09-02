@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, type CSSProperties } from 'react'
+import { ArrowUpRight } from 'lucide-react'
 import { useProposeBuilderJob, useApproveBuilderJob, useResumeBuilderJob } from '@/lib/queries'
 import type { ConversationProposal } from '@/lib/gateway'
 
@@ -50,9 +51,17 @@ interface Props {
   task: BuilderProposalTask
   chatId: string
   messageIndex: number
+  /**
+   * Switches the top-level view to the Work tab. Chat never runs or reports on
+   * the job itself — once a proposal is approved, this is the seam that hands
+   * the durable Builder mission to the Work view for progress and recovery.
+   * Optional so the card still renders in hosts without the navigation
+   * surface (static previews, isolated tests).
+   */
+  onOpenWork?: () => void
 }
 
-export function BuilderProposalCard({ task, chatId, messageIndex }: Props) {
+export function BuilderProposalCard({ task, chatId, messageIndex, onOpenWork }: Props) {
   const storageKey = `kitty.builder-proposal.${chatId}.${messageIndex}`
   const propose = useProposeBuilderJob()
   const approve = useApproveBuilderJob()
@@ -66,7 +75,7 @@ export function BuilderProposalCard({ task, chatId, messageIndex }: Props) {
   }, [storageKey])
 
   if (resumedMissionId) {
-    return <ResumedBuilderJob task={task} resume={resume} />
+    return <ResumedBuilderJob task={task} resume={resume} onOpenWork={onOpenWork} />
   }
 
   if (!task.objective || !task.instructions || !task.allowed_paths?.length) {
@@ -198,9 +207,11 @@ export function BuilderProposalCard({ task, chatId, messageIndex }: Props) {
 function ResumedBuilderJob({
   task,
   resume,
+  onOpenWork,
 }: {
   task: BuilderProposalTask
   resume: ReturnType<typeof useResumeBuilderJob>
+  onOpenWork?: () => void
 }) {
   const data = resume.data
   // resume_context()'s `ok` reflects Kitty's own cold-start health check, not
@@ -250,6 +261,18 @@ function ResumedBuilderJob({
           <p style={fieldStyle}>
             Track it in the Work view — Kitty&apos;s chat does not run or report on it directly.
           </p>
+          {onOpenWork && (
+            <button
+              type="button"
+              onClick={onOpenWork}
+              style={btnOpenWork}
+              aria-label="Open this Builder job in the Work view"
+              data-testid="builder-proposal-open-work"
+            >
+              <ArrowUpRight size={11} />
+              <span>Open in Work</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -343,3 +366,12 @@ const btnConfirm: CSSProperties = {
 }
 
 const confirmRow: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6 }
+
+const btnOpenWork: CSSProperties = {
+  ...btnBase,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  alignSelf: 'flex-start',
+  marginTop: 2,
+}
