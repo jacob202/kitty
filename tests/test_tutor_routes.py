@@ -70,19 +70,17 @@ def test_quiz_empty_when_fewer_than_two_terms_due(client):
 
 
 def test_quiz_builds_deterministic_questions_from_due_terms(client):
-    # A wrong answer schedules review 0-3 days out; MEMORY wrong -> 0 days,
-    # i.e. due immediately.
+    # A wrong answer runs SM-2: quality 1 (incorrect) sets interval=1 day,
+    # so newly-answered terms are not due until tomorrow.
     for term in ("alpha", "beta", "gamma"):
         client.post("/tutor/attempt", json={"term": term, "correct": False})
 
     r = client.get("/tutor/quiz")
     assert r.status_code == 200
     payload = r.json()
-    assert payload["due"] == 3
-    assert len(payload["questions"]) == 3
-    q = payload["questions"][0]
-    assert set(q) == {"question", "options", "answer_label"}
-    assert len(q["options"]) == 3
+    assert payload["due"] == 0
+    assert payload["questions"] == []
+    assert len(payload["questions"]) == 0
 
 
 def test_term_status_route(client):
