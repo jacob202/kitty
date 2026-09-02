@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from gateway import action_queue, artifact_store, chat_lifecycle, chats_store
+from gateway import action_queue, artifact_store, chat_lifecycle, chats_store, context_references
 from gateway.chat_errors import (
     FRIENDLY_MESSAGES,
     ChatErrorKind,
@@ -33,6 +33,8 @@ from gateway.model_routing import resolve_chat_route
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
+_DURABLE_CHAT_OBJECT_LIMIT = 6
+
 logger = logging.getLogger("kitty.gateway")
 router = APIRouter(tags=["completions"])
 
@@ -44,8 +46,6 @@ conversation. When execution is required, state plainly that tools are unavailab
 in this chat runtime.
 """.strip()
 
-
-_DURABLE_CHAT_OBJECT_LIMIT = 6
 
 
 def _one_line(value: object, limit: int = 120) -> str:
@@ -151,6 +151,65 @@ def _durable_chat_object_system(
                 + "\n```"
             )
     return "\n".join(lines)
+
+
+def _strip_context_markers_from_content(content):
+    if isinstance(content, str):
+        return context_references.strip_context_markers(content)
+    if isinstance(content, list):
+        cleaned = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
+                cleaned.append({**part, "text": context_references.strip_context_markers(part["text"])})
+            else:
+                cleaned.append(part)
+        return cleaned
+    return content
+
+
+def _merge_explicit_context_into_user_content(content, context_block: str):
+    if isinstance(content, str):
+        return f"{context_block}\n\n{content}" if content else context_block
+    if isinstance(content, list):
+        return [*content, {"type": "text", "text": context_block}]
+    return context_block
+
+
+def _prepare_explicit_context(messages: list[dict]):
+    """Strip persisted markers from user turns and resolve latest refs.
+
+    Marker stripping applies only to user messages so pasted assistant/tool
+    content survives byte-for-byte. The resolved context block rides inside the
+    user turn instead of the system message: referenced object content is
+    user-selected data and must never gain system-level authority.
+    """
+    latest_user_index = None
+    raw_user_text = ""
+    for index in range(len(messages) - 1, -1, -1):
+        if messages[index].get("role") == "user":
+            latest_user_index = index
+            raw_user_text = _message_text(messages[index].get("content", ""))
+            break
+
+    clean_messages = [
+        {**message, "content": _strip_context_markers_from_content(message.get("content", ""))}
+        if message.get("role") == "user"
+        else message
+        for message in messages
+    ]
+    if latest_user_index is None:
+        return clean_messages, "", "", []
+
+    clean_user_text, refs = context_references.extract_context_references(raw_user_text)
+    context_block, warnings = context_references.resolve_context_references(refs)
+    if context_block:
+        clean_messages[latest_user_index] = {
+            **clean_messages[latest_user_index],
+            "content": _merge_explicit_context_into_user_content(
+                clean_messages[latest_user_index].get("content"), context_block
+            ),
+        }
+    return clean_messages, clean_user_text, raw_user_text, warnings
 
 
 def _message_budget_units(message: dict) -> int:
@@ -454,19 +513,19 @@ async def chat_completions(request: Request):
             detail=f"project_id must be a positive integer, got {raw_project_id!r}",
         )
     messages = body.get("messages", [])
+    messages, user_text, raw_user_text, explicit_context_warnings = (
+        _prepare_explicit_context(messages)
+    )
     stream = body.get("stream", True)
     # A caller that sends tool schemas is the one that executes the calls —
     # Open WebUI does exactly this. Kitty has no executor of its own here, so the
     # schemas and the "tools are unavailable" instruction both hinge on this.
     caller_supplies_tools = bool(body.get("tools"))
 
-    user_text = ""
     turn_has_image = False
     for m in reversed(messages):
         if m.get("role") == "user":
-            content = m.get("content", "")
-            user_text = _message_text(content)
-            turn_has_image = _has_image(content)
+            turn_has_image = _has_image(m.get("content", ""))
             break
 
     raw_attachment_ids = body.get("attachment_ids")
@@ -598,7 +657,7 @@ async def chat_completions(request: Request):
                 project_id=scoped_project_id,
                 title=conversation_title,
                 user_message_id=user_message_id,
-                user_text=user_text,
+                user_text=raw_user_text or user_text,
                 manifest_revision=runtime_manifest["revision"],
                 requested_model=model,
                 attachment_ids=attachment_ids,
@@ -662,6 +721,11 @@ async def chat_completions(request: Request):
             tier=tier,
         )
         assert_not_total_failure(bundle)
+        if explicit_context_warnings:
+            bundle.warnings.extend(
+                f"explicit_context: {warning}" for warning in explicit_context_warnings
+            )
+        bundle_system = bundle.system
         runtime_system = compact_runtime_context(runtime_manifest)
         project_name = (
             manifest_project.get("name")
@@ -676,7 +740,7 @@ async def chat_completions(request: Request):
         )
         tool_system = "" if caller_supplies_tools else _NO_TOOL_EXECUTOR_SYSTEM
         enriched, final_budget_warnings = _fit_final_model_messages(
-            bundle_system=bundle.system,
+            bundle_system=bundle_system,
             runtime_system=runtime_system,
             tool_system=tool_system,
             optional_system=durable_object_system,
@@ -1058,7 +1122,15 @@ async def close_session(payload: CloseSessionRequest):
     """End a chat session — consolidate short-term memory to long-term."""
     from gateway.memory import consolidate_session
 
-    consolidate_session(payload.session_id, payload.messages)
+    # Strip context markers before consolidation so durable ids never reach
+    # long-term memory as if they were user-authored text.
+    cleaned = [
+        {**message, "content": context_references.strip_context_markers(message["content"])}
+        if message.get("role") == "user" and isinstance(message.get("content"), str)
+        else message
+        for message in payload.messages
+    ]
+    consolidate_session(payload.session_id, cleaned)
     return {"status": "ok", "session_id": payload.session_id}
 
 

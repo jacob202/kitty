@@ -2,6 +2,7 @@
 import { useRef, useEffect, useState, KeyboardEvent, RefObject } from 'react'
 import { Mic, Square, Paperclip, X, Zap } from 'lucide-react'
 import { MessageAttachment, Model } from '@/lib/types'
+import type { ContextCandidate, ContextReference, ContextReferenceKind } from '@/lib/context-references'
 
 interface Props {
   value: string
@@ -20,6 +21,13 @@ interface Props {
   attachments?: MessageAttachment[]
   onAddFiles?: (files: FileList) => void
   onRemoveAttachment?: (id: string) => void
+  contextCandidates?: ContextCandidate[]
+  contextRefs?: ContextReference[]
+  onAddContextRef?: (ref: ContextReference) => void
+  onRemoveContextRef?: (kind: ContextReferenceKind, id: string) => void
+  /** Shown inside the @ picker when a candidate source (e.g. artifacts) failed to load. */
+  contextError?: string | null
+  onContextRetry?: () => void
   /** CR-07: model list + one-shot override for the next message only. */
   models?: Model[]
   overrideModel?: Model | null
@@ -42,6 +50,12 @@ export function InputBar({
   attachments = [],
   onAddFiles,
   onRemoveAttachment,
+  contextCandidates = [],
+  contextRefs = [],
+  onAddContextRef,
+  onRemoveContextRef,
+  contextError = null,
+  onContextRetry,
   models = [],
   overrideModel = null,
   onOverrideModel,
@@ -55,7 +69,20 @@ export function InputBar({
   const chunksRef = useRef<Blob[]>([])
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [composerFocused, setComposerFocused] = useState(false)
+  const [contextQuery, setContextQuery] = useState<string | null>(null)
+  const [contextTriggerIndex, setContextTriggerIndex] = useState<number | null>(null)
+  const [contextIndex, setContextIndex] = useState(0)
   const modelMenuRef = useRef<HTMLDivElement>(null)
+
+  const selectedContextKeys = new Set(contextRefs.map((item) => `${item.kind}:${item.id}`))
+  const filteredContextCandidates = contextQuery === null ? [] : contextCandidates
+    .filter((item) => !selectedContextKeys.has(`${item.kind}:${item.id}`))
+    .filter((item) => {
+      const query = contextQuery.toLowerCase()
+      return !query || item.label.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query)
+    })
+    .slice(0, 8)
+  const contextOpen = Boolean(onAddContextRef && contextQuery !== null && (filteredContextCandidates.length > 0 || contextError))
 
   useEffect(() => {
     if (!modelMenuOpen) return
@@ -135,7 +162,54 @@ export function InputBar({
     else if (recState === 'recording') stopRecording()
   }
 
+  const trackContextQuery = (next: string) => {
+    const match = next.match(/(?:^|\s)@([^@\s]*)$/)
+    if (!match) {
+      setContextQuery(null)
+      setContextTriggerIndex(null)
+      setContextIndex(0)
+      return
+    }
+    setContextQuery(match[1] ?? '')
+    setContextTriggerIndex(next.lastIndexOf('@'))
+    setContextIndex(0)
+  }
+
+  const selectContext = (candidate: ContextCandidate) => {
+    if (!onAddContextRef || contextTriggerIndex === null) return
+    const next = `${value.slice(0, contextTriggerIndex)}@${candidate.label} `
+    onChange(next)
+    onAddContextRef({ kind: candidate.kind, id: candidate.id, label: candidate.label })
+    setContextQuery(null)
+    setContextTriggerIndex(null)
+    setContextIndex(0)
+    window.setTimeout(() => ref.current?.focus(), 0)
+  }
+
   const handleKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (contextOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setContextIndex((index) => (index + 1) % filteredContextCandidates.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setContextIndex((index) => (index - 1 + filteredContextCandidates.length) % filteredContextCandidates.length)
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setContextQuery(null)
+        setContextTriggerIndex(null)
+        return
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        selectContext(filteredContextCandidates[contextIndex] ?? filteredContextCandidates[0])
+        return
+      }
+    }
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || !e.shiftKey)) {
       if (e.shiftKey) return
       e.preventDefault()
@@ -158,6 +232,32 @@ export function InputBar({
       flexShrink: 0,
       background: 'var(--bg)',
     }}>
+      {contextRefs.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10, paddingLeft: 4 }}>
+          {contextRefs.map((contextRef) => (
+            <span key={`${contextRef.kind}:${contextRef.id}`} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              minHeight: 32, padding: '4px 7px 4px 10px', borderRadius: 999,
+              border: '1px solid var(--color-separator)', background: 'var(--color-surface)',
+              color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 11.5,
+            }}>
+              <span style={{ color: 'var(--color-text-secondary)', fontSize: 10 }}>{contextRef.kind}</span>
+              <span>{contextRef.label}</span>
+              {onRemoveContextRef && (
+                <button
+                  type="button"
+                  aria-label={`Remove context ${contextRef.label}`}
+                  onClick={() => onRemoveContextRef(contextRef.kind, contextRef.id)}
+                  style={{ border: 'none', background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 2 }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
       {attachments.length > 0 && (
         <div style={{
           display: 'flex',
@@ -246,10 +346,64 @@ export function InputBar({
         maxWidth: compact ? '100%' : undefined,
         position: 'relative',
       }}>
+        {contextOpen && (
+          <div
+            role="listbox"
+            aria-label="Context suggestions"
+            style={{
+              position: 'absolute', left: 8, right: 8, bottom: 'calc(100% + 8px)', zIndex: 45,
+              maxHeight: 280, overflowY: 'auto', padding: 6, borderRadius: 12,
+              border: '1px solid var(--color-separator)', background: 'var(--color-surface)',
+              boxShadow: 'var(--shadow)', display: 'grid', gap: 2,
+            }}
+          >
+            {contextError && (
+              <div role="note" style={{
+                padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                fontSize: 11, color: 'var(--color-text-secondary)', borderBottom: '1px solid var(--color-separator)',
+              }}>
+                <span>{contextError}</span>
+                {onContextRetry && (
+                  <button
+                    type="button"
+                    aria-label="retry context list"
+                    onClick={onContextRetry}
+                    style={{
+                      border: '1px solid var(--color-separator)', borderRadius: 8, background: 'transparent',
+                      color: 'var(--color-text-primary)', fontSize: 11, padding: '2px 8px', cursor: 'pointer',
+                    }}
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
+            )}
+            {filteredContextCandidates.map((candidate, index) => (
+              <button
+                key={`${candidate.kind}:${candidate.id}`}
+                type="button"
+                role="option"
+                aria-selected={index === contextIndex}
+                aria-label={`${candidate.label} ${candidate.description ?? candidate.kind}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectContext(candidate)}
+                style={{
+                  border: 'none', borderRadius: 8, padding: '9px 10px', textAlign: 'left', cursor: 'pointer',
+                  background: index === contextIndex ? 'var(--color-surface-elevated)' : 'transparent',
+                  color: 'var(--color-text-primary)', display: 'grid', gap: 2,
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 650 }}>{candidate.label}</span>
+                <span style={{ fontSize: 10.5, color: 'var(--color-text-secondary)' }}>{candidate.description ?? candidate.kind}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <textarea
           ref={ref}
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={e => { onChange(e.target.value); trackContextQuery(e.target.value) }}
           onKeyDown={handleKey}
           onFocus={() => setComposerFocused(true)}
           onBlur={() => setComposerFocused(false)}
