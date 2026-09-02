@@ -139,6 +139,7 @@ async function installHermeticStubs(
     }
     if (path === '/inbox/triaged') return json(route, { entries: [] })
     if (path === '/projects') return json(route, { projects: [] })
+    if (path === '/artifacts') return json(route, { artifacts: [] })
     if (path === '/projects/next-steps') return json(route, [])
     if (path === '/context/project') return json(route, { project: null })
     if (path === '/deadlines') return json(route, { deadlines: [] })
