@@ -79,6 +79,26 @@ type StudioCharacter = {
   references: CharacterRef[]
 }
 
+type StudioRecipe = {
+  recipe_id: string
+  display_name: string
+  provider: string
+  quality_tier: string
+  operation: string
+  supports_img2img: boolean
+  supports_characters: boolean
+  max_characters: number
+  is_available: boolean
+}
+
+type CompareCandidate = {
+  jobId: string
+  filename: string
+  ordinal: number
+  routingReason: string | null
+  batchId: string
+}
+
 type RefQuality = {
   has_blockers: boolean
   has_warnings: boolean
@@ -103,6 +123,18 @@ function humanError(error: unknown): string {
     return text.replace(/^\s*\{"detail":\s*"?/, '').replace(/"?\}\s*$/, '')
   }
   return 'Image Lab could not complete that request.'
+}
+
+function anchorArtifactFromSession(session: any): string | null {
+  const anchorJobId = typeof session?.anchor_job_id === 'string' ? session.anchor_job_id : null
+  if (anchorJobId && Array.isArray(session?.jobs)) {
+    const anchorJob = session.jobs.find((job: any) => job?.job_id === anchorJobId)
+    if (typeof anchorJob?.canonical_artifact_id === 'string' && anchorJob.canonical_artifact_id) {
+      return anchorJob.canonical_artifact_id
+    }
+  }
+  const stored = session?.anchor_artifact_id
+  return typeof stored === 'string' && stored.startsWith('artifact_') ? stored : null
 }
 
 function money(value: number): string {
@@ -230,14 +262,21 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const [count, setCount] = useState<OutputCount>(1)
   const [estimate, setEstimate] = useState<EstimatePayload | null>(null)
   const [estimateLoading, setEstimateLoading] = useState(false)
+  const [recipes, setRecipes] = useState<StudioRecipe[]>([])
+  const [recipesError, setRecipesError] = useState<string | null>(null)
+  const [selectedRecipeId, setSelectedRecipeId] = useState('')
   const [turns, setTurns] = useState<Turn[]>([])
   const [batches, setBatches] = useState<ImageBatch[]>([])
   const [anchorJobId, setAnchorJobId] = useState<string | null>(null)
+  const [anchorArtifactId, setAnchorArtifactId] = useState<string | null>(null)
+  const [sourceUploading, setSourceUploading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sessionRestoreError, setSessionRestoreError] = useState<string | null>(null)
   const [restoreEpoch, setRestoreEpoch] = useState(0)
   const [batchPollErrors, setBatchPollErrors] = useState<Record<string, string>>({})
+  const [compareJobIds, setCompareJobIds] = useState<string[]>([])
+  const [compareOpen, setCompareOpen] = useState(false)
   const estimateAbort = useRef<AbortController | null>(null)
 
   const { characters, loading: charactersLoading, error: charactersError, fetchCharacters, createCharacter, uploadReference } = useStudioCharacters()
@@ -249,8 +288,9 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const [charUploading, setCharUploading] = useState(false)
   const [refQuality, setRefQuality] = useState<RefQuality | null>(null)
 
-  const enginesAvailable = status.data?.available === true
-    || (status.data?.engines ?? []).some(engine => engine.available)
+  const enginesAvailable = anchorJobId
+    ? (status.data?.edit_available ?? status.data?.available) === true
+    : status.data?.available === true
   // "no engine is online" on its own leaves the user with nothing to do. The
   // gateway already knows why each engine is down; carry that through instead
   // of dropping it.
@@ -264,6 +304,24 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const activeBatches = useMemo(
     () => batches.filter(batch => batch.status === 'queued' || batch.status === 'running'),
     [batches],
+  )
+
+  const compareCandidates = useMemo<CompareCandidate[]>(() => (
+    batches.flatMap(batch => batch.items.flatMap(item => (
+      item.status === 'succeeded' && item.job_id && item.result?.filename
+        ? [{
+            jobId: item.job_id,
+            filename: item.result.filename,
+            ordinal: item.ordinal,
+            routingReason: item.result.routing_reason ?? null,
+            batchId: batch.batch_id,
+          }]
+        : []
+    )))
+  ), [batches])
+  const selectedCompareCandidates = useMemo(
+    () => compareCandidates.filter(candidate => compareJobIds.includes(candidate.jobId)),
+    [compareCandidates, compareJobIds],
   )
 
   const appendTurn = useCallback((turn: Omit<Turn, 'id'>) => {
@@ -316,6 +374,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         setSessionId(session.session_id)
         setSessionRestoreError(null)
         setAnchorJobId(session.anchor_job_id ?? null)
+        setAnchorArtifactId(anchorArtifactFromSession(session))
         setBoundCharacterId(typeof session.character_id === 'string' ? session.character_id : null)
         const restoredTurns = Array.isArray(session.turns)
           ? session.turns
@@ -342,6 +401,21 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   }, [characters, charactersLoading, boundCharacterId, selectedCharacter?.character_id])
 
   useEffect(() => {
+    let cancelled = false
+    void fetch('/proxy/studio/recipes')
+      .then(jsonOrError)
+      .then(payload => {
+        if (cancelled) return
+        setRecipes(Array.isArray(payload.recipes) ? payload.recipes as StudioRecipe[] : [])
+        setRecipesError(null)
+      })
+      .catch(error => {
+        if (!cancelled) setRecipesError(humanError(error))
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
     estimateAbort.current?.abort()
     const controller = new AbortController()
     estimateAbort.current = controller
@@ -349,7 +423,12 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     void fetch('/proxy/studio/estimate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quality, identity, count, character_id: boundCharacterId ?? selectedCharacter?.character_id ?? undefined }),
+      body: JSON.stringify({
+        quality, identity, count,
+        operation: anchorJobId ? 'img2img' : 'txt2img',
+        recipe_id: selectedRecipeId || undefined,
+        character_id: boundCharacterId ?? selectedCharacter?.character_id ?? undefined,
+      }),
       signal: controller.signal,
     })
       .then(jsonOrError)
@@ -363,7 +442,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         if (!controller.signal.aborted) setEstimateLoading(false)
       })
     return () => controller.abort()
-  }, [quality, identity, count, boundCharacterId, selectedCharacter?.character_id])
+  }, [quality, identity, count, selectedRecipeId, anchorJobId, boundCharacterId, selectedCharacter?.character_id])
 
   useEffect(() => {
     if (activeBatches.length === 0) return
@@ -400,7 +479,10 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
       setTurns([])
       setBatches([])
       setBatchPollErrors({})
+      setCompareJobIds([])
+      setCompareOpen(false)
       setAnchorJobId(null)
+      setAnchorArtifactId(null)
       setBoundCharacterId(null)
     } catch (error) {
       setError(humanError(error))
@@ -488,7 +570,10 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
       const decision = await jsonOrError(await fetch('/proxy/studio/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: activeSession, request: text }),
+        body: JSON.stringify({
+          session_id: activeSession, request: text,
+          recipe_id: selectedRecipeId || estimate?.recipe_id || undefined,
+        }),
       })) as AgentDecision
 
       if (decision.action === 'clarify' || decision.action === 'cancel' || !decision.plan_id) {
@@ -512,6 +597,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
           session_id: activeSession,
           quality,
           identity,
+          recipe_id: selectedRecipeId || undefined,
           character_id: boundCharacterId ?? selectedCharacter?.character_id ?? undefined,
           count,
         }),
@@ -542,6 +628,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         body: JSON.stringify({ job_id: jobId }),
       }))
       setAnchorJobId(session.anchor_job_id ?? jobId)
+      setAnchorArtifactId(anchorArtifactFromSession(session))
     } catch (err) {
       setError(humanError(err))
     }
@@ -554,9 +641,44 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         method: 'DELETE',
       }))
       setAnchorJobId(session.anchor_job_id ?? null)
+      setAnchorArtifactId(null)
     } catch (err) {
       setError(humanError(err))
     }
+  }
+
+  async function uploadSourceImage(file: File | null | undefined) {
+    if (!file || sourceUploading) return
+    setSourceUploading(true)
+    setError(null)
+    try {
+      const activeSession = await ensureSession()
+      const form = new FormData()
+      form.append('file', file)
+      const payload = await jsonOrError(await fetch(
+        `/proxy/studio/sessions/${encodeURIComponent(activeSession)}/source-image`,
+        { method: 'POST', body: form },
+      ))
+      const updatedSession = payload.session ?? {}
+      setAnchorJobId(updatedSession.anchor_job_id ?? payload.job?.job_id ?? null)
+      setAnchorArtifactId(
+        updatedSession.anchor_artifact_id
+        ?? payload.artifact?.id
+        ?? payload.job?.canonical_artifact_id
+        ?? null,
+      )
+      if (payload.quality) setRefQuality(payload.quality as RefQuality)
+    } catch (err) {
+      setError(humanError(err))
+    } finally {
+      setSourceUploading(false)
+    }
+  }
+
+  function toggleCompare(jobId: string) {
+    setCompareJobIds(previous => previous.includes(jobId)
+      ? previous.filter(id => id !== jobId)
+      : [...previous, jobId].slice(-4))
   }
 
   const estimateText = (() => {
@@ -801,10 +923,48 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                 )}
               </div>
 
+              <div
+                data-testid="image-source-dropzone"
+                onDragOver={event => event.preventDefault()}
+                onDrop={event => {
+                  event.preventDefault()
+                  void uploadSourceImage(event.dataTransfer.files?.[0])
+                }}
+                style={sourceDropStyle}
+              >
+                <Upload size={20} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <strong style={referenceNameStyle}>{sourceUploading ? 'Importing source image…' : 'Drop an image here to edit it'}</strong>
+                  <div style={supportingTextStyle}>PNG, JPEG, or WebP · stored as a durable Image Lab source.</div>
+                </div>
+                <label style={{ ...secondaryButtonStyle, cursor: sourceUploading ? 'wait' : 'pointer' }}>
+                  <span>{anchorJobId ? 'Replace source' : 'Choose image'}</span>
+                  <input
+                    aria-label="Upload source image"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    disabled={sourceUploading}
+                    onChange={event => {
+                      const file = event.target.files?.[0]
+                      event.target.value = ''
+                      void uploadSourceImage(file)
+                    }}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
+
               {anchorJobId && (
                 <div data-testid="image-lab-anchor" style={anchorStyle}>
-                  <div>
-                    <strong style={referenceNameStyle}>Selected result is the edit source</strong>
+                  {anchorArtifactId && (
+                    <img
+                      src={`/proxy/artifacts/${encodeURIComponent(anchorArtifactId)}/content`}
+                      alt="Selected edit source"
+                      style={sourcePreviewStyle}
+                    />
+                  )}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <strong style={referenceNameStyle}>Selected image is the edit source</strong>
                     <div style={supportingTextStyle}>Your next change will build from this real artifact.</div>
                   </div>
                   <button type="button" aria-label="clear selected image" onClick={() => void clearAnchor()} style={quietIconButtonStyle}>
@@ -887,6 +1047,26 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                     >{value}</button>
                   ))}
                 </div>
+                <select
+                  aria-label="generation route"
+                  value={selectedRecipeId}
+                  onChange={event => setSelectedRecipeId(event.target.value)}
+                  style={selectStyle}
+                >
+                  <option value="">Auto route</option>
+                  {recipes.map(recipe => {
+                    const editIncompatible = Boolean(anchorJobId) && !recipe.supports_img2img
+                    const createIncompatible = !anchorJobId && recipe.operation === 'img2img'
+                    const runtimeEngine = (status.data?.engines ?? []).find(engine => engine.name === recipe.provider)
+                    const runtimeUnavailable = runtimeEngine?.available === false
+                    const disabled = !recipe.is_available || runtimeUnavailable || editIncompatible || createIncompatible
+                    const suffix = (!recipe.is_available || runtimeUnavailable)
+                      ? ' — unavailable'
+                      : editIncompatible ? ' — no img2img'
+                        : createIncompatible ? ' — edit only' : ''
+                    return <option key={recipe.recipe_id} value={recipe.recipe_id} disabled={disabled}>{recipe.display_name}{suffix}</option>
+                  })}
+                </select>
                 <select aria-label="quality" value={quality} onChange={event => setQuality(event.target.value as QualityTier)} style={selectStyle}>
                   <option value="fast">Fast</option>
                   <option value="quality">Quality</option>
@@ -898,6 +1078,50 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                   <option value="identity_first">Identity first</option>
                 </select>
               </div>
+
+              <div data-testid="image-lab-preflight" style={{ ...preflightStyle, ...(compact ? { gridTemplateColumns: '1fr 1fr' } : {}) }}>
+                <div style={preflightFactStyle}>
+                  <span style={preflightLabelStyle}>Mode</span>
+                  <strong style={preflightValueStyle}>{anchorJobId ? 'Edit image' : 'Create image'}</strong>
+                  <span style={preflightMetaStyle}>{anchorJobId ? `source ${anchorJobId}` : 'text to image'}</span>
+                </div>
+                <div style={preflightFactStyle}>
+                  <span style={preflightLabelStyle}>Route</span>
+                  <strong style={preflightValueStyle}>{estimate?.provider ?? (estimateLoading ? 'Choosing…' : 'Unknown')}</strong>
+                  <span style={preflightMetaStyle}>{estimate?.model_id ?? 'model not known yet'}</span>
+                </div>
+                <div style={preflightFactStyle}>
+                  <span style={preflightLabelStyle}>Recipe</span>
+                  <strong style={preflightValueStyle}>{estimate?.recipe_id ?? (estimateLoading ? 'Choosing…' : 'Unknown')}</strong>
+                  <span style={preflightMetaStyle}>{quality[0].toUpperCase() + quality.slice(1)} quality</span>
+                </div>
+                <div style={preflightFactStyle}>
+                  <span style={preflightLabelStyle}>Per image</span>
+                  <strong style={preflightValueStyle}>
+                    {estimate?.per_image_estimate.cost.state === 'known' && typeof estimate.per_image_estimate.cost.usd === 'number'
+                      ? money(estimate.per_image_estimate.cost.usd)
+                      : 'Cost unknown'}
+                  </strong>
+                  <span style={preflightMetaStyle}>
+                    {estimate?.per_image_estimate.duration.state === 'known' && typeof estimate.per_image_estimate.duration.seconds === 'number'
+                      ? duration(estimate.per_image_estimate.duration.seconds)
+                      : 'time unknown'}
+                  </span>
+                </div>
+                <div style={preflightFactStyle}>
+                  <span style={preflightLabelStyle}>Identity</span>
+                  <strong style={preflightValueStyle}>{identity === 'identity_first' ? 'Identity first' : identity[0].toUpperCase() + identity.slice(1)}</strong>
+                  <span style={preflightMetaStyle}>{selectedCharacter?.name ?? 'No character bound'}</span>
+                </div>
+                {estimate?.routing_reason && (
+                  <div style={{ ...preflightReasonStyle, gridColumn: '1 / -1' }}>
+                    <span style={preflightLabelStyle}>Why this route</span>
+                    <span>{estimate.routing_reason}</span>
+                  </div>
+                )}
+              </div>
+
+              {recipesError && <div role="status" style={supportingTextStyle}>Route list unavailable: {recipesError}. Auto routing still works.</div>}
 
               <div style={{ ...actionRowStyle, ...(compact ? { alignItems: 'stretch' } : {}) }}>
                 <span data-testid="image-lab-estimate" style={estimateStyle}>{estimateText}</span>
@@ -933,7 +1157,23 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                 <h2 style={sectionTitleStyle}>Results</h2>
                 <p style={sectionDescriptionStyle}>Completed images stay large and usable; in-progress items keep their real state.</p>
               </div>
-              <span style={countStyle}>{completedCount} complete</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {compareJobIds.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label={`Compare ${compareJobIds.length} selected`}
+                      disabled={compareJobIds.length < 2}
+                      onClick={() => setCompareOpen(true)}
+                      style={{ ...secondaryButtonStyle, opacity: compareJobIds.length < 2 ? 0.5 : 1 }}
+                    >
+                      Compare {compareJobIds.length} selected
+                    </button>
+                    <button type="button" onClick={() => setCompareJobIds([])} style={quietCompareButtonStyle}>Clear</button>
+                  </>
+                )}
+                <span style={countStyle}>{completedCount} complete</span>
+              </div>
             </div>
 
             {batches.length === 0 ? (
@@ -977,6 +1217,15 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                               />
                               {item.job_id && (
                                 <>
+                                  <button
+                                    type="button"
+                                    aria-label={`Select generated image ${item.ordinal + 1} for comparison`}
+                                    aria-pressed={compareJobIds.includes(item.job_id)}
+                                    onClick={() => toggleCompare(item.job_id as string)}
+                                    style={{ ...secondaryButtonStyle, ...(compareJobIds.includes(item.job_id) ? selectedCompareButtonStyle : {}) }}
+                                  >
+                                    {compareJobIds.includes(item.job_id) ? 'Selected for compare' : 'Compare'}
+                                  </button>
                                   <button type="button" onClick={() => void useThis(item.job_id as string)} style={secondaryButtonStyle}>
                                     Use as edit source
                                   </button>
@@ -1051,9 +1300,73 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
           </section>
         </div>
       </div>
+      {compareOpen && selectedCompareCandidates.length >= 2 && (
+        <CompareDialog
+          candidates={selectedCompareCandidates}
+          onClose={() => setCompareOpen(false)}
+        />
+      )}
     </section>
   )
 }
+
+function CompareDialog({ candidates, onClose }: { candidates: CompareCandidate[]; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div style={compareBackdropStyle} onMouseDown={event => { if (event.currentTarget === event.target) onClose() }}>
+      <section role="dialog" aria-modal="true" aria-label="Compare generated images" style={compareDialogStyle}>
+        <div style={compareHeaderStyle}>
+          <div>
+            <div style={preflightLabelStyle}>candidate comparison</div>
+            <h2 style={{ ...sectionTitleStyle, fontSize: 22 }}>Compare generated images</h2>
+          </div>
+          <button type="button" aria-label="Close comparison" onClick={onClose} style={quietIconButtonStyle}><X size={18} /></button>
+        </div>
+        <div style={{ ...compareGridStyle, gridTemplateColumns: candidates.length > 2 ? 'repeat(2, minmax(0, 1fr))' : `repeat(${candidates.length}, minmax(0, 1fr))` }}>
+          {candidates.map((candidate, index) => (
+            <article key={candidate.jobId} style={compareCardStyle}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/proxy/image/view/${encodeURIComponent(candidate.filename)}`}
+                alt={`Comparison image ${index + 1}`}
+                style={compareImageStyle}
+              />
+              <div style={compareMetaStyle}>
+                <strong>{candidate.jobId}</strong>
+                <span>{candidate.routingReason ?? 'route not reported'}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+const preflightStyle: CSSProperties = {
+  display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 8,
+  padding: 10, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)',
+  background: 'var(--color-surface-elevated)', minWidth: 0,
+}
+const preflightFactStyle: CSSProperties = { minWidth: 0, display: 'grid', gap: 2, padding: '6px 8px' }
+const preflightLabelStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }
+const preflightValueStyle: CSSProperties = { fontSize: 13, color: 'var(--color-text-primary)', overflowWrap: 'anywhere' }
+const preflightMetaStyle: CSSProperties = { fontSize: 10.5, color: 'var(--color-text-secondary)', overflowWrap: 'anywhere' }
+const preflightReasonStyle: CSSProperties = { display: 'flex', gap: 8, alignItems: 'baseline', padding: '7px 8px 2px', fontSize: 11, color: 'var(--color-text-secondary)', borderTop: '1px solid var(--color-separator)' }
+const selectedCompareButtonStyle: CSSProperties = { background: 'var(--color-selected)', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }
+const quietCompareButtonStyle: CSSProperties = { minHeight: 40, border: 0, background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: '6px 8px', fontSize: 12 }
+const compareBackdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1350, background: 'rgba(0,0,0,.72)', display: 'grid', placeItems: 'center', padding: 18 }
+const compareDialogStyle: CSSProperties = { width: 'min(1100px, 96vw)', maxHeight: '92vh', overflow: 'auto', display: 'grid', gap: 14, padding: 16, border: '1px solid var(--color-separator)', borderRadius: 14, background: 'var(--color-canvas)', boxShadow: 'var(--shadow)' }
+const compareHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }
+const compareGridStyle: CSSProperties = { display: 'grid', gap: 12, minWidth: 0 }
+const compareCardStyle: CSSProperties = { display: 'grid', gap: 8, minWidth: 0, padding: 10, border: '1px solid var(--color-separator)', borderRadius: 10, background: 'var(--color-surface)' }
+const compareImageStyle: CSSProperties = { display: 'block', width: '100%', height: 'min(62vh, 620px)', objectFit: 'contain', borderRadius: 8, background: 'var(--color-surface-elevated)' }
+const compareMetaStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-secondary)' }
 
 const shellStyle: CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 'var(--s-4)', width: '100%', minHeight: '100%', minWidth: 0,
@@ -1164,6 +1477,17 @@ const fileLabelStyle: CSSProperties = {
   minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, border: '1px dashed var(--color-separator)', borderRadius: 'var(--r-control)',
   padding: '9px 11px', fontSize: 13, color: 'var(--color-text-secondary)', cursor: 'pointer', minWidth: 0,
 }
+const sourceDropStyle: CSSProperties = {
+  minHeight: 76, display: 'flex', alignItems: 'center', gap: 12, padding: '12px',
+  border: '1px dashed var(--color-separator)', borderRadius: 'var(--r-control)',
+  background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', minWidth: 0,
+}
+
+const sourcePreviewStyle: CSSProperties = {
+  width: 72, height: 72, objectFit: 'cover', borderRadius: 'var(--r-control)',
+  border: '1px solid var(--color-separator)', flexShrink: 0,
+}
+
 const anchorStyle: CSSProperties = {
   minHeight: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px',
   borderRadius: 'var(--r-control)', background: 'var(--color-selected)', border: '1px solid var(--color-separator)', minWidth: 0,

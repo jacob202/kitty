@@ -63,6 +63,7 @@ class Recipe:
             "execution_target": self.execution_target,
             "quality_tier": self.quality_tier,
             "operation": self.operation,
+            "supports_img2img": self.supports_img2img,
             "supports_characters": self.supports_characters,
             "max_characters": self.max_characters,
             "supports_pose_refs": self.supports_pose_refs,
@@ -99,7 +100,7 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "max_width": 1024,
         "max_height": 1024,
         "supported_aspects": ["1:1", "3:2", "2:3", "16:9"],
-        "supports_img2img": True,
+        "supports_img2img": False,
         "supports_variation": True,
         "is_available": False,
         "priority": 10,
@@ -118,7 +119,7 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "max_width": 1920,
         "max_height": 1920,
         "supported_aspects": ["1:1", "3:2", "2:3", "16:9", "9:16"],
-        "supports_img2img": True,
+        "supports_img2img": False,
         "supports_characters": True,
         "max_characters": 1,
         "supports_pose_refs": True,
@@ -144,7 +145,7 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "default_height": 1024,
         "max_width": 1920,
         "max_height": 1920,
-        "supports_img2img": True,
+        "supports_img2img": False,
         "supports_characters": True,
         "max_characters": 1,
         "supports_variation": True,
@@ -169,6 +170,51 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "supports_variation": True,
         "is_available": False,
         "priority": 5,
+    },
+    {
+        "recipe_id": "kitty_worker_img2img",
+        "display_name": "Kitty Image Worker (edit)",
+        "description": "Private authenticated Image Lab worker for source-image edits.",
+        "provider": "kitty_worker",
+        "model_family": "kitty-image-worker",
+        "operation": "img2img",
+        "quality_tier": "quality",
+        "expected_speed": "remote worker",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 2048,
+        "max_height": 2048,
+        "supported_aspects": ["1:1", "3:2", "2:3", "16:9", "9:16"],
+        "supports_img2img": True,
+        "supports_characters": True,
+        "max_characters": 1,
+        "identity_strength": 90,
+        "license_notes": "Kitty-controlled authenticated worker using the image_to_image_v1 workflow.",
+        "is_available": False,
+        "priority": 45,
+    },
+    {
+        "recipe_id": "openai_gpt_image_2",
+        "display_name": "GPT-Image-2 (OpenAI)",
+        "description": "OpenAI's current high-fidelity image generation and editing model.",
+        "provider": "openai",
+        "model_family": "gpt-image-2",
+        "quality_tier": "quality",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1536,
+        "max_height": 1536,
+        "supported_aspects": ["1:1", "3:2", "2:3"],
+        "supports_img2img": True,
+        "supports_characters": True,
+        "max_characters": 1,
+        "supports_style_refs": True,
+        "supports_variation": True,
+        "identity_strength": 92,
+        "license_notes": "GPT-Image-2 via OpenAI Images API; hosted paid usage.",
+        "is_available": False,
+        "priority": 50,
     },
     {
         "recipe_id": "airforce_grok_imagine_2",
@@ -262,7 +308,17 @@ def _ensure_db() -> None:
 
 def _hosted_default_available(provider: str) -> bool | None:
     """Runtime availability for built-in hosted recipes we can preflight cheaply."""
-    if provider not in {"airforce", "fal"}:
+    if provider == "flux2":
+        from gateway.image_runner import flux2_images_available
+
+        available, _ = flux2_images_available()
+        return available
+    if provider == "kitty_worker":
+        from gateway.image_agent import edit_workflow_available
+        from gateway.runpod_worker import worker_is_configured
+
+        return worker_is_configured() and edit_workflow_available()
+    if provider not in {"airforce", "fal", "openai"}:
         return None
     from gateway.image_runner import hosted_image_configured
 
@@ -329,6 +385,15 @@ def seed_default_recipes() -> int:
             )
             if cur.rowcount > 0:
                 count += 1
+            if r["recipe_id"] in {
+                "comfyui_sd15_standard",
+                "comfyui_sdxl_standard",
+                "comfyui_pulid_sdxl",
+            }:
+                conn.execute(
+                    "UPDATE image_recipes SET supports_img2img = ?, updated_at = ? WHERE recipe_id = ?",
+                    (int(r.get("supports_img2img", False)), now, r["recipe_id"]),
+                )
             if r["recipe_id"] in {"bfl_flux2_draft", "bfl_flux2_pro"}:
                 # These are built-in capability facts, not user preferences.
                 # Reconcile existing databases that seeded the recipes before
@@ -395,32 +460,61 @@ def auto_route(
     identity_mode: str = "balanced",
     operation: str = "txt2img",
     preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
 ) -> RoutingDecision:
     """Select the best recipe for a generation request.
 
     Deterministic for the same input and database state.
     """
     recipes = list_recipes(available_only=True)
-    if not recipes:
-        raise RecipeError("no image recipes are available")
+    live_providers = (
+        {provider.strip().lower() for provider in available_providers}
+        if available_providers is not None
+        else None
+    )
 
     # If user prefers a specific recipe and it's available, capability
     # requirements still win over preference. A preferred one-character recipe
     # must never collapse a two-character intent into a single identity lane.
     if preferred_recipe:
-        try:
-            r = get_recipe(preferred_recipe)
-        except RecipeError:
-            r = None
-        if r is not None and r.is_available:
-            if has_character and (
-                not r.supports_characters or r.max_characters < character_count
-            ):
-                raise RecipeError(
-                    f"recipe {r.recipe_id!r} supports {r.max_characters} "
-                    f"character(s); requested {character_count}"
-                )
-            return RoutingDecision(r.recipe_id, r, "Selected by user preference")
+        r = get_recipe(preferred_recipe)
+        if not r.is_available:
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} is not available; refusing to reroute an explicit selection"
+            )
+        if live_providers is not None and r.provider not in live_providers:
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} provider {r.provider!r} is not currently available; "
+                "refusing to reroute an explicit selection"
+            )
+        if has_character and (
+            not r.supports_characters or r.max_characters < character_count
+        ):
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} supports {r.max_characters} "
+                f"character(s); requested {character_count}"
+            )
+        if operation == "img2img" and not r.supports_img2img:
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} does not support img2img"
+            )
+        if operation == "txt2img" and r.operation == "img2img":
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} does not support txt2img"
+            )
+        return RoutingDecision(r.recipe_id, r, "Selected by user preference")
+
+    if live_providers is not None:
+        recipes = [r for r in recipes if r.provider in live_providers]
+    if operation == "img2img":
+        recipes = [r for r in recipes if r.supports_img2img]
+    elif operation == "txt2img":
+        recipes = [r for r in recipes if r.operation != "img2img"]
+    if not recipes:
+        raise RecipeError(
+            f"no image recipes are available for operation {operation!r} "
+            "on currently available providers"
+        )
 
     # Identity-first: choose the strongest recipe that can truthfully carry the
     # full cast, not merely any recipe with character support.

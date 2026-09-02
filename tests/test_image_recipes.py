@@ -68,6 +68,36 @@ class TestRecipeRegistry:
         assert fal.provider == "fal"
         assert fal.supports_characters is True
 
+
+    def test_openai_gpt_image_2_recipe_is_config_gated_and_edit_capable(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_OPENAI_ENABLED", "1")
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        seed_default_recipes()
+        recipe = get_recipe("openai_gpt_image_2")
+        assert recipe.provider == "openai"
+        assert recipe.model_family == "gpt-image-2"
+        assert recipe.supports_img2img is True
+        assert recipe.supports_characters is True
+        assert recipe.is_available is True
+
+    def test_worker_edit_recipe_is_explicit_and_comfy_recipes_are_generation_only(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_WORKER_URL", "https://worker.invalid")
+        monkeypatch.setenv("KITTY_WORKER_BEARER_TOKEN", "t" * 48)
+        seed_default_recipes()
+        worker = get_recipe("kitty_worker_img2img")
+        assert worker.provider == "kitty_worker"
+        assert worker.operation == "img2img"
+        assert worker.supports_img2img is True
+        assert get_recipe("comfyui_sdxl_standard").supports_img2img is False
+        assert get_recipe("comfyui_pulid_sdxl").supports_img2img is False
+        assert get_recipe("comfyui_sd15_standard").supports_img2img is False
+
+    def test_openai_recipe_stays_unavailable_without_key(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_OPENAI_ENABLED", "1")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        seed_default_recipes()
+        assert get_recipe("openai_gpt_image_2").is_available is False
+
     def test_list_available_only(self, override_db):
         seed_default_recipes()
         recipes = list_recipes(available_only=True)
@@ -114,6 +144,12 @@ class TestAutoRouting:
         decision = auto_route(preferred_recipe="comfyui_sd15_standard")
         assert decision.recipe_id == "comfyui_sd15_standard"
         assert "user preference" in decision.reason.lower()
+
+    def test_explicit_unavailable_recipe_fails_instead_of_rerouting(self, override_db):
+        seed_default_recipes()
+        set_recipe_available("openai_gpt_image_2", False)
+        with pytest.raises(RecipeError, match="not available"):
+            auto_route(preferred_recipe="openai_gpt_image_2")
 
     def test_fast_tier(self, override_db):
         seed_default_recipes()
@@ -164,6 +200,19 @@ class TestAutoRouting:
 
 
 
+    def test_flux2_recipes_follow_runtime_paid_provider_readiness(self, override_db, monkeypatch):
+        monkeypatch.delenv("KITTY_IMAGE_PAID_ENABLED", raising=False)
+        monkeypatch.delenv("BFL_API_KEY", raising=False)
+        seed_default_recipes()
+        assert get_recipe("bfl_flux2_draft").is_available is False
+        assert get_recipe("bfl_flux2_pro").is_available is False
+
+        monkeypatch.setenv("KITTY_IMAGE_PAID_ENABLED", "1")
+        monkeypatch.setenv("BFL_API_KEY", "test-key")
+        seed_default_recipes()
+        assert get_recipe("bfl_flux2_draft").is_available is True
+        assert get_recipe("bfl_flux2_pro").is_available is True
+
     def test_flux2_defaults_advertise_bounded_two_character_capability(self, override_db):
         seed_default_recipes()
         draft = get_recipe("bfl_flux2_draft")
@@ -194,7 +243,9 @@ class TestAutoRouting:
                 preferred_recipe="comfyui_sdxl_standard",
             )
 
-    def test_identity_first_respects_max_characters(self, override_db):
+    def test_identity_first_respects_max_characters(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_PAID_ENABLED", "1")
+        monkeypatch.setenv("BFL_API_KEY", "test-key")
         seed_default_recipes()
         decision = auto_route(
             has_character=True,
@@ -205,6 +256,40 @@ class TestAutoRouting:
         assert decision.recipe.supports_characters is True
         assert decision.recipe.max_characters >= 2
         assert decision.recipe.provider == "flux2"
+
+    def test_preferred_edit_only_recipe_is_rejected_for_text_to_image(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_WORKER_URL", "https://worker.invalid")
+        monkeypatch.setenv("KITTY_WORKER_BEARER_TOKEN", "t" * 48)
+        seed_default_recipes()
+        with pytest.raises(RecipeError, match="does not support txt2img"):
+            auto_route(
+                operation="txt2img",
+                preferred_recipe="kitty_worker_img2img",
+                available_providers={"kitty_worker"},
+            )
+
+    def test_img2img_auto_route_skips_text_only_recipes(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_WORKER_URL", "https://worker.invalid")
+        monkeypatch.setenv("KITTY_WORKER_BEARER_TOKEN", "t" * 48)
+        seed_default_recipes()
+        decision = auto_route(
+            operation="img2img", available_providers={"comfyui", "kitty_worker"}
+        )
+        assert decision.recipe is not None
+        assert decision.recipe.provider == "kitty_worker"
+        assert decision.recipe.supports_img2img is True
+
+    def test_auto_route_respects_live_provider_allowlist(self, override_db):
+        seed_default_recipes()
+        decision = auto_route(available_providers={"drawthings"})
+        assert decision.recipe is not None
+        assert decision.recipe.provider == "drawthings"
+
+        with pytest.raises(RecipeError, match="provider.*not currently available"):
+            auto_route(
+                preferred_recipe="comfyui_sdxl_standard",
+                available_providers={"drawthings"},
+            )
 
     def test_no_available_recipes_raises(self, override_db):
         seed_default_recipes()

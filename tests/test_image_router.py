@@ -32,10 +32,13 @@ async def test_image_status_reports_each_engine(monkeypatch):
     assert [engine["name"] for engine in result["engines"]] == [
         "comfyui",
         "drawthings",
+        "kitty_worker",
         "airforce",
         "flux",
+        "flux2",
         "fal",
         "openrouter",
+        "openai",
     ]
     by_name = {engine["name"]: engine for engine in result["engines"]}
     assert by_name["comfyui"]["available"] is True
@@ -44,11 +47,47 @@ async def test_image_status_reports_each_engine(monkeypatch):
     assert by_name["flux"]["available"] is False
     assert by_name["flux"]["unavailable_reason"]
     assert by_name["flux"]["cost_per_image_usd"] < by_name["openrouter"]["cost_per_image_usd"]
+    assert by_name["flux2"]["draft_cost_1mp_usd"] == pytest.approx(0.014)
+    assert by_name["flux2"]["final_cost_1mp_usd"] == pytest.approx(0.03)
     # PuLID is billed per output megapixel, rounded up. Kitty's default 1:1
     # square_hd output is 1024x1024 (>1 MP), so it incurs two billable MP.
     fal = by_name["fal"]
     assert fal["cost_per_megapixel_usd"] == pytest.approx(0.0333)
     assert fal["cost_per_image_usd"] == pytest.approx(0.0666)
+
+
+@pytest.mark.asyncio
+async def test_image_status_exposes_configured_kitty_worker(monkeypatch):
+    async def comfy_available():
+        return False
+
+    class Adapter:
+        def is_available(self):
+            return False
+
+    class DrawThings:
+        _adapter = Adapter()
+
+    monkeypatch.setattr("gateway.image_gen.is_available", comfy_available)
+    monkeypatch.setattr("mcp.imagen.engines.get", lambda name: DrawThings())
+    class WorkerClient:
+        async def assert_ready(self):
+            return {"status": "ok"}
+
+        async def aclose(self):
+            return None
+
+    monkeypatch.setattr("gateway.runpod_worker.worker_is_configured", lambda: True)
+    monkeypatch.setattr("gateway.image_agent.edit_workflow_available", lambda: True)
+    monkeypatch.setattr(
+        "gateway.runpod_worker.client_from_env", lambda **_kwargs: WorkerClient()
+    )
+
+    result = await extended.image_status()
+    by_name = {engine["name"]: engine for engine in result["engines"]}
+    assert by_name["kitty_worker"]["available"] is True
+    assert by_name["kitty_worker"]["supports_img2img"] is True
+    assert by_name["kitty_worker"]["unavailable_reason"] is None
 
 
 @pytest.mark.asyncio
@@ -73,7 +112,7 @@ async def test_offline_local_engines_say_what_to_do_next(monkeypatch):
 
     assert result["available"] is False
     by_name = {engine["name"]: engine for engine in result["engines"]}
-    for name in ("comfyui", "drawthings", "airforce", "flux", "fal", "openrouter"):
+    for name in ("comfyui", "drawthings", "kitty_worker", "airforce", "flux", "flux2", "fal", "openrouter", "openai"):
         assert by_name[name]["available"] is False
         assert by_name[name]["unavailable_reason"], f"{name} is offline without a reason"
     assert "Start ComfyUI" in by_name["comfyui"]["unavailable_reason"]

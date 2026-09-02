@@ -178,6 +178,20 @@ class TestGenerate:
         assert stored.original_prompt == "a portrait in golden-hour light"
         assert stored.guidance_tags == ["text_rendering"]
 
+    def test_user_preferred_recipe_overrides_model_recipe_choice(self):
+        s = sessions.create_session(title="generate")
+        image_recipes.set_recipe_available("openai_gpt_image_2", True)
+        decision = decide(
+            s.session_id,
+            "a portrait",
+            preferred_recipe="openai_gpt_image_2",
+            llm=_scripted(_generate_action(recipe_id="comfyui_sdxl_standard")),
+        )
+
+        assert decision.recipe_id == "openai_gpt_image_2"
+        stored = image_plan_store.require_approved_plan(decision.plan_id, s.session_id)
+        assert stored.recipe_id == "openai_gpt_image_2"
+
     def test_generate_records_the_turns_and_last_plan(self):
         s = sessions.create_session(title="generate")
         decision = decide(
@@ -262,6 +276,9 @@ class TestEditCapability:
     ):
         """A prompt-only reroll is not an edit — issue #336's explicit fail case."""
         monkeypatch.setattr(image_agent, "_WORKFLOWS_DIR", tmp_path / "workflows")
+        # Defense-in-depth case: even if a stale registry row still says the
+        # worker edit recipe is available, the missing workflow bundle must win.
+        image_recipes.set_recipe_available("kitty_worker_img2img", True)
         s = sessions.create_session(title="edit")
         sessions.set_anchor(s.session_id, _succeeded_job(s.session_id, tmp_path))
 
@@ -275,7 +292,37 @@ class TestEditCapability:
             }
         )
         with pytest.raises(CapabilityError, match="image_to_image_v1"):
-            decide(s.session_id, "broader build", llm=_scripted(raw))
+            decide(
+                s.session_id,
+                "broader build",
+                llm=_scripted(raw),
+                available_providers={"comfyui", "kitty_worker"},
+            )
+
+    def test_hosted_openai_edit_does_not_depend_on_local_worker_bundle(
+        self, tmp_path: Path, monkeypatch
+    ):
+        monkeypatch.setattr(image_agent, "_WORKFLOWS_DIR", tmp_path / "missing-workflows")
+        image_recipes.set_recipe_available("openai_gpt_image_2", True)
+        s = sessions.create_session(title="hosted edit")
+        anchor = _succeeded_job(s.session_id, tmp_path)
+        sessions.set_anchor(s.session_id, anchor)
+        raw = json.dumps({
+            "action": "edit",
+            "prompt": "keep the face, change only the jacket",
+            "summary": "Changing only the jacket.",
+            "protected_traits": ["face"],
+            "requested_changes": ["jacket"],
+        })
+
+        decision = decide(
+            s.session_id, "change the jacket",
+            preferred_recipe="openai_gpt_image_2", llm=_scripted(raw),
+        )
+
+        assert decision.action == "edit"
+        assert decision.recipe_id == "openai_gpt_image_2"
+        assert decision.anchor_job_id == anchor
 
     def test_edit_succeeds_once_the_workflow_bundle_exists(
         self, tmp_path: Path, monkeypatch
@@ -463,3 +510,24 @@ class TestRegistry:
         assert "registry" in context
         assert "available_guidance_tags" in context
         assert "a portrait" in context
+
+
+def test_route_recipe_passes_live_provider_allowlist(monkeypatch):
+    from gateway import image_agent, image_recipes
+
+    seen = {}
+    recipe = type("Recipe", (), {"provider": "openai", "supports_img2img": True})()
+    monkeypatch.setattr(
+        image_recipes,
+        "auto_route",
+        lambda **kwargs: seen.update(kwargs) or type(
+            "Decision", (), {"recipe": recipe, "recipe_id": "openai_gpt_image_2"}
+        )(),
+    )
+
+    image_agent._route_recipe(
+        has_character=False, preferred_recipe=None, operation="txt2img",
+        quality_tier="quality", identity_mode="balanced",
+        available_providers={"openai"},
+    )
+    assert seen["available_providers"] == {"openai"}

@@ -61,7 +61,7 @@ PRIVATE_EXECUTORS = frozenset({"kitty_worker"})
 #: additive and explicit so a new hosted integration is a deliberate review
 #: point, not an implicit backdoor.
 HOSTED_EXECUTORS = frozenset(
-    {"flux", "flux2", "openrouter", "bfl", "runware", "google", "fal", "airforce"}
+    {"flux", "flux2", "openrouter", "openai", "bfl", "runware", "google", "fal", "airforce"}
 )
 
 _VALID_LANES = frozenset(lane.value for lane in ContentLane)

@@ -322,6 +322,7 @@ def _route_recipe(
     operation: str,
     quality_tier: str,
     identity_mode: str,
+    available_providers: set[str] | None = None,
 ) -> Any:
     from gateway import image_recipes
 
@@ -333,6 +334,7 @@ def _route_recipe(
             identity_mode=identity_mode,
             operation=operation,
             preferred_recipe=preferred_recipe,
+            available_providers=available_providers,
         )
     except image_recipes.RecipeError as exc:
         raise CapabilityError(str(exc)) from exc
@@ -441,14 +443,16 @@ def _observe_anchor(session: Any) -> str:
 
 
 def _decide_generate(
-    payload: dict[str, Any], session: Any, budget: AgentBudget, rounds: int
+    payload: dict[str, Any], session: Any, budget: AgentBudget, rounds: int,
+    preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
 ) -> AgentDecision:
     _check_budget(session, budget, "generate")
 
     prompt = _require_text(payload, "prompt", "generate")
     summary = _require_text(payload, "summary", "generate")
     guidance_tags = _require_list(payload, "guidance_tags", "generate")
-    recipe_id = _optional_id(payload, "recipe_id", "generate")
+    recipe_id = preferred_recipe or _optional_id(payload, "recipe_id", "generate")
     character_id = _optional_id(payload, "character_id", "generate")
 
     if character_id is not None:
@@ -465,6 +469,7 @@ def _decide_generate(
         operation="txt2img",
         quality_tier="quality",
         identity_mode="balanced",
+        available_providers=available_providers,
     )
     stored = _build_and_persist_plan(
         session.session_id,
@@ -489,7 +494,9 @@ def _decide_generate(
 
 
 def _decide_edit(
-    payload: dict[str, Any], session: Any, budget: AgentBudget, rounds: int
+    payload: dict[str, Any], session: Any, budget: AgentBudget, rounds: int,
+    preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
 ) -> AgentDecision:
     _check_budget(session, budget, "edit")
 
@@ -498,7 +505,7 @@ def _decide_edit(
     guidance_tags = _require_list(payload, "guidance_tags", "edit")
     protected_traits = _require_list(payload, "protected_traits", "edit")
     requested_changes = _require_list(payload, "requested_changes", "edit")
-    recipe_id = _optional_id(payload, "recipe_id", "edit")
+    recipe_id = preferred_recipe or _optional_id(payload, "recipe_id", "edit")
     anchor_job_id = _optional_id(payload, "anchor_job_id", "edit")
 
     if not session.anchor_job_id:
@@ -514,20 +521,22 @@ def _decide_edit(
             f"{session.session_id!r} ({session.anchor_job_id!r})"
         )
 
-    if not edit_workflow_available():
-        raise CapabilityError(
-            f"no {EDIT_WORKFLOW_ID!r} workflow bundle is installed, so the "
-            "renderer cannot consume the selected image as an input; a "
-            "text-to-image reroll is not an edit"
-        )
-
     decision = _route_recipe(
         has_character=bool(session.character_id),
         preferred_recipe=recipe_id,
         operation="img2img",
         quality_tier="quality",
         identity_mode="balanced",
+        available_providers=available_providers,
     )
+    provider = str(getattr(decision.recipe, "provider", "") or "").strip().lower()
+    provider_handles_image_input = provider in {"openai", "openrouter", "flux", "flux2", "drawthings"}
+    if not provider_handles_image_input and not edit_workflow_available():
+        raise CapabilityError(
+            f"no {EDIT_WORKFLOW_ID!r} workflow bundle is installed, so the "
+            "selected local recipe cannot consume the image as input; a "
+            "text-to-image reroll is not an edit"
+        )
     stored = _build_and_persist_plan(
         session.session_id,
         prompt,
@@ -602,6 +611,8 @@ def decide(
     session_id: str,
     request: str,
     *,
+    preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
     budget: AgentBudget | None = None,
     llm: Callable[[list[dict[str, str]]], str] | None = None,
     max_rounds: int = MAX_ROUNDS,
@@ -646,7 +657,11 @@ def decide(
         action = payload["action"].strip()
 
         if action in _TERMINAL_ACTIONS:
-            decision = _finalize(payload, action, session, budget, round_index)
+            decision = _finalize(
+                payload, action, session, budget, round_index,
+                preferred_recipe=preferred_recipe,
+                available_providers=available_providers,
+            )
             decision.observations = observations
             _persist_decision(session_id, decision)
             return decision
@@ -680,11 +695,20 @@ def _finalize(
     session: Any,
     budget: AgentBudget,
     rounds: int,
+    *,
+    preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
 ) -> AgentDecision:
     if action == "generate":
-        return _decide_generate(payload, session, budget, rounds)
+        return _decide_generate(
+            payload, session, budget, rounds, preferred_recipe=preferred_recipe,
+            available_providers=available_providers,
+        )
     if action == "edit":
-        return _decide_edit(payload, session, budget, rounds)
+        return _decide_edit(
+            payload, session, budget, rounds, preferred_recipe=preferred_recipe,
+            available_providers=available_providers,
+        )
     if action == "cancel":
         reason = _require_text(payload, "reason", action)
         return AgentDecision(
