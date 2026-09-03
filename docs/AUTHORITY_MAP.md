@@ -14,6 +14,7 @@ report the contradiction rather than blending the claims.
 | `execution_frame` | `docs/ALIGNMENT_MAP.md` | Kitty/KittyBuilder layering, authority order, delivery phases, non-goals, and required architecture analysis | Live status or specific packet contents |
 | `free_execution_contract` | `docs/FREE_MODEL_PACKET_STANDARD.md` | What a packet must be for unattended free execution and deterministic acceptance | Packet priority or live readiness |
 | `architecture` | `docs/ARCHITECTURE.md` | Current runnable system shape and component boundaries | Durable decision history or roadmap priority |
+| `gateway_api` | `docs/reference/GATEWAY_API.md` | Stable Gateway HTTP schema discovery, authentication, native proxy, OpenAI-compatible, bounded tool, and client-integration boundaries; routes readers to generated OpenAPI/source for concrete operations | Domain business rules, live endpoint availability, or a handwritten endpoint inventory independent of generated schema |
 | `decisions` | `docs/DECISIONS.md` | Accepted decisions, amendments, supersession, and routing into `docs/adr/` | Live status or implementation sequencing |
 | `ratification` | `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` | Cross-cutting architectural adjudication of 12 decisions. Records exact authority sources, evidence, and merge conditions. | Numbered ADRs or routine decisions |
 | `roadmap` | `docs/ROADMAP.md` | The one active forward-looking sequence and phase exit criteria (ADR 0020; Ratification Decision 5). | Live Builder state or historical planning narrative |
