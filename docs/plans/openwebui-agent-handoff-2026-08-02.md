@@ -1,5 +1,7 @@
 # Open WebUI onboarding handoff — 2026-08-02
 
+> **Status: historical handoff, not current operating guidance.** All “current” and “verified” claims below are scoped to the 2026-08-02 session. For present authority and startup use `START_HERE.md`, `docs/AUTHORITY_MAP.md`, the root `README.md`, and live Git/Builder/GAR/runtime evidence. Native Kitty is now canonical; Open WebUI is optional compatibility, and legacy `.claude` checkpoints are fallback continuity rather than primary authority.
+
 **Purpose:** verified starting context for the next Claude Code or OpenCode session. This document is a handoff input, not a replacement for live inspection.
 
 ## Read first

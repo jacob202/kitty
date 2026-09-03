@@ -5,6 +5,11 @@ description: Run Kitty's Specialist Council MCP server (consult_council) from th
 
 # Skill: mcp-kitty-council
 
+> **Archived 2026-09-03.** Superseded by
+> [`agent-council`](../../agent-council/SKILL.md). The MCP server/orchestrator
+> files this procedure targeted were removed; do not use these historical
+> commands as current operating instructions.
+
 ## When to use
 
 - User mentions **MCP council**, **specialist council orchestrator**, or **`consult_council`**

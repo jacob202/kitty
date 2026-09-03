@@ -3,7 +3,7 @@
 The non-negotiable design disciplines for every surface, component, copy string,
 and chat-routable action in Kitty. Adopting these is what stops the "nine panels
 wearing the same CSS variables" problem. Adopted 2026-07-23 from
-`docs/AUDIT_COMPANION_LAYER_HARVEST_2026-07-23.md` and from agent dogfooding on
+`docs/archive/audits-2026-07/AUDIT_COMPANION_LAYER_HARVEST_2026-07-23.md` and from agent dogfooding on
 the live UI.
 
 ## The rules

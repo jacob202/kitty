@@ -196,9 +196,9 @@ def test_free_workers_doc_prices_the_real_cheap_pair():
     assert "about **CAD 1.97**" not in text
 
 
-@pytest.mark.parametrize("name", ["AGENTS.md", "CLAUDE.md", "CODEX.md"])
-def test_agent_guidance_records_reviewer_router_policy(name: str):
-    text = (Path(__file__).resolve().parents[1] / name).read_text().lower()
+def test_shared_agent_guidance_records_reviewer_router_policy():
+    root = Path(__file__).resolve().parents[1]
+    text = (root / "AGENTS.md").read_text().lower()
 
     assert "openrouter is the preferred router" in text
     assert "agentrouter is dead" in text
@@ -206,6 +206,14 @@ def test_agent_guidance_records_reviewer_router_policy(name: str):
     assert "9router" in text and "optional" in text
     assert "deepseek-v4-flash-0731" in text
     assert "do not" in text
+
+
+def test_provider_guides_delegate_reviewer_routing_to_shared_doctrine():
+    root = Path(__file__).resolve().parents[1]
+    for name in ("CLAUDE.md", "CODEX.md"):
+        text = " ".join((root / name).read_text().lower().split())
+        assert "agents.md" in text
+        assert "reviewer routing" in text
 
 
 def test_escalation_compacts_weak_trajectory_to_durable_artifacts():

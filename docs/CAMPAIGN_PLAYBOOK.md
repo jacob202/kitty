@@ -68,10 +68,28 @@ See `docs/packets/examples/prototype-gated-example.json` for a complete
 
 ## 5. Launch cheat-sheet — the four shapes
 
+Routes, model lanes, and cost policy live in `docs/FREE_WORKERS.md`; the
+command contract is `gateway/builder_cli.py`. `--free` and `--paid` are
+mutually exclusive, and `--paid` selects the governed paid route itself — it
+rejects `--worker-command`/`--review-command`/`--model`/`--provider`. A custom
+`--worker-command`/`--review-command` is a third option for neither lane.
+
 - **short / free** — `initiative run-packet <init> <packet> --free --watch`
-- **short / paid** — `initiative run-packet <init> <packet> --worker-command "<cmd>" --review-command "<cmd>" --watch`
-- **long / free** — `initiative run <init> --free --max-attempts 12` (prototype-gated if authored with one; auto-merges downstream per CP-06 unless `--gate manual`)
-- **long / paid** — same as long/free with explicit `--worker-command`/`--review-command`; use only after a free run legitimately exhausts (`docs/FREE_WORKERS.md` cost policy)
+- **short / paid** — `initiative run-packet <init> <packet> --paid --watch` (add `--tier frontier` for the frontier pair)
+- **long / free** — `initiative run <init> --free --max-attempts 12` (prototype-gated if authored with one)
+- **long / paid** — `initiative run <init> --paid --max-attempts 12`
+
+`initiative run-packet` and `initiative run` are **non-publishing (shadow)**
+unless `--publish` is present — no push, no PR, no merge. With `--publish`,
+`--gate auto` (the default) enables Builder's ADR 0018 / ADR 0021
+evidence-gated low-risk auto-merge; `--gate manual` parks each packet at
+`awaiting_review` for a human merge decision.
+
+That ADR auto-merge is a *capability*, distinct from the current
+`docs/ACTIVE_MISSION.md` standing constraint that Builder may not push, open a
+PR, or merge without Jacob's explicit approval. Neither is weakened here: the
+capability remains as the ADRs define it, and the mission constraint still
+gates publication until Jacob approves it.
 
 Full detail and negative tests: `docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md` §3.
 

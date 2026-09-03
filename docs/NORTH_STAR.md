@@ -14,9 +14,7 @@ usually gates: structure, memory, follow-through, and a patient second brain
 that shows up every single day and never bills him.
 
 Look at the actual projects in Kitty's own database: **Job search. Benefits.
-Furthering education.** That is the product roadmap. Everything in
-`docs/BLUEPRINT.md` — the resume loop, honest state, delegation — was
-scaffolding for *this*:
+Furthering education.** Those are the product outcomes Kitty exists to support. The historical `docs/BLUEPRINT.md` (now a compatibility pointer to its archived 2026-07 design) supplied the resume-loop, honest-state, and delegation ideas that were scaffolding for *this*:
 
 > Every morning, Kitty knows where Jacob's life stands and hands him one
 > concrete, doable next move. Not ten. One. With the why. And it remembers

@@ -35,6 +35,6 @@ and flat archived files remain as recorded by the manifests below.
 - `PLANS_2026-07-24.md` — superseded session tracker archived 2026-07-28 because it named obsolete roadmap and mission authorities.
 - `DISPOSITION_LEDGER_2026-08-08.md` — frozen planning-disposition snapshot; current activation no longer depends on universal ledger membership.
 - `KNOWLEDGE_GRAPH_2026-08-05.md` — frozen relationship-archaeology analysis; not current status or sequencing.
-- `ARCHIVE_MANIFEST_2026-09-03.md` — 2026-09-03 consolidation of frozen `docs/planning/`, `docs/recon/`, flat dated/orphan snapshots, superseded/unratified design families, and the stale `DOCUMENTATION_AUDIT`; load-bearing paths keep compatibility pointers; `TASKS.md` refused (tooling dependency) and packet-number collisions recorded as not touched.
+- `ARCHIVE_MANIFEST_2026-09-03.md` — 2026-09-03 consolidation of frozen planning/recon material, dated snapshots, superseded design families, the stale documentation audit, the old task ledger, Orca setup, and desktop Slice-1 runbook. Load-bearing paths keep compatibility pointers; packet-number collisions were deliberately not touched.
 
 Git history is the complete record for files removed or summarized during archival cleanup.

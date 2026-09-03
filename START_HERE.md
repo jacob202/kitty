@@ -59,14 +59,15 @@ live evidence; it does not duplicate current state.
 ## Canonical reading order
 
 <!-- kitty-reading-order:start -->
-1. [`docs/AUTHORITY_MAP.md`](docs/AUTHORITY_MAP.md)
-2. [`docs/NORTH_STAR.md`](docs/NORTH_STAR.md)
-3. [`AGENTS.md`](AGENTS.md)
-4. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-5. [`docs/DECISIONS.md`](docs/DECISIONS.md)
-6. [`docs/ROADMAP.md`](docs/ROADMAP.md)
-7. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
-8. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md)
+1. [`docs/AUTHORITY_MAP.md`](docs/AUTHORITY_MAP.md) — concern router
+2. [`docs/CONSTITUTION.md`](docs/CONSTITUTION.md) — highest design authority
+3. [`docs/NORTH_STAR.md`](docs/NORTH_STAR.md) — product purpose
+4. [`AGENTS.md`](AGENTS.md) — engineering doctrine
+5. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — current system shape
+6. [`docs/DECISIONS.md`](docs/DECISIONS.md) — accepted decisions
+7. [`docs/ROADMAP.md`](docs/ROADMAP.md) — active delivery order
+8. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — dated shipped evidence
+9. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md) — one approved mission
 <!-- kitty-reading-order:end -->
 
 `workspace_global` is the primary mutable cross-agent handoff and communication
@@ -78,6 +79,11 @@ override fresher room, Git, GitHub, Builder, or runtime evidence.
 `docs/reference/MULTI_AGENT_COORDINATION.md` is an operational coordination
 supplement, not another authority file. Its live issue is mutable campaign
 state and must be revalidated against current GitHub/Builder/Mac truth.
+
+`docs/reference/CONTEXT_ENGINEERING.md` provides staged-loading detail by task
+type (what to load for informational, planning, and code-change work). This
+file owns the cold-start receipt and the canonical reading order only; it does
+not duplicate the staged-load procedure.
 
 ## Minimal command set
 

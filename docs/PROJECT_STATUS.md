@@ -6,13 +6,9 @@ The full commit references above are standard 40-character SHA-1 object names. T
 
 This file is a dated evidence summary, not a live runtime dashboard. Use Git/GitHub for repository state, supported probes for local services, and Builder's supported database/API/CLI for execution state.
 
-## Current architecture
+## Architecture reference
 
-- Kitty Gateway is the product authority for conversation behavior, memory/context, projects, tools, Tutor, provider policy, and user-facing workflows.
-- **Product-surface authority is resolved:** accepted ADR 0039 and the 2026-08-23 Constitution amendment make the native `kitty-chat` frontend canonical. Open WebUI remains optional compatibility/reference software under ADR 0027/0033 safety boundaries.
-- The native `kitty-chat` surface is the supported product surface; live runtime state must still be verified rather than inferred from this dated status file.
-- KittyBuilder is the separate durable execution/control plane for accepted Missions, packets, workers, attempts, recovery, validation/review, budgets, and evidence.
-- Models and coding harnesses are replaceable workers; their narration is not execution truth.
+Current system shape and component boundaries live in `docs/ARCHITECTURE.md`; this dated status file does not restate or override them. Product-surface supersession is preserved in ADR 0039 and the Constitution amendment history.
 
 ## Authority correction
 
@@ -32,7 +28,7 @@ KPROOF-001 reached its 2026-08-18 deadline without a durable record satisfying t
 - **`main` at `d54fd896` was red on `lint` and `typecheck`** — both in `mcp/builder/context.py`, added by the KittyBuilder MCP bridge as a direct-to-`main` squash with no green check. Independently confirmed out of band, and fixed in #453 along with a third failure in `gateway/image_quality.py`. #453 also added `scripts/hooks/pre-push`, a local gate for exactly this class of failure.
 - Historical status text below this line may name older `main` SHAs; current repository truth must always be read from Git rather than inferred from this evidence summary.
 
-## Active work
+## Planning context captured 2026-09-03
 
 `docs/ACTIVE_MISSION.md` now records **KITTY-RECOVERY-001 — Kitty Recovery** as the running broad Mission, approved 2026-08-29. Its objective is to turn the partially connected subsystems into a coherent product Jacob voluntarily uses, with actionable primary surfaces and independent running-product acceptance. KPROOF-001 remains historical/superseded evidence and is not retroactively marked passed.
 

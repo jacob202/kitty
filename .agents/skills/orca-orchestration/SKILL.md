@@ -12,7 +12,7 @@ worktree handovers, phased/parallel work, or splitting changes into reviewable P
 
 - Orca running: `orca status --json` returns `runtime: true`
 - Kitty repo setup hook configured: `scripts/orca_worktree_setup.sh`
-- Approval tiers: T0 auto, T1 separate model review, T2 Jacob (see `docs/KITTYBUILDER_ORCA_SETUP.md`)
+- Approval/ownership rules: follow `AGENTS.md`; current Builder model/reviewer routing lives in `docs/FREE_WORKERS.md`. The Orca setup guide is historical only.
 
 ---
 
@@ -32,7 +32,7 @@ Branch: fix/chat-polish-v2
 Worktree: .worktrees/kittybuilder/kb_mrxxx
 Current state: 3 of 7 changes committed, lint clean, 2 tests failing (StatusBar flapping)
 Next step: fix StatusBar flapping — see gateway/kitty-chat/src/components/StatusBar.tsx:45
-Context file: docs/packets/KX-05-chat-polish.md section 3
+Context: cite the current packet/issue/room thread that actually owns the task; do not reuse a historical packet id
 CTX
 )" \
   --payload '{"branch":"fix/chat-polish-v2","head":"abc1234","tests":"2 failing / 19 total"}' \
@@ -176,21 +176,21 @@ Give each child agent its own worktree branch — parallel implementation, isola
 orca terminal create \
   --worktree "kittybuilder/c1-classifier" \
   --title "c1-worker" \
-  --command "opencode run -m openrouter/deepseek/deepseek-v4-flash ..." \
+  --command "<configured worker command from the current Builder/DSH routing contract>" \
   --json
 
 # Worker B: C2 context budget in branch feat/re-c2-budget
 orca terminal create \
   --worktree "kittybuilder/c2-budget" \
   --title "c2-worker" \
-  --command "opencode run -m openrouter/deepseek/deepseek-v4-flash ..." \
+  --command "<configured worker command from the current Builder/DSH routing contract>" \
   --json
 
 # Worker C: C5 receipts in branch feat/re-c5-receipts
 orca terminal create \
   --worktree "kittybuilder/c5-receipts" \
   --title "c5-worker" \
-  --command "opencode run -m openrouter/deepseek/deepseek-v4-flash ..." \
+  --command "<configured worker command from the current Builder/DSH routing contract>" \
   --json
 
 # 2. Create and dispatch tasks

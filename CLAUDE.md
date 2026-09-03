@@ -12,31 +12,10 @@ Start here: `START_HERE.md`.
 
 ## Cold-start bootloader
 
-Before relying on inherited context:
-
-1. Verify the canonical checkout and current worktree.
-2. Inspect `git status --short --branch`, HEAD, worktrees, and `origin/main`.
-3. Prove `workspace_global` access. Check Claude's unread inbox first; when a
-   handoff/current assignment supplies a durable message id, load that exact
-   `room_thread`. Use `room_recent` only for bounded shared situational context,
-   not as an assignment index. Acknowledge messages actually received.
-4. Choose the receipt from the continuation source:
-   - GAR has an unread handoff/known durable thread for this assignment: run
-     `./kitty context --agent --skip-legacy-continuity`;
-   - GAR is available but has no locator and the legacy checkpoint is needed as
-     the temporary fallback: run strict `./kitty context --agent` and use the
-     checkpoint only if validation succeeds;
-   - GAR is unavailable: report that and use strict `./kitty context --agent`.
-   A legacy-skipping receipt never validates a legacy fallback.
-5. Follow the receipt's reading order beginning with `docs/AUTHORITY_MAP.md`.
-6. Read `docs/ROADMAP.md` and `docs/ACTIVE_MISSION.md` when relevant.
-7. Treat `.claude/STATE.md` and `.claude/HANDOFF.md` as compatibility fallback,
-   not primary live continuity. Use them only through the strict validated
-   fallback above or when a compatibility tool explicitly requires them.
-8. Inspect Builder through supported read-only projections when Builder state is
-   relevant.
-9. Re-verify scope, execution ownership, evidence, and authorization before
-   mutation.
+`START_HERE.md` owns the cold-start procedure: checkout/worktree verification,
+live Git state, the context receipt (GAR `--skip-legacy-continuity` vs. strict
+legacy fallback), the authority reading order, and the final mutation gate. Run
+it before relying on inherited context instead of restating it here.
 
 ## Global Agent Room
 
@@ -68,31 +47,9 @@ mutation.
 
 ## Two execution lanes
 
-KittyBuilder and an interactive Claude Code session are not the same workflow.
-
-### KittyBuilder
-
-Builder owns approved initiatives, packets, queue state, leases, attempts,
-worker dispatch, validation, independent review, recovery, and publication
-evidence. It should progress through its approved queue under its own scheduler.
-It may use Claude Code, OpenCode, Codex, or shell adapters as replaceable worker
-backends, but those Builder-launched processes remain Builder-owned.
-
-### Interactive Claude Code
-
-A manually opened Claude Code session is an interactive engineering workspace
-for the assignment Jacob gave it: investigation, planning, implementation,
-review, recovery, or another named task. It may inspect Builder to understand
-state and avoid duplicate work. It does not consume Builder's queue unless:
-
-- Builder launched it with a valid packet bundle;
-- Jacob explicitly says `builder next`, `take the next Builder packet`, or names
-  a Builder task/packet; or
-- a supported ownership transfer and live lease assign that packet to it.
-
-Every implementation has exactly one execution owner: `interactive` or
-`builder`, never both. Reviewing Builder output does not transfer implementation
-ownership.
+Builder vs. interactive ownership is shared doctrine: `AGENTS.md` owns the
+Builder ownership rules and the single-owner lane contract. Claude-specific
+defaults follow.
 
 ## Execution defaults
 
@@ -115,13 +72,10 @@ ownership.
 
 ## Reviewer routing
 
-For merge-blocking, product-acceptance, or other independent review, reliability
-beats zero-cost routing. Outside explicit `--free` Builder work, use the governed
-paid OpenRouter reviewer directly with price-first provider routing and at most
-one clean different-model fallback. Preserve model-family independence: do not
-use DeepSeek to review a DeepSeek implementation when another configured paid
-reviewer is available. `--free` remains genuinely free and must never silently spend.
-OpenRouter is the preferred router for reviewer routing. AgentRouter is dead; do not recommend it. Freebuff and 9Router are optional only and must never be dependencies. Do not prefer `openrouter/deepseek/deepseek-v4-flash-0731` merely because it is newer; repeated runs observed it stalling.
+Reviewer routing is shared doctrine; `AGENTS.md` owns the OpenRouter
+price-first rule, the single clean different-model fallback, model-family
+independence, and the `--free` no-paid-fallback guarantee. Apply it for
+merge-blocking, product-acceptance, and other independent review.
 
 
 ## Auth and environment
@@ -239,30 +193,11 @@ Proceed with every unblocked part before asking.
 
 ## Non-negotiables
 
-1. Fail loud. No swallowed exceptions, fake defaults, or invented data.
-2. Verify before claiming. Unknown remains unknown. Never report a job as
-   launched, a count as ready, or a feature as working without executing that
-   exact path and showing its output. A count, a status, or an "N runs started"
-   claim needs a test that seeds a known state and asserts the exact number —
-   that is the precise shape of bug that has shipped here twice. Close every
-   report by separating what you observed running from what you inferred.
-3. Keep diffs focused; do not reformat unrelated code.
-4. Do not force-push, rewrite history, delete user data, touch secrets/auth/env,
-   spend money, or add heavy dependencies without explicit authorization.
-5. Builder's publication carve-out applies only to approved packets and the
-   accepted evidence/merge policies. Workers never receive GitHub credentials
-   or approve themselves.
-6. Auto-merge remains forbidden for dependency/lockfile/CI/auth/security/
-   destructive/schema/human-judgment work, collisions, unverifiable gates, or
-   scope expansion.
-7. Durable architecture decisions belong in ADRs; workflow lessons belong in
-   canonical docs/tests/skills when proven; workflow signals follow ADR 0025.
-8. `docs/ROADMAP.md` is the only active roadmap.
-9. Session-end uses `.agents/skills/session-end/SKILL.md` and never creates a
-   second backlog or silently schedules Builder work.
-10. KB effectiveness uses `scripts/kb_effectiveness.py`. A wiki write is not
-    proof of learning. Tokens, cost, quality, and time remain `null` unless
-    supported by evidence; cohort differences are observational, not causal.
+The shared engineering limits — fail loud, verify before claiming, focused
+diffs, no force-push/history-rewrite/secret/auth/env/irreversible actions, the
+Builder publication carve-out, auto-merge prohibitions, ADR/workflow-signal
+routing, and the session-end skill routing — are owned by `AGENTS.md`. Do not
+restate them; apply them.
 
 ## Continuity compatibility
 
@@ -341,7 +276,11 @@ If a command fails, report it exactly. Do not round up to passing.
 
 - "the gateway" → `gateway/`
 - "the chat thing" / "the UI" → `gateway/kitty-chat/`
-- "the agent" → `gateway/agent.py`
+- "the agent" → the autonomous agent subsystem, now split across
+  `gateway/agent_runner.py` (spawns/runs LLM-driven goal agents),
+  `gateway/agent_room_cli.py` (canonical global agent room CLI), and
+  `gateway/agent_workspace.py` (durable shared rooms); the former single-file
+  form is gone, so do not invent one
 - "the storage thing" → `gateway/storage_router.py` + `gateway/memory_graph.py`
 - "the routing thing" → `gateway/llm_client.py`
 - "the journal thing" → `gateway/journal.py` + `gateway/journal_store.py`
