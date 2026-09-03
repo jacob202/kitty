@@ -134,6 +134,13 @@ test('Agent Room lists every live participant by display name, including ones ad
   // A known participant must not fall back to its raw id.
   await expect(roster.getByText('commandcode', { exact: true })).toHaveCount(0);
 
+  // Header pill is derived too. It used to read "four registered agents"
+  // regardless of the response, contradicting the cards beside it. Five stub
+  // members here (4 registered + 1 retired) prove the count is computed.
+  const strip = page.locator('div[aria-label="Room state"]');
+  await expect(strip.getByText('5 agents · 4 registered · 1 retired', { exact: true })).toBeVisible();
+  await expect(strip.getByText(/four registered agents/i)).toHaveCount(0);
+
   await expect(page.getByRole('heading', { name: 'Room transcript', exact: true })).toBeVisible();
 
   const overflow = await page.evaluate(

@@ -105,6 +105,25 @@ describe('AgentWorkspacePanel global command center', () => {
     expect(screen.getByText('Direct · Command Code')).toBeInTheDocument()
   })
 
+  it('derives the header member count from the response instead of stating a fixed number', async () => {
+    // Six participants, one of them retired; the old pill claimed a fixed count
+    // regardless, contradicting the cards rendered beside it.
+    fetchGlobalAgentRoom.mockResolvedValue(globalRoom([], [
+      { id: 'chatgpt', display_name: 'ChatGPT', role: 'external', model: null, status: 'registered' },
+      { id: 'claude', display_name: 'Claude', role: 'external', model: null, status: 'retired' },
+      { id: 'codex', display_name: 'Codex', role: 'external', model: null, status: 'registered' },
+      { id: 'kitty', display_name: 'Kitty', role: 'principal', model: null, status: 'registered' },
+      { id: 'dsh', display_name: 'DSH', role: 'principal', model: null, status: 'registered' },
+      { id: 'commandcode', display_name: 'Command Code', role: 'external', model: null, status: 'registered' },
+    ]))
+
+    render(<AgentWorkspacePanel />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Global Agent Room' })).toBeInTheDocument())
+
+    expect(screen.getByText('6 agents · 5 registered · 1 retired')).toBeInTheDocument()
+    expect(screen.queryByText(/four registered agents/i)).not.toBeInTheDocument()
+  })
+
   it('labels each roster entry with the status the room actually reports', async () => {
     fetchGlobalAgentRoom.mockResolvedValue(globalRoom([], [
       { id: 'chatgpt', display_name: 'ChatGPT', role: 'external', model: null, status: 'registered' },

@@ -213,6 +213,17 @@ export function AgentWorkspacePanel() {
     )
   }
 
+  // Roster counts are derived from the live response rather than asserted in
+  // prose. The header pill used to state a fixed member count, which
+  // contradicted the roster cards as soon as any participant was added or
+  // retired — the same drift class this change removes everywhere else.
+  const statusCounts = new Map<string, number>()
+  for (const agent of room.agents) statusCounts.set(agent.status, (statusCounts.get(agent.status) ?? 0) + 1)
+  const statusParts = [...statusCounts.entries()].map(([status, count]) => `${count} ${status}`)
+  const rosterCounts = statusParts.length
+    ? `${room.agents.length} ${room.agents.length === 1 ? 'agent' : 'agents'} · ${statusParts.join(' · ')}`
+    : 'no registered agents'
+
   return (
     <div style={shellStyle}>
       <header style={headerStyle}>
@@ -223,7 +234,7 @@ export function AgentWorkspacePanel() {
         </div>
         <div style={truthStripStyle} aria-label="Room state">
           <span style={truthPillStyle}>durable room</span>
-          <span style={truthPillStyle}>four registered agents</span>
+          <span style={truthPillStyle}>{rosterCounts}</span>
           <span style={unreadPillStyle}>{unreadCount} unread</span>
         </div>
       </header>
@@ -349,9 +360,10 @@ export function AgentWorkspacePanel() {
 }
 
 /** Display name resolved against the live roster returned by the room API.
- *  There used to be a hardcoded CANONICAL_AGENTS copy here; it went stale every
- *  time a participant was added (it had already dropped DSH), so unknown senders
- *  fell back to raw ids. The room response is the only source of truth. */
+ *  This component previously kept its own hardcoded copy of the roster, which
+ *  went stale every time a participant was added (it had already dropped DSH),
+ *  so unknown senders fell back to raw ids. The room response is now the only
+ *  source of truth. */
 function displayName(id: string, agents: AgentWorkspaceAgent[]): string {
   if (id === 'jacob') return 'Jacob'
   return agents.find((agent) => agent.id === id)?.display_name ?? id
