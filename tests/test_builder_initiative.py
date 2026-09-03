@@ -1389,6 +1389,54 @@ class TestKbS1bAttemptExhaustion:
         blocked = bi.blocked_packets("kitty-alpha-v1", db_path=db_path)
         assert {b["packet_id"] for b in blocked} == {"KB-E2"}
 
+    def test_done_packet_no_longer_blocks_dependents_as_exhausted(self, db_path: Path):
+        first_task_id, second_task_id = self._apply_and_exhaust(
+            db_path, max_attempts=1
+        )
+        claimed = bq.claim_task(first_task_id, "worker", db_path=db_path)
+        bq.worker_transition_task(
+            first_task_id,
+            bq.RUNNING,
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.attach_final_report(
+            first_task_id,
+            {"outcome": "exited", "scope_violations": []},
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.transition_task(
+            first_task_id,
+            bq.BLOCKED,
+            payload={"reason": "shadow_run_complete"},
+            db_path=db_path,
+        )
+        bq.attach_pr(first_task_id, 785, db_path=db_path)
+        result = bq.detect_merged_prs(
+            db_path=db_path,
+            pr_merged=lambda _n: {
+                "merged": True,
+                "url": "u",
+                "head_sha": "h",
+                "checks_state": "passed",
+                "review_state": "approved",
+            },
+        )
+        assert result["promoted"] == [first_task_id]
+        assert bq.get_task(first_task_id, db_path=db_path)["state"] == bq.DONE
+        assert bq.get_task(second_task_id, db_path=db_path)["state"] == bq.QUEUED
+
+        status = bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+        assert status["exhausted"] == []
+        assert status["blocked"] == []
+        assert status["eligible"] == ["KB-E2"]
+        assert status["state"] == bi.INITIATIVE_ACTIVE
+        assert status["evidence"]["KB-E1"]["exhausted"] is False
+        assert status["health"]["exhausted_count"] == 0
+
     def test_successful_attempt_clears_exhaustion(self, db_path: Path):
         manifest = _manifest(
             packets=[
