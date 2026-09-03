@@ -13,16 +13,11 @@ import {
   updateGlobalAgentReceipt,
   type AgentRoomInboxMessage,
   type AgentWorkspace,
+  type AgentWorkspaceAgent,
   type AgentWorkspaceMessage,
 } from '@/lib/gateway'
 
 const POLL_INTERVAL_MS = 3_000
-const CANONICAL_AGENTS = [
-  { id: 'chatgpt', name: 'ChatGPT' },
-  { id: 'claude', name: 'Claude' },
-  { id: 'codex', name: 'Codex' },
-  { id: 'kitty', name: 'Kitty' },
-] as const
 
 export function AgentWorkspacePanel() {
   const [room, setRoom] = useState<AgentWorkspace | null>(null)
@@ -244,12 +239,12 @@ export function AgentWorkspacePanel() {
           <span style={tinyMetaStyle}>workspace_global</span>
         </div>
         <div style={rosterStyle}>
-          {CANONICAL_AGENTS.map((agent) => (
+          {room.agents.map((agent) => (
             <div key={agent.id} style={agentCardStyle}>
-              <span style={agentAvatarStyle}>{agent.name.slice(0, 1)}</span>
+              <span style={agentAvatarStyle}>{agent.display_name.slice(0, 1)}</span>
               <span style={{ minWidth: 0 }}>
-                <strong style={agentNameStyle}>{agent.name}</strong>
-                <span style={registeredStyle}>registered</span>
+                <strong style={agentNameStyle}>{agent.display_name}</strong>
+                <span style={registeredStyle}>{agent.status}</span>
               </span>
             </div>
           ))}
@@ -269,7 +264,7 @@ export function AgentWorkspacePanel() {
           {!loading && displayMessages.length === 0 && <p style={mutedStyle}>No messages yet.</p>}
           {displayMessages.map((message) => {
             const parent = message.parent_message_id ? messageById.get(message.parent_message_id) : null
-            const senderName = displayName(message.sender_id)
+            const senderName = displayName(message.sender_id, room.agents)
             const isJacob = message.sender_id === 'jacob'
             const canAcknowledge = !isJacob && acknowledgeableIds.has(message.id) && !acknowledgedIds.has(message.id)
             return (
@@ -277,9 +272,9 @@ export function AgentWorkspacePanel() {
                 <div style={messageMetaStyle}>
                   <strong style={{ color: 'var(--ink)' }}>{senderName}</strong>
                   <span>{message.message_kind}</span>
-                  <span>{message.recipient_id ? `→ ${displayName(message.recipient_id)}` : '→ room'}</span>
+                  <span>{message.recipient_id ? `→ ${displayName(message.recipient_id, room.agents)}` : '→ room'}</span>
                 </div>
-                {parent && <p style={replyTrailStyle}>Reply to {displayName(parent.sender_id)} · {truncate(parent.content, 72)}</p>}
+                {parent && <p style={replyTrailStyle}>Reply to {displayName(parent.sender_id, room.agents)} · {truncate(parent.content, 72)}</p>}
                 <p style={messageBodyStyle}>{message.content}</p>
                 <div style={messageActionsStyle}>
                   {!isJacob && (
@@ -308,7 +303,7 @@ export function AgentWorkspacePanel() {
         <div style={composerStyle}>
           {replyTarget && (
             <div style={replyContextStyle}>
-              <span><strong>Replying to {displayName(replyTarget.sender_id)}</strong> · {truncate(replyTarget.content, 88)}</span>
+              <span><strong>Replying to {displayName(replyTarget.sender_id, room.agents)}</strong> · {truncate(replyTarget.content, 88)}</span>
               <Button size="sm" variant="ghost" onClick={() => setReplyTarget(null)} ariaLabel="Cancel reply">Cancel</Button>
             </div>
           )}
@@ -322,7 +317,7 @@ export function AgentWorkspacePanel() {
                 style={selectStyle}
               >
                 <option value="">Room · broadcast</option>
-                {CANONICAL_AGENTS.map((agent) => <option key={agent.id} value={agent.id}>Direct · {agent.name}</option>)}
+                {room.agents.map((agent) => <option key={agent.id} value={agent.id}>Direct · {agent.display_name}</option>)}
               </select>
             </label>
             <span style={composerTruthStyle}>Posting as Jacob</span>
@@ -353,9 +348,13 @@ export function AgentWorkspacePanel() {
   )
 }
 
-function displayName(id: string): string {
+/** Display name resolved against the live roster returned by the room API.
+ *  There used to be a hardcoded CANONICAL_AGENTS copy here; it went stale every
+ *  time a participant was added (it had already dropped DSH), so unknown senders
+ *  fell back to raw ids. The room response is the only source of truth. */
+function displayName(id: string, agents: AgentWorkspaceAgent[]): string {
   if (id === 'jacob') return 'Jacob'
-  return CANONICAL_AGENTS.find((agent) => agent.id === id)?.name ?? id
+  return agents.find((agent) => agent.id === id)?.display_name ?? id
 }
 
 function truncate(value: string, max: number): string {
