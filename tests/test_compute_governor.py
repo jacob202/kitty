@@ -536,6 +536,45 @@ def test_init_db_concurrently_migrates_legacy_policy_column(tmp_path: Path):
     assert "policy_json" in columns
 
 
+def test_connect_retries_transient_wal_lock(tmp_path: Path, monkeypatch):
+    import time as time_module
+
+    calls: list[str] = []
+    sleeps: list[float] = []
+
+    class FakeCursor:
+        def __init__(self, value: str):
+            self.value = value
+
+        def fetchone(self):
+            return (self.value,)
+
+    class FakeConnection:
+        row_factory = None
+        wal_attempts = 0
+        wal_enabled = False
+
+        def execute(self, sql: str):
+            calls.append(sql)
+            if sql == "PRAGMA journal_mode":
+                return FakeCursor("wal" if self.wal_enabled else "delete")
+            if sql == "PRAGMA journal_mode=WAL":
+                self.wal_attempts += 1
+                if self.wal_attempts == 1:
+                    raise sqlite3.OperationalError("database is locked")
+                self.wal_enabled = True
+                return FakeCursor("wal")
+            return FakeCursor("")
+
+    fake = FakeConnection()
+
+    monkeypatch.setattr(cg.sqlite3, "connect", lambda *_args, **_kwargs: fake)
+    monkeypatch.setattr(time_module, "sleep", sleeps.append)
+    assert cg.connect(tmp_path / "busy.db") is fake
+    assert fake.wal_attempts == 2
+    assert sleeps
+
+
 def test_connect_sets_busy_timeout_before_wal(tmp_path: Path, monkeypatch):
     calls: list[str] = []
 
