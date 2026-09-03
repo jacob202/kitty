@@ -257,6 +257,24 @@ def _row_to_task(row: sqlite3.Row) -> dict[str, Any]:
     else:
         task["allowed_paths"] = None
 
+    report_json = task.get("final_report_json")
+    if report_json is not None:
+        try:
+            report = json.loads(report_json)
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise DataCorruptionError(
+                f"corrupted final_report_json for task {task.get('id', '?')}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+        if not isinstance(report, dict):
+            raise DataCorruptionError(
+                f"corrupted final_report_json for task {task.get('id', '?')}: "
+                f"expected a JSON object, got {type(report).__name__}"
+            )
+        task["final_report"] = report
+    else:
+        task["final_report"] = None
+
     return task
 
 
