@@ -74,7 +74,7 @@ def test_global_room_routes_ensure_and_share_one_stable_room(client):
     assert second.status_code == 200
     assert first.json()["id"] == second.json()["id"] == "workspace_global"
     assert [agent["id"] for agent in first.json()["agents"]] == [
-        "chatgpt", "claude", "codex", "kitty", "dsh"
+        "chatgpt", "claude", "codex", "kitty", "dsh", "commandcode"
     ]
 
 
