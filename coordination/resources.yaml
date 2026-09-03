@@ -16,9 +16,17 @@ resources:
     - tests/test_builder_supervisor.py
   docs:roadmap:
     paths:
+    - '*.md'
+    - .agents/skills/**/*.md
+    - .claude/**/*.md
+    - docs/**/*.md
     - docs/ACTIVE_MISSION.md
     - docs/PROJECT_STATUS.md
     - docs/ROADMAP.md
+    - gateway/kitty-chat/README.md
+    - scripts/mcp_council_smoketest.sh
+    - tests/test_builder_paid_routing.py
+    - tests/test_documentation_authority.py
   image-lab:generation:
     paths:
     - gateway/image_*.py
@@ -48,6 +56,7 @@ resources:
     - gateway/runtime_manifest.py
     - kitty
     - scripts/desktop/start_ui.sh
+    - tests/test_agent_coordination_acceptance.py
     - tests/test_doctor_freshness.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py
