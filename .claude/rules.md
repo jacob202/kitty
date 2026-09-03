@@ -3,7 +3,7 @@
 ## CRITICAL: Never poll CI
 
 - Use `gh pr checks <N> --watch` (one command, exits when checks finish).
-- Use `gh pr merge <N> --auto` to let GitHub merge when checks pass.
+- When merge is already authorized and eligible under `AGENTS.md`/accepted Builder policy, `gh pr merge <N> --auto` may replace polling; otherwise watch checks and stop before merge.
 - NEVER `until`/`while`/`for` loops with `sleep` around `gh pr` commands.
   (Blocked by .claude/hooks/block-polling.sh.)
 

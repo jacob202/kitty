@@ -66,3 +66,33 @@ def test_docs_index_labels_dated_material_as_non_authoritative() -> None:
     assert "Historical and derived catalogs" in index
     assert "DISPOSITION_LEDGER.md" in index
     assert "KNOWLEDGE_GRAPH.md" in index
+
+
+def test_root_readme_defers_cold_start_to_start_here() -> None:
+    readme = _read("README.md")
+
+    assert "START_HERE.md" in readme
+    assert "GITHUB_OPERATING_PICTURE_2026-08-04" not in readme
+    assert "./kitty down" in readme
+    assert "make test" in readme
+    assert "make ui-test && make ui-build" in readme
+
+
+def test_retired_remote_shortcut_does_not_expose_gateway() -> None:
+    siri = _read("docs/SIRI_SHORTCUT.md")
+
+    assert "Retired 2026-09-03" in siri
+    assert "KH-REMOTE-01" in siri
+    assert "http://<mac-tailscale-hostname>:8000" not in siri
+    assert "loopback-only" in siri
+
+
+def test_legacy_front_doors_are_pointers_not_current_authorities() -> None:
+    tasks = _read("TASKS.md")
+    orca = _read("docs/KITTYBUILDER_ORCA_SETUP.md")
+
+    assert "Historical Compatibility Pointer" in tasks
+    assert "TASKS_2026-06-18.md" in tasks
+    assert "Historical Compatibility Pointer" in orca
+    assert "FREE_WORKERS.md" in orca
+    assert "not the current default worker/reviewer path" in orca

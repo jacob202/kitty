@@ -35,7 +35,8 @@ authority; they do not replace the owners above.
 - [`reference/CONTEXT_ENGINEERING.md`](reference/CONTEXT_ENGINEERING.md) — staged context-loading playbook by task type.
 - [`reference/LAUNCHER_CONTRACT.md`](reference/LAUNCHER_CONTRACT.md) — the single launcher interface across production and development.
 - [`reference/PREVENTION_MECHANISMS.md`](reference/PREVENTION_MECHANISMS.md) — enforceable repository prevention mechanisms.
-- [`FREE_MODEL_PACKET_STANDARD.md`](FREE_MODEL_PACKET_STANDARD.md) — packet standard for unattended free execution and deterministic acceptance.
+- [`FREE_MODEL_PACKET_STANDARD.md`](FREE_MODEL_PACKET_STANDARD.md) — packet-quality/classification standard for deterministic free-exec work.
+- [`contracts/`](contracts/) — supporting design/runtime contracts; individual files state whether they are executable policy, proposed schema, or historical input.
 - [`KITTYBUILDER_QUICKSTART.md`](KITTYBUILDER_QUICKSTART.md) — supported Builder operator commands and execution safety rails.
 - [`reference/`](reference/) — reusable technical guidance generally.
 
@@ -44,11 +45,12 @@ authority; they do not replace the owners above.
 Candidate work and scoped contracts. These are inputs, not authority, until
 explicitly approved and owned through current ROADMAP/mission evidence.
 
-- `plans/` — candidate work and implementation inputs; not authority until absorbed.
+- [`plans/README.md`](plans/README.md) — index for candidate implementation plans; plans are inert until activated by current authority/ownership.
 - `packets/` — scoped execution contracts and historical packet material.
 - `initiatives/` — approved and retired initiative records.
 - `research/` — dated research and decision inputs (indexed in [`research/README.md`](research/README.md)); ADR inputs, not authority.
-- `campaigns/` — active coordination campaigns.
+- `campaigns/` — campaign records; live execution still requires current ownership/Builder evidence.
+- [`superpowers/README.md`](superpowers/README.md) — live Builder plan/spec output convention; not a second roadmap.
 
 ## Historical and derived catalogs
 

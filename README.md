@@ -2,36 +2,21 @@
 
 Kitty is Jacob's local-first personal AI system. It owns conversation behavior, context, memory, projects, tools, Tutor, model policy, and user-facing workflows while keeping models and clients replaceable.
 
-KittyBuilder is the separate engineering control plane. It owns accepted Missions, queues, workers, attempts, leases, retries, validation, reviews, budgets, evidence, and PR publication.
+KittyBuilder is the separate engineering control plane. It owns accepted Missions, queues, workers, attempts, leases, retries, validation, reviews, budgets, evidence, and governed publication.
 
 ## Current operating model
 
 | Surface | Role | Default |
 |---|---|---|
-| Native Kitty (`kitty-chat`) | Canonical user-facing product surface (ADR 0039) | local port `4000`; intended loopback security boundary |
+| Native Kitty (`gateway/kitty-chat`) | Canonical user-facing product surface (ADR 0039) | local port `4000` |
 | Gateway | Product authority and API | `127.0.0.1:8000` |
 | LiteLLM | Model routing and fallback | `127.0.0.1:8001` |
 | KittyBuilder | Durable engineering execution control plane | supported DB/API/CLI |
-| Open WebUI | Optional compatibility/reference client | `127.0.0.1:3000` |
+| Open WebUI | Optional compatibility/reference client | local-only compatibility path |
 
-The Gateway owns product truth and the native Kitty frontend is its canonical user-facing surface. Open WebUI and other clients are optional, replaceable views. Kitty must remain useful when KittyBuilder is unavailable, and Builder execution truth must never be inferred from GitHub comments or handoff prose.
+The Gateway owns product truth. Native Kitty is the canonical frontend; Open WebUI and other clients are replaceable views. Builder execution truth comes from Builder's supported projections, not GitHub comments or handoff prose.
 
-```text
-Native Kitty frontend
-  → Kitty Gateway
-    → context + memory + tools + projects + Tutor
-    → LiteLLM / provider chain
-    → approved Mission → KittyBuilder → Result/Evidence
-```
-
-## Start here
-
-For repository work, begin with [`START_HERE.md`](START_HERE.md). It owns the
-cold-start receipt and canonical reading order. [`docs/README.md`](docs/README.md)
-is the documentation directory map; [`docs/AUTHORITY_MAP.md`](docs/AUTHORITY_MAP.md)
-routes each kind of truth to its owner.
-
-## Quick start
+## Install and run
 
 ```bash
 python3.12 -m venv venv
@@ -42,55 +27,54 @@ python3.12 -m venv ~/kitty-services/venv-litellm
 ~/kitty-services/venv-litellm/bin/pip install -r gateway/requirements.litellm.txt
 
 cp .env.example .env
-# Add at least one configured model-provider credential to .env (OpenRouter is the current default).
+# Add at least one configured model-provider credential to .env.
 
-./kitty doctor --json  # fail-loud preflight before first launch
-./kitty            # Gateway + LiteLLM + native UI, then open the browser
+make hooks             # one-time per clone
+./kitty doctor --json  # fail-loud preflight
+./kitty                # Gateway + LiteLLM + native UI; opens the browser
 ./kitty status
-./kitty doctor --json
+./kitty down            # stop Kitty-owned services
 ```
 
-Native Kitty is the canonical product at `http://127.0.0.1:4000` for local use. `./kitty up` starts only Gateway + LiteLLM; `./kitty ui` starts only the native UI. Open WebUI remains available only as an optional compatibility/reference client through `scripts/openwebui_local.py`; it is not required for the normal Kitty product path.
+`./kitty up` starts Gateway + LiteLLM only. `./kitty ui` starts the native UI only. Product runtime and remote-access boundaries are owned by [`docs/reference/LAUNCHER_CONTRACT.md`](docs/reference/LAUNCHER_CONTRACT.md); authenticated phone/Tailnet access remains tracked by [`KH-REMOTE-01`](docs/packets/KH-REMOTE-01.md) and must not be approximated by exposing the Gateway directly.
 
-**Remote-access caveat:** `kitty health` can report the UI socket reachable on the Tailscale IP, but that is not proof that normal `/proxy`-backed product workflows are authorized remotely. `./kitty ui` still binds broadly while the server-side proxy rejects non-loopback Hosts. Keep Gateway/LiteLLM and the proxy secret boundary closed; [`KH-REMOTE-01`](docs/packets/KH-REMOTE-01.md) owns authenticated phone/Tailnet access.
+## Verify a change
 
-## Verification
+Use the repository targets rather than hand-written equivalents so local verification matches CI and runtime provenance rules:
 
 ```bash
-git status --short --branch
-./kitty context --agent
-./kitty status
-./kitty doctor --json
-python3.12 -m pytest tests/ -q --tb=short
-cd gateway/kitty-chat && npm test && npm run build
+make test
+make ui-test && make ui-build     # when frontend code changed
+make smoke-test-hermetic          # when a user-visible frontend workflow changed
+./kitty doctor --json             # when runtime/setup behavior changed
 ```
 
-Repository CI does not prove local credentials, provider balances, launchd state, real paid routes, or Jacob's installed Open WebUI database. Runtime claims require supported local verification and explicit charge authorization where applicable.
+Run the narrowest relevant checks for focused work; see [`TESTING.md`](TESTING.md) for the full test tiers. Repository CI does not prove local credentials, provider balances, launchd state, or paid-provider availability.
 
-## Manage the local stack
+## Documentation
 
-```bash
-./kitty status        # supported service summary
-./kitty doctor --json # environment/runtime diagnostics
-./kitty down          # stop Kitty-managed services
-./kitty               # start the normal local product path again
-```
+Do not infer authority from a filename, detail level, or date.
 
-Architecture, roadmap, mission, engineering, and execution rules live in their
-canonical owners linked from `START_HERE.md`; this README intentionally does not
-duplicate them.
+- [`START_HERE.md`](START_HERE.md) owns the canonical cold-start procedure and reading order.
+- [`docs/README.md`](docs/README.md) is the human map of current authorities, supporting references, execution inputs, dated evidence, and history.
+- [`docs/AUTHORITY_MAP.md`](docs/AUTHORITY_MAP.md) routes each kind of project truth to its owner.
+- [`docs/CONSTITUTION.md`](docs/CONSTITUTION.md) is the highest design authority.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) is the only active delivery sequence.
+- [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md) owns the approved Mission and acceptance contract.
+- [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) is dated shipped/limitation evidence, not a live dashboard.
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) and [`docs/adr/`](docs/adr/) preserve durable decisions and supersession.
 
 ## Repository navigation
 
 | Need | Location |
 |---|---|
-| Code and data-flow map | [`docs/reference/CODEBASE_MAP.md`](docs/reference/CODEBASE_MAP.md) |
+| Code/data-flow map | [`docs/reference/CODEBASE_MAP.md`](docs/reference/CODEBASE_MAP.md) |
 | Product purpose | [`docs/NORTH_STAR.md`](docs/NORTH_STAR.md) |
-| Architecture decisions | [`docs/DECISIONS.md`](docs/DECISIONS.md) and [`docs/adr/`](docs/adr/) |
 | Builder operation | [`docs/KITTYBUILDER_QUICKSTART.md`](docs/KITTYBUILDER_QUICKSTART.md) |
-| Documentation index | [`docs/README.md`](docs/README.md) |
+| PR/review workflow | [`docs/WORKFLOW.md`](docs/WORKFLOW.md) |
+| Test tiers | [`TESTING.md`](TESTING.md) |
+| Candidate plans | [`docs/plans/README.md`](docs/plans/README.md) |
+| Builder plan/spec output convention | [`docs/superpowers/README.md`](docs/superpowers/README.md) |
 | Historical material | [`docs/archive/`](docs/archive/) |
 
-## Image-history decision
-
-Previously removed personal images remain in Git history by explicit owner decision. This maintenance work does not rewrite, purge, enumerate, or otherwise alter that history.
+Runtime data under `data/`, logs under `logs/`, and generated frontend output under `.next/` are not source documentation. Never commit secrets.

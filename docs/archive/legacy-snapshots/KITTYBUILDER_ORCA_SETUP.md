@@ -1,5 +1,7 @@
 # KittyBuilder Orca Setup
 
+> **Historical snapshot archived 2026-09-03.** Do not use this file for current Builder routing, approval, or publication rules; use `docs/KITTYBUILDER_QUICKSTART.md`, `docs/FREE_WORKERS.md`, and `AGENTS.md`.
+
 KittyBuilder may use Orca as an outer worktree/worker adapter. The local SQLite
 queue is already the durable Builder task authority.
 
@@ -33,7 +35,7 @@ The implementer must not approve its own work. A model approval must be from a s
 
 ## Provider Routing
 
-Builder model routing is owned by [`docs/FREE_WORKERS.md`](FREE_WORKERS.md): two
+Builder model routing is owned by [`docs/FREE_WORKERS.md`](../../FREE_WORKERS.md): two
 explicit DeepSeek Harness (DSH) lanes — `--free` (zero-spend, OpenRouter free
 models only) and `--paid` (governed OpenRouter value route with the compute
 governor). Omitting both is not an implicit default. Current routing lives in
@@ -70,7 +72,7 @@ bash scripts/opencode_free_train.sh <task-card.md>
 
 The zero-cost fallback ladder is defined in `scripts/opencode_free_train.sh`
 itself — read that source for the current list, and see
-[`docs/FREE_WORKERS.md`](FREE_WORKERS.md) for the authoritative DSH `--free`
+[`docs/FREE_WORKERS.md`](../../FREE_WORKERS.md) for the authoritative DSH `--free`
 routing. Do not copy the model list into docs; it goes stale when providers
 change. `OPENCODE_FREE_MODEL` forces one builder model and
 `OPENCODE_FREE_REVIEW_MODEL` forces one reviewer model.
@@ -108,7 +110,7 @@ file, mismatched hash, invalid contract, or reviewer worktree mutation is a
 hard failure and leaves the attempt evidence available for inspection.
 
 Each adapter family has its own checked-in zero-cost fallback ladder (see the
-adapter source and [`docs/FREE_WORKERS.md`](FREE_WORKERS.md) for the current
+adapter source and [`docs/FREE_WORKERS.md`](../../FREE_WORKERS.md) for the current
 list); the fail-loud handoff rule is shared: a model that fails cleanly (no
 result written, worktree and `HEAD` untouched) hands off to the next free
 model inside the same attempt, and any partial work stops fallback

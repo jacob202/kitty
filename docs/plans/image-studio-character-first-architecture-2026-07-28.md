@@ -1044,7 +1044,7 @@ The most important correction is strategic:
 - PR #289 `gateway/image_plan.py`
 - `docs/ROADMAP.md`
 - `docs/archive/planning-2026-07-24/image-studio-character-system-2026-07-24.md`
-- `docs/plans/image-runner-and-recipe-cleanup.md`
+- Historical `image-runner-and-recipe-cleanup` session plan (removed; recoverable from Git history)
 
 ### Current external sources
 

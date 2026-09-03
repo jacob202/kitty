@@ -46,12 +46,10 @@ acceptance bar.
 This index does not activate Image Lab implementation by itself. Priority and
 sequencing remain owned by `docs/ROADMAP.md` plus explicit Jacob approval and the current mission/ownership chain.
 
-Superseded Image Studio plans:
+Superseded Image Studio evidence:
 
-- `docs/archive/planning-2026-07-24/image-studio-character-system-2026-07-24.md` — older repository
-  state and provider assumptions;
-- `docs/plans/image-runner-and-recipe-cleanup.md` — runner work partially landed;
-  remaining capability-truth work moved into later architecture decisions.
+- `docs/archive/planning-2026-07-24/image-studio-character-system-2026-07-24.md` — older repository state and provider assumptions.
+- Other removed session plans remain recoverable from Git history; missing paths are not current planning inputs.
 
 ### KittyBuilder
 
@@ -62,12 +60,9 @@ Superseded Image Studio plans:
 
 ### Product experience and coherence
 
-- `docs/plans/KITTY_PRODUCT_EXPERIENCE_V1.md` — retained evidence.
+- `docs/plans/KITTY_PRODUCT_EXPERIENCE_V1.md` — retained supporting design evidence; it is not an authority unless ratified.
 - `docs/plans/KX_COHERENCE_AUDIT.md` — retained audit input.
-- `docs/plans/fix-kitty-ui-wiring.md` — partially landed; requires fresh review
-  before further execution.
-- `docs/plans/fix-council-ux-all.md` — retained backlog input.
-- `docs/plans/call-llm-error-contract.md` — retained implementation plan.
+- Removed session-specific plan files remain available through Git history rather than dangling current links.
 
 ## Historical status
 
@@ -83,7 +78,7 @@ preserved in Git history but is no longer operational guidance.
 | Current priority and sequencing | `docs/ROADMAP.md` |
 | Mission record / acceptance contract | `docs/ACTIVE_MISSION.md` |
 | Authority relationships | `docs/AUTHORITY_MAP.md` |
-| Product direction | `docs/NORTH_STAR.md` and `docs/KITTY_PRODUCT_ARCHITECTURE.md` |
+| Product direction | `docs/NORTH_STAR.md`; current system shape in `docs/ARCHITECTURE.md` |
 | Current project status | `docs/PROJECT_STATUS.md` and runtime evidence |
 | Decisions | `docs/DECISIONS.md` and `docs/adr/` |
 | Image Lab durable execution architecture | `docs/adr/0040-image-lab-flux2-execution-architecture.md` |
