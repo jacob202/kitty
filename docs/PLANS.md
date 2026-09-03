@@ -13,8 +13,9 @@ authority.
 
 - Use `docs/ROADMAP.md` for priority and sequencing.
 - Use `docs/ACTIVE_MISSION.md` for the canonical mission record; its current status is terminal, so it is not a running scope gate.
-- Treat every file under `docs/plans/` or `docs/planning/` as supporting
-  evidence unless the canonical roadmap explicitly activates it.
+- Treat every file under `docs/plans/` as supporting evidence unless the
+  canonical roadmap explicitly activates it. The former `docs/planning/` folder
+  was archived to `docs/archive/planning-2026-07-24/` on 2026-09-03.
 - A plan that describes an older repository state must be superseded or
   archived rather than left marked “ready to implement.”
 - Accepted ADRs own durable architecture decisions even when an older plan
@@ -47,7 +48,7 @@ sequencing remain owned by `docs/ROADMAP.md` plus explicit Jacob approval. KPROO
 
 Superseded Image Studio plans:
 
-- `docs/planning/image-studio-character-system-2026-07-24.md` — older repository
+- `docs/archive/planning-2026-07-24/image-studio-character-system-2026-07-24.md` — older repository
   state and provider assumptions;
 - `docs/plans/image-runner-and-recipe-cleanup.md` — runner work partially landed;
   remaining capability-truth work moved into later architecture decisions.
