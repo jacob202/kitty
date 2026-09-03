@@ -1043,7 +1043,7 @@ The most important correction is strategic:
 - `gateway/image_runner.py`
 - PR #289 `gateway/image_plan.py`
 - `docs/ROADMAP.md`
-- `docs/planning/image-studio-character-system-2026-07-24.md`
+- `docs/archive/planning-2026-07-24/image-studio-character-system-2026-07-24.md`
 - `docs/plans/image-runner-and-recipe-cleanup.md`
 
 ### Current external sources

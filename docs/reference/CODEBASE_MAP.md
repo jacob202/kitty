@@ -229,7 +229,7 @@ Volatile file/test counts are intentionally omitted. Derive them from the curren
 | Constitution | Engineering principles | `docs/CONSTITUTION.md` |
 | Docs index | Documentation directory navigation | `docs/README.md` |
 | Codebase map | This file | `docs/reference/CODEBASE_MAP.md` |
-| Documentation audit | Doc health and disposition | `docs/reference/DOCUMENTATION_AUDIT.md` |
+| Documentation audit | Doc health and disposition (archived 2026-07-30 snapshot) | `docs/archive/audits-2026-07/DOCUMENTATION_AUDIT.md` |
 | Context engineering | Staged context-loading workflow | `docs/reference/CONTEXT_ENGINEERING.md` |
 
 ## AI context bundle
