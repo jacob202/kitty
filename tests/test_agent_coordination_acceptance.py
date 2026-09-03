@@ -364,6 +364,25 @@ def test_repo_root_wal_sidecars_are_ignored() -> None:
     assert ".kitty-coordination.db-shm" in ignore
 
 
+def test_registry_covers_repository_documentation_surfaces() -> None:
+    docs_paths = [
+        "README.md",
+        "AGENTS.md",
+        ".claude/rules.md",
+        ".agents/skills/agent-council/SKILL.md",
+        "docs/README.md",
+        "docs/packets/KH-REMOTE-01.md",
+        "gateway/kitty-chat/README.md",
+        "tests/test_builder_paid_routing.py",
+        "tests/test_documentation_authority.py",
+        "scripts/mcp_council_smoketest.sh",
+    ]
+    for path in docs_paths:
+        assert "docs:roadmap" in agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ), path
+
+
 def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
     runtime_paths = [
         "kitty",
