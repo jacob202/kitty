@@ -21,9 +21,11 @@ def test_global_room_is_stable_idempotent_and_has_real_agent_roster(room_db):
     second = agent_workspace.ensure_global_workspace()
 
     assert first["id"] == second["id"] == "workspace_global"
-    # DSH is now an active participant alongside chatgpt, claude, codex, kitty
+    # Roster is the frozen authority list; `claude` stays in it for history but
+    # is retired from sending (see _RETIRED_PARTICIPANT_IDS), and `commandcode`
+    # is an active sender for Command Code sessions.
     assert [agent["id"] for agent in first["agents"]] == [
-        "chatgpt", "claude", "codex", "kitty", "dsh"
+        "chatgpt", "claude", "codex", "kitty", "dsh", "commandcode"
     ]
     assert {agent["status"] for agent in first["agents"]} == {"registered"}
     assert all(agent["model"] is None for agent in first["agents"])

@@ -84,7 +84,7 @@ def test_cli_json_ensure_status_recent_and_invalid_participant(room_db, capsys):
     assert code == 0
     status = _json_stdout(captured)
     assert status["id"] == "workspace_global"
-    assert status["participants"] == ["chatgpt", "claude", "codex", "kitty", "dsh"]
+    assert status["participants"] == ["chatgpt", "claude", "codex", "kitty", "dsh", "commandcode"]
 
     code, captured = _run(["recent", "--json"], capsys)
     assert code == 0
