@@ -993,3 +993,69 @@ def test_replenishment_preserves_safe_author_config_error(repo: Path, db_path: P
     assert result["launched"] is False
     assert result["reason"] == "invalid_author_config"
     assert result["error"] == "slate author argv must be valid JSON"
+
+
+def test_tick_reconciles_merged_work_before_runway_and_scan(
+    repo: Path, db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    order: list[str] = []
+    monkeypatch.setattr(
+        bs,
+        "_reconcile_merged_work",
+        lambda **_kwargs: order.append("reconcile") or {"promoted": [], "errors": [], "worktree_cleanup": []},
+        raising=False,
+    )
+    monkeypatch.setattr(
+        bs,
+        "github_truth_snapshot",
+        lambda _root: {"available": False, "complete": False, "error": "offline", "by_head": {}, "pr_count": 0},
+    )
+    monkeypatch.setattr(bs.bau, "runway_snapshot", lambda **_kwargs: order.append("runway") or {})
+    monkeypatch.setattr(bs.bau, "usable_builder_runway", lambda _snapshot: 6)
+    monkeypatch.setattr(bs, "_runway_target", lambda: (6, None))
+    monkeypatch.setattr(bs, "active_initiatives", lambda _db_path=None: order.append("scan") or [])
+    monkeypatch.setattr(bs, "_select_packets", lambda *_args, **_kwargs: ([], []))
+
+    receipt = bs.tick(db_path=db_path, repo_root=repo)
+
+    assert order[:3] == ["reconcile", "runway", "scan"]
+    assert receipt["merge_reconciliation"]["errors"] == []
+
+
+def test_reconcile_merged_work_removes_promoted_clean_worktree(
+    repo: Path, db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    removed = repo / ".worktrees" / "kittybuilder" / "task-1"
+    monkeypatch.setattr(
+        bq,
+        "detect_merged_prs",
+        lambda **_kwargs: {"promoted": ["task-1"], "already_merged": [], "errors": []},
+    )
+    with patch("gateway.builder_runner.remove_worktree", return_value=removed) as cleanup:
+        result = bs._reconcile_merged_work(db_path=db_path, repo_root=repo)
+
+    cleanup.assert_called_once_with("task-1", repo_root=repo, discard_done_marker=True)
+    assert result["worktree_cleanup"] == [
+        {"task_id": "task-1", "status": "removed", "path": str(removed)}
+    ]
+
+
+def test_reconcile_merged_work_preserves_dirty_worktree(
+    repo: Path, db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from gateway.builder_runner import RunnerError
+
+    monkeypatch.setattr(
+        bq,
+        "detect_merged_prs",
+        lambda **_kwargs: {"promoted": ["task-1"], "already_merged": [], "errors": []},
+    )
+    with patch(
+        "gateway.builder_runner.remove_worktree",
+        side_effect=RunnerError("worktree is dirty"),
+    ):
+        result = bs._reconcile_merged_work(db_path=db_path, repo_root=repo)
+
+    assert result["worktree_cleanup"][0]["task_id"] == "task-1"
+    assert result["worktree_cleanup"][0]["status"] == "kept"
+    assert "dirty" in result["worktree_cleanup"][0]["error"]
