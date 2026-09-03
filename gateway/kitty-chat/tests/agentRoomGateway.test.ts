@@ -56,6 +56,16 @@ describe('global agent room gateway client', () => {
     await expect(fetchGlobalAgentInbox()).rejects.toThrow(/expected a messages array/i)
   })
 
+  it('rejects a room payload with no agents array instead of rendering an empty roster', async () => {
+    // The panel derives roster, recipient options, and member counts from
+    // room.agents. A proxy error body or non-dict payload must fail loudly into
+    // the room-unavailable path rather than silently read as "nobody exists".
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 'workspace_global' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchGlobalAgentRoom()).rejects.toThrow(/expected an agents array/i)
+  })
+
   it('loads a durable thread for reply context', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ messages: [{ id: 'root' }, { id: 'reply' }] }))
     vi.stubGlobal('fetch', fetchMock)
