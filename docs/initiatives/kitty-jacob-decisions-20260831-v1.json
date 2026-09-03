@@ -1,0 +1,64 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-jacob-decisions-20260831-v1",
+  "title": "Jacob's three rulings: act without asking, answer a direct question, back up for real",
+  "description": "On 2026-08-31 Jacob settled three open product decisions: Kitty's chat should almost never need his okay, a private memory he asks for by name should simply be given, and backup should be a real screen. Recorded as D-015, confirming D-012, D-013 and D-014. These two packets are the backend half, the only half Builder can prove; the frontend half is routed to Codex in docs/packets/CODEX_HANDOFF_20260831.md. Every premise below was read in the source at origin/main 8cdc8e2e before authoring. Resolves the backend portion of findings CHAT-B001 and MEMCTX-B007.",
+  "packets": [
+    {
+      "id": "KT-PRIVACY-01",
+      "title": "Asking for something by name gets you an answer",
+      "objective": "gateway/memory_policy.py:162 suppresses a sensitive-support memory unless _query_matches_sensitive says the question referenced a sensitive topic. That check, at gateway/memory_policy.py:245-253, splits the question on whitespace and tests each bare token for exact membership in a fixed tuple, so it fails on ordinary phrasing: 'mental health' and 'counselling' are in the tuple but 'mental health' can never equal a single whitespace token, and any word carrying punctuation ('recovery?', 'sobriety,') misses. Jacob's ruling D-015 is that a directly requested private memory is simply given. Make the direct-request check recognise the request as a person would write it: strip surrounding punctuation from each token, match the multi-word entries against the whole question rather than against single tokens, and match on word stems so that a plain request lands. Keep the default suppression exactly as it is for a question that does not reference the topic at all, and keep BLOCKED and ARCHIVED behaviour unchanged. Do not widen the sensitive vocabulary itself and do not change classify(). This packet creates no new production files; every change lands in the module named above.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A question that names a sensitive topic with ordinary punctuation, such as 'how is my recovery?', surfaces the sensitive-support memory.",
+        "A question using a multi-word entry from the vocabulary, such as 'what did I say about my mental health', surfaces the sensitive-support memory.",
+        "A question that references the topic in an inflected form, such as 'my therapist appointments', surfaces the sensitive-support memory.",
+        "A question that references no sensitive topic still suppresses the sensitive-support memory in default mode, exactly as today.",
+        "Support mode still surfaces sensitive-support memories regardless of the question.",
+        "BLOCKED and ARCHIVED memories behave exactly as they do today; this packet does not make them reachable.",
+        "The sensitive vocabulary gains no new topics and classify() is unchanged.",
+        "python -m pytest -q tests/test_memory_policy.py tests/test_context_assembler_memory_policy.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/memory_policy.py",
+        "tests/test_memory_policy.py",
+        "tests/test_context_assembler_memory_policy.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 30
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_memory_policy.py tests/test_context_assembler_memory_policy.py"
+      ]
+    },
+    {
+      "id": "KT-TOOLBRIDGE-01",
+      "title": "The tool runner Kitty already has becomes reachable",
+      "objective": "Kitty's chat cannot do anything because the last link is missing, not because the machinery is absent. gateway/routes/completions.py:345 sets caller_supplies_tools from body['tools']; when the caller sends none, line 548 injects the 'tools are unavailable' system instruction, lines 586-589 strip tools, tool_choice and parallel_tool_calls from the request, and line 624 reports tool_execution as unavailable. So the completions path already honours tools whenever a caller supplies them. gateway/mcp_tool_bridge.py:349 get_tool_schema_for_llm already publishes the schemas, and gateway/routes/integrations.py:74 already serves them at GET /mcp/tools. gateway/mcp_tool_bridge.py:249 invoke(server_name, tool_name, arguments) already runs a tool with a bounded timeout, process cleanup and a failure cutoff. Nothing calls invoke over HTTP: grep of gateway/routes finds only /mcp/servers and /mcp/tools. Add one route in gateway/routes/integrations.py that invokes a named tool on a named server with the given arguments and returns its result, reusing invoke exactly as it is, including its existing error shape and circuit breaker. Per Jacob's ruling D-015 the route does not ask for per-call approval. Keep the existing authentication the other routes in this module already use; do not add a second auth path, do not change invoke, and do not change completions.py. This packet creates no new production files; every change lands in the module named above.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A request naming an existing server and tool runs it and returns the result invoke produced, unchanged.",
+        "A request naming a server that does not exist returns invoke's existing server_not_found error rather than a crash or an invented default.",
+        "A tool that fails returns invoke's existing error shape, and the failure is readable without knowing what MCP is.",
+        "The route requires the same authentication as the other routes in gateway/routes/integrations.py, and adds no second auth path.",
+        "The route asks for no per-call approval and adds no confirmation step.",
+        "gateway/mcp_tool_bridge.py is unchanged, and so is gateway/routes/completions.py.",
+        "The circuit breaker and timeout behaviour invoke already has still apply, proved by a test that trips the existing failure cutoff.",
+        "python -m pytest -q tests/test_integrations_routes.py tests/test_mcp_tool_bridge.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/routes/integrations.py",
+        "tests/test_integrations_routes.py",
+        "tests/test_mcp_tool_bridge.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 25
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_integrations_routes.py tests/test_mcp_tool_bridge.py"
+      ]
+    }
+  ]
+}

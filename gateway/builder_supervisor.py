@@ -745,6 +745,33 @@ def _launch_run(
     }
 
 
+def _reconcile_merged_work(
+    *,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Promote merged Builder tasks and retire only clean task worktrees."""
+    from gateway.builder_runner import RunnerError, remove_worktree
+
+    reconciliation = dict(bq.detect_merged_prs(db_path=db_path))
+    cleanup: list[dict[str, Any]] = []
+    for task_id in reconciliation.get("promoted", []):
+        entry: dict[str, Any] = {"task_id": str(task_id)}
+        try:
+            removed = remove_worktree(
+                str(task_id), repo_root=repo_root, discard_done_marker=True
+            )
+        except RunnerError as exc:
+            detail = str(exc)
+            entry["status"] = "absent" if "no worktree" in detail.lower() else "kept"
+            entry["error"] = detail
+        else:
+            entry.update({"status": "removed", "path": str(removed)})
+        cleanup.append(entry)
+    reconciliation["worktree_cleanup"] = cleanup
+    return reconciliation
+
+
 def tick(
     *,
     db_path: Path | None = None,
@@ -769,9 +796,11 @@ def tick(
                 "scanned_initiatives": [],
                 "launched": [],
                 "skipped": [],
+                "merge_reconciliation": None,
                 "duplicate_tick": True,
             }
         root = (repo_root or repo_root_default()).resolve()
+        merge_reconciliation = _reconcile_merged_work(db_path=db_path, repo_root=root)
         truth = github_truth_snapshot(root)
         current_main_sha: str | None = None
         current_main_error: str | None = None
@@ -840,12 +869,18 @@ def tick(
                 entry["dispatch"] = dispatch
             launched.append(entry)
         return {
-            "status": "error" if any("error" in item for item in launched) else "ok",
+            "status": (
+                "error"
+                if any("error" in item for item in launched)
+                or bool(merge_reconciliation.get("errors"))
+                else "ok"
+            ),
             "lock": {"acquired": True, "path": str(lock.path)},
             "max_runs": max_runs,
             "scanned_initiatives": scanned,
             "launched": launched,
             "skipped": skipped,
+            "merge_reconciliation": merge_reconciliation,
             "reconciliation": reconciliation,
             "repo_root": str(root),
             "usable_runway": usable_runway,
