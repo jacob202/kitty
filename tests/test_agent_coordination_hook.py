@@ -2,79 +2,126 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 import subprocess
+import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE = ROOT / "scripts/pre-commit.template"
+HOOK = ROOT / ".githooks" / "pre-commit"
+PUSH_HOOK = ROOT / ".githooks" / "pre-push"
 
 
-def _repo(tmp_path: Path, *, guard_rc: int) -> Path:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
-    (repo / "kitty").write_text(
-        "#!/bin/sh\n"
-        "if [ \"$1 $2 $3\" = \"agent guard --staged\" ]; then\n"
-        f"  echo guard-rc-{guard_rc}\n  exit {guard_rc}\n"
-        "fi\nexit 99\n",
-        encoding="utf-8",
-    )
-    (repo / "kitty").chmod(0o755)
-    (repo / "tests").mkdir()
-    (repo / "tests/test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
-    (repo / "tracked.txt").write_text("before\n", encoding="utf-8")
-    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "base"],
-        check=True,
-    )
-    (repo / "tracked.txt").write_text("after\n", encoding="utf-8")
-    subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
-    hook = repo / ".git/hooks/pre-commit"
-    shutil.copy2(TEMPLATE, hook)
-    hook.chmod(0o755)
-    return repo
-
-
-def test_precommit_blocks_before_tests_when_coordination_guard_fails(tmp_path: Path) -> None:
-    repo = _repo(tmp_path, guard_rc=2)
-    result = subprocess.run(
-        [str(repo / ".git/hooks/pre-commit")],
-        cwd=repo,
+def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
         capture_output=True,
         text=True,
-        env=os.environ.copy(),
-        timeout=20,
-    )
-    assert result.returncode == 2
-    assert "guard-rc-2" in result.stdout
-    assert "Running pre-commit tests" not in result.stdout
-
-
-def test_precommit_runs_existing_tests_after_coordination_guard_passes(tmp_path: Path) -> None:
-    repo = _repo(tmp_path, guard_rc=0)
-    result = subprocess.run(
-        [str(repo / ".git/hooks/pre-commit")],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        env=os.environ.copy(),
+        check=check,
         timeout=30,
     )
-    assert "guard-rc-0" in result.stdout
-    assert "Running pre-commit tests" in result.stdout
 
 
-def test_tracked_precommit_hook_delegates_to_coordination_template() -> None:
-    hook = ROOT / "scripts/hooks/pre-commit"
-    assert hook.exists()
-    text = hook.read_text(encoding="utf-8")
-    assert "scripts/pre-commit.template" in text
-    assert "exec" in text
+def test_tracked_precommit_is_executable_and_runs_coordination_preflight() -> None:
+    assert HOOK.exists()
+    assert HOOK.stat().st_mode & stat.S_IXUSR
+    text = HOOK.read_text(encoding="utf-8")
+    assert "./kitty agent preflight --staged --json" in text
 
 
-def test_install_hooks_target_installs_tracked_hook_directory() -> None:
+def test_hooks_setup_uses_tracked_githooks_directory() -> None:
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-    assert "git config core.hooksPath scripts/hooks" in makefile
-    assert "pre-commit" in makefile.split("hooks:", 1)[1].split("\n\n", 1)[0]
+    assert "git config core.hooksPath .githooks" in makefile
+    assert PUSH_HOOK.exists()
+    assert PUSH_HOOK.stat().st_mode & stat.S_IXUSR
+    assert "scripts/hooks/pre-push" in PUSH_HOOK.read_text(encoding="utf-8")
+
+
+def _copy_runtime(repo: Path) -> None:
+    (repo / "gateway" / "lib").mkdir(parents=True)
+    for relative in (
+        "gateway/__init__.py",
+        "gateway/agent_coordination.py",
+        "gateway/agent_coordination_cli.py",
+        "gateway/agent_workspace.py",
+        "gateway/db.py",
+        "gateway/paths.py",
+        "gateway/lib/load_env_safe.sh",
+        "kitty",
+    ):
+        target = repo / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / relative, target)
+    shutil.copytree(ROOT / "coordination", repo / "coordination")
+    shutil.copytree(ROOT / ".githooks", repo / ".githooks")
+
+
+def _seed_repo(repo: Path) -> None:
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.name", "Kitty Test")
+    _git(repo, "config", "user.email", "kitty-test@example.invalid")
+    _copy_runtime(repo)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "ROADMAP.md").write_text("roadmap\n", encoding="utf-8")
+    (repo / "README.md").write_text("seed\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--no-verify", "-qm", "seed")
+    _git(repo, "branch", "-M", "main")
+    _git(repo, "config", "core.hooksPath", ".githooks")
+
+
+def _agent_env(tmp_path: Path) -> dict[str, str]:
+    return {
+        **os.environ,
+        "PYTHON_BIN": sys.executable,
+        "KITTY_AGENT_SESSION_ID": "fresh-worktree-owner",
+        "KITTY_AGENT_PARTICIPANT": "chatgpt",
+        "KITTY_COORDINATION_DB": str(tmp_path / "coordination.db"),
+        "KITTY_DATA_ROOT": str(tmp_path / "data"),
+    }
+
+
+@pytest.mark.integration
+def test_fresh_worktree_inherits_hook_and_blocks_unauthorized_staged_mutation(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    fresh = tmp_path / "fresh"
+    _seed_repo(repo)
+    _git(repo, "worktree", "add", "-qb", "feature", str(fresh), "main")
+    assert _git(fresh, "config", "--get", "core.hooksPath").stdout.strip() == ".githooks"
+
+    env = _agent_env(tmp_path)
+    claim = subprocess.run(
+        [
+            str(fresh / "kitty"), "agent", "claim",
+            "--resource", "docs:roadmap",
+            "--role", "OWN",
+            "--paths", "docs/ROADMAP.md",
+            "--json",
+        ],
+        cwd=fresh,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert claim.returncode == 0, claim.stderr
+
+    (fresh / "README.md").write_text("seed\nunauthorized\n", encoding="utf-8")
+    _git(fresh, "add", "README.md")
+    commit = subprocess.run(
+        ["git", "commit", "-m", "unauthorized mutation"],
+        cwd=fresh,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert commit.returncode != 0
+    combined = commit.stdout + commit.stderr
+    assert "MUTATION BLOCKED" in combined
+    assert "outside the declared path fence" in combined

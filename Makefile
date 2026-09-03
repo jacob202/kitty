@@ -46,7 +46,7 @@ ci: lint typecheck test-ci test-integration-ci ui-test ui-build
 # Point git at scripts/hooks/ so coordination pre-commit + pre-push gates survive clone and reinstall.
 # core.hooksPath is per-clone config, so this is not automatic -- run it once.
 hooks:
-	git config core.hooksPath scripts/hooks
+	git config core.hooksPath .githooks
 	@if [ -z "$$(git config --get core.sshCommand || true)" ]; then \
 		git config core.sshCommand "ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=30"; \
 	fi

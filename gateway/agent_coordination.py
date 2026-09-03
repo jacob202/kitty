@@ -1,367 +1,632 @@
-"""Atomic interactive ownership claims for concurrent Kitty agents.
+"""KX-COORD-01: SQLite-enforced mutation ownership for Kitty agents.
 
-This module is a mutation-safety primitive only. It does not choose work or
-replace KittyBuilder. Claims serialize interactive ownership in Kitty's normal
-state database so supported agents can fail closed before overlapping edits.
+SQLite is authoritative for ownership. The tracked semantic registry defines
+claimable resources; GAR is a best-effort event projection only.
 """
-
 from __future__ import annotations
 
+import fnmatch
 import json
+import os
 import sqlite3
+import subprocess
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
-from gateway import db as kitty_db
-from gateway.paths import BUILDER_QUEUE_DB, KITTY_DB_FILE
+import yaml
+
+from gateway import agent_workspace
+from gateway.paths import ROOT
 
 MUTATING_ROLES = frozenset({"OWN", "INTEGRATE"})
 READ_ONLY_ROLES = frozenset({"REVIEW", "RESEARCH"})
 VALID_ROLES = MUTATING_ROLES | READ_ONLY_ROLES
+DEFAULT_LEASE_SECONDS = 45 * 60
+DEFAULT_REGISTRY_PATH = ROOT / "coordination" / "resources.yaml"
+DB_FILENAME = ".kitty-coordination.db"
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS claims (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    participant TEXT,
+    role TEXT NOT NULL CHECK (role IN ('OWN','REVIEW','INTEGRATE','RESEARCH')),
+    resource_id TEXT NOT NULL,
+    lane TEXT,
+    task_id TEXT,
+    branch TEXT,
+    worktree TEXT,
+    base_sha TEXT NOT NULL,
+    paths_json TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('active','released','expired','forced'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_active_mutator_resource
+    ON claims(resource_id)
+    WHERE state = 'active' AND role IN ('OWN','INTEGRATE');
+CREATE INDEX IF NOT EXISTS idx_claims_session_state ON claims(session_id, state);
+CREATE INDEX IF NOT EXISTS idx_claims_expiry ON claims(state, expires_at);
+"""
 
 
 class CoordinationClaimError(RuntimeError):
-    """Raised when a claim cannot safely authorize an operation."""
+    """A claim request is invalid or cannot be evaluated safely."""
 
 
-class CoordinationConflictError(CoordinationClaimError):
-    """Raised when requested ownership overlaps a live mutating claim."""
-
-
-def _required(value: str, name: str) -> str:
+def _required_text(value: str, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} is required")
     return value.strip()
 
 
-def _normalize_worktree(value: str) -> str:
-    return str(Path(_required(value, "worktree_path")).expanduser().resolve())
+def _utc(value: str | datetime | None = None) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"invalid timestamp {value!r}") from exc
+    else:
+        raise TypeError("timestamp must be an ISO string, datetime, or None")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
-def _normalize_path(value: str) -> str:
-    raw = _required(value, "path").replace("\\", "/")
+def _stamp(value: str | datetime | None = None) -> str:
+    return _utc(value).isoformat(timespec="microseconds")
+
+
+def _normalize_repo_path(value: str) -> str:
+    raw = _required_text(value, "path").replace("\\", "/")
     while raw.startswith("./"):
         raw = raw[2:]
     candidate = PurePosixPath(raw)
     if candidate.is_absolute() or any(part in {"", ".", ".."} for part in candidate.parts):
-        raise ValueError(f"path must be a normalized repo-relative path: {value}")
+        raise ValueError(f"path must be repo-relative and normalized: {value!r}")
     return candidate.as_posix()
 
 
-def _normalize_resource(value: str) -> str:
-    return _required(value, "resource").lower()
+def _normalize_pattern(value: str) -> str:
+    raw = _required_text(value, "path pattern").replace("\\", "/")
+    while raw.startswith("./"):
+        raw = raw[2:]
+    if raw.startswith("/") or any(part == ".." for part in PurePosixPath(raw).parts):
+        raise ValueError(f"path pattern must be repo-relative: {value!r}")
+    return raw
 
 
-def _normalized_unique(values: Iterable[str], normalizer) -> list[str]:
-    return sorted({normalizer(value) for value in values})
+def _normalize_paths(values: Iterable[str]) -> list[str]:
+    return sorted({_normalize_pattern(value) for value in values})
 
 
-def _path_overlap(left: str, right: str) -> bool:
-    return left == right or left.startswith(right + "/") or right.startswith(left + "/")
+def _pattern_matches(path: str, pattern: str) -> bool:
+    if pattern.endswith("/**"):
+        prefix = pattern[:-3].rstrip("/")
+        return path == prefix or path.startswith(prefix + "/")
+    return fnmatch.fnmatchcase(path, pattern)
 
 
-def _decode(row: Any) -> dict[str, Any]:
+def _load_registry(registry_path: Path | None = None) -> dict[str, list[str]]:
+    configured = registry_path or os.environ.get("KITTY_COORDINATION_REGISTRY")
+    path = Path(configured or DEFAULT_REGISTRY_PATH)
+    try:
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise CoordinationClaimError(f"cannot read coordination registry {path}: {exc}") from exc
+    except yaml.YAMLError as exc:
+        raise CoordinationClaimError(f"invalid coordination registry {path}: {exc}") from exc
+    if not isinstance(payload, dict) or set(payload) != {"resources"}:
+        raise CoordinationClaimError("coordination registry must contain only a resources mapping")
+    raw_resources = payload["resources"]
+    if not isinstance(raw_resources, dict) or not raw_resources:
+        raise CoordinationClaimError("coordination registry resources must be a non-empty mapping")
+
+    resources: dict[str, list[str]] = {}
+    for resource_id, spec in raw_resources.items():
+        if not isinstance(resource_id, str) or not resource_id.strip():
+            raise CoordinationClaimError("coordination resource IDs must be non-empty strings")
+        if not isinstance(spec, dict) or set(spec) != {"paths"}:
+            raise CoordinationClaimError(f"resource {resource_id} must contain only paths")
+        raw_paths = spec["paths"]
+        if not isinstance(raw_paths, list) or not raw_paths:
+            raise CoordinationClaimError(f"resource {resource_id} paths must be a non-empty list")
+        if not all(isinstance(item, str) for item in raw_paths):
+            raise CoordinationClaimError(f"resource {resource_id} paths must contain strings")
+        normalized = _normalize_paths(raw_paths)
+        if normalized != raw_paths:
+            raise CoordinationClaimError(
+                f"resource {resource_id} paths must be sorted and contain no duplicates"
+            )
+        resources[resource_id] = normalized
+    return resources
+
+
+def resolve_paths_to_resources(
+    paths: Iterable[str], *, registry_path: Path | None = None
+) -> list[str]:
+    """Resolve repo-relative paths to deterministic registered semantic IDs."""
+    registry = _load_registry(registry_path)
+    normalized_paths = sorted({_normalize_repo_path(path) for path in paths})
+    resolved = {
+        resource_id
+        for resource_id, patterns in registry.items()
+        if any(
+            _pattern_matches(path, pattern)
+            for path in normalized_paths
+            for pattern in patterns
+        )
+    }
+    return sorted(resolved)
+
+
+def canonical_repo_root(cwd: Path | None = None) -> Path:
+    """Return the shared root, not the linked worktree root."""
+    override = os.environ.get("KITTY_COORDINATION_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
+    start = Path(cwd or ROOT).resolve()
+    result = subprocess.run(
+        ["git", "-C", str(start), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        common = Path(result.stdout.strip()).resolve()
+        if common.name == ".git":
+            return common.parent
+    return start
+
+
+def default_db_path() -> Path:
+    override = os.environ.get("KITTY_COORDINATION_DB")
+    if override:
+        return Path(override).expanduser().resolve()
+    return canonical_repo_root() / DB_FILENAME
+
+
+def _connect(db_path: Path | None = None) -> sqlite3.Connection:
+    path = Path(db_path or default_db_path())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    last_error: sqlite3.OperationalError | None = None
+    for attempt in range(8):
+        conn = sqlite3.connect(path, timeout=15, isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA busy_timeout = 15000")
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
+            conn.executescript(_SCHEMA)
+            return conn
+        except sqlite3.OperationalError as exc:
+            conn.close()
+            if "locked" not in str(exc).lower():
+                raise
+            last_error = exc
+            if attempt == 7:
+                break
+            time.sleep(min(0.02 * (2**attempt), 0.25))
+    assert last_error is not None
+    raise last_error
+
+
+def _decode(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     claim = dict(row)
     claim["paths"] = json.loads(claim.pop("paths_json"))
-    claim["resources"] = json.loads(claim.pop("resources_json"))
     return claim
 
 
-def _init(db_path: Path | None) -> Path:
-    path = Path(db_path) if db_path is not None else KITTY_DB_FILE
-    kitty_db.migrate(db_file=path)
-    return path
+def _validate_base_sha(base_sha: str) -> str:
+    value = _required_text(base_sha, "base_sha")
+    if len(value) != 40 or any(char not in "0123456789abcdef" for char in value):
+        raise ValueError("base_sha must be a full lowercase 40-character Git SHA")
+    return value
 
 
-def _active_rows(conn, now: float) -> list[Any]:
-    return conn.execute(
-        """
-        SELECT * FROM agent_coordination_claims
-        WHERE released_at IS NULL AND lease_expires_at > ?
-        ORDER BY created_at ASC, claim_id ASC
-        """,
-        (now,),
-    ).fetchall()
-
-
-def list_builder_claims(*, builder_db_path: Path | None = None) -> list[dict[str, Any]]:
-    """Project active Builder branch leases into coordination without mutating Builder."""
-    database = Path(builder_db_path) if builder_db_path is not None else BUILDER_QUEUE_DB
-    if not database.exists():
-        return []
-    uri = f"file:{database.resolve()}?mode=ro"
-    try:
-        conn = sqlite3.connect(uri, uri=True)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """
-            SELECT l.initiative_id, l.packet_id, l.worker_id, l.branch,
-                   l.worktree_path, l.base_sha, p.task_id,
-                   p.allowed_paths_json, t.state
-            FROM branch_leases AS l
-            LEFT JOIN initiative_packets AS p
-              ON p.initiative_id = l.initiative_id AND p.packet_id = l.packet_id
-            LEFT JOIN tasks AS t ON t.id = p.task_id
-            WHERE t.state IS NULL OR t.state NOT IN ('done', 'failed', 'cancelled')
-            ORDER BY l.initiative_id ASC, l.packet_id ASC
-            """
-        ).fetchall()
-    except sqlite3.Error as exc:
-        raise CoordinationClaimError(f"cannot read Builder ownership projection: {exc}") from exc
-    finally:
-        try:
-            conn.close()
-        except UnboundLocalError:
-            pass
-
-    projected: list[dict[str, Any]] = []
-    for row in rows:
-        state = row["state"] or "unknown"
-        worktree_path = Path(row["worktree_path"]).expanduser().resolve()
-        # Builder can retain historical branch-lease rows after a blocked/queued
-        # worktree has been intentionally retired. Those rows are evidence, not
-        # live mutation ownership. Preserve active execution states fail-closed,
-        # but do not let an absent recoverable worktree freeze broad path fences.
-        if state in {"blocked", "queued"} and not worktree_path.exists():
-            continue
-        raw_paths = row["allowed_paths_json"]
-        try:
-            paths = json.loads(raw_paths) if raw_paths else []
-        except json.JSONDecodeError as exc:
-            raise CoordinationClaimError(
-                f"Builder {row['initiative_id']}/{row['packet_id']} has invalid allowed_paths_json"
-            ) from exc
-        if not isinstance(paths, list) or not all(isinstance(path, str) for path in paths):
-            raise CoordinationClaimError(
-                f"Builder {row['initiative_id']}/{row['packet_id']} has invalid allowed paths"
-            )
-        projected.append(
-            {
-                "source": "builder",
-                "participant_id": row["worker_id"],
-                "session_id": row["task_id"] or f"builder:{row['initiative_id']}/{row['packet_id']}",
-                "role": "OWN",
-                "lane_id": f"{row['initiative_id']}/{row['packet_id']}",
-                "initiative_id": row["initiative_id"],
-                "packet_id": row["packet_id"],
-                "task_id": row["task_id"],
-                "state": state,
-                "base_sha": row["base_sha"],
-                "branch": row["branch"],
-                "worktree_path": str(worktree_path),
-                "paths": _normalized_unique(paths, _normalize_path),
-                "resources": [
-                    _normalize_resource(f"builder:{row['initiative_id']}/{row['packet_id']}")
-                ],
-            }
-        )
-    return projected
-
-
-def _conflict(existing: dict[str, Any], paths: list[str], resources: list[str]) -> str | None:
-    resource_overlap = sorted(set(existing["resources"]) & set(resources))
-    if resource_overlap:
-        return f"semantic resource {resource_overlap[0]}"
-    for requested in paths:
-        for held in existing["paths"]:
-            if _path_overlap(requested, held):
-                return f"path {requested} overlaps {held}"
-    return None
-
-
-def claim(
+def _project_event(
+    event: str,
     *,
-    participant_id: str,
+    participant: str | None,
+    claim: dict[str, Any] | None = None,
+    holder: dict[str, Any] | None = None,
+    reason: str | None = None,
+    previous: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    sender = participant or (claim or {}).get("participant") or "chatgpt"
+    lines = [f"COORDINATION {event}"]
+    if claim:
+        lines.append(
+            f"session={claim['session_id']} role={claim['role']} resource={claim['resource_id']}"
+        )
+        lines.append(
+            f"branch={claim.get('branch') or '-'} worktree={claim.get('worktree') or '-'}"
+        )
+        lines.append(f"expires_at={claim['expires_at']} state={claim['state']}")
+    if holder:
+        lines.append(
+            f"holder={holder['session_id']} role={holder['role']} "
+            f"branch={holder.get('branch') or '-'} expires_at={holder['expires_at']}"
+        )
+    if previous:
+        lines.append(
+            f"previous_session={previous['session_id']} previous_role={previous['role']}"
+        )
+    if reason:
+        lines.append(f"reason={reason}")
+    try:
+        message = agent_workspace.post_global_message(
+            sender_id=sender,
+            content="\n".join(lines),
+            message_kind="result" if event == "CLAIM RELEASED" else "status",
+        )
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "message_id": message["id"]}
+
+
+def _expire_rows(conn: sqlite3.Connection, now_stamp: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT * FROM claims WHERE state='active' AND expires_at <= ? "
+        "ORDER BY created_at, id",
+        (now_stamp,),
+    ).fetchall()
+    if rows:
+        conn.execute(
+            "UPDATE claims SET state='expired' WHERE state='active' AND expires_at <= ?",
+            (now_stamp,),
+        )
+    return [_decode(row) | {"state": "expired"} for row in rows]
+
+
+def acquire(
+    *,
     session_id: str,
     role: str,
-    lane_id: str,
+    resource_id: str,
     base_sha: str,
-    branch: str,
-    worktree_path: str,
     paths: Iterable[str],
-    resources: Iterable[str] = (),
-    lease_seconds: int = 1800,
+    participant: str | None = None,
+    lane: str | None = None,
+    task_id: str | None = None,
+    branch: str | None = None,
+    worktree: str | None = None,
+    lease_seconds: int = DEFAULT_LEASE_SECONDS,
     db_path: Path | None = None,
-    builder_db_path: Path | None = None,
-    now: float | None = None,
+    registry_path: Path | None = None,
+    now: str | datetime | None = None,
 ) -> dict[str, Any]:
-    participant_id = _required(participant_id, "participant_id")
-    session_id = _required(session_id, "session_id")
-    lane_id = _required(lane_id, "lane_id")
-    branch = _required(branch, "branch")
-    role = _required(role, "role").upper()
+    """Acquire one semantic claim; SQLite's partial unique index is the mutex."""
+    session = _required_text(session_id, "session_id")
+    role = _required_text(role, "role").upper()
     if role not in VALID_ROLES:
         raise ValueError(f"role must be one of {sorted(VALID_ROLES)}")
-    if len(base_sha) != 40 or any(ch not in "0123456789abcdef" for ch in base_sha):
-        raise ValueError("base_sha must be a full lowercase 40-character Git SHA")
+    resource = _required_text(resource_id, "resource_id")
+    registry = _load_registry(registry_path)
+    if resource not in registry:
+        raise CoordinationClaimError(f"resource_id {resource!r} is not registered")
+    base = _validate_base_sha(base_sha)
+    normalized_paths = _normalize_paths(paths)
+    if role in MUTATING_ROLES and not normalized_paths:
+        raise ValueError("OWN and INTEGRATE claims require declared paths")
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be positive")
 
-    worktree = _normalize_worktree(worktree_path)
-    normalized_paths = _normalized_unique(paths, _normalize_path)
-    normalized_resources = _normalized_unique(resources, _normalize_resource)
-    if role in MUTATING_ROLES and not normalized_paths:
-        raise ValueError("mutating claims require at least one path")
-
-    timestamp = time.time() if now is None else float(now)
-    expires = timestamp + lease_seconds
+    created = _utc(now)
+    created_stamp = _stamp(created)
+    expires_stamp = _stamp(created + timedelta(seconds=lease_seconds))
     claim_id = f"claim_{uuid.uuid4().hex}"
-    database = _init(db_path)
-    conn = kitty_db.connect(database)
+    conn = _connect(db_path)
+    expired: list[dict[str, Any]] = []
+    holder: dict[str, Any] | None = None
     try:
         conn.execute("BEGIN IMMEDIATE")
-        active = [_decode(row) for row in _active_rows(conn, timestamp)]
-        if role in MUTATING_ROLES:
-            for builder_claim in list_builder_claims(builder_db_path=builder_db_path):
-                reason = _conflict(builder_claim, normalized_paths, normalized_resources)
-                same_worktree = builder_claim["worktree_path"] == worktree
-                if reason or same_worktree:
-                    detail = reason or f"worktree {worktree}"
-                    raise CoordinationConflictError(
-                        f"claim conflicts with Builder {builder_claim['initiative_id']}/{builder_claim['packet_id']}: {detail}"
-                    )
-        for existing in active:
-            if existing["session_id"] == session_id:
-                raise CoordinationConflictError(
-                    f"session {session_id} already holds live claim {existing['claim_id']}"
-                )
-            if existing["worktree_path"] == worktree and existing["role"] in MUTATING_ROLES:
-                raise CoordinationConflictError(
-                    f"worktree {worktree} already has live mutating claim {existing['claim_id']}"
-                )
-            if role in MUTATING_ROLES and existing["role"] in MUTATING_ROLES:
-                reason = _conflict(existing, normalized_paths, normalized_resources)
-                if reason:
-                    raise CoordinationConflictError(
-                        f"claim conflicts with {existing['participant_id']}/{existing['lane_id']}: {reason}"
-                    )
-        conn.execute(
-            """
-            INSERT INTO agent_coordination_claims
-                (claim_id, participant_id, session_id, role, lane_id, base_sha,
-                 branch, worktree_path, paths_json, resources_json, created_at,
-                 heartbeat_at, lease_expires_at, released_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
-            """,
-            (
-                claim_id,
-                participant_id,
-                session_id,
-                role,
-                lane_id,
-                base_sha,
-                branch,
-                worktree,
-                json.dumps(normalized_paths),
-                json.dumps(normalized_resources),
-                timestamp,
-                timestamp,
-                expires,
-            ),
-        )
-        row = conn.execute(
-            "SELECT * FROM agent_coordination_claims WHERE claim_id = ?", (claim_id,)
-        ).fetchone()
-        conn.commit()
+        expired = _expire_rows(conn, created_stamp)
+        try:
+            conn.execute(
+                "INSERT INTO claims "
+                "(id,session_id,participant,role,resource_id,lane,task_id,branch,worktree,"
+                "base_sha,paths_json,created_at,expires_at,state) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'active')",
+                (
+                    claim_id, session, participant, role, resource, lane, task_id,
+                    branch, worktree, base,
+                    json.dumps(normalized_paths, separators=(",", ":")),
+                    created_stamp, expires_stamp,
+                ),
+            )
+        except sqlite3.IntegrityError:
+            holder_row = conn.execute(
+                "SELECT * FROM claims WHERE resource_id=? AND state='active' "
+                "AND role IN ('OWN','INTEGRATE') ORDER BY created_at,id LIMIT 1",
+                (resource,),
+            ).fetchone()
+            if holder_row is None:
+                conn.rollback()
+                raise
+            holder = _decode(holder_row)
+            conn.commit()
+        else:
+            row = conn.execute("SELECT * FROM claims WHERE id=?", (claim_id,)).fetchone()
+            conn.commit()
     except Exception:
-        conn.rollback()
+        if conn.in_transaction:
+            conn.rollback()
         raise
     finally:
         conn.close()
+
+    for stale in expired:
+        _project_event("LEASE STALE", participant=stale.get("participant"), claim=stale)
+    if holder is not None:
+        projection = _project_event(
+            "CLAIM CONFLICT", participant=participant, holder=holder,
+            reason=f"resource {resource} is already owned",
+        )
+        return {"status": "CONFLICT", "holder": holder, "gar_projection": projection}
     if row is None:
-        raise RuntimeError("claim inserted but not retrievable")
-    return _decode(row)
+        raise CoordinationClaimError("claim was inserted but could not be read back")
+    claim = _decode(row)
+    previous = next(
+        (
+            item for item in reversed(expired)
+            if item["resource_id"] == resource and item["role"] in MUTATING_ROLES
+        ),
+        None,
+    )
+    transfer_projection = None
+    if previous is not None and role in MUTATING_ROLES:
+        transfer_projection = _project_event(
+            "OWNERSHIP TRANSFERRED",
+            participant=participant,
+            claim=claim,
+            previous=previous,
+        )
+    acquired_projection = _project_event(
+        "CLAIM ACQUIRED", participant=participant, claim=claim
+    )
+    return {
+        "status": "ACQUIRED",
+        "claim": claim,
+        "gar_projection": acquired_projection,
+        "transfer_projection": transfer_projection,
+    }
 
 
-def list_claims(*, active_only: bool = True, db_path: Path | None = None, now: float | None = None) -> list[dict[str, Any]]:
-    timestamp = time.time() if now is None else float(now)
-    database = _init(db_path)
-    with kitty_db.connect(database) as conn:
+def renew(
+    session_id: str,
+    *,
+    lease_seconds: int = DEFAULT_LEASE_SECONDS,
+    db_path: Path | None = None,
+    now: str | datetime | None = None,
+) -> dict[str, Any]:
+    session = _required_text(session_id, "session_id")
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds must be positive")
+    current = _utc(now)
+    stamp = _stamp(current)
+    expires = _stamp(current + timedelta(seconds=lease_seconds))
+    conn = _connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        expired = _expire_rows(conn, stamp)
+        cursor = conn.execute(
+            "UPDATE claims SET expires_at=? WHERE session_id=? AND state='active'",
+            (expires, session),
+        )
+        rows = conn.execute(
+            "SELECT * FROM claims WHERE session_id=? AND state='active' "
+            "ORDER BY resource_id,id",
+            (session,),
+        ).fetchall()
+        conn.commit()
+    finally:
+        conn.close()
+    for stale in expired:
+        _project_event("LEASE STALE", participant=stale.get("participant"), claim=stale)
+    if cursor.rowcount == 0:
+        raise CoordinationClaimError(f"session {session} has no active claim to renew")
+    return {"renewed": cursor.rowcount, "claims": [_decode(row) for row in rows]}
+
+
+def release(
+    session_id: str,
+    *,
+    db_path: Path | None = None,
+    now: str | datetime | None = None,
+) -> dict[str, Any]:
+    session = _required_text(session_id, "session_id")
+    stamp = _stamp(now)
+    conn = _connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        expired = _expire_rows(conn, stamp)
+        rows = conn.execute(
+            "SELECT * FROM claims WHERE session_id=? AND state='active' "
+            "ORDER BY resource_id,id",
+            (session,),
+        ).fetchall()
+        cursor = conn.execute(
+            "UPDATE claims SET state='released' WHERE session_id=? AND state='active'",
+            (session,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    for stale in expired:
+        _project_event("LEASE STALE", participant=stale.get("participant"), claim=stale)
+    projections = []
+    for row in rows:
+        claim = _decode(row) | {"state": "released"}
+        projections.append(
+            _project_event("CLAIM RELEASED", participant=claim.get("participant"), claim=claim)
+        )
+    return {"released": cursor.rowcount, "gar_projections": projections}
+
+
+def force_release(
+    session_id: str,
+    reason: str,
+    *,
+    participant: str | None = None,
+    db_path: Path | None = None,
+    now: str | datetime | None = None,
+) -> dict[str, Any]:
+    session = _required_text(session_id, "session_id")
+    reason = _required_text(reason, "reason")
+    stamp = _stamp(now)
+    conn = _connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        expired = _expire_rows(conn, stamp)
+        rows = conn.execute(
+            "SELECT * FROM claims WHERE session_id=? AND state='active' ORDER BY resource_id,id",
+            (session,),
+        ).fetchall()
+        cursor = conn.execute(
+            "UPDATE claims SET state=? WHERE session_id=? AND state='active'",
+            ("forced", session),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    for stale in expired:
+        _project_event("LEASE STALE", participant=stale.get("participant"), claim=stale)
+    projections = []
+    for row in rows:
+        claim = _decode(row) | {"state": "forced"}
+        projections.append(
+            _project_event(
+                "FORCE RELEASE",
+                participant=participant or claim.get("participant"),
+                claim=claim,
+                reason=reason,
+            )
+        )
+    return {"released": cursor.rowcount, "gar_projections": projections}
+
+
+def _expire_and_project(
+    *, db_path: Path | None, now: str | datetime | None
+) -> str:
+    stamp = _stamp(now)
+    conn = _connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        expired = _expire_rows(conn, stamp)
+        conn.commit()
+    finally:
+        conn.close()
+    for stale in expired:
+        _project_event("LEASE STALE", participant=stale.get("participant"), claim=stale)
+    return stamp
+
+
+def list_claims(
+    *,
+    active_only: bool = False,
+    db_path: Path | None = None,
+    now: str | datetime | None = None,
+) -> list[dict[str, Any]]:
+    stamp = _expire_and_project(db_path=db_path, now=now)
+    conn = _connect(db_path)
+    try:
         if active_only:
-            rows = _active_rows(conn, timestamp)
+            rows = conn.execute(
+                "SELECT * FROM claims WHERE state='active' AND expires_at>? "
+                "ORDER BY resource_id,created_at,id",
+                (stamp,),
+            ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM agent_coordination_claims ORDER BY created_at ASC, claim_id ASC"
+                "SELECT * FROM claims ORDER BY created_at,id"
             ).fetchall()
+    finally:
+        conn.close()
     return [_decode(row) for row in rows]
 
 
-def renew(claim_id: str, session_id: str, *, lease_seconds: int = 1800, db_path: Path | None = None, now: float | None = None) -> dict[str, Any]:
-    claim_id = _required(claim_id, "claim_id")
-    session_id = _required(session_id, "session_id")
-    if lease_seconds <= 0:
-        raise ValueError("lease_seconds must be positive")
-    timestamp = time.time() if now is None else float(now)
-    database = _init(db_path)
-    with kitty_db.connect(database) as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        cursor = conn.execute(
-            """
-            UPDATE agent_coordination_claims
-            SET heartbeat_at = ?, lease_expires_at = ?
-            WHERE claim_id = ? AND session_id = ? AND released_at IS NULL
-              AND lease_expires_at > ?
-            """,
-            (timestamp, timestamp + lease_seconds, claim_id, session_id, timestamp),
-        )
-        if cursor.rowcount != 1:
-            raise CoordinationClaimError("claim is missing, expired, released, or owned by another session")
-        row = conn.execute("SELECT * FROM agent_coordination_claims WHERE claim_id = ?", (claim_id,)).fetchone()
-        conn.commit()
-    return _decode(row)
-
-
-def release(claim_id: str, session_id: str, *, db_path: Path | None = None, now: float | None = None) -> dict[str, Any]:
-    claim_id = _required(claim_id, "claim_id")
-    session_id = _required(session_id, "session_id")
-    timestamp = time.time() if now is None else float(now)
-    database = _init(db_path)
-    with kitty_db.connect(database) as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        cursor = conn.execute(
-            """
-            UPDATE agent_coordination_claims SET released_at = ?, heartbeat_at = ?
-            WHERE claim_id = ? AND session_id = ? AND released_at IS NULL
-            """,
-            (timestamp, timestamp, claim_id, session_id),
-        )
-        if cursor.rowcount != 1:
-            raise CoordinationClaimError("claim is missing, released, or owned by another session")
-        row = conn.execute("SELECT * FROM agent_coordination_claims WHERE claim_id = ?", (claim_id,)).fetchone()
-        conn.commit()
-    return _decode(row)
-
-
-def guard_paths(worktree_path: str, paths: Iterable[str], *, db_path: Path | None = None, now: float | None = None) -> dict[str, Any]:
-    timestamp = time.time() if now is None else float(now)
-    worktree = _normalize_worktree(worktree_path)
-    requested = _normalized_unique(paths, _normalize_path)
-    if not requested:
-        raise CoordinationClaimError("no mutation paths supplied")
-    database = _init(db_path)
-    with kitty_db.connect(database) as conn:
+def preflight_mutation(
+    session_id: str,
+    staged_paths: Iterable[str],
+    *,
+    db_path: Path | None = None,
+    registry_path: Path | None = None,
+    now: str | datetime | None = None,
+    required_role: str | None = None,
+) -> dict[str, Any]:
+    """Fail closed unless live mutating claims cover every path and semantic ID."""
+    session = _required_text(session_id, "session_id")
+    paths = sorted({_normalize_repo_path(path) for path in staged_paths})
+    stamp = _expire_and_project(db_path=db_path, now=now)
+    conn = _connect(db_path)
+    try:
         rows = conn.execute(
-            """
-            SELECT * FROM agent_coordination_claims
-            WHERE worktree_path = ? AND released_at IS NULL AND lease_expires_at > ?
-              AND role IN ('OWN', 'INTEGRATE')
-            ORDER BY created_at DESC
-            """,
-            (worktree, timestamp),
+            "SELECT * FROM claims WHERE session_id=? AND state='active' AND expires_at>? "
+            "ORDER BY resource_id,created_at,id",
+            (session, stamp),
         ).fetchall()
-    if len(rows) != 1:
-        raise CoordinationClaimError(
-            f"worktree has {len(rows)} live mutating claims; exactly one is required"
-        )
-    authorizing = _decode(rows[0])
-    uncovered = [
-        path for path in requested
-        if not any(path == held or path.startswith(held + "/") for held in authorizing["paths"])
+    finally:
+        conn.close()
+    claims = [_decode(row) for row in rows]
+    if not claims:
+        return {"ok": False, "reason": f"session {session} has no active claim"}
+
+    role_filter = required_role.upper() if required_role else None
+    if role_filter is not None and role_filter not in MUTATING_ROLES:
+        raise ValueError("required_role must be OWN or INTEGRATE")
+    mutating = [
+        claim for claim in claims
+        if claim["role"] in MUTATING_ROLES
+        and (role_filter is None or claim["role"] == role_filter)
     ]
-    if uncovered:
-        raise CoordinationClaimError(
-            "mutation path outside claim scope: " + ", ".join(uncovered)
-        )
-    return {"claim": authorizing, "paths": requested}
+    if not mutating:
+        if role_filter:
+            return {
+                "ok": False,
+                "reason": f"mutation requires active {role_filter} ownership for this checkout",
+            }
+        return {"ok": False, "reason": "mutation role must be OWN or INTEGRATE"}
+
+    for path in paths:
+        if not any(
+            _pattern_matches(path, pattern)
+            for claim in mutating
+            for pattern in claim["paths"]
+        ):
+            return {
+                "ok": False,
+                "reason": f"staged path {path} is outside the declared path fence",
+            }
+
+    claimed_resources = {claim["resource_id"] for claim in mutating}
+    for path in paths:
+        resolved = resolve_paths_to_resources([path], registry_path=registry_path)
+        if not resolved:
+            return {
+                "ok": False,
+                "reason": f"staged path {path} resolves to no registered semantic resource",
+            }
+        missing = sorted(set(resolved) - claimed_resources)
+        if missing:
+            return {
+                "ok": False,
+                "reason": (
+                    f"staged path {path} resolves to unclaimed semantic resource(s): "
+                    + ", ".join(missing)
+                ),
+            }
+    return {
+        "ok": True,
+        "session_id": session,
+        "paths": paths,
+        "resources": sorted(claimed_resources),
+        "roles": sorted({claim["role"] for claim in mutating}),
+    }

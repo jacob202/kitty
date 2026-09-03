@@ -294,7 +294,6 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "054_agent_workspace_presence.sql",
         "055_chat_messages_fts.sql",
         "055_research_runs.sql",
-        "056_agent_coordination_claims.sql",
     ]
 
 

@@ -1,17 +1,7 @@
 #!/bin/sh
 # Kitty pre-commit hook.
-# Invoked by scripts/hooks/pre-commit after `make hooks`; do not copy it into .git/hooks.
-# Edit this template in-repo so the tracked hook path stays authoritative.
-
-# Coordination guard — a supported mutating worktree must hold exactly one
-# live OWN/INTEGRATE claim covering every staged path before any expensive work.
-COORD_OUT=$(./kitty agent guard --staged --json 2>&1)
-COORD_EXIT=$?
-echo "$COORD_OUT"
-if [ $COORD_EXIT -ne 0 ]; then
-  echo "Coordination claim check failed; acquire or repair the worktree claim before committing."
-  exit $COORD_EXIT
-fi
+# Installed by scripts/install-pre-commit.sh; do not edit by hand.
+# Edit scripts/pre-commit.template and re-run the installer instead.
 
 # macOS metadata guard — refuse commits containing Finder artifacts.
 STAGED=$(git diff --cached --name-only --diff-filter=ACMR)

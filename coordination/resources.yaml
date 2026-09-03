@@ -1,0 +1,60 @@
+resources:
+  builder:initiative-lifecycle:
+    paths:
+      - gateway/builder_initiative.py
+      - tests/test_builder_initiative.py
+  builder:queue-reconciliation:
+    paths:
+      - gateway/builder_cli.py
+      - gateway/builder_commands.py
+      - gateway/builder_loop.py
+      - gateway/builder_queue.py
+      - gateway/builder_supervisor.py
+      - tests/test_builder_commands.py
+      - tests/test_builder_loop.py
+      - tests/test_builder_queue.py
+      - tests/test_builder_supervisor.py
+  coordination:kernel:
+    paths:
+      - .githooks/**
+      - Makefile
+      - coordination/**
+      - gateway/agent_coordination*.py
+      - gateway/agent_room_cli.py
+      - kitty
+      - tests/test_agent_coordination*.py
+  docs:roadmap:
+    paths:
+      - docs/ACTIVE_MISSION.md
+      - docs/PROJECT_STATUS.md
+      - docs/ROADMAP.md
+  image-lab:generation:
+    paths:
+      - gateway/image_*.py
+      - gateway/kitty-chat/src/components/ImageLab.tsx
+      - gateway/kitty-chat/src/components/StudioView.tsx
+      - gateway/kitty-chat/tests/ImageLab*.tsx
+      - gateway/routes/image_studio_jobs.py
+      - tests/test_image_*.py
+  memory:continuity:
+    paths:
+      - gateway/agent_workspace.py
+      - gateway/context_*.py
+      - gateway/explicit_memory.py
+      - gateway/memory*.py
+      - gateway/routes/agent_workspace.py
+      - tests/test_agent_workspace.py
+      - tests/test_check_continuity_state.py
+  runtime:provenance:
+    paths:
+      - gateway/routes/runtime.py
+      - gateway/runtime_manifest.py
+      - tests/test_gate_provenance.py
+      - tests/test_gateway_runtime_paths.py
+  ui:action-grammar:
+    paths:
+      - gateway/kitty-chat/src/components/chat/ActionCard.tsx
+      - gateway/kitty-chat/src/lib/actions-adapters.ts
+      - gateway/kitty-chat/src/lib/actions-contract.ts
+      - gateway/kitty-chat/tests/ActionCard.test.tsx
+      - gateway/kitty-chat/tests/actionsContract.test.ts
