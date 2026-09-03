@@ -2949,6 +2949,48 @@ class TestMergeDetection:
         assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.DONE
         assert bq.get_pr_links(task["id"], db_path=db_path)[0]["merged"] == 1
 
+    def test_detect_merged_prs_promotes_blocked_shadow_task_with_final_report(
+        self, db_path: Path
+    ):
+        task = bq.create_task("blocked-shadow-merged", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker", db_path=db_path)
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.attach_final_report(
+            task["id"],
+            {"outcome": "exited", "scope_violations": []},
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.transition_task(
+            task["id"],
+            bq.BLOCKED,
+            payload={"reason": "shadow_run_complete"},
+            db_path=db_path,
+        )
+        bq.attach_pr(task["id"], 785, db_path=db_path)
+
+        result = bq.detect_merged_prs(
+            db_path=db_path,
+            pr_merged=lambda _n: {
+                "merged": True,
+                "url": "u",
+                "head_sha": "h",
+                "checks_state": "passed",
+                "review_state": "approved",
+            },
+        )
+
+        assert result["promoted"] == [task["id"]]
+        assert result["errors"] == []
+        assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.DONE
+
     def test_detect_merged_prs_promotes_even_if_link_already_flagged(
         self, db_path: Path
     ):
