@@ -110,6 +110,43 @@ def test_dsh_can_check_in_active_participant(room_db, monkeypatch):
     assert dsh_sessions[0]["presence_state"] == "active"
 
 
+def test_commandcode_is_an_active_sender_not_a_retired_ghost(room_db, monkeypatch):
+    """Command Code sessions need their own durable identity.
+
+    ``claude`` is retired for active routing while staying valid for reads and
+    receipts, so a Command Code session must not post under it. This pins the
+    contrast: the same module rejects one sender and accepts the other.
+    """
+    _freeze(monkeypatch, 1_000_000.0)
+    session = agent_workspace.check_in(
+        participant_id="commandcode",
+        session_id="commandcode-session-1",
+        runtime="command-code",
+        role="OWN",
+        lane_id="chat-to-work-handoff",
+        exact_ref="b875340a",
+        summary="Closing an interactive lane",
+        declared_status="active",
+    )
+    assert session["participant_id"] == "commandcode"
+    assert [p for p in agent_workspace.list_presence()
+            if p["participant_id"] == "commandcode"][0]["presence_state"] == "active"
+
+    posted = agent_workspace.post_global_message(
+        sender_id="commandcode",
+        content="handoff: lane closed",
+        message_kind="handoff",
+    )
+    assert posted["sender_id"] == "commandcode"
+
+    with pytest.raises(agent_workspace.AgentWorkspaceError, match="retired|active"):
+        agent_workspace.post_global_message(
+            sender_id="claude",
+            content="should still be rejected",
+            message_kind="handoff",
+        )
+
+
 # ---------------------------------------------------------------------------
 # 3. Claude cannot create a new active session (but historical compatibility)
 # ---------------------------------------------------------------------------

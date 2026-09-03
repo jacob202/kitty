@@ -60,6 +60,7 @@ GLOBAL_AGENTS: tuple[dict[str, str | None], ...] = (
     {"id": "codex", "display_name": "Codex", "role": "external", "model": None},
     {"id": "kitty", "display_name": "Kitty", "role": "principal", "model": None},
     {"id": "dsh", "display_name": "DSH", "role": "principal", "model": None},
+    {"id": "commandcode", "display_name": "Command Code", "role": "external", "model": None},
 )
 _GLOBAL_AGENT_IDS = frozenset(agent["id"] for agent in GLOBAL_AGENTS)
 _GLOBAL_USER_IDS = frozenset({"jacob"})
