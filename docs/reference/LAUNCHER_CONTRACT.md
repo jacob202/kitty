@@ -2,23 +2,17 @@
 
 **Status:** Active authority
 **Ratified:** 2026-07-31; amended 2026-08-23 (runtime identity + ownership truth)
+**Materially revalidated:** 2026-09-03 against `main` `8b4550e20f4fa24bb047adb61d18793b859c2707`; live host process/launchd state was also sampled.
 **Owner:** Jacob
 
-This file defines the single launcher contract for Kitty. Production
-(`launchd`) and development (`./kitty up`) modes may differ in their
-entry points, but both must delegate to shared bootstrap and health logic.
-No silent alternate path may serve an unknown build.
+This file defines the single **product-runtime** launcher contract for Kitty. Production (`launchd`) and interactive product startup (`./kitty`, `./kitty ui`) may differ in their entry points, but every supported native-UI runtime path must delegate to the shared bootstrap and health logic. Isolated frontend development/test commands may run Next directly, but they are not product-runtime evidence and must not be advertised as the normal phone/desktop launch path. No silent alternate product path may serve an unknown build.
 
-## Verified current state (2026-08-23)
+## Verified current state
 
 - The canonical reboot/login supervisor is the three-service generator at
   `scripts/kitty_desktop_launchd.py`, using `com.kitty.desktop.{ui,gateway,litellm}`.
-- At the E01 host check, none of those LaunchAgents were installed or loaded;
-  the canonical UI, Gateway, and LiteLLM were running manually. Source files
-  therefore do not imply machine-restart coverage.
-- `./kitty status` reports exact checkout/source authority, dirty state, UI
-  build source, process cwd/ownership role, and whether the launchd supervisor
-  is actually loaded.
+- At the 2026-08-23 E01 host check, none of those LaunchAgents were installed or loaded. A 2026-09-03 live recheck found the same: canonical UI, Gateway, and LiteLLM listeners were manual and the three `com.kitty.desktop.*` jobs were not loaded. Source files therefore do not imply machine-restart coverage.
+- `./kitty status` exposes checkout/build/process/launchd provenance fields, but its current freshness classification is **not yet fully authoritative**: nested UI edits can evade the top-level mtime check and macOS Gateway detection has a known false-not-running path. [`KH-RUNTIME-01`](../packets/KH-RUNTIME-01.md) owns that repair. Until it lands, a green/current status is a projection to corroborate, not proof by itself.
 - Sibling Kitty worktrees are distinct active ownership domains. A launcher may
   refuse to start while a sibling holds a required port, but `./kitty down`
   must not terminate that sibling merely because it belongs to the same Git
@@ -32,28 +26,24 @@ Entry point: `scripts/kitty_desktop_launchd.py`, whose UI service executes
 `scripts/desktop/start_ui.sh` and whose Gateway/LiteLLM services reuse their
 canonical start scripts.
 Managed by: `~/Library/LaunchAgents/com.kitty.desktop.{ui,gateway,litellm}.plist`
-**Current host status at the 2026-08-23 E01 check: NOT INSTALLED/LOADED.**
-Production mode is therefore defined but was not active on the Mac at that check.
+**Host status:** NOT INSTALLED/LOADED at the 2026-08-23 E01 check and again at the 2026-09-03 live recheck. Production mode is defined but was not active on the Mac at either observed point.
 
-### Development mode — `./kitty up`
+### Interactive product mode — `./kitty` / `./kitty ui` / `./kitty up`
 
-Entry point: `kitty` CLI script → canonical Gateway/LiteLLM scripts plus the
-native UI startup path.
-**Current status at the E01 host check: ACTIVE.** Required-port conflicts are
-reported with process/worktree identity instead of being silently reused.
+- `./kitty` (or `./kitty start`) starts Gateway + LiteLLM, then starts the native UI through `scripts/desktop/start_ui.sh` and opens the local browser.
+- `./kitty ui` starts only the native UI through that same bootstrap.
+- `./kitty up` starts Gateway + LiteLLM only; it does **not** start the UI.
+
+Required-port conflicts are reported with process/worktree identity instead of being silently reused. On the 2026-09-03 live host sample the stack was running manually rather than under launchd.
 
 ## Required shared properties
 
 Every launch path MUST:
 
 1. **Resolve the repository root** from a portable anchor (not a hardcoded
-   absolute path). `start_ui.sh` resolves from `$BASH_SOURCE`; the CLI resolves
-   from `$0`.
+   absolute path). `start_ui.sh` and the CLI both resolve from `${BASH_SOURCE[0]}`.
 
-2. **Share one canonical UI bootstrap.** The `kitty up` path, `launchd` path,
-   phone access path, and any other startup path must call the same bootstrap
-   function/library. No path may start `next dev` directly while another uses
-   `start_ui.sh`.
+2. **Share one canonical product UI bootstrap.** `./kitty` / `./kitty start`, `./kitty ui`, and the launchd UI service must use `scripts/desktop/start_ui.sh`. `./kitty up` has no UI responsibility. Isolated frontend development/tests may invoke Next directly, but those processes are not canonical product runtime and cannot support source-freshness or phone-access claims.
 
 3. **Source `gateway/lib/load_env_safe.sh`** and load `.env` before any
    service startup.
@@ -81,11 +71,9 @@ Every launch path MUST:
    and is also left alone. Required-port conflicts are refused rather than
    resolved by killing another lane.
 
-8. **Expose mode, checkout path, source SHA, build SHA, PID, and port**
-   at startup. `./kitty status` reports all of these for every managed listener.
+8. **Expose mode, checkout path, source SHA, build SHA, PID, and port** at startup. `./kitty status` must project these for every managed listener.
 
-9. **Expose freshness.** If source has changed since the last build but the
-   service is still running, `./kitty status` must flag this.
+9. **Expose freshness truthfully.** If source has changed since the last build but the service is still running, `./kitty status` and `./kitty doctor` must agree and flag it; unknown process/build identity must stay unknown. Current implementation does not fully satisfy this property; see `KH-RUNTIME-01`.
 
 10. **Use the shared health endpoint.** Every service exposes `/proxy/health`
     or an equivalent health check. The health gate in the UI waits for this
@@ -93,14 +81,15 @@ Every launch path MUST:
 
 ## Explicit non-paths
 
-These MUST NOT exist in the repository:
+These MUST NOT be treated as supported product-runtime behavior:
 
-- An alternate server entry point that bypasses the shared UI bootstrap.
+- An alternate product server entry point that bypasses the shared UI bootstrap.
 - A hardcoded path to a developer's machine.
-- A silently-startable service that doesn't report its mode, SHA, or freshness.
+- A silently-startable product service that doesn't report its mode, SHA, or freshness.
 - A fallback that serves a pre-built bundle when the build fails.
-- A `localhost` hostname used for browser opening when health probes use an
-  explicit IP address.
+- A `localhost` hostname used for browser opening when health probes use an explicit IP address.
+
+**Known current violation:** `make ui-tailnet` directly starts `next dev -H 0.0.0.0`, and `./kitty verify-home` still suggests that command when Tailnet reachability fails. It bypasses the canonical UI bootstrap and still cannot make normal `/proxy/*` workflows work remotely because the server-side proxy rejects non-loopback Hosts. This is defect evidence for [`KH-REMOTE-01`](../packets/KH-REMOTE-01.md), not a supported launcher mode.
 
 ## Verification
 
@@ -108,9 +97,9 @@ These MUST NOT exist in the repository:
 # Mode, SHA, ports, process ownership, freshness for every managed listener
 ./kitty status
 
-# Both loopback addresses must hit the same process
-curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/health
-curl -s -o /dev/null -w '%{http_code}' http://[::1]:4000/health
+# The native shell and its full-stack health proxy must answer
+curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/
+curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/proxy/health
 
 # `kitty down` clears only this checkout's owned listeners. A sibling worktree
 # or unrelated listener is reported and preserved.

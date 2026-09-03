@@ -129,20 +129,27 @@ The acceptance benchmark is a decision tool, not a leaderboard. Blind Jacob pref
 
 Run the benchmark as soon as the compiler, one hosted FLUX.2 adapter, and the minimum typed-reference/cast path needed for Q1–Q3 exist. Do **not** fully build Character Pack v2, LoRA machinery, regional editing, or broad recipe complexity before those results are known.
 
-## Immediate correctness defect
+## Historical implementation defect — resolved
 
-As of repository `main` at `7badd7e1b08dfc49cf1c0dc3ae3a7f75eed42fa2`, and still on product-surface PR #528 head `23e4a02f967289676d301d44e021d9622a8c1c99`:
+At ADR adoption time, repository `main` `7badd7e1b08dfc49cf1c0dc3ae3a7f75eed42fa2` (and product-surface PR #528 head `23e4a02f967289676d301d44e021d9622a8c1c99`) had a real approved-edit truth defect:
 
-- `image_agent` can decide `operation="img2img"` and bind an anchor;
-- `image_plans.StoredPlan` does not persist `operation` or `anchor_job_id`;
-- `/studio/generate` hardcodes recipe routing to `operation="txt2img"` and calls `image_runner.run()`;
-- `image_runner.run_edit()` exists but therefore has no production dispatch from the approved-plan route.
+- `image_agent` could decide `operation="img2img"` and bind an anchor;
+- `image_plans.StoredPlan` did not persist `operation` or `anchor_job_id`;
+- `/studio/generate` routed the approved request as text-to-image;
+- `image_runner.run_edit()` therefore had no approved-plan production dispatch.
 
-Commit `5b08b67e8cc83b567332ee87b80ad0950cdd76f6` contains a focused red test for this contract, but that commit is not in current `main` or current PR #528 history. Recover or recreate the test against the current branch; do not claim it is already active.
+That defect is historical, not current status. Revalidated on 2026-09-03 against `main` `8b4550e20f4fa24bb047adb61d18793b859c2707`:
 
-This is the first implementation action because the current UI can describe an edit while the dispatch path performs a new generation.
+- `StoredPlan` persists and validates `operation` + `anchor_job_id`;
+- `/studio/generate` dispatches from the stored approved operation, verifies that the anchor exists and belongs to the session, and refuses unsupported edit routes;
+- approved reference-conditioned edits use the selected route's image-input path, while the Kitty-controlled private worker edit path uses `run_edit()`;
+- `tests/test_image_plans.py` contains focused IL-01 persistence and approved-edit dispatch regressions.
 
-## Implementation sequence (dependency order, not a roadmap)
+Current code also contains the fail-closed content-lane seam and a deterministic `flux2@1` compiler with explicit hosted targets/transports. Those implementation facts do **not** resolve the benchmark questions below: likeness, multi-character identity assignment, edit preservation, final-tier choice, and private-worker quality still require their stated acceptance evidence.
+
+## Original implementation sequence (dependency order; historical, not the current roadmap)
+
+This sequence records the dependency logic used to implement the ADR. It is not current delivery priority and must not be used to re-queue completed work. Use [`../ROADMAP.md`](../ROADMAP.md) for current sequencing and revalidate any remaining Image Lab packet against current code before activation.
 
 1. **IL-01 — approved edit truth:** persist operation + anchor, validate session ownership, dispatch approved edits through the edit executor; recover/recreate the focused red test.
 2. **IL-02 — fail-closed lane contract:** content lane + consent basis enforced at the runner/executor boundary so fallback cannot leak private work to hosted providers.
