@@ -1,10 +1,36 @@
 # QoL Packet 04 — Explainable Memory
 
-**Status:** Implementation plan for Jacob approval (not self-authorizing)
+**Status:** Backend implemented on `main`; native explain/correct/pin UI still deferred. Retained as implementation history, not an active execution contract.
+**Reconciled:** 2026-09-03 against `main` `86b8f51d37d90b746cc5c2695f612bd1278cc805`.
 **Packet:** `docs/quality_of_life_packets.md` PACKET 04 — EXPLAINABLE MEMORY (P1)
 **Branch:** `feat/explainable-memory-20260823` (worktree `/Users/jacobbrizinnski/Projects/kitty/.worktrees/explainable-memory-20260823`)
 **Base:** origin/main `d29e323a`
 **Depends on:** #552 governed explicit-memory store (already on main)
+
+
+## Implementation reconciliation — 2026-09-03
+
+Current repository evidence has advanced beyond this plan's original backend
+stage:
+
+- `gateway/memory_explain.py` implements the read-only explanation projection;
+- `gateway/routes/memories.py` exposes explain, correct, pin, and forget
+  lifecycle routes;
+- `gateway/explicit_memory.py` implements durable pin/unpin and governed
+  supersession/forget behavior;
+- `tests/test_memory_explain.py` covers provenance, correction chains, forget,
+  pinning, sensitivity, and the route contracts;
+- native Chat renders the memory evidence that informed a reply and supports a
+  guarded forget-with-undo flow.
+
+The product journey is **not complete**: the native frontend does not currently
+call the backend explain, correct, or pin routes. That remaining UI/product
+acceptance work belongs to the current roadmap/[`OK-MEMORY-01`](../packets/OK-MEMORY-01.md) flow; do not
+re-run this historical backend plan or mark the whole memory outcome done merely
+because its backend primitives exist.
+
+The original plan below is preserved to explain the implemented backend design
+and its constraints.
 
 ## Objective
 

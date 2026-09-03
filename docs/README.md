@@ -14,6 +14,7 @@ Existing does not mean current. Use this index instead of inferring authority fr
 | Verified repository state | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) |
 | One approved mission | [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md) |
 | Code/data-flow map | [`reference/CODEBASE_MAP.md`](reference/CODEBASE_MAP.md) |
+| Gateway API/client boundary | [`reference/GATEWAY_API.md`](reference/GATEWAY_API.md) |
 | Current GitHub truth pass | [`audit/GITHUB_OPERATING_PICTURE_2026-08-04.md`](audit/GITHUB_OPERATING_PICTURE_2026-08-04.md) |
 
 ## Supporting material

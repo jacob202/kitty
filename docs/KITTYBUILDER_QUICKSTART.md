@@ -10,9 +10,10 @@ All commands live under `./kitty builder queue ...` (or
 `python3.12 -m gateway.builder_cli queue ...`). Data-returning commands accept
 `--json`.
 
-To execute queued packets with zero-cost OpenCode models instead of paid
-tokens, see `docs/FREE_WORKERS.md` — the short version is
-`./kitty builder initiative run-packet <id> <packet> --free --watch`.
+To execute queued packets through the current DSH free or governed paid
+adapters, see `docs/FREE_WORKERS.md`. The zero-spend short form is
+`./kitty builder initiative run-packet <id> <packet> --free --watch`; this
+runs the packet in shadow mode and does not publish a PR.
 
 When an initiative run is started with publication enabled, Builder also runs
 the **PR Janitor** before opening/updating the PR. It applies only packet-scoped
@@ -39,7 +40,7 @@ second worker loop inside the operator publish command.
 ./kitty builder queue status
 
 # Claim it (returns the lease token + claim version the worker must keep)
-./kitty builder queue claim kb_mrelm4q5_9803 --worker opencode-1
+./kitty builder queue claim kb_mrelm4q5_9803 --worker manual-worker-1
 
 # Worker starts execution
 ./kitty builder queue transition kb_mrelm4q5_9803 running \
@@ -62,7 +63,7 @@ TASK_ID=$(./kitty builder queue add "Small scoped task" \
   --acceptance '["tests pass"]' --json | jq -r '.id')
 
 # 2. Claim and capture the fencing pair
-CLAIM=$(./kitty builder queue claim "$TASK_ID" --worker opencode-1 --json)
+CLAIM=$(./kitty builder queue claim "$TASK_ID" --worker manual-worker-1 --json)
 LEASE=$(echo "$CLAIM" | jq -r '.lease_token')
 VERSION=$(echo "$CLAIM" | jq -r '.claim_version')
 
@@ -81,7 +82,7 @@ VERSION=$(echo "$CLAIM" | jq -r '.claim_version')
   --payload-json '{"reason": "needs Jacob decision on schema"}'
 
 # 4c. Or hand it back cleanly
-./kitty builder queue release "$TASK_ID" --worker opencode-1 \
+./kitty builder queue release "$TASK_ID" --worker manual-worker-1 \
   --lease-token "$LEASE" --claim-version "$VERSION"
 ```
 
