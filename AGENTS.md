@@ -54,6 +54,10 @@ in `gateway/routes/`, the web UI in `gateway/kitty-chat/`, tests in `tests/`,
 and product/architecture docs in `docs/`. Runtime data and logs in `data/` and
 `logs/` are not source artifacts. Use the existing patterns, keep diffs focused,
 prefer editing existing files, and comment the why rather than the obvious.
+Durable architecture decisions belong in ADRs; proven workflow lessons belong
+in canonical docs/tests/skills, and workflow signals follow ADR 0025 as
+evidence rather than a second execution backlog. `docs/ROADMAP.md` is the sole
+active roadmap.
 
 ## Verification
 
@@ -85,6 +89,9 @@ SHA. Do not base new PR work on local `main` unless you have just proven it
 equals GitHub `main`; local-only integration commits can silently contaminate
 the PR.
 
+Preserve unrelated uncommitted work. Do not stash or clean merely to simplify
+the checkout; if isolation genuinely requires a stash, name it descriptively.
+
 Keep small Conventional Commits. Never force-push, rewrite history, delete data,
 touch secrets/auth/env, spend money, add a heavy dependency, merge, or push
 directly to `main` without explicit authorization. An explicit instruction from
@@ -95,6 +102,9 @@ higher-impact actions listed above or material scope expansion. Before `gh` or
 push, check for an ambient `GITHUB_TOKEN`; prefer `env -u GITHUB_TOKEN gh ...`
 when stored auth is valid, and never print credential values. Before merge,
 inspect every required Actions check run. A green aggregate status is not enough.
+Do not enable or rely on auto-merge for dependency/lockfile, CI, auth/security,
+destructive/schema, human-judgment, collision, unverifiable-gate, or scope-
+expansion changes.
 
 ## Builder ownership
 
