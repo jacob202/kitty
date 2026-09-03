@@ -1310,22 +1310,28 @@ def derive_initiative_state(
     return INITIATIVE_ACTIVE
 
 
+def _packet_is_exhausted(
+    packet: dict[str, Any], attempts: list[dict[str, Any]]
+) -> bool:
+    """Return whether attempt exhaustion is still a live packet blocker."""
+    return packet.get("state") != bq.DONE and _attempts_exhausted(packet, attempts)
+
+
 def _exhausted_packet_ids(
     initiative_id: str,
     packets: list[dict[str, Any]],
     db_path: Path | None = None,
 ) -> set[str]:
-    """Read attempts once per packet and return the ids of exhausted packets.
+    """Read attempts once per packet and return live exhausted packet ids.
 
-    A packet is exhausted when its attempt budget or same-signature limit is
-    spent, regardless of the current task state (queued, blocked, running, …).
-    This ensures the initiative rollup counts blocked-but-exhausted packets as
-    failed rather than pausing silently.
+    Exhaustion blocks unfinished work whose attempt budget or same-signature
+    limit is spent. A task already reconciled to ``done`` keeps its historical
+    attempts, but that history must not keep blocking downstream packets.
     """
     exhausted: set[str] = set()
     for p in packets:
         attempts = ba.list_attempts(initiative_id, p["packet_id"], db_path=db_path)
-        if _attempts_exhausted(p, attempts):
+        if _packet_is_exhausted(p, attempts):
             exhausted.add(p["packet_id"])
     return exhausted
 
@@ -1811,7 +1817,7 @@ def _initiative_evidence(
             "attempt_budget": packet["policy"].get("max_attempts"),
             # Reuse the gating logic so the evidence blob can never disagree
             # with the authoritative exhausted set used for eligibility.
-            "exhausted": _attempts_exhausted(packet, attempts),
+            "exhausted": _packet_is_exhausted(packet, attempts),
             "attempt_ids": [attempt.get("id") for attempt in attempts],
             "attempt_outcomes": [attempt.get("outcome") for attempt in attempts],
             "infrastructure_failures": len(infrastructure_events) + len(infrastructure_runs),
