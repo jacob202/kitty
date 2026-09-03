@@ -87,6 +87,13 @@ def _repo_context(cwd: Path | None = None) -> dict[str, Any]:
     }
 
 
+def _coordination_paths(context: dict[str, Any]) -> tuple[Path, Path]:
+    worktree = Path(context["worktree"])
+    db_path = agent_coordination.canonical_repo_root(worktree) / agent_coordination.DB_FILENAME
+    registry_path = worktree / "coordination" / "resources.yaml"
+    return db_path, registry_path
+
+
 def _participant() -> str:
     return os.environ.get("KITTY_AGENT_PARTICIPANT", "chatgpt").strip() or "chatgpt"
 
@@ -111,7 +118,8 @@ def _session_id(
         if existing:
             if not rotate_if_inactive:
                 return existing
-            active = agent_coordination.list_claims(active_only=True)
+            db_path, _ = _coordination_paths(ctx)
+            active = agent_coordination.list_claims(active_only=True, db_path=db_path)
             if any(claim["session_id"] == existing for claim in active):
                 return existing
             session_file.unlink(missing_ok=True)
@@ -150,9 +158,9 @@ def _emit(value: Any, *, as_json: bool) -> None:
         print(value)
 
 
-def _status_rows() -> list[dict[str, Any]]:
+def _status_rows(*, db_path: Path) -> list[dict[str, Any]]:
     rows = []
-    for claim in agent_coordination.list_claims():
+    for claim in agent_coordination.list_claims(db_path=db_path):
         rows.append(
             {
                 "agent": claim.get("participant") or claim["session_id"],
@@ -211,6 +219,7 @@ def _staged_paths(context: dict[str, Any]) -> list[str]:
 def _dispatch(args: argparse.Namespace) -> tuple[Any, int]:
     if args.command == "claim":
         context = _repo_context()
+        db_path, registry_path = _coordination_paths(context)
         result = agent_coordination.acquire(
             session_id=_session_id(context, rotate_if_inactive=True),
             participant=_participant(),
@@ -222,6 +231,8 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             worktree=str(context["worktree"]),
             base_sha=context["base_sha"],
             paths=_claim_paths(args.paths),
+            db_path=db_path,
+            registry_path=registry_path,
         )
         if result["status"] == "CONFLICT":
             holder = result["holder"]
@@ -236,35 +247,44 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, int]:
 
     if args.command == "renew":
         context = _repo_context()
-        return agent_coordination.renew(_session_id(context, create=False)), 0
+        db_path, _ = _coordination_paths(context)
+        return agent_coordination.renew(_session_id(context, create=False), db_path=db_path), 0
     if args.command == "release":
         context = _repo_context()
         session = _session_id(context, create=False)
-        result = agent_coordination.release(session)
+        db_path, _ = _coordination_paths(context)
+        result = agent_coordination.release(session, db_path=db_path)
         _retire_session_binding(context, session)
         return result, 0
 
     if args.command == "force-release":
         context = _repo_context()
+        db_path, _ = _coordination_paths(context)
         result = agent_coordination.force_release(
             args.session,
             args.reason,
             participant=_participant(),
+            db_path=db_path,
         )
         _retire_session_binding(context, args.session)
         return result, 0
 
     if args.command == "status":
-        rows = _status_rows()
+        context = _repo_context()
+        db_path, _ = _coordination_paths(context)
+        rows = _status_rows(db_path=db_path)
         return {"claims": rows}, 0
 
     if args.command == "preflight":
         context = _repo_context()
         required_role = "INTEGRATE" if context["canonical"] else None
+        db_path, registry_path = _coordination_paths(context)
         result = agent_coordination.preflight_mutation(
             _session_id(context, create=False),
             _staged_paths(context),
             required_role=required_role,
+            db_path=db_path,
+            registry_path=registry_path,
         )
         if not result["ok"]:
             print(f"MUTATION BLOCKED: {result['reason']}", file=sys.stderr)

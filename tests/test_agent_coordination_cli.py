@@ -41,6 +41,8 @@ def repo(tmp_path: Path) -> Path:
     _git(repo, "init", "-q")
     _git(repo, "config", "user.name", "Kitty Test")
     _git(repo, "config", "user.email", "kitty-test@example.invalid")
+    (repo / "coordination").mkdir()
+    _registry(repo / "coordination" / "resources.yaml")
     (repo / "README.md").write_text("seed\n", encoding="utf-8")
     _git(repo, "add", "README.md")
     _git(repo, "commit", "-qm", "seed")
@@ -50,12 +52,9 @@ def repo(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def cli_env(tmp_path: Path) -> dict[str, str]:
-    registry = _registry(tmp_path / "resources.yaml")
     return {
         **os.environ,
         **BASE_ENV,
-        "KITTY_COORDINATION_DB": str(tmp_path / "coordination.db"),
-        "KITTY_COORDINATION_REGISTRY": str(registry),
         "KITTY_DATA_ROOT": str(tmp_path / "data"),
         "KITTY_AGENT_PARTICIPANT": "chatgpt",
         "KITTY_AGENT_SESSION_ID": "session-one",
@@ -236,7 +235,7 @@ def test_expired_binding_rotates_before_new_claim(repo: Path, cli_env: dict[str,
     first = _claim(repo, env)
     assert first.returncode == 0, first.stderr
     first_session = json.loads(first.stdout)["claim"]["session_id"]
-    with sqlite3.connect(env["KITTY_COORDINATION_DB"]) as conn:
+    with sqlite3.connect(repo / ".kitty-coordination.db") as conn:
         conn.execute(
             "UPDATE claims SET expires_at='2000-01-01T00:00:00+00:00' "
             "WHERE session_id=? AND state='active'",

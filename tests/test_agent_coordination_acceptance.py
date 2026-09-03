@@ -314,7 +314,7 @@ def test_store_is_wal_and_mutex_is_a_partial_unique_index(store: tuple[Path, Pat
 
 def test_registry_seed_is_exact_deterministic_and_points_at_real_tree() -> None:
     data = yaml.safe_load(TRACKED_REGISTRY.read_text(encoding="utf-8"))
-    assert REQUIRED_RESOURCES <= set(data["resources"])
+    assert set(data["resources"]) == REQUIRED_RESOURCES
     for resource_id, spec in data["resources"].items():
         paths = spec["paths"]
         assert paths == sorted(paths), f"{resource_id} paths must be deterministic"
@@ -340,8 +340,7 @@ def test_gar_heartbeat_renews_matching_coordination_session(
     db_path = tmp_path / "coordination.db"
     registry_path = _write_registry(tmp_path / "resources.yaml")
     gar_db = tmp_path / "gar.db"
-    monkeypatch.setenv("KITTY_COORDINATION_DB", str(db_path))
-    monkeypatch.setenv("KITTY_COORDINATION_REGISTRY", str(registry_path))
+    monkeypatch.setattr(agent_coordination, "default_db_path", lambda: db_path)
     monkeypatch.setattr(agent_workspace, "WORKSPACE_DB_FILE", gar_db)
     agent_workspace.check_in(
         participant_id="chatgpt", session_id="heartbeat-owner", runtime="test"
@@ -357,3 +356,35 @@ def test_gar_heartbeat_renews_matching_coordination_session(
     active = agent_coordination.list_claims(active_only=True, db_path=db_path)
     after = next(row["expires_at"] for row in active if row["session_id"] == "heartbeat-owner")
     assert after > before
+
+
+def test_repo_root_wal_sidecars_are_ignored() -> None:
+    ignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert ".kitty-coordination.db-wal" in ignore
+    assert ".kitty-coordination.db-shm" in ignore
+
+
+def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
+    runtime_paths = [
+        "kitty",
+        "gateway/doctor.py",
+        "scripts/desktop/start_ui.sh",
+        "tests/test_doctor_freshness.py",
+        "tests/test_kitty_launcher_runtime.py",
+        "tests/test_start_ui_script.py",
+    ]
+    action_paths = [
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/src/lib/queries.ts",
+        "gateway/kitty-chat/src/lib/actions-contract.ts",
+        "gateway/kitty-chat/src/lib/actions-adapters.ts",
+        "gateway/kitty-chat/tests/actionsContract.test.ts",
+    ]
+    for path in runtime_paths:
+        assert "runtime:provenance" in agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ), path
+    for path in action_paths:
+        assert "ui:action-grammar" in agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ), path

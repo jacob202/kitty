@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import fnmatch
 import json
-import os
 import sqlite3
 import subprocess
 import time
@@ -115,8 +114,7 @@ def _pattern_matches(path: str, pattern: str) -> bool:
 
 
 def _load_registry(registry_path: Path | None = None) -> dict[str, list[str]]:
-    configured = registry_path or os.environ.get("KITTY_COORDINATION_REGISTRY")
-    path = Path(configured or DEFAULT_REGISTRY_PATH)
+    path = Path(registry_path or DEFAULT_REGISTRY_PATH)
     try:
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     except OSError as exc:
@@ -169,9 +167,6 @@ def resolve_paths_to_resources(
 
 def canonical_repo_root(cwd: Path | None = None) -> Path:
     """Return the shared root, not the linked worktree root."""
-    override = os.environ.get("KITTY_COORDINATION_ROOT")
-    if override:
-        return Path(override).expanduser().resolve()
     start = Path(cwd or ROOT).resolve()
     result = subprocess.run(
         ["git", "-C", str(start), "rev-parse", "--path-format=absolute", "--git-common-dir"],
@@ -187,9 +182,6 @@ def canonical_repo_root(cwd: Path | None = None) -> Path:
 
 
 def default_db_path() -> Path:
-    override = os.environ.get("KITTY_COORDINATION_DB")
-    if override:
-        return Path(override).expanduser().resolve()
     return canonical_repo_root() / DB_FILENAME
 
 

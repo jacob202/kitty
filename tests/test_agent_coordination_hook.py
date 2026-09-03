@@ -79,7 +79,6 @@ def _agent_env(tmp_path: Path) -> dict[str, str]:
         "PYTHON_BIN": sys.executable,
         "KITTY_AGENT_SESSION_ID": "fresh-worktree-owner",
         "KITTY_AGENT_PARTICIPANT": "chatgpt",
-        "KITTY_COORDINATION_DB": str(tmp_path / "coordination.db"),
         "KITTY_DATA_ROOT": str(tmp_path / "data"),
     }
 
