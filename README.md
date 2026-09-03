@@ -39,8 +39,15 @@ Native Kitty frontend
 ```bash
 python3.12 -m venv venv
 venv/bin/pip install -r requirements.txt
-cp .env.example .env
 
+cd gateway/kitty-chat && npm ci && cd ../..
+python3.12 -m venv ~/kitty-services/venv-litellm
+~/kitty-services/venv-litellm/bin/pip install -r gateway/requirements.litellm.txt
+
+cp .env.example .env
+# Add at least one configured model-provider credential to .env (OpenRouter is the current default).
+
+./kitty doctor --json  # fail-loud preflight before first launch
 ./kitty            # Gateway + LiteLLM + native UI, then open the browser
 ./kitty status
 ./kitty doctor --json

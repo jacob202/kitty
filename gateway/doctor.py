@@ -22,6 +22,7 @@ import sys
 import time
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -454,18 +455,52 @@ def _check_repository_continuity() -> list[Check]:
     ]
 
 
-def _check_venv() -> list[Check]:
+def _check_venv(env: dict[str, str] | None = None) -> list[Check]:
+    env = env or {}
+    checks: list[Check] = []
+
     venv = ROOT / "venv"
     if (venv / "bin" / "python").exists():
-        return [Check("PASS", "runtime:venv", str(venv))]
-    return [
-        Check(
-            "FAIL",
-            "runtime:venv",
-            f"no venv at {venv} — run: python3.11 -m venv venv && "
-            "venv/bin/pip install -r requirements.txt",
+        checks.append(Check("PASS", "runtime:venv", str(venv)))
+    else:
+        checks.append(
+            Check(
+                "FAIL",
+                "runtime:venv",
+                f"no venv at {venv} — run: python3.12 -m venv venv && "
+                "venv/bin/pip install -r requirements.txt",
+            )
         )
-    ]
+
+    frontend = ROOT / "gateway" / "kitty-chat"
+    if (frontend / "node_modules" / "next").exists():
+        checks.append(Check("PASS", "runtime:frontend_dependencies", str(frontend / "node_modules")))
+    else:
+        checks.append(
+            Check(
+                "FAIL",
+                "runtime:frontend_dependencies",
+                f"frontend dependencies missing — run: cd {frontend} && npm ci",
+            )
+        )
+
+    litellm_venv = Path(
+        env.get("LITELLM_VENV", str(Path.home() / "kitty-services" / "venv-litellm"))
+    ).expanduser()
+    if (litellm_venv / "bin" / "python").exists() and (litellm_venv / "bin" / "litellm").exists():
+        checks.append(Check("PASS", "runtime:litellm_venv", str(litellm_venv)))
+    else:
+        checks.append(
+            Check(
+                "FAIL",
+                "runtime:litellm_venv",
+                f"LiteLLM venv missing or incomplete at {litellm_venv} — run: "
+                f"python3.12 -m venv {litellm_venv} && "
+                f"{litellm_venv}/bin/pip install -r {ROOT / 'gateway/requirements.litellm.txt'}",
+            )
+        )
+
+    return checks
 
 
 def _level_order(level: str) -> int:
@@ -508,7 +543,7 @@ def main() -> int:
 
     env = _load_env()
     checks: list[Check] = (
-        _check_venv()
+        _check_venv(env)
         + _check_env(env)
         + _check_services(env)
         + _check_chromadb()
