@@ -31,7 +31,7 @@ A plan, issue, packet, report, metric, or chat statement does not become archite
 | D23 | KittyBuilder has an independent operator application | [0024](adr/0024-independent-kittybuilder-operator-application.md) |
 | D24 | Session learning without a second backlog | [0025](adr/0025-session-learning-without-a-second-backlog.md) |
 | D25 | Measured KB effectiveness and single execution ownership | [0026](adr/0026-measured-kb-effectiveness-and-execution-ownership.md) |
-| D26 | Open WebUI is a replaceable daily-driver shell | [0027](adr/0027-open-webui-shell-boundary.md) |
+| D26 | Open WebUI replaceable-shell boundary — product-surface role superseded by D38; compatibility/isolation boundary retained | [0027](adr/0027-open-webui-shell-boundary.md) |
 | D27 | Commodity software precedes custom code | [0028](adr/0028-commodity-software-precedence.md) |
 | D28 | Capability Manifest is the single source of runtime truth | [0029](adr/0029-capability-manifest-single-truth.md) |
 | D29 | Repository simplification is a strategic priority | [0030](adr/0030-repository-simplification-strategic-priority.md) |
@@ -41,5 +41,9 @@ A plan, issue, packet, report, metric, or chat statement does not become archite
 | D33 | Memory policy is a Kitty concern; storage remains open | [0034](adr/0034-memory-policy-vs-storage.md) |
 | D34 | UI claims require browser-verified evidence | [0035](adr/0035-browser-verified-evidence.md) |
 | D35 | Builder infrastructure is preserved, refactored for extraction readiness | [0036](adr/0036-builder-infrastructure-refactor.md) |
+| D36 | PAA is Kitty's reference architecture and portability profile, not a replacement codebase | [0037](adr/0037-paa-reference-profile.md) |
+| D37 | Builder crash recovery follows a durable recovery contract | [0038](adr/0038-builder-crash-recovery-durability.md) |
+| D38 | Native Kitty owns the canonical product surface; Open WebUI is compatibility/reference software | [0039](adr/0039-kitty-native-product-surface.md) |
+| D39 | Image Lab uses FLUX.2-first intent compilation and native references | [0040](adr/0040-image-lab-flux2-execution-architecture.md) |
 
 The full status/date index is in [`docs/adr/README.md`](adr/README.md). Older combined decision material remains historical in [`docs/retired/DECISIONS_AND_ROADMAP.md`](retired/DECISIONS_AND_ROADMAP.md).

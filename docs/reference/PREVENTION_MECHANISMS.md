@@ -13,22 +13,23 @@ prose alone is insufficient.
 **What:** `main` must never be red. A push that breaks CI is rolled back or
 immediately fixed.
 
-**Enforcement:** Required status checks on the `main` branch protection rule:
+**Enforcement:** Required status checks on the active `main` GitHub ruleset:
 `policy-gate` and `merge-gate`. The aggregate merge gate owns the applicable
 `pytest`, `lint`, `typecheck`, `kitty-chat`, and `browser-smoke` evidence; docs/Markdown-only
 PRs may skip code/browser jobs. Every applicable required signal must succeed
 before `merge-gate` passes. GitHub ruleset enforcement applies this at the
 platform level.
 
-Post-merge validation on `main` is scope-aware for the same reason PRs are.
-Strict up-to-date checking plus zero bypass actors mean a merge commit carries
-exactly the tree its PR head validated, so re-running the code suite after a
-docs-only merge cannot detect a failure the PR gate did not. Red-main detection
-is preserved for every merge that touched code, and the nightly full suite in
-`.github/workflows/nightly-health.yml` is the time-based canary that catches
-drift no merge introduced.
+Post-merge validation on `main` is scope-aware for the same reason PRs are. The
+active ruleset has zero bypass actors for its required protections, but strict
+up-to-date checking is **not** enabled (`strict_required_status_checks_policy=false`).
+A PR-head check therefore does not prove the final integration tree is identical
+to that head when `main` advanced meanwhile. Docs-only merges still skip code
+jobs because their own diff contains no code; code-bearing merges retain
+red-main detection, and the nightly full suite in
+`.github/workflows/nightly-health.yml` remains the time-based canary.
 
-**Status:** ENFORCED. Branch protection is configured on GitHub.
+**Status:** ENFORCED. The default-branch ruleset is active on GitHub.
 
 ## 2. One active implementation lane
 
@@ -47,11 +48,14 @@ Dependabot PRs are exempt.
 **What:** A PR branch must be based on a recent `main` commit (within 48 hours).
 A branch with merge conflicts is blocked from merge.
 
-**Enforcement:** GitHub branch protection "Require branches to be up to date
-before merging." CI check verifies the base is within 48 hours of `origin/main`.
+**Enforcement:** GitHub pull-request protection blocks conflicted merges, but the
+active ruleset does **not** require a branch to be updated to latest `main`. A
+separate CI/procedural freshness check is therefore required for the 48-hour
+policy.
 
-**Status:** PARTIALLY ENFORCED. "Up to date" check is platform-level.
-Freshness check needs CI workflow.
+**Status:** PARTIALLY ENFORCED. Conflict protection is platform-level; strict
+up-to-date/freshness is not. The 48-hour freshness check still needs an
+enforceable workflow or an explicitly retained procedural gate.
 
 ## 4. Open-PR overlap detection
 
@@ -65,17 +69,22 @@ changed files against all other open PRs' changed files.
 
 ## 5. Required checks and independent review
 
-**What:** Every PR must pass all six CI jobs and receive an independent review
-from a model other than the author.
+**What:** Every PR must satisfy the two stable required gates; deterministic
+code/browser jobs are selected by scope. Sensitive changes additionally require
+trusted independent exact-head review evidence and the applicable approval
+boundary.
 
 **Enforcement:**
-- CI: branch protection requires all six jobs.
-- Review: PR Agent Review (#327) posts a review. A human or second model must
-  approve. For T0 (safe) work: PR Agent Review pass is sufficient. For T1 work:
-  separate model approval required. For T2 work: Jacob's approval required.
+- CI: the ruleset requires `policy-gate` and `merge-gate`. `merge-gate` aggregates
+  applicable `pytest`, `lint`, `typecheck`, `kitty-chat`, and `browser-smoke`
+  jobs; docs-only PRs may skip code/browser jobs.
+- Review: PR Agent Review may produce advisory review on ordinary owner PRs.
+  `policy-gate` requires trusted exact-head independent review for sensitive
+  scope; ordinary docs/code changes do not become blocked merely because the
+  external review model is unavailable.
 
-**Status:** PARTIALLY ENFORCED. CI jobs enforced by branch protection. Review
-policy is defined but needs enforcement workflow for model-origin checks.
+**Status:** ENFORCED for the current scope-aware gate and sensitive-review
+contract. Model-origin metadata remains a separate improvement area.
 
 ## 6. Stale-draft policy
 
@@ -151,8 +160,10 @@ approve its own work.
 
 ## Implementation priority
 
-1. **Platform-enforced (already working):** Red-main freeze (branch protection),
-   required CI checks, branch up-to-date requirement.
+1. **Platform-enforced (already working):** pull-request/deletion/non-fast-forward
+   protection plus required `policy-gate` and `merge-gate` checks. Strict branch
+   up-to-date enforcement is **not** enabled and must not be listed as a platform
+   guarantee.
 
 2. **CI workflows to add (in order):**
    - `pr-single-lane-check.yml` — blocks second concurrent feature PR

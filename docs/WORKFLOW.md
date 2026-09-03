@@ -33,18 +33,21 @@ comments, or an external model verdict.
      code/browser jobs only when the changed-path classifier marks them inapplicable.
    - Kitty Chat and browser smoke remain hard evidence for non-documentation
      frontend changes; unrelated PRs skip those expensive jobs.
-   - Scope is scope-aware on pushes to `main` too. Strict up-to-date checking
-     means a merge commit carries the tree the PR head already validated, so a
-     docs-only merge re-running the code suite proves nothing new.
+   - Scope is scope-aware on pushes to `main` too. The active GitHub ruleset does
+     **not** require branches to be up to date before merge, so PR-head checks do
+     not prove that the final integration tree is byte-for-byte identical. A
+     docs-only merge still skips code jobs because its own diff contains no code;
+     that is a scope rule, not an exact-tree guarantee.
    - Draft PRs skip the expensive suite entirely. `ready_for_review` starts the
      full applicable set without another push; `converted_to_draft` cancels
      in-flight work nobody can merge.
 4. **Independent model review**
-   - `.github/workflows/pr-agent-review.yml` reviews a new code head using trusted
-     default-branch reviewer code, **only when the change is sensitive scope** —
-     the only scope whose `policy-gate` result consumes review evidence. Ordinary
-     PRs carry no external model dependency and cannot be blocked by a reviewer
-     outage. Editing prose or labels does not call the model again.
+   - `.github/workflows/pr-agent-review.yml` attempts a cheap exact-head model
+     review for eligible owner PR code-head events using trusted default-branch
+     reviewer code. For ordinary PRs that review is advisory: they carry no
+     external-model merge dependency and cannot be blocked by reviewer outage.
+     Sensitive scope is the class whose `policy-gate` consumes trusted exact-head
+     review evidence. Editing prose or labels does not call the model again.
    - `policy-gate` requires trusted exact-head review evidence only for sensitive
      scope, and classifies the live PR itself rather than trusting the scope job,
      so a failed scope job can never downgrade a sensitive PR. An independently
@@ -62,10 +65,12 @@ adding an independent safety signal.
 
 ### Default-branch ruleset
 
-The active default-branch ruleset requires only `policy-gate` and `merge-gate`.
-Strict up-to-date checking, pull-request protection, deletion protection, and
-non-fast-forward protection remain enabled. Legacy `pr-policy` and `review-gate`
-compatibility jobs were retired after the two stable gate names were activated.
+The active default-branch ruleset requires `policy-gate` and `merge-gate`, plus
+pull-request/review-thread, deletion, and non-fast-forward protection. Its
+`strict_required_status_checks_policy` is currently `false`: GitHub does **not**
+require a PR branch to be updated to the latest `main` before merge. Legacy
+`pr-policy` and `review-gate` compatibility jobs were retired after the two
+stable gate names were activated.
 
 ### One classifier
 
@@ -207,9 +212,10 @@ The stable merge contract is two required outcomes:
   Sensitive scope requires explicit exact-head approval and trusted independent
   review; native UI source/public changes require product-acceptance evidence.
 
-The default branch remains strict/up-to-date: passing evidence must describe the
-current integration base rather than a stale branch. Green checks are necessary
-evidence, not merge authorization.
+The default branch is protected, but strict up-to-date checking is not
+platform-enforced. Immediately before merge, re-check the PR head, current
+`main`, mergeability/conflicts, and whether base drift changes the evidence the
+change relies on. Green checks are necessary evidence, not merge authorization.
 
 Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge. A
 "looks good" in another channel is not approval unless it is a direct instruction
