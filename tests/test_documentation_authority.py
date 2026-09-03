@@ -203,3 +203,37 @@ def test_docs_index_names_current_support_surfaces_without_becoming_a_ledger() -
         "PLANS.md",
     ):
         assert name in index
+
+def test_session_end_requires_formal_completion_review_before_acceptance() -> None:
+    skill = " ".join(_read(".agents/skills/session-end/SKILL.md").lower().split())
+
+    for required in (
+        "formal completion review",
+        "original user request",
+        "all explicit requirements",
+        "unsupported assumptions",
+        "reasoning or process flaws",
+        "actionable finding reopens the task",
+        "fix the finding",
+        "re-run the affected verification",
+        "repeat the formal completion review",
+        "completed_unreviewed",
+    ):
+        assert required in skill
+
+    assert "accepted requires a passing formal completion review" in skill
+    assert "do not publish the final closeout" in skill
+
+
+def test_documentation_consolidation_plan_records_task7_completion() -> None:
+    plan = _read(
+        "docs/superpowers/plans/2026-09-03-repository-documentation-consolidation.md"
+    )
+    task7 = plan.split("### Task 7:", 1)[1]
+
+    assert "- [ ]" not in task7
+    assert task7.count("- [x]") == 6
+    assert "f423dcbc8692e573682ed51514bc53f9daa51fdc" in task7
+    assert "150 passed, 56 deselected" in task7
+    assert "573 current markdown files" in task7.lower()
+    assert "0 broken local links" in task7.lower()

@@ -105,6 +105,43 @@ Record only facts verified now:
 For Builder-owned work, attach the final report through supported fenced
 commands. Never edit SQLite or infer completion from worker prose.
 
+## 3A. Formal completion review — gate before acceptance
+
+Before a substantial assigned task can be called done, accepted, complete,
+shipped, or ready for final closeout, run a **formal completion review**. Review
+the exact delivered candidate against:
+
+- the original user request and intended outcome;
+- all explicit requirements, acceptance criteria, non-goals, and constraints;
+- the exact repository state or exact running candidate that is being delivered;
+- verification and review evidence already gathered;
+- omitted requirements, errors, regressions, unsupported assumptions, and
+  reasoning or process flaws;
+- useful insights that should change future execution, verification, or
+  coordination.
+
+The review must answer whether the task is actually done in the way requested,
+with all applicable requirements satisfied. A test suite, PR state, merge,
+subagent `DONE`, or implementation-owner self-review cannot substitute for this
+outcome-level review.
+
+Use an independent reviewer when the repository/task has an independent review
+lane available, and bind its verdict to the exact SHA or running candidate. If
+independent review is unavailable, the outcome is `completed_unreviewed`, not
+`accepted`. **Accepted requires a passing formal completion review** plus the
+independent acceptance evidence required by the task/repository.
+
+An **actionable finding reopens the task**. Fix the finding, re-run the affected
+verification, and repeat the formal completion review against the new exact
+candidate. Do not publish the final closeout, write an `accepted` effectiveness
+receipt, or tell the user the task is done while actionable findings remain.
+
+Preserve the review result in closeout evidence: verdict, findings fixed,
+remaining evidence gaps/risks, material assumptions and how they were verified,
+reasoning/process flaws, and reusable insights. Route durable process fixes
+through the existing workflow-signal/canonical-promotion mechanisms rather than
+leaving them only in chat prose.
+
 ## 4. Extract durable knowledge and corrections
 
 Write a wiki entry only for a verified reusable fact:
@@ -199,7 +236,7 @@ Rules:
 - `schema_version`, `recorded_at`, and `result_id` are required for `accepted`;
   an accepted result ID may occur in only one accepted receipt, so an interactive
   review cannot double-count a Builder implementation.
-- `accepted` requires independent acceptance evidence, not self-declaration.
+- `accepted` requires the passing formal completion review from step 3A and independent acceptance evidence, not self-declaration.
 - `kb_entries_used` and `kb_entries_stale_or_wrong` must be subsets of consulted
   entries and may not overlap.
 - `duplicate_work_avoided` or `correction_prevented` is true only when there is a

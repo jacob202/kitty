@@ -95,9 +95,17 @@
 
 ### Task 7: Independent review, publication, and merged-main proof
 
-- [ ] Run focused documentation tests, diff-check, current-doc link checks, stale-authority scans, and fresh-start command validation.
-- [ ] Dispatch an independent adversarial whole-branch review on the most capable actually available worker route.
-- [ ] Resolve findings, re-run exact-head verification, publish one reviewable PR (split only a mechanical history-move precursor if review size demands it).
-- [ ] Require policy-gate/merge-gate and zero unresolved threads.
-- [ ] Merge only exact reviewed head, then re-run the bounded documentation acceptance on exact merged main.
-- [ ] Post GAR/#490 closeout with verified, changed, historical, unknown, and follow-up state.
+- [x] Run focused documentation tests, diff-check, current-doc link checks, stale-authority scans, and fresh-start command validation.
+- [x] Dispatch an independent adversarial whole-branch review on the most capable actually available worker route.
+- [x] Resolve findings, re-run exact-head verification, publish one reviewable PR (split only a mechanical history-move precursor if review size demands it).
+- [x] Require policy-gate/merge-gate and zero unresolved threads.
+- [x] Merge only exact reviewed head, then re-run the bounded documentation acceptance on exact merged main.
+- [x] Post GAR/#490 closeout with verified, changed, historical, unknown, and follow-up state.
+**Completed 2026-09-03.** PR #810 exact reviewed head
+`f0f87c47c3cc972732f045b8b2fd4ca35666fa42` passed independent agent review,
+policy-gate, merge-gate, full pytest, integration, typecheck, and lint, then was
+squash-merged as `f423dcbc8692e573682ed51514bc53f9daa51fdc`. The reviewed
+head tree and merge tree were identical. Bounded acceptance on the exact merged
+commit, rerun on a named verification branch because the cold-start contract
+correctly rejects detached HEAD, reported **150 passed, 56 deselected**, Ruff,
+and a scan of **573 current Markdown files with 0 broken local links**. Final consolidation closeout was posted to GAR as `message_06a11fe6755441f9b4a365a29b7ba7f1` and to issue #490 as comment `5532974864`; the separate session-end hardening lane is follow-up process work, not unfinished consolidation.
