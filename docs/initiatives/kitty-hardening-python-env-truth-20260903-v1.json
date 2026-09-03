@@ -1,0 +1,36 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-hardening-python-env-truth-20260903-v1",
+  "title": "Doctor detects Python dependency drift",
+  "description": "Individual hardened packet derived from the 2026-09-03 holistic Kitty codebase review at base 70c15583a6afa4aac9a6f6eb11abf840afa377a4. It is intentionally separate from active ONE KITTY execution and is not applied by authoring this manifest.",
+  "packets": [
+    {
+      "id": "KH-DEPS-PY-01",
+      "title": "Doctor detects Python dependency drift",
+      "objective": "This packet creates no new files. Add a bounded dependency-health projection used by `kitty doctor`. Run `sys.executable -m pip check` (or an equivalent package-metadata check with identical semantics) with a short timeout and classify: PASS when constraints are satisfied, WARN/FAIL with package names and a plain recovery instruction when conflicts exist, UNKNOWN when the check itself cannot run. Never auto-install, downgrade, or mutate the environment from Doctor. Keep secrets and full local paths out of user copy. Add a bootstrap/install verification hook only if an existing setup path already has a natural post-install check; do not create a new package manager or dependency authority. Preserve requirements.txt/uv.lock as repository truth.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Doctor reports a dependency conflict when a hermetic pip-check fixture returns incompatible packages.",
+        "Doctor reports PASS only when the dependency check itself succeeded and reported no conflicts.",
+        "Check timeout/tool failure is UNKNOWN/WARN, never a false PASS.",
+        "The message names conflicting packages and one safe remediation path without exposing secrets or irrelevant filesystem details.",
+        "Doctor performs no install/uninstall/upgrade/downgrade operation.",
+        "Repository dependency files remain the only declared version authority."
+      ],
+      "allowed_paths": [
+        "gateway/doctor.py",
+        "requirements.txt",
+        "tests/test_doctor.py",
+        "tests/test_doctor_freshness.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 85
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_doctor.py tests/test_doctor_freshness.py",
+        "python -m ruff check gateway/doctor.py tests/test_doctor.py tests/test_doctor_freshness.py"
+      ]
+    }
+  ]
+}

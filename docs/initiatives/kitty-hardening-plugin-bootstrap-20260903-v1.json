@@ -1,0 +1,37 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-hardening-plugin-bootstrap-20260903-v1",
+  "title": "The plugin surface is either populated by real definitions or truthfully unavailable",
+  "description": "Individual hardened packet derived from the 2026-09-03 holistic Kitty codebase review at base 70c15583a6afa4aac9a6f6eb11abf840afa377a4. It is intentionally separate from active ONE KITTY execution and is not applied by authoring this manifest.",
+  "packets": [
+    {
+      "id": "KH-PLUGIN-01",
+      "title": "The plugin surface is either populated by real definitions or truthfully unavailable",
+      "objective": "This packet creates no new files. Make the existing plugin abstraction honest without introducing arbitrary code loading or a second capability registry. First inventory current built-in integrations/skills/MCP definitions and confirm whether any already satisfy the plugin contract. If real plugin definitions exist conceptually, add one explicit idempotent startup/bootstrap function in the existing plugin registry/integration startup path that registers only trusted built-ins through the existing `plugin_registry.register()` API and is idempotent across reloads/tests. Availability failures must remain visible as `available:false`/reason rather than silently removing the plugin. If no current built-in maps cleanly to plugins, do not invent fake plugins: instead make `/plugins` return an explicit supported/empty-state contract and hide/label plugin controls as not configured. Do not add filesystem code discovery, `importlib` execution of third-party code, a new persistence store, or a second MCP registry.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Production startup has one explicit, idempotent plugin bootstrap path or an explicit no-plugins-supported projection; the registry is no longer accidentally empty.",
+        "A plugin availability probe failure is represented truthfully with a reason instead of silently omitting the plugin.",
+        "Enable/disable settings continue to use the existing Kitty DB persistence and cannot enable an unknown plugin name.",
+        "No arbitrary third-party Python module is imported/executed merely because a file appears on disk.",
+        "MCP server aggregation continues to come from the existing registry/bridge and no second MCP authority is created.",
+        "Tests prove repeated startup/bootstrap does not duplicate definitions."
+      ],
+      "allowed_paths": [
+        "gateway/plugin_registry.py",
+        "gateway/app.py",
+        "gateway/routes/integrations.py",
+        "tests/test_plugin_registry.py",
+        "tests/test_integrations_routes.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 60
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_plugin_registry.py tests/test_integrations_routes.py",
+        "python -m ruff check gateway/plugin_registry.py gateway/routes/integrations.py tests/test_plugin_registry.py tests/test_integrations_routes.py"
+      ]
+    }
+  ]
+}

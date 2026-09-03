@@ -1,6 +1,6 @@
 # Project Status
 
-**Repository evidence verified:** through `main` `7badd7e1b08dfc49cf1c0dc3ae3a7f75eed42fa2`, plus product-surface branch `d8a8e8282e9650579561a7cadef4d861a6e396a7` and its 2026-08-19 restored-Mac live verification. Unmerged branch behavior is not described as shipped on `main`.
+**Historical repository evidence in this file:** through `main` `7badd7e1b08dfc49cf1c0dc3ae3a7f75eed42fa2`, plus product-surface branch `d8a8e8282e9650579561a7cadef4d861a6e396a7` and its 2026-08-19 restored-Mac live verification. **Planning state was re-reconciled on 2026-09-03 against `main` `610d86c7665bfdd9cb4c7dd84178493b9b1ec015`: `KITTY-RECOVERY-001` is the running broad Mission and `docs/ROADMAP.md` is the living personal release-quality guide.** Unmerged branch behavior is not described as shipped on `main`.
 
 The full commit references above are standard 40-character SHA-1 object names. They were re-verified with `git rev-parse` on 2026-08-19 after an automated review incorrectly described them as 41 characters.
 
@@ -22,7 +22,7 @@ KPROOF-001 reached its 2026-08-18 deadline without a durable record satisfying t
 
 ## What's shipped
 
-- `docs/ACTIVE_MISSION.md` preserves KPROOF-001 as a terminal/superseded mission record. It does not claim the full pass condition was met and no longer acts as the current scope gate.
+- `docs/ACTIVE_MISSION.md` records `KITTY-RECOVERY-001` as the running broad Mission. KPROOF-001 remains historical/superseded evidence and is not retroactively marked passed.
 - `docs/proof/TWO_WEEK_PROOF_AUDIT.md` completed the source/history audit far enough to choose the first proving seam; it still requires live Mac runtime evidence before claiming the seam works.
 - Builder has durable queue/runtime/recovery machinery and a bounded runtime projection; recent merged work also made `needs_decision` pause the initiative truthfully rather than continuing execution.
 - #437 merged the Builder action trust repair: `useBuilderAction()` now converts an HTTP-success `{ok:false}` payload into a mutation error, refreshes the runtime-manifest query rather than `['runtime']`, and surfaces the action result. It merged without repository CI, and its recorded evidence is mocked/local UI behavior — so it must not yet be described as the completed KPROOF control seam.
@@ -34,11 +34,11 @@ KPROOF-001 reached its 2026-08-18 deadline without a durable record satisfying t
 
 ## Active work
 
-There is currently **no running broad Mission** in `docs/ACTIVE_MISSION.md`; KPROOF-001 is a terminal mission record. That absence is intentional and must not be filled by guessing a replacement mission.
+`docs/ACTIVE_MISSION.md` now records **KITTY-RECOVERY-001 — Kitty Recovery** as the running broad Mission, approved 2026-08-29. Its objective is to turn the partially connected subsystems into a coherent product Jacob voluntarily uses, with actionable primary surfaces and independent running-product acceptance. KPROOF-001 remains historical/superseded evidence and is not retroactively marked passed.
 
-Post-deadline work proceeds only where Jacob explicitly approved it and the durable decision/packet is named. The current product-surface convergence and ADR 0040 Image Lab packet chain meet that standard. Their execution does not activate ROADMAP_V2's Open WebUI M1/M2 sequence or any unrelated Builder initiative.
+On 2026-09-03 Jacob clarified the forward target: **public-release quality for his own Kitty, not preparation for public distribution**. `docs/ROADMAP.md` carries that living, reviewable sequence. It explicitly parks distribution-only work such as generic-user packaging/legal/multi-user/public-release infrastructure while keeping runtime trust, security, backup/restore, mobile access, reliability, complete features, accessibility and polish in scope.
 
-The next broad roadmap activation must be written explicitly into `docs/ROADMAP.md`; resolving product-surface authority does not automatically activate the historical Open WebUI M1–M6 sequence.
+Packet/spec existence does not activate execution. Current Builder/GAR/#490 ownership and fresh runtime/Git evidence still decide what can run next. `ROADMAP_V2.md` remains historical/superseded target detail; its Open WebUI-primary M1/M2 sequence is not executable current priority.
 
 ## Known unknowns
 
@@ -57,7 +57,7 @@ Unknown is not success and must not be presented as failure without evidence.
 ## Current blockers and trust gaps
 
 - Red Actions results dated 2026-08-06 through 2026-08-10 23:03Z came from the runner outage and cannot serve as code-quality evidence. Results after 23:20Z on 2026-08-10 are real and must be read as such.
-- Nothing server-side blocks an unchecked merge to `main`: the default-branch ruleset that would require passing checks (issue #399) is still disabled. #453's pre-push hook is a local guard only, so a merge made elsewhere can still land red.
+- GitHub ruleset `20193076` (`Main required checks — no bypass`) is active on the default branch and requires `policy-gate` plus `merge-gate`, with review-thread resolution. It does **not** require the branch to be up to date before merge (`strict_required_status_checks_policy=false`), so documentation and operators must not describe strict-up-to-date protection as platform-enforced. #453's pre-push hook remains an additional local guard.
 - PR #437 remains historical KPROOF evidence; unresolved proof gaps are not silently promoted to success, but they no longer block separately approved post-deadline work.
 - Local Builder/runtime facts remain unavailable from GitHub alone.
 

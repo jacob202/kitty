@@ -3,7 +3,7 @@
 **Status:** SUPERSEDED target detail — not an execution schedule. ADR 0039 plus the 2026-08-23 Constitution amendment establish native Kitty as canonical, so this appendix's Open WebUI-primary M1/M2 assumptions are historical and must not be executed.
 **Date:** 2026-08-05
 **Owner:** Jacob (authorization); Kitty (planning); KittyBuilder (execution)
-**Relation to current docs:** [`ROADMAP.md`](ROADMAP.md) is the only roadmap. It names milestones M1–M6; this file is the detail behind them — objectives, packet catalog, and Builder initiative mapping. It is an appendix, never an alternative order to choose between (ADR 0020).
+**Relation to current docs:** [`ROADMAP.md`](ROADMAP.md) is the only active roadmap and now carries the living personal release-quality sequence. This file preserves the superseded M1–M6 target, packet catalog, and Builder mapping for historical traceability only; it is not an appendix behind the current order and is never an alternative execution sequence (ADR 0020).
 
 ---
 
@@ -38,7 +38,7 @@ then simplifies the storage spine:
 
 ### Historical governance assumptions (superseded by ADR 0039 + Constitution amendment)
 
-- The Constitution / ADR 0027 lineage names **Open WebUI as daily-driver shell**, while accepted ADR 0039 names the native Kitty frontend canonical. This conflict is unresolved; neither M1 nor M2 is executable until the higher-authority rule is explicitly amended/adjudicated.
+- At the time this plan was authored, the Constitution / ADR 0027 lineage named **Open WebUI as daily-driver shell** while ADR 0039 named the native Kitty frontend canonical. The 2026-08-23 Constitution amendment later resolved that conflict in favor of native Kitty. The original M1/M2 sequence therefore remains historical and must not be executed.
 - **Gateway stays the authority** (ADR 0003, ADR 0017).
 - **LiteLLM stays the provider proxy.**
 - **Image Studio / RunPod** is a dedicated authorized lane (issue #306) — not in the
@@ -235,7 +235,7 @@ sense; they need Jacob's machine, creds, or a bounded paid endpoint.
   `PYTHONPATH`/`PYTHONHOME` (guards the existing sanitize; fully testable).
 - `M2-01` — Console launch and route decouple from `:3000` chat shell; change defaults.
 - `M2-04` — Console read-all from Gateway query endpoints (replace hardcoded catalog
-  reads). 
+  reads).
 - `M2-06` — Responsive/stale render (`degraded`/`stale` with a reason), snapshot pass.
 - `M3-03` — Builder read projection for the console/Work panel (non-mutating; JSON).
 - `M3-06` — Evidence projection: receipts bind to initiative/task/run queries; no new store.
@@ -248,7 +248,7 @@ sense; they need Jacob's machine, creds, or a bounded paid endpoint.
 - `M3-01` — chat→Builder "propose/recommend" packet (provides an approval flow; goes
   beyond read-only; Jacob must green-light the surface).
 - `M3-09` — allow a sandboxed write-to-branch lane RTS a few files (biggest boundary).
-- `M1-04` — make bootstrap idempotent across login/unclean-shutdown, with the 
+- `M1-04` — make bootstrap idempotent across login/unclean-shutdown, with the
   duplicate-account behavior (already present) given a smoke test and operator sign-off.
 
 ### Require manual/live testing
@@ -294,9 +294,11 @@ Rationale for the ten (dependency): prove the driver is live and trustworthy fir
 - Expanding proxy/provider adapters as a goal.
 - Any storage migration before M1–M4 are green.
 
-## 5. How to advance from here
+## 5. Historical advancement instructions — superseded, do not execute
 
-0. **Do not start M1/M2 while the Constitution/ADR 0039 shell conflict is unresolved.** First adjudicate the shell authority and update `docs/ROADMAP.md`.
+The steps below record how this plan would have advanced before ADR 0039 was incorporated into the Constitution. They are retained for archaeology only; current work follows `docs/ROADMAP.md`.
+
+0. **Historical prerequisite, now resolved:** adjudicate the Constitution/ADR 0039 shell conflict before M1/M2. The 2026-08-23 Constitution amendment resolved it in favor of native Kitty, so this sequence is not activated.
 1. Jacob reviews the surviving milestone scope after that adjudication (especially M3 write-bounds).
 2. A planner authors the first `docs/initiatives/v2-driver-baseline-v1.json` per
    `docs/FREE_MODEL_PACKET_STANDARD.md` and `docs/INITIATIVES_OPTIMIZED`.

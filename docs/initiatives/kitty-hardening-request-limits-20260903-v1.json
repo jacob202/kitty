@@ -1,0 +1,34 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-hardening-request-limits-20260903-v1",
+  "title": "Actual request bytes are bounded before route parsing",
+  "description": "Individual hardened packet derived from the 2026-09-03 holistic Kitty codebase review at base 70c15583a6afa4aac9a6f6eb11abf840afa377a4. It is intentionally separate from active ONE KITTY execution and is not applied by authoring this manifest.",
+  "packets": [
+    {
+      "id": "KH-BODY-01",
+      "title": "Actual request bytes are bounded before route parsing",
+      "objective": "Replace the header-only global guard with streaming actual-byte enforcement at the ASGI receive boundary. Keep Content-Length as an early rejection optimization, but count `http.request` chunks and terminate with 413 once the applicable limit is exceeded without eagerly buffering the body. Centralize route-specific request limits using existing constants: default JSON/body limit 10 MB, voice 25 MB, inventory 10 MB, character/source image limits matching their existing contracts, and a bounded ChatGPT-import allowance used by KH-IMPORT-01. Do not widen a route merely because another route needs a larger cap. Downstream multipart/request parsing must still receive the original stream when under limit. Add regressions for missing, malformed, dishonest-short, exact-limit, and over-limit Content-Length cases plus a streamed multipart case.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A body larger than its route limit is rejected even when Content-Length is absent.",
+        "A client that declares a smaller Content-Length than it actually sends cannot exceed the real byte cap.",
+        "Valid chunked and multipart bodies under their route-specific limits reach the route unchanged.",
+        "Malformed or negative Content-Length remains a 400 and an honestly oversized header is rejected before body consumption.",
+        "Route-specific larger caps do not widen unrelated API routes.",
+        "The limiter streams/counts bytes and does not buffer an entire request merely to measure it."
+      ],
+      "allowed_paths": [
+        "gateway/",
+        "tests/"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 105
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_app_input_validation.py",
+        "python -m ruff check gateway/app.py gateway/constants.py gateway/request_limits.py tests/test_app_input_validation.py"
+      ]
+    }
+  ]
+}
