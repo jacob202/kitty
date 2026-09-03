@@ -16,6 +16,7 @@ BASE = "a" * 40
 T0 = "2026-09-03T12:00:00+00:00"
 T1 = "2026-09-03T12:00:02+00:00"
 REQUIRED_RESOURCES = {
+    "agent-runtime:containment",
     "builder:initiative-lifecycle",
     "builder:queue-reconciliation",
     "runtime:provenance",
@@ -332,6 +333,17 @@ def test_registry_seed_is_exact_deterministic_and_points_at_real_tree() -> None:
         registry_path=TRACKED_REGISTRY,
     )
     assert one == two == ["docs:roadmap", "runtime:provenance"]
+
+    containment = agent_coordination.resolve_paths_to_resources(
+        [
+            "gateway/builder_contract_gate.py",
+            "gateway/builder_identity.py",
+            "gateway/builder_runner.py",
+            "integrations/discord_command_center/workspace.py",
+        ],
+        registry_path=TRACKED_REGISTRY,
+    )
+    assert containment == ["agent-runtime:containment"]
 
 
 def test_gar_heartbeat_renews_matching_coordination_session(
