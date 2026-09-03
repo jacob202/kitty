@@ -1,0 +1,159 @@
+"""CLI for Kitty's interactive coordination-claim safety layer."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+from gateway import agent_coordination, agent_workspace
+
+
+def _json_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--json", action="store_true", dest="as_json")
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="kitty agent")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    claim = sub.add_parser("claim")
+    claim.add_argument("--as", dest="participant_id", required=True)
+    claim.add_argument("--session-id", required=True)
+    claim.add_argument("--role", required=True, choices=sorted(agent_coordination.VALID_ROLES))
+    claim.add_argument("--lane", dest="lane_id", required=True)
+    claim.add_argument("--base-sha", required=True)
+    claim.add_argument("--branch", required=True)
+    claim.add_argument("--worktree", dest="worktree_path", required=True)
+    claim.add_argument("--path", dest="paths", action="append", required=True)
+    claim.add_argument("--resource", dest="resources", action="append", default=[])
+    claim.add_argument("--lease-seconds", type=int, default=1800)
+    _json_flag(claim)
+
+    renew = sub.add_parser("renew")
+    renew.add_argument("claim_id")
+    renew.add_argument("--session-id", required=True)
+    renew.add_argument("--lease-seconds", type=int, default=1800)
+    _json_flag(renew)
+
+    release = sub.add_parser("release")
+    release.add_argument("claim_id")
+    release.add_argument("--session-id", required=True)
+    _json_flag(release)
+
+    status = sub.add_parser("status")
+    status.add_argument("--all", action="store_true", dest="include_all")
+    _json_flag(status)
+
+    guard = sub.add_parser("guard")
+    guard.add_argument("--worktree", dest="worktree_path")
+    guard.add_argument("--path", dest="paths", action="append", default=[])
+    guard.add_argument("--staged", action="store_true")
+    _json_flag(guard)
+    return parser
+
+
+def _emit(value: Any, *, as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(value, sort_keys=True))
+    else:
+        print(json.dumps(value, indent=2, sort_keys=True))
+
+
+def _project(claim: dict[str, Any], *, released: bool = False) -> dict[str, Any]:
+    action = "RELEASED" if released else "ACQUIRED"
+    kind = "result" if released else "status"
+    content = (
+        f"COORDINATION CLAIM {action}\n"
+        f"claim={claim['claim_id']}\n"
+        f"role={claim['role']} lane={claim['lane_id']} session={claim['session_id']}\n"
+        f"base={claim['base_sha']} branch={claim['branch']}\n"
+        f"worktree={claim['worktree_path']}\n"
+        f"paths={','.join(claim['paths'])}\n"
+        f"resources={','.join(claim['resources'])}"
+    )
+    try:
+        message = agent_workspace.post_global_message(
+            sender_id=claim["participant_id"],
+            content=content,
+            message_kind=kind,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "message_id": message["id"]}
+
+
+def _git_output(cwd: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(cwd), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise agent_coordination.CoordinationClaimError(
+            result.stderr.strip() or f"git {' '.join(args)} failed"
+        )
+    return result.stdout.strip()
+
+
+def _guard_inputs(args: argparse.Namespace) -> tuple[str, list[str]]:
+    cwd = Path.cwd()
+    worktree = args.worktree_path
+    paths = list(args.paths)
+    if args.staged:
+        root = _git_output(cwd, "rev-parse", "--show-toplevel")
+        worktree = worktree or root
+        staged = _git_output(cwd, "diff", "--cached", "--name-only", "--diff-filter=ACMR")
+        paths.extend(line for line in staged.splitlines() if line.strip())
+    if worktree is None:
+        worktree = _git_output(cwd, "rev-parse", "--show-toplevel")
+    return worktree, paths
+
+
+def _dispatch(args: argparse.Namespace) -> Any:
+    if args.command == "claim":
+        claim = agent_coordination.claim(
+            participant_id=args.participant_id,
+            session_id=args.session_id,
+            role=args.role,
+            lane_id=args.lane_id,
+            base_sha=args.base_sha,
+            branch=args.branch,
+            worktree_path=args.worktree_path,
+            paths=args.paths,
+            resources=args.resources,
+            lease_seconds=args.lease_seconds,
+        )
+        return {"claim": claim, "gar_projection": _project(claim)}
+    if args.command == "renew":
+        return {"claim": agent_coordination.renew(
+            args.claim_id, args.session_id, lease_seconds=args.lease_seconds
+        )}
+    if args.command == "release":
+        claim = agent_coordination.release(args.claim_id, args.session_id)
+        return {"claim": claim, "gar_projection": _project(claim, released=True)}
+    if args.command == "status":
+        return {"claims": agent_coordination.list_claims(active_only=not args.include_all)}
+    if args.command == "guard":
+        worktree, paths = _guard_inputs(args)
+        return agent_coordination.guard_paths(worktree, paths)
+    raise agent_coordination.CoordinationClaimError(f"unsupported command {args.command}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    try:
+        result = _dispatch(args)
+    except (agent_coordination.CoordinationClaimError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    _emit(result, as_json=args.as_json)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
