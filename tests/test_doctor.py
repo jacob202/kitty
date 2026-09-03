@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import types
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 
@@ -320,8 +321,58 @@ def test_check_venv_fails_when_missing(monkeypatch, tmp_path) -> None:
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
-    checks = doctor._check_venv()
-    assert checks[0].level == "FAIL"
+    checks = doctor._check_venv({"LITELLM_VENV": str(tmp_path / "litellm-venv")})
+    by_name = {check.name: check for check in checks}
+
+    assert by_name["runtime:venv"].level == "FAIL"
+    assert "python3.12 -m venv venv" in by_name["runtime:venv"].detail
+    assert by_name["runtime:frontend_dependencies"].level == "FAIL"
+    assert "npm ci" in by_name["runtime:frontend_dependencies"].detail
+    assert by_name["runtime:litellm_venv"].level == "FAIL"
+    assert "gateway/requirements.litellm.txt" in by_name["runtime:litellm_venv"].detail
+
+
+def test_check_venv_passes_all_fresh_clone_dependencies(monkeypatch, tmp_path) -> None:
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    (tmp_path / "venv/bin").mkdir(parents=True)
+    (tmp_path / "venv/bin/python").touch()
+    (tmp_path / "gateway/kitty-chat/node_modules/next").mkdir(parents=True)
+    litellm_venv = tmp_path / "litellm-venv"
+    (litellm_venv / "bin").mkdir(parents=True)
+    (litellm_venv / "bin/python").touch()
+    (litellm_venv / "bin/litellm").touch()
+
+    checks = doctor._check_venv({"LITELLM_VENV": str(litellm_venv)})
+
+    assert {check.name for check in checks} == {
+        "runtime:venv",
+        "runtime:frontend_dependencies",
+        "runtime:litellm_venv",
+    }
+    assert all(check.level == "PASS" for check in checks)
+
+
+def test_readme_quick_start_installs_every_runtime_environment() -> None:
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text()
+
+    assert "python3.12 -m venv venv" in readme
+    assert "npm ci" in readme
+    assert "python3.12 -m venv ~/kitty-services/venv-litellm" in readme
+    assert "gateway/requirements.litellm.txt" in readme
+
+
+def test_env_example_matches_current_provider_and_config_paths() -> None:
+    root = Path(__file__).resolve().parents[1]
+    text = (root / ".env.example").read_text()
+    providers = json.loads((root / "config/providers.json").read_text())
+
+    assert providers["active"] == "openrouter"
+    assert "OpenRouter — current default" in text
+    assert "AgentRouter.org — optional" in text
+    assert "gateway/litellm_config.yaml" in text
+    assert "kitty_gateway/litellm_config.yaml" not in text
 
 
 # --- main() exit codes ---
@@ -346,7 +397,7 @@ def test_main_exits_nonzero_on_failure(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         doctor, "_check_disk", lambda: [doctor.Check("PASS", "disk:data_dir", "ok")]
     )
-    monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "_check_venv", lambda *_a, **_k: [doctor.Check("PASS", "runtime:venv", "ok")])
 
     import sys
 
@@ -375,7 +426,7 @@ def test_main_exits_zero_on_all_pass(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "_check_chromadb", lambda: [pass_check])
     monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
-    monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "_check_venv", lambda *_a, **_k: [doctor.Check("PASS", "runtime:venv", "ok")])
     monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
 
     import sys
@@ -403,7 +454,7 @@ def test_main_strict_fails_on_warn(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "_check_chromadb", lambda: [pass_check])
     monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
-    monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "_check_venv", lambda *_a, **_k: [doctor.Check("PASS", "runtime:venv", "ok")])
     monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
 
     import sys
@@ -434,7 +485,7 @@ def test_main_json_output_shape(monkeypatch, tmp_path, capsys) -> None:
     monkeypatch.setattr(doctor, "_check_chromadb", lambda: [pass_check])
     monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
-    monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "_check_venv", lambda *_a, **_k: [doctor.Check("PASS", "runtime:venv", "ok")])
     monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
 
     import sys
