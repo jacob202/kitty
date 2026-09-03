@@ -24,7 +24,6 @@ resources:
     - docs/PROJECT_STATUS.md
     - docs/ROADMAP.md
     - gateway/kitty-chat/README.md
-    - scripts/mcp_council_smoketest.sh
     - tests/test_builder_paid_routing.py
     - tests/test_documentation_authority.py
   image-lab:generation:
