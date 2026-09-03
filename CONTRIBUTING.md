@@ -1,31 +1,51 @@
-# Kitty — Agent Rules
+# Contributing to Kitty
 
-Applies to all agents (Claude Code, Gemini, Codex, Goose, etc.).
+Kitty's operating rules change as the product and agent tooling evolve. Do not
+copy an old session checklist forward. Start from the current authorities.
 
-## Structure
+## Before you change the repository
 
-- Backend: `gateway/` (FastAPI + uvicorn, port 8000)
-- Frontend: `gateway/kitty-chat/` (Next.js)
-- Tests: `tests/`
+1. Read [`START_HERE.md`](START_HERE.md) and follow its cold-start checks.
+2. Read [`AGENTS.md`](AGENTS.md), the authoritative repository change contract.
+3. Load only the architecture, roadmap, mission, or reference material required
+   by the task.
+4. Check `workspace_global`, issue #490, and Builder ownership when the change
+   could collide with another lane.
+5. Base implementation work on a freshly verified remote `main` SHA in an
+   isolated worktree. The canonical checkout is an observation/integration
+   point, not the default editing workspace.
 
-## Orientation
+`docs/STANDUP.md` is retired. Historical standup material under `docs/archive/`
+is not current instruction. Tool-specific files such as `CLAUDE.md` or
+`CODEX.md` supplement `AGENTS.md`; they do not replace it.
 
-1. Read `docs/STANDUP.md` — current state
-2. Read `docs/ARCHITECTURE.md` — system overview
-3. Read `CLAUDE.md` — Claude-specific rules
+## Repository map
 
-## Rules
+- `gateway/` — Gateway product authority and backend domain code.
+- `gateway/routes/` — FastAPI route projections.
+- `gateway/kitty-chat/` — canonical native Kitty frontend.
+- `tests/` — Python and repository contract tests.
+- `docs/` — product, architecture, operating, and historical documentation.
+- `data/` and `logs/` — runtime state/evidence, not source artifacts.
 
-1. **No secrets in code.** All keys go in `.env`. Use `os.environ.get(...)`.
-2. **Run tests before claiming done.** `/opt/homebrew/bin/python3.12 -m pytest tests/ -q`
-3. **Cheap models for execution.** Reserve Sonnet for review/synthesis.
-4. **Don't delete without asking.** Moves are fine; destructive deletes need confirmation.
-5. **One concern per commit.** Don't bundle unrelated changes.
-6. **Don't touch `.env`.** Read `.env.example` instead.
+For the fuller current topology, use
+[`docs/reference/CODEBASE_MAP.md`](docs/reference/CODEBASE_MAP.md).
 
-## What's forbidden
+## Change and verification rules
 
-- MCP expansion beyond current scope
-- QLoRA / fine-tuning
-- Removing raw chat logs
-- Committing `.env` or any file with real API keys
+Keep one bounded concern per change and preserve established authority
+boundaries. Never commit secrets or treat generated runtime files as source.
+Run the narrowest deterministic checks that prove the changed behavior; runtime,
+UI, launch, and environment claims also require corresponding live evidence.
+Repository-wide gates are owned by [`docs/WORKFLOW.md`](docs/WORKFLOW.md) and CI,
+not duplicated here.
+
+Use the current model/reviewer policy in `AGENTS.md` and Builder routing docs.
+Do not hard-code a preferred model or provider in contribution instructions.
+
+## Publication
+
+Push task branches, not `main`. Before publication or merge decisions, re-check
+the exact PR head, current remote `main`, required checks, review evidence, and
+unresolved threads. Follow `AGENTS.md` for approval boundaries and irreversible
+actions.
