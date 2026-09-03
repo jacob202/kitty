@@ -194,7 +194,7 @@ export function StatusBar({
     return (
       <div role="status" style={{ ...rowStyle, justifyContent: 'flex-end', gap: 6 }}>
         <span style={{
-          width: 6, height: 6, borderRadius: '50%%',
+          width: 6, height: 6, borderRadius: '50%',
           background: 'var(--c-green, #22c55e)',
           display: 'inline-block', flexShrink: 0,
         }} />

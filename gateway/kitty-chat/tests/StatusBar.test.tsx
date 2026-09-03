@@ -27,6 +27,8 @@ describe('StatusBar', () => {
     expect(status).not.toBeNull()
     expect(status).toHaveAttribute('role', 'status')
     expect(status).toHaveTextContent('connected')
+    const dot = status?.querySelector('span')
+    expect(dot).toHaveStyle({ borderRadius: '50%' })
   })
 
   it('ranks attachment errors above model availability failure', () => {
