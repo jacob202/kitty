@@ -8,7 +8,7 @@ KittyBuilder is the separate engineering control plane. It owns accepted Mission
 
 | Surface | Role | Default |
 |---|---|---|
-| Native Kitty (`kitty-chat`) | Canonical user-facing product surface (ADR 0039) | `127.0.0.1:4000` |
+| Native Kitty (`kitty-chat`) | Canonical user-facing product surface (ADR 0039) | local port `4000`; intended loopback security boundary |
 | Gateway | Product authority and API | `127.0.0.1:8000` |
 | LiteLLM | Model routing and fallback | `127.0.0.1:8001` |
 | KittyBuilder | Durable engineering execution control plane | supported DB/API/CLI |
@@ -41,13 +41,14 @@ python3.12 -m venv venv
 venv/bin/pip install -r requirements.txt
 cp .env.example .env
 
-./kitty up
-./kitty ui
+./kitty            # Gateway + LiteLLM + native UI, then open the browser
 ./kitty status
 ./kitty doctor --json
 ```
 
-Native Kitty is the canonical product at `http://127.0.0.1:4000`. Open WebUI remains available only as an optional compatibility/reference client through `scripts/openwebui_local.py`; it is not required for the normal Kitty product path.
+Native Kitty is the canonical product at `http://127.0.0.1:4000` for local use. `./kitty up` starts only Gateway + LiteLLM; `./kitty ui` starts only the native UI. Open WebUI remains available only as an optional compatibility/reference client through `scripts/openwebui_local.py`; it is not required for the normal Kitty product path.
+
+**Current remote-access caveat:** `./kitty ui` presently forces an all-interface UI bind while the server-side `/proxy` still rejects non-loopback Hosts. That mismatch is a known defect, not supported Tailnet access. Keep Gateway/LiteLLM and the proxy secret boundary closed; [`KH-REMOTE-01`](docs/packets/KH-REMOTE-01.md) owns the authenticated phone/Tailnet repair.
 
 ## Verification
 
@@ -72,7 +73,7 @@ Repository CI does not prove local credentials, provider balances, launchd state
 - Builder execution truth lives in its supported database/API/CLI.
 - New context reads go through `memory_graph`; app-state writes use established storage boundaries.
 - Never commit secrets or treat generated files under `data/`, `logs/`, or `.next/` as documentation.
-- Open WebUI and `kitty-chat` remain loopback-only unless a separately reviewed authentication boundary is implemented.
+- Open WebUI remains loopback-only while its auth-disabled compatibility path is in use. Native Kitty remote access also requires a separately reviewed authenticated boundary; the current bind-all/proxy mismatch is not an exception.
 
 ## Repository navigation
 

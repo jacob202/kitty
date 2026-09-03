@@ -2,33 +2,40 @@
 
 **Purpose:** authoritative repository navigation for humans and AI workers. Covers boundaries, structure, entry points, and state ownership. Live Git, runtime probes, and accepted ADRs override this document.
 
+**Materially revalidated:** 2026-09-03 against `main` `8b4550e20f4fa24bb047adb61d18793b859c2707`. Volatile inventory counts are intentionally omitted.
+
 ## What is Kitty?
 
-Kitty is Jacob's local-first personal AI companion. It runs on a Mac and provides chat, memory, projects, capture, briefs, Tutor, Image Studio, automations, and tools across interchangeable local and cloud models. It preserves context and makes unfinished work resumable.
+Kitty is Jacob's local-first personal AI companion. It runs on a Mac and provides chat, memory, projects, capture, briefs, Tutor, Image Lab, automations, and tools across interchangeable local and cloud models. It preserves context and makes unfinished work resumable.
 
 ## Kitty vs KittyBuilder — the boundary
 
 | | Kitty | KittyBuilder |
 |---|---|---|
 | **Role** | Principal product agent and intent compiler | Execution control plane |
-| **Owns** | Conversation, user intent, memory, personal context, projects, documents, artifacts, provider interaction, tools, Tutor, Image Studio, automations, presentation of Builder results | Accepted Missions, initiatives, packets, queues, dependencies, workers, leases, attempts, retries, worktrees, branches, validation, reviews, PRs, budgets, evidence, durable execution state |
+| **Owns** | Conversation, user intent, memory, personal context, projects, documents, artifacts, provider interaction, tools, Tutor, Image Lab, automations, presentation of Builder results | Accepted Missions, initiatives, packets, queues, dependencies, workers, leases, attempts, retries, worktrees, branches, validation, reviews, PRs, budgets, evidence, durable execution state |
 | **Interface to the other** | Submits versioned approved Missions | Returns structured results and evidence references |
 | **State** | Application database (`data/kitty/kitty.db`), JSONL stores, vector stores, config | `data/kittybuilder/builder_queue.db` — SQLite, read only through supported CLI/API projections |
-| **Workers** | Not applicable | Replaceable coding harnesses (OpenCode, Claude Code, Codex, Oh My Pi) — adapters, never authorities |
+| **Workers** | Not applicable | Replaceable coding/review harness adapters; DSH is the current default Builder path, while alternate/legacy adapters may remain. Harnesses never own execution truth. |
 
 The accepted boundary is ADR 0017. Builder owns execution state, not product intent. Never infer Builder state from handoff prose, worker output, or UI emptiness.
 
 ## System shape
 
 ```text
-Browser / Raycast / Telegram / Siri / iMessage
-  → FastAPI Gateway (port 8000)
-    → context_assembler → memory_graph + context_enrichment
-    → llm_client → LiteLLM (port 8001) → provider chain
-    → KittyBuilder (durable queue, workers, reviews, PRs)
-    → tools, MCP, image generation, storage
-  → Next.js kitty-chat (port 4000) — thin clients, all product logic in gateway
+Native Kitty (`gateway/kitty-chat`, local port 4000) — canonical product surface
+  → server-side /proxy → FastAPI Gateway (127.0.0.1:8000)
+Replaceable clients/adapters
+  → Gateway
+
+Gateway
+  → product domains/stores (projects, artifacts, Work, automations, Image Lab, tools, ...)
+  → model-backed paths → context_assembler → memory_graph + context_enrichment
+                       → llm_client → LiteLLM (127.0.0.1:8001) or direct provider adapter
+  → approved Mission → KittyBuilder (durable execution state, workers, reviews, PRs)
 ```
+
+The native frontend is a projection over Gateway-owned product truth. KittyBuilder is a separate execution control plane, not another application-state store.
 
 ## Annotated top-level directory tree
 
@@ -38,7 +45,7 @@ kitty/
 │                           #   context, builder, governor, tutor, project, push, ...)
 ├── gateway/                # FastAPI product backend — the product boundary
 │   ├── app.py              # FastAPI app setup, middleware, lifespan
-│   ├── routes/             # 53 route modules — thin handlers, delegate to domain modules
+│   ├── routes/             # Thin API handlers; delegate to domain modules
 │   ├── context_assembler.py # Deep 10-step prompt/context assembly pipeline
 │   ├── memory_graph.py     # Unified read path across all memory stores
 │   ├── llm_client.py       # Table-driven provider dispatcher + fallback chain
@@ -59,14 +66,14 @@ kitty/
 │   ├── kitty-chat/         # Next.js product interface
 │   │   ├── src/
 │   │   │   ├── app/        # Next.js App Router pages
-│   │   │   ├── components/ # 60 React components (chat, home, builder, tutor, image, ...)
+│   │   │   ├── components/ # Product UI components
 │   │   │   ├── state/      # React state management (KittyContext)
 │   │   │   ├── hooks/      # Custom React hooks
 │   │   │   └── lib/        # TypeScript utilities, API clients, types
 │   │   ├── tests/          # Vitest + Playwright tests
 │   │   └── scripts/        # Visual diff, swarm review, dogfood tests
 │   └── tests/              # Gateway-level Python tests
-├── tests/                  # Python test suite (214 test files)
+├── tests/                  # Python unit/integration/contract test suite
 ├── config/                 # Identity, persona, and behavioral configuration
 │   ├── SOUL.md             # Kitty's voice and personality
 │   ├── PREFERENCES.md      # Jacob's durable preferences
@@ -89,7 +96,7 @@ kitty/
 │   └── initiatives/        # Initiative manifests
 ├── data/                   # Local runtime state (SQLite DBs, JSONL stores) — not committed
 ├── logs/                   # Runtime and execution evidence — not committed
-├── .github/workflows/      # CI: pytest + lint + typecheck + kitty-chat (vitest + build)
+├── .github/workflows/      # Scope-aware CI, policy gates, nightly health, provider workflows
 ├── AGENTS.md               # Agent operating contract and engineering doctrine
 ├── CLAUDE.md               # Claude Code-specific instructions
 ├── CODEX.md                # Codex-specific instructions
@@ -104,25 +111,29 @@ kitty/
 
 | Entry point | What it does |
 |---|---|
-| `./kitty up` | Start gateway (8000) + LiteLLM (8001) in background |
-| `./kitty down` | Stop all services |
-| `./kitty status` | Show process health and status |
-| `./kitty doctor --json` | Full preflight check (21+ checks) |
-| `./kitty context --agent` | Deterministic repository continuity receipt |
+| `./kitty` or `./kitty start` | Supported full local start: Gateway + LiteLLM + native UI, then open the browser |
+| `./kitty up` | Start Gateway (8000) + LiteLLM (8001) only |
+| `./kitty ui` | Start the native UI through `scripts/desktop/start_ui.sh` |
+| `./kitty down` | Stop only services proven to belong to this checkout; preserve sibling/external listeners |
+| `./kitty status` | Show the current runtime/provenance projection; `KH-RUNTIME-01` tracks known false-current/false-not-running cases |
+| `./kitty doctor --json` | Full supported preflight/diagnostic projection; corroborate runtime freshness until `KH-RUNTIME-01` lands |
+| `./kitty context --agent` | Deterministic repository/continuity receipt; GAR-aware migration facade |
 | `./kitty builder --help` | KittyBuilder CLI surface |
+| `./kitty room --help` | Global Agent Room CLI surface |
 | `./kitty governor explain <dispatch.json>` | Dry-run compute governor |
-| `cd gateway/kitty-chat && npm run dev` | Start Next.js dev server (port 4000) |
-| `cd gateway/kitty-chat && npm run build` | Production build |
-| `cd gateway/kitty-chat && npm start` | Production server |
+| `cd gateway/kitty-chat && npm run dev` | Isolated frontend development server only; not canonical product-runtime evidence |
+| `cd gateway/kitty-chat && npm run build` | Frontend production-build validation |
 | `./scripts/generate_repo_context.sh` | Generate AI-uploadable repo bundle |
+
+`./kitty ui` currently has a known bind/proxy mismatch: the launcher forces an all-interface UI bind while `/proxy` remains loopback-only. Do not use that mismatch as a Tailnet-access recipe; [`KH-REMOTE-01`](../packets/KH-REMOTE-01.md) owns the authenticated remote-access repair.
 
 ## Data flows
 
-1. **Chat flow:** Client → `gateway/routes/completions.py` → `context_assembler.py` → `memory_graph.py` → `llm_client.py` → LiteLLM → providers
+1. **Chat/model flow:** Client → `gateway/routes/completions.py` → `context_assembler.py` → `memory_graph.py` → `llm_client.py` → LiteLLM or direct provider adapter
 2. **Memory writes:** Domain module → store adapter → SQLite / JSONL / ChromaDB / mem0
-3. **Memory reads:** All read paths → `memory_graph.py` (unified adapter fan-in)
+3. **Request-context retrieval:** Model/context assembly → `memory_graph.py` (unified adapter fan-in); ordinary domain reads stay with their owning store/module
 4. **Builder execution:** Kitty → approved Mission → `builder_queue.py` → worker adapter → coding harness → review → validation → PR → `builder_publish.py`
-5. **Context receipt:** `./kitty context --agent` → `context_receipt.py` → reads docs + git + Builder DB → deterministic JSON receipt
+5. **Context receipt:** `./kitty context --agent` → `context_receipt.py` compatibility facade → repository/Git/Builder evidence, with `workspace_global` as primary interactive continuity when its availability is established
 
 ## Authoritative state ownership
 
@@ -133,10 +144,10 @@ kitty/
 | Delivery sequence | `docs/ROADMAP.md` | Direct read |
 | Active mission | `docs/ACTIVE_MISSION.md` | Direct read |
 | Shipped capabilities | `docs/PROJECT_STATUS.md` | Direct read |
-| Application data | `data/kitty/kitty.db` (SQLite) + JSONL stores | Gateway API / CLI |
-| Builder execution | `data/kittybuilder/builder_queue.db` | `./kitty builder initiative doctor --json` |
+| Application data | Established Gateway stores (SQLite, JSONL, vector/reference stores, filesystem artifacts) | Gateway APIs/modules; do not bypass store ownership |
+| Builder execution | `data/kittybuilder/builder_queue.db` | Supported `./kitty builder ...` / Gateway projections only |
 | Live git/branch | Git + worktree | `git status`, `git log` |
-| Session checkpoint | `.claude/STATE.md` + `.claude/HANDOFF.md` | Direct read, only when valid |
+| Interactive continuity | `workspace_global` via Global Agent Room | `./kitty room ...`; `.claude/STATE.md` + `.claude/HANDOFF.md` are validated legacy fallback only |
 | Engineering doctrine | `AGENTS.md` | Direct read |
 | Agent tool config | `CLAUDE.md`, `CODEX.md` | Direct read |
 
@@ -144,26 +155,32 @@ Runtime files under `data/` and `logs/` are local, never committed. Builder stat
 
 ## Testing layers
 
-| Layer | Location | Command | File count |
-|---|---|---|---|
-| Python unit/integration | `tests/` | `python3.12 -m pytest tests/ -q --tb=short` | 214 test files |
-| Frontend unit (Vitest) | `gateway/kitty-chat/tests/` | `cd gateway/kitty-chat && npm test` | 38 test files, 295 tests |
-| Frontend E2E (Playwright) | `gateway/kitty-chat/tests/` | `cd gateway/kitty-chat && npx playwright test` | smoke tests |
-| Visual diff | `gateway/kitty-chat/scripts/` | `make visual-diff` | Screenshot comparison |
-| Swarm review | `gateway/kitty-chat/scripts/` | `make swarm-review` | Automated UI code review |
+| Layer | Location | Command |
+|---|---|---|
+| Python unit/integration | `tests/` | `python3.12 -m pytest tests/ -q --tb=short` |
+| Frontend unit (Vitest) | `gateway/kitty-chat/tests/` | `cd gateway/kitty-chat && npm test` |
+| Frontend E2E (Playwright) | `gateway/kitty-chat/tests/` | `cd gateway/kitty-chat && npx playwright test` |
+| Hermetic frontend E2E | `gateway/kitty-chat/tests/` | `cd gateway/kitty-chat && npm run test:smoke:hermetic` |
+| Visual diff | `gateway/kitty-chat/scripts/` | `make visual-diff` |
+| Swarm review | `gateway/kitty-chat/scripts/` | `make swarm-review` |
+
+Volatile file/test counts are intentionally omitted. Derive them from the current tree when a count matters; historical counts in prose become stale too quickly to be useful navigation.
 
 ## CI workflow overview
 
-`.github/workflows/tests.yml` runs on all PRs and pushes to main:
+`.github/workflows/tests.yml` is scope-aware on pull requests and pushes to `main`. The stable required aggregate is `merge-gate`; individual jobs run only when the changed-path classifier says their evidence applies. A docs-only change may legitimately skip Python/frontend/browser jobs.
 
-| Job | What it runs |
+| Job | Role |
 |---|---|
-| `pytest` | `python -m pytest tests/` with coverage (≥73% threshold) |
-| `lint` | `ruff check gateway/ tests/ mcp/` |
-| `typecheck` | `mypy gateway/ mcp/` |
-| `kitty-chat` | `npm ci` → `npm test` (Vitest) → `npm run build` |
+| `changes` | Canonical changed-path classification |
+| `pytest` / `pytest-integration` | Python deterministic evidence when applicable |
+| `lint` | Ruff scope gate |
+| `typecheck` | mypy evidence when applicable |
+| `kitty-chat` | Frontend unit/build evidence when frontend scope applies |
+| `browser-smoke` | Browser evidence for applicable frontend changes |
+| `merge-gate` | Stable aggregate required result |
 
-Additional workflows: `pr-agent-review.yml` (automated LLM PR review via OpenRouter), `pr-description-check.yml`.
+`pr-agent-review.yml` supplies `policy-gate` and trusted review policy; `pr-auto-label.yml` labels path scope; `nightly-health.yml` owns broad scheduled hygiene/full-suite evidence. Read live GitHub checks for an exact SHA instead of assuming every job ran because the aggregate is green.
 
 ## Common change locations
 
