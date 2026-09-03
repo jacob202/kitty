@@ -30,11 +30,11 @@ Before exploring, read:
 | `docs/ARCHITECTURE.md` | Live stack, ports, package layout |
 | `AGENTS.md` | Module map, routing rules, test commands (repo root) |
 | `gateway/paths.py` | Path constants — all storage paths flow from here |
-| `docs/phases/CONTEXT_ENGINEERING.md` | How context is assembled and injected |
+| `docs/reference/CONTEXT_ENGINEERING.md` | Current staged context-loading and continuity rules |
 
-**Domain vocabulary:** use names from `gateway/` — e.g. `context_builder`, `memory_graph`, `StorageRouter`, `buddy`, `skill_registry` — not generic handler names.
+**Domain vocabulary:** use names from `gateway/` — e.g. `context_assembler`, `memory_graph`, `StorageRouter`, `buddy`, `skill_registry` — not generic handler names.
 
-**Recorded decisions:** Kitty has no formal ADR directory yet. Treat existing docs under `docs/` as load-bearing unless the user says otherwise. When a rejection deserves permanence, offer to add `docs/adr/NNNN-title.md` using [ADR-FORMAT.md](ADR-FORMAT.md).
+**Recorded decisions:** Kitty has a formal ADR directory at `docs/adr/`; `docs/DECISIONS.md` indexes accepted decisions and `docs/AUTHORITY_MAP.md` resolves conflicts. Treat accepted ADRs and current authorities as load-bearing unless Jacob explicitly changes them. When a new rejection deserves permanence, offer an ADR using [ADR-FORMAT.md](ADR-FORMAT.md).
 
 ## Failure modes to avoid
 
