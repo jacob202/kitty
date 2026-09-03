@@ -3,7 +3,7 @@
 **Status:** SUPERSEDED target detail — not an execution schedule. ADR 0039 plus the 2026-08-23 Constitution amendment establish native Kitty as canonical, so this appendix's Open WebUI-primary M1/M2 assumptions are historical and must not be executed.
 **Date:** 2026-08-05
 **Owner:** Jacob (authorization); Kitty (planning); KittyBuilder (execution)
-**Relation to current docs:** [`ROADMAP.md`](ROADMAP.md) is the only roadmap. It names milestones M1–M6; this file is the detail behind them — objectives, packet catalog, and Builder initiative mapping. It is an appendix, never an alternative order to choose between (ADR 0020).
+**Relation to current docs:** [`ROADMAP.md`](ROADMAP.md) is the only active roadmap and now carries the living personal release-quality sequence. This file preserves the superseded M1–M6 target, packet catalog, and Builder mapping for historical traceability only; it is not an appendix behind the current order and is never an alternative execution sequence (ADR 0020).
 
 ---
 

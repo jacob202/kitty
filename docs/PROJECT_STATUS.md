@@ -1,6 +1,6 @@
 # Project Status
 
-**Repository evidence verified:** through `main` `7badd7e1b08dfc49cf1c0dc3ae3a7f75eed42fa2`, plus product-surface branch `d8a8e8282e9650579561a7cadef4d861a6e396a7` and its 2026-08-19 restored-Mac live verification. Unmerged branch behavior is not described as shipped on `main`.
+**Historical repository evidence in this file:** through `main` `7badd7e1b08dfc49cf1c0dc3ae3a7f75eed42fa2`, plus product-surface branch `d8a8e8282e9650579561a7cadef4d861a6e396a7` and its 2026-08-19 restored-Mac live verification. **Planning state was re-reconciled on 2026-09-03 against `main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`: `KITTY-RECOVERY-001` is the running broad Mission and `docs/ROADMAP.md` is now the living personal release-quality guide.** Unmerged branch behavior is not described as shipped on `main`.
 
 The full commit references above are standard 40-character SHA-1 object names. They were re-verified with `git rev-parse` on 2026-08-19 after an automated review incorrectly described them as 41 characters.
 
@@ -34,11 +34,11 @@ KPROOF-001 reached its 2026-08-18 deadline without a durable record satisfying t
 
 ## Active work
 
-There is currently **no running broad Mission** in `docs/ACTIVE_MISSION.md`; KPROOF-001 is a terminal mission record. That absence is intentional and must not be filled by guessing a replacement mission.
+`docs/ACTIVE_MISSION.md` now records **KITTY-RECOVERY-001 — Kitty Recovery** as the running broad Mission, approved 2026-08-29. Its objective is to turn the partially connected subsystems into a coherent product Jacob voluntarily uses, with actionable primary surfaces and independent running-product acceptance. KPROOF-001 remains historical/superseded evidence and is not retroactively marked passed.
 
-Post-deadline work proceeds only where Jacob explicitly approved it and the durable decision/packet is named. The current product-surface convergence and ADR 0040 Image Lab packet chain meet that standard. Their execution does not activate ROADMAP_V2's Open WebUI M1/M2 sequence or any unrelated Builder initiative.
+On 2026-09-03 Jacob clarified the forward target: **public-release quality for his own Kitty, not preparation for public distribution**. `docs/ROADMAP.md` carries that living, reviewable sequence. It explicitly parks distribution-only work such as generic-user packaging/legal/multi-user/public-release infrastructure while keeping runtime trust, security, backup/restore, mobile access, reliability, complete features, accessibility and polish in scope.
 
-The next broad roadmap activation must be written explicitly into `docs/ROADMAP.md`; resolving product-surface authority does not automatically activate the historical Open WebUI M1–M6 sequence.
+Packet/spec existence does not activate execution. Current Builder/GAR/#490 ownership and fresh runtime/Git evidence still decide what can run next. `ROADMAP_V2.md` remains historical/superseded target detail; its Open WebUI-primary M1/M2 sequence is not executable current priority.
 
 ## Known unknowns
 

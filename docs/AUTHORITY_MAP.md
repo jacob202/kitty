@@ -17,7 +17,7 @@ report the contradiction rather than blending the claims.
 | `decisions` | `docs/DECISIONS.md` | Accepted decisions, amendments, supersession, and routing into `docs/adr/` | Live status or implementation sequencing |
 | `ratification` | `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` | Cross-cutting architectural adjudication of 12 decisions. Records exact authority sources, evidence, and merge conditions. | Numbered ADRs or routine decisions |
 | `roadmap` | `docs/ROADMAP.md` | The one active forward-looking sequence and phase exit criteria (ADR 0020; Ratification Decision 5). | Live Builder state or historical planning narrative |
-| `roadmap_v2_target` | `docs/ROADMAP_V2.md` | Ratified V2 target plan — M1–M6 milestones, packet catalog, and Builder initiative mapping. An appendix to `docs/ROADMAP.md`, never an alternative order. | Active priority or execution sequencing |
+| `roadmap_v2_target` | `docs/ROADMAP_V2.md` | Historical/superseded V2 target detail retained for traceability. Its Open WebUI-primary sequence is not executable current priority. | Active priority or execution sequencing |
 | `master_program` | `docs/KITTY_MASTER_PROGRAM.md` | Derived synthesis of ROADMAP, ROADMAP_V2, and the extension backlog into a single dependency-ordered program. Not an independent authority. | Active priority or execution sequencing independent of ROADMAP.md |
 | `knowledge_graph` | `docs/KNOWLEDGE_GRAPH.md` | The relationship map across ADRs, architecture docs, roadmaps, research, issues, PRs, initiatives, and packets | Implementation or live status |
 | `planning_inputs` | `docs/plans/` | Existing plans, planning notes, packets, research, audits, and initiative manifests as preserved ideas, evidence, candidate work, or executable contracts when explicitly approved | Roadmap authority merely by existing |
@@ -44,8 +44,8 @@ machine. Runtime files under `data/` are local and are never committed.
 2. `docs/CONSTITUTION.md` is the highest-level design artifact. All other
    documents that contradict it are wrong.
 3. An accepted ADR beats an older architecture or plan claim.
-4. `docs/ROADMAP.md` is the active planning sequence. `docs/ROADMAP_V2.md` is the
-   ratified target plan behind it, not an alternative order to choose between.
+4. `docs/ROADMAP.md` is the active living planning guide. `docs/ROADMAP_V2.md`
+   is historical/superseded target detail, not an alternative execution order.
    Older plans are inputs until explicitly absorbed, rejected, or archived.
 5. `docs/PROJECT_STATUS.md` may summarize shipped work but cannot redefine an
    ADR, roadmap, Mission, or live runtime fact.
