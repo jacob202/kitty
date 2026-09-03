@@ -185,3 +185,53 @@ def test_terminal_builder_task_does_not_block_interactive_claim(tmp_path: Path) 
         builder_db_path=builder_db,
     )
     assert claim["session_id"] == "interactive"
+
+
+def test_expired_claim_is_not_active_and_cannot_guard(tmp_path: Path) -> None:
+    db_path = _db(tmp_path)
+    worktree = tmp_path / "expired"
+    agent_coordination.claim(
+        participant_id="chatgpt",
+        session_id="expired",
+        role="OWN",
+        lane_id="expired-lane",
+        base_sha=BASE,
+        branch="feat/expired",
+        worktree_path=str(worktree),
+        paths=["gateway"],
+        lease_seconds=10,
+        db_path=db_path,
+        now=100.0,
+    )
+    assert agent_coordination.list_claims(db_path=db_path, now=111.0) == []
+    with pytest.raises(agent_coordination.CoordinationClaimError, match="0 live mutating claims"):
+        agent_coordination.guard_paths(str(worktree), ["gateway/x.py"], db_path=db_path, now=111.0)
+
+
+def test_renew_and_release_preserve_session_fencing(tmp_path: Path) -> None:
+    db_path = _db(tmp_path)
+    worktree = tmp_path / "lease"
+    claim = agent_coordination.claim(
+        participant_id="chatgpt",
+        session_id="lease-session",
+        role="OWN",
+        lane_id="lease-lane",
+        base_sha=BASE,
+        branch="feat/lease",
+        worktree_path=str(worktree),
+        paths=["gateway"],
+        lease_seconds=10,
+        db_path=db_path,
+        now=100.0,
+    )
+    renewed = agent_coordination.renew(
+        claim["claim_id"], "lease-session", lease_seconds=20, db_path=db_path, now=105.0
+    )
+    assert renewed["lease_expires_at"] == 125.0
+    with pytest.raises(agent_coordination.CoordinationClaimError, match="owned by another session"):
+        agent_coordination.release(claim["claim_id"], "other", db_path=db_path, now=106.0)
+    released = agent_coordination.release(
+        claim["claim_id"], "lease-session", db_path=db_path, now=106.0
+    )
+    assert released["released_at"] == 106.0
+    assert agent_coordination.list_claims(db_path=db_path, now=107.0) == []

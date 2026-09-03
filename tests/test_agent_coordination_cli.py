@@ -96,3 +96,45 @@ def test_cli_release_posts_result_and_removes_active_claim(coordination_db: Path
     messages = agent_workspace.list_messages(agent_workspace.GLOBAL_WORKSPACE_ID, limit=20)
     assert any("COORDINATION CLAIM ACQUIRED" in message["content"] for message in messages)
     assert any("COORDINATION CLAIM RELEASED" in message["content"] for message in messages)
+
+
+def test_read_only_claim_does_not_require_mutation_path(coordination_db: Path, tmp_path: Path, capsys) -> None:
+    code, captured = _run([
+        "claim", "--as", "chatgpt", "--session-id", "review-only",
+        "--role", "REVIEW", "--lane", "review-lane", "--base-sha", BASE,
+        "--branch", "review/pr", "--worktree", str(tmp_path / "review"), "--json",
+    ], capsys)
+    assert code == 0, captured.err
+    assert json.loads(captured.out)["claim"]["paths"] == []
+
+
+def test_canonical_worktree_staged_guard_requires_integrate_role(
+    coordination_db: Path, tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess
+
+    repo = tmp_path / "canonical"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    (repo / "tracked.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+    monkeypatch.chdir(repo)
+    claim = agent_coordination.claim(
+        participant_id="chatgpt", session_id="canonical-own", role="OWN",
+        lane_id="canonical-own", base_sha=BASE, branch="main",
+        worktree_path=str(repo), paths=["tracked.txt"], db_path=coordination_db,
+        builder_db_path=tmp_path / "builder.db",
+    )
+    code, captured = _run(["guard", "--staged", "--json"], capsys)
+    assert code == 2
+    assert "canonical checkout requires an INTEGRATE claim" in captured.err
+    agent_coordination.release(claim["claim_id"], "canonical-own", db_path=coordination_db)
+
+    agent_coordination.claim(
+        participant_id="chatgpt", session_id="canonical-integrate", role="INTEGRATE",
+        lane_id="canonical-integrate", base_sha=BASE, branch="main",
+        worktree_path=str(repo), paths=["tracked.txt"], db_path=coordination_db,
+        builder_db_path=tmp_path / "builder.db",
+    )
+    code, captured = _run(["guard", "--staged", "--json"], capsys)
+    assert code == 0, captured.err

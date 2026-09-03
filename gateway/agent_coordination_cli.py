@@ -28,7 +28,7 @@ def _parser() -> argparse.ArgumentParser:
     claim.add_argument("--base-sha", required=True)
     claim.add_argument("--branch", required=True)
     claim.add_argument("--worktree", dest="worktree_path", required=True)
-    claim.add_argument("--path", dest="paths", action="append", required=True)
+    claim.add_argument("--path", dest="paths", action="append", default=[])
     claim.add_argument("--resource", dest="resources", action="append", default=[])
     claim.add_argument("--lease-seconds", type=int, default=1800)
     _json_flag(claim)
@@ -117,6 +117,15 @@ def _git_output(cwd: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def _is_canonical_worktree(worktree: str) -> bool:
+    root = Path(worktree)
+    git_dir = Path(_git_output(root, "rev-parse", "--path-format=absolute", "--git-dir")).resolve()
+    common_dir = Path(
+        _git_output(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    ).resolve()
+    return git_dir == common_dir
+
+
 def _guard_inputs(args: argparse.Namespace) -> tuple[str, list[str]]:
     cwd = Path.cwd()
     worktree = args.worktree_path
@@ -160,7 +169,12 @@ def _dispatch(args: argparse.Namespace) -> Any:
         }
     if args.command == "guard":
         worktree, paths = _guard_inputs(args)
-        return agent_coordination.guard_paths(worktree, paths)
+        result = agent_coordination.guard_paths(worktree, paths)
+        if args.staged and _is_canonical_worktree(worktree) and result["claim"]["role"] != "INTEGRATE":
+            raise agent_coordination.CoordinationClaimError(
+                "canonical checkout requires an INTEGRATE claim for staged mutation"
+            )
+        return result
     raise agent_coordination.CoordinationClaimError(f"unsupported command {args.command}")
 
 
