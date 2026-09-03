@@ -117,3 +117,11 @@ def test_room_command_uses_global_agent_room_cli() -> None:
     assert "-m gateway.agent_room_cli" in block
     assert 'room)      shift; cmd_room "$@" ;;' in SCRIPT
     assert "kitty room" in SCRIPT
+
+
+def test_agent_command_uses_shared_coordination_cli() -> None:
+    assert "cmd_agent() {" in SCRIPT
+    block = SCRIPT.split("cmd_agent() {", 1)[1].split("\n}\n", 1)[0]
+    assert "-m gateway.agent_coordination_cli" in block
+    assert 'agent)     shift; cmd_agent "$@" ;;' in SCRIPT
+    assert "kitty agent" in SCRIPT
