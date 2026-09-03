@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -273,19 +274,33 @@ def default_db_path() -> Path:
     return Path(override) if override else COMPUTE_GOVERNOR_DB
 
 
+def _ensure_wal(conn: sqlite3.Connection) -> None:
+    """Enable WAL despite SQLite's transient first-initializer lock race."""
+    if str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower() == "wal":
+        return
+
+    for attempt in range(5):
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            return
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt == 4:
+                raise
+            time.sleep(0.05 * (2**attempt))
+            if str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower() == "wal":
+                return
+
+
 def connect(db_path: Path | str = COMPUTE_GOVERNOR_DB) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, timeout=30.0)
     conn.row_factory = sqlite3.Row
     # journal_mode changes require an exclusive lock during first-time setup.
-    # Configure SQLite's busy handler before touching that pragma so concurrent
-    # process/thread initializers wait instead of failing spuriously. Avoid the
-    # write-like pragma entirely once another initializer has enabled WAL.
+    # Configure SQLite's busy handler first, then add a bounded application-level
+    # retry because SQLite can still raise immediately for this pragma.
     conn.execute("PRAGMA busy_timeout=30000")
-    journal_mode = str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower()
-    if journal_mode != "wal":
-        conn.execute("PRAGMA journal_mode=WAL")
+    _ensure_wal(conn)
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
