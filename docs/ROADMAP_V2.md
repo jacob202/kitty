@@ -235,7 +235,7 @@ sense; they need Jacob's machine, creds, or a bounded paid endpoint.
   `PYTHONPATH`/`PYTHONHOME` (guards the existing sanitize; fully testable).
 - `M2-01` — Console launch and route decouple from `:3000` chat shell; change defaults.
 - `M2-04` — Console read-all from Gateway query endpoints (replace hardcoded catalog
-  reads). 
+  reads).
 - `M2-06` — Responsive/stale render (`degraded`/`stale` with a reason), snapshot pass.
 - `M3-03` — Builder read projection for the console/Work panel (non-mutating; JSON).
 - `M3-06` — Evidence projection: receipts bind to initiative/task/run queries; no new store.
@@ -248,7 +248,7 @@ sense; they need Jacob's machine, creds, or a bounded paid endpoint.
 - `M3-01` — chat→Builder "propose/recommend" packet (provides an approval flow; goes
   beyond read-only; Jacob must green-light the surface).
 - `M3-09` — allow a sandboxed write-to-branch lane RTS a few files (biggest boundary).
-- `M1-04` — make bootstrap idempotent across login/unclean-shutdown, with the 
+- `M1-04` — make bootstrap idempotent across login/unclean-shutdown, with the
   duplicate-account behavior (already present) given a smoke test and operator sign-off.
 
 ### Require manual/live testing

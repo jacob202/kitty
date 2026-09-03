@@ -1,9 +1,9 @@
 # KH-PERF-01 — Live state invalidates queries by events instead of broad polling
 
-**Initiative:** none — deliberately interactive  
-**Owner:** ChatGPT/Codex interactive lane after fresh collision check  
-**Base authored against:** `origin/main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`  
-**Depends on:** KH-ERRORS-01; activate after current ONE KITTY frontend shared-file lanes release  
+**Initiative:** none — deliberately interactive
+**Owner:** ChatGPT/Codex interactive lane after fresh collision check
+**Base authored against:** `origin/main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`
+**Depends on:** KH-ERRORS-01; activate after current ONE KITTY frontend shared-file lanes release
 **Status:** packet only — no implementation/runtime mutation performed
 
 ## Why there is no Builder manifest

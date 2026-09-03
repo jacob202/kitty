@@ -1,9 +1,9 @@
 # KH-CONT-01 — GAR retrieves assignment-scoped continuity deterministically
 
-**Initiative:** `kitty-hardening-gar-scoped-continuity-20260903-v1`  
-**Owner:** Builder after explicit operator activation  
-**Base authored against:** `70c15583a6afa4aac9a6f6eb11abf840afa377a4`  
-**Status:** authored only — not applied/queued/dispatched  
+**Initiative:** `kitty-hardening-gar-scoped-continuity-20260903-v1`
+**Owner:** Builder after explicit operator activation
+**Base authored against:** `70c15583a6afa4aac9a6f6eb11abf840afa377a4`
+**Status:** authored only — not applied/queued/dispatched
 **Source plan:** `docs/superpowers/plans/2026-09-01-global-agent-room-continuity-archival.md`
 
 ## What Jacob can do after this
@@ -35,7 +35,7 @@ Directory entries are deliberate because this packet may create the specifically
 - `python -m pytest -q tests/test_agent_room_global.py tests/test_agent_room_cli.py tests/test_mcp_agent_room_server.py`
 - `python -m ruff check gateway/agent_workspace.py gateway/routes/agent_workspace.py gateway/agent_room_cli.py mcp/agent_room/server.py tests/test_agent_room_global.py tests/test_agent_room_cli.py tests/test_mcp_agent_room_server.py`
 
-**Tier 2.** CLI + MCP transport proof using the same canonical DB, including a handoff older than the normal recent window.  
+**Tier 2.** CLI + MCP transport proof using the same canonical DB, including a handoff older than the normal recent window.
 **Tier 3.** No product UI acceptance; an independent continuity reviewer must cold-start from a scoped handoff without reading `.claude/STATE.md` or `.claude/HANDOFF.md`.
 
 ## Stop condition

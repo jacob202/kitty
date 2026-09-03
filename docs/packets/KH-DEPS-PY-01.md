@@ -1,9 +1,9 @@
 # KH-DEPS-PY-01 — Doctor detects Python dependency drift
 
-**Initiative:** `kitty-hardening-python-env-truth-20260903-v1`  
-**Owner:** Builder after explicit operator activation  
-**Default route:** free; no `policy.routing` pin  
-**Base authored against:** `origin/main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`  
+**Initiative:** `kitty-hardening-python-env-truth-20260903-v1`
+**Owner:** Builder after explicit operator activation
+**Default route:** free; no `policy.routing` pin
+**Base authored against:** `origin/main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`
 **Status:** authored only — not applied, queued, or dispatched
 
 ## What Jacob can do after this

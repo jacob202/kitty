@@ -1,7 +1,7 @@
 # Codebase Hardening Packet Map — 2026-09-03
 
-**Review base:** `70c15583a6afa4aac9a6f6eb11abf840afa377a4`  
-**Status:** authored, not activated  
+**Review base:** `70c15583a6afa4aac9a6f6eb11abf840afa377a4`
+**Status:** authored, not activated
 **Authority:** packet execution still requires current Git/GitHub, Builder, `workspace_global`, and #490 checks.
 
 ## Goal

@@ -1,9 +1,9 @@
 # KH-CONT-02 — GAR becomes the only mutable interactive continuity writer
 
-**Initiative:** none — deliberately interactive  
-**Owner:** ChatGPT/Codex interactive lane after fresh collision check  
-**Base authored against:** `origin/main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`  
-**Depends on:** KH-CONT-01  
+**Initiative:** none — deliberately interactive
+**Owner:** ChatGPT/Codex interactive lane after fresh collision check
+**Base authored against:** `origin/main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`
+**Depends on:** KH-CONT-01
 **Status:** packet only — no implementation/runtime mutation performed
 
 ## Why there is no Builder manifest

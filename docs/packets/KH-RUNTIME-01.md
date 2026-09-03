@@ -1,9 +1,9 @@
 # KH-RUNTIME-01 — Runtime truth and build provenance are authoritative
 
-**Initiative:** `kitty-hardening-runtime-truth-20260903-v1`  
-**Owner:** Builder after explicit operator activation  
-**Default route:** free; no `policy.routing` pin  
-**Base authored against:** `origin/main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`  
+**Initiative:** `kitty-hardening-runtime-truth-20260903-v1`
+**Owner:** Builder after explicit operator activation
+**Default route:** free; no `policy.routing` pin
+**Base authored against:** `origin/main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`
 **Status:** authored only — not applied, queued, or dispatched
 
 ## What Jacob can do after this
