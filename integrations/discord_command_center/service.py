@@ -6,8 +6,10 @@ import logging
 import uuid
 from collections.abc import AsyncIterator, Mapping
 
+from gateway.run_workspace import DiffSnapshot
+
 from .adapters.codex import CodexAdapter
-from .models import DiffAudit, ProgressEvent
+from .models import ProgressEvent
 from .runner import SubprocessRunner, build_child_environment
 from .runtime import CodexRuntime
 from .workspace import GitWorktreeManager
@@ -209,7 +211,7 @@ class VibeService:
         audit_succeeded, audit = await self._bounded_cleanup_call(
             "cancellation audit", self.workspace.audit, worktree
         )
-        if audit_succeeded and isinstance(audit, DiffAudit) and not audit.dirty:
+        if audit_succeeded and isinstance(audit, DiffSnapshot) and not audit.dirty:
             await self._bounded_cleanup_call(
                 "cancellation worktree removal", self.workspace.remove, worktree
             )

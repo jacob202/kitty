@@ -52,9 +52,46 @@ def test_changed_text_fails_closed_when_changed_file_cannot_be_read(tmp_path: Pa
         raise AssertionError("unreadable changed file must fail closed")
 
 
-def test_changed_paths_disables_rename_detection(monkeypatch, tmp_path: Path) -> None:
+def test_changed_paths_consumes_shared_snapshot(monkeypatch, tmp_path: Path) -> None:
+    class Snapshot:
+        changed_paths = ("old/path.py", "new/path.py")
+
     calls = []
-    monkeypatch.setattr(gate, "_git", lambda _wt, *args: calls.append(args) or "old/path.py\nnew/path.py\n")
+    monkeypatch.setattr(
+        gate,
+        "snapshot_existing_worktree",
+        lambda worktree, *, base_commit, include_ignored: calls.append(
+            (worktree, base_commit, include_ignored)
+        ) or Snapshot(),
+    )
 
     assert gate._changed_paths(tmp_path, "a" * 40) == ["old/path.py", "new/path.py"]
-    assert calls == [("diff", "--no-renames", "--name-only", f"{'a' * 40}..HEAD")]
+    assert calls == [(tmp_path, "a" * 40, False)]
+
+
+def _git(repo: Path, *args: str) -> str:
+    import subprocess
+
+    result = subprocess.run(
+        ["/usr/bin/git", "-C", str(repo), *args],
+        check=True, capture_output=True, text=True,
+    )
+    return result.stdout.strip()
+
+
+def test_forbidden_path_detects_untracked_worker_write(tmp_path: Path) -> None:
+    _git(tmp_path, "init")
+    _git(tmp_path, "config", "user.email", "test@example.com")
+    _git(tmp_path, "config", "user.name", "Test User")
+    (tmp_path / "base.txt").write_text("base\n", encoding="utf-8")
+    _git(tmp_path, "add", "base.txt")
+    _git(tmp_path, "commit", "-m", "base")
+    base = _git(tmp_path, "rev-parse", "HEAD")
+    (tmp_path / "forbidden.txt").write_text("worker mutation\n", encoding="utf-8")
+
+    result = gate.evaluate_contract_checks(
+        tmp_path, base_sha=base, forbidden_paths=["forbidden.txt"]
+    )
+
+    assert result["passed"] is False
+    assert result["forbidden_paths_changed"] == ["forbidden.txt"]

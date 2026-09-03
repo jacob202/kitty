@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import discord
 import pytest
 
+from gateway.run_workspace import DiffSnapshot
 from integrations.discord_command_center.adapters.codex import CodexAdapter
 from integrations.discord_command_center.bot import VibeController, split_discord_message
 from integrations.discord_command_center.config import CommandCenterConfig
@@ -100,6 +101,34 @@ def test_discord_config_requires_an_authorization_allowlist() -> None:
 
     with pytest.raises(RuntimeError, match="authorization"):
         config.require_discord()
+
+
+
+
+def test_worktree_audit_uses_shared_snapshot_contract(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, base_ref="HEAD")
+
+    worktree = manager.create("audit-type-run")
+    audit = manager.audit(worktree)
+
+    assert isinstance(audit, DiffSnapshot)
+
+
+def test_worktree_audit_detects_committed_readonly_mutation(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, base_ref="HEAD")
+    worktree = manager.create("committed-audit-run")
+    (worktree / "committed.txt").write_text("mutation\n", encoding="utf-8")
+    _git(worktree, "add", "committed.txt")
+    _git(worktree, "commit", "-m", "readonly mutation")
+
+    audit = manager.audit(worktree)
+
+    assert audit.dirty is True
+    assert audit.files == 1
 
 
 def test_worktree_audit_detects_untracked_mutation(tmp_path: Path) -> None:
@@ -612,6 +641,16 @@ class _CancelledRunner:
     async def stream(self, command, *, cwd, environment, timeout_seconds):
         raise asyncio.CancelledError
         yield ProgressEvent(kind="progress", message="unreachable")
+
+
+def test_service_clean_cancellation_removes_disposable_worktree(tmp_path: Path) -> None:
+    service, manager = _make_service(tmp_path, mutate=False)
+    service.runner = _CancelledRunner()
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(_collect(service.run("inspect repo")))
+
+    assert list(manager.run_root.glob("*")) == []
 
 
 def test_service_preserves_cancellation_when_audit_fails(
