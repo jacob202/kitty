@@ -38,7 +38,7 @@ Kitty is at the target when all of the following are true in the **running produ
 
 Do first because every later acceptance result depends on it:
 
-- `OK-ACTION-01` — canonical Project/Work object-action contract; integrate only the fresh-main candidate, never the stale Builder base wholesale.
+- `OK-ACTION-01` — **Done on `main` via PR #785 / `610d86c7`.** The fresh-main canonical Project/Work object-action contract landed; never reintroduce the stale Builder base wholesale.
 - `KH-RUNTIME-01` — one authoritative runtime/build provenance probe used by status/doctor/runtime reporting.
 - `KH-BODY-01` → `KH-IMPORT-01` — actual-byte request bounds and truthful bounded imports.
 - `KH-VOICE-01` — authenticated, bounded, multi-turn voice WebSocket semantics.

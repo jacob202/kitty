@@ -38,7 +38,7 @@ then simplifies the storage spine:
 
 ### Historical governance assumptions (superseded by ADR 0039 + Constitution amendment)
 
-- The Constitution / ADR 0027 lineage names **Open WebUI as daily-driver shell**, while accepted ADR 0039 names the native Kitty frontend canonical. This conflict is unresolved; neither M1 nor M2 is executable until the higher-authority rule is explicitly amended/adjudicated.
+- At the time this plan was authored, the Constitution / ADR 0027 lineage named **Open WebUI as daily-driver shell** while ADR 0039 named the native Kitty frontend canonical. The 2026-08-23 Constitution amendment later resolved that conflict in favor of native Kitty. The original M1/M2 sequence therefore remains historical and must not be executed.
 - **Gateway stays the authority** (ADR 0003, ADR 0017).
 - **LiteLLM stays the provider proxy.**
 - **Image Studio / RunPod** is a dedicated authorized lane (issue #306) — not in the
@@ -294,9 +294,11 @@ Rationale for the ten (dependency): prove the driver is live and trustworthy fir
 - Expanding proxy/provider adapters as a goal.
 - Any storage migration before M1–M4 are green.
 
-## 5. How to advance from here
+## 5. Historical advancement instructions — superseded, do not execute
 
-0. **Do not start M1/M2 while the Constitution/ADR 0039 shell conflict is unresolved.** First adjudicate the shell authority and update `docs/ROADMAP.md`.
+The steps below record how this plan would have advanced before ADR 0039 was incorporated into the Constitution. They are retained for archaeology only; current work follows `docs/ROADMAP.md`.
+
+0. **Historical prerequisite, now resolved:** adjudicate the Constitution/ADR 0039 shell conflict before M1/M2. The 2026-08-23 Constitution amendment resolved it in favor of native Kitty, so this sequence is not activated.
 1. Jacob reviews the surviving milestone scope after that adjudication (especially M3 write-bounds).
 2. A planner authors the first `docs/initiatives/v2-driver-baseline-v1.json` per
    `docs/FREE_MODEL_PACKET_STANDARD.md` and `docs/INITIATIVES_OPTIMIZED`.

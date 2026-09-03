@@ -26,8 +26,9 @@ report the contradiction rather than blending the claims.
 | `prevention_mechanisms` | `docs/reference/PREVENTION_MECHANISMS.md` | Enforceable prevention mechanisms for the repository: red-main freeze, lane limits, freshness, overlap detection, stale-draft policy, independent review, evidence requirements | Implementation details of CI workflows |
 | `live_status` | `docs/PROJECT_STATUS.md` | Verified shipped capabilities and known limitations at its stated SHA | Current priority or unverified present state |
 | `active_mission` | `docs/ACTIVE_MISSION.md` | The canonical mission record and acceptance contract. Its status may be terminal; a terminal record means no running mission exists until Jacob explicitly approves a replacement. | Builder task/run truth |
-| `session_checkpoint` | `.claude/STATE.md` | Current branch checkpoint, blockers, and exact next action only while its identity and invalidation conditions remain valid | Historical checkpoints or product purpose |
-| `continuation` | `.claude/HANDOFF.md` | Current resumable handoff only when its metadata says `valid` | Append-only history or authority after invalidation |
+| `interactive_continuity` | `workspace_global` via the Global Agent Room CLI/MCP | Primary mutable cross-agent and cross-session handoffs, questions, reviews, results, and status. Read the relevant inbox/thread and acknowledge received messages. | Product architecture, roadmap authority, Git publication truth, or Builder execution state |
+| `session_checkpoint` | `.claude/STATE.md` | Legacy compatibility checkpoint used only through the validated fallback path when current GAR continuity is unavailable or no durable GAR locator exists and the receipt requires it | Current interactive continuity when GAR is available, historical checkpoints, or product purpose |
+| `continuation` | `.claude/HANDOFF.md` | Legacy compatibility handoff used only through the validated fallback path when its metadata remains valid | Current GAR handoff/thread, append-only history, or authority after invalidation |
 | `builder_state` | `data/kittybuilder/builder_queue.db` | Initiatives, packets, tasks, attempts, leases, runs, evidence, and publication state, read only through supported CLI/API projections | Product intent or personal data |
 | `builder_interfaces` | `docs/KITTYBUILDER_QUICKSTART.md` | Supported operator commands and execution safety rails | Live queue contents |
 | `historical_records` | `Git history` | Prior checkpoints, changes, and superseded claims | Current truth until re-verified |
@@ -49,8 +50,10 @@ machine. Runtime files under `data/` are local and are never committed.
    Older plans are inputs until explicitly absorbed, rejected, or archived.
 5. `docs/PROJECT_STATUS.md` may summarize shipped work but cannot redefine an
    ADR, roadmap, Mission, or live runtime fact.
-6. `.claude/STATE.md` and `.claude/HANDOFF.md` are invalid when their recorded
-   Git identity, mission, path, or invalidation conditions no longer match.
+6. `workspace_global` is the primary mutable interactive-continuity source. The
+   `.claude/STATE.md` / `.claude/HANDOFF.md` pair is legacy compatibility fallback
+   only and is invalid when its recorded Git identity, mission, path, or
+   invalidation conditions no longer match.
 7. Missing or unverifiable facts are `unknown`; they are never filled from an
    old handoff, report, or plausible guess.
 

@@ -1,6 +1,6 @@
 # Project Status
 
-**Historical repository evidence in this file:** through `main` `7badd7e1b08dfc49cf1c0dc3ae3a7f75eed42fa2`, plus product-surface branch `d8a8e8282e9650579561a7cadef4d861a6e396a7` and its 2026-08-19 restored-Mac live verification. **Planning state was re-reconciled on 2026-09-03 against `main` `70c15583a6afa4aac9a6f6eb11abf840afa377a4`: `KITTY-RECOVERY-001` is the running broad Mission and `docs/ROADMAP.md` is now the living personal release-quality guide.** Unmerged branch behavior is not described as shipped on `main`.
+**Historical repository evidence in this file:** through `main` `7badd7e1b08dfc49cf1c0dc3ae3a7f75eed42fa2`, plus product-surface branch `d8a8e8282e9650579561a7cadef4d861a6e396a7` and its 2026-08-19 restored-Mac live verification. **Planning state was re-reconciled on 2026-09-03 against `main` `610d86c7665bfdd9cb4c7dd84178493b9b1ec015`: `KITTY-RECOVERY-001` is the running broad Mission and `docs/ROADMAP.md` is the living personal release-quality guide.** Unmerged branch behavior is not described as shipped on `main`.
 
 The full commit references above are standard 40-character SHA-1 object names. They were re-verified with `git rev-parse` on 2026-08-19 after an automated review incorrectly described them as 41 characters.
 
@@ -22,7 +22,7 @@ KPROOF-001 reached its 2026-08-18 deadline without a durable record satisfying t
 
 ## What's shipped
 
-- `docs/ACTIVE_MISSION.md` preserves KPROOF-001 as a terminal/superseded mission record. It does not claim the full pass condition was met and no longer acts as the current scope gate.
+- `docs/ACTIVE_MISSION.md` records `KITTY-RECOVERY-001` as the running broad Mission. KPROOF-001 remains historical/superseded evidence and is not retroactively marked passed.
 - `docs/proof/TWO_WEEK_PROOF_AUDIT.md` completed the source/history audit far enough to choose the first proving seam; it still requires live Mac runtime evidence before claiming the seam works.
 - Builder has durable queue/runtime/recovery machinery and a bounded runtime projection; recent merged work also made `needs_decision` pause the initiative truthfully rather than continuing execution.
 - #437 merged the Builder action trust repair: `useBuilderAction()` now converts an HTTP-success `{ok:false}` payload into a mutation error, refreshes the runtime-manifest query rather than `['runtime']`, and surfaces the action result. It merged without repository CI, and its recorded evidence is mocked/local UI behavior — so it must not yet be described as the completed KPROOF control seam.
@@ -57,7 +57,7 @@ Unknown is not success and must not be presented as failure without evidence.
 ## Current blockers and trust gaps
 
 - Red Actions results dated 2026-08-06 through 2026-08-10 23:03Z came from the runner outage and cannot serve as code-quality evidence. Results after 23:20Z on 2026-08-10 are real and must be read as such.
-- Nothing server-side blocks an unchecked merge to `main`: the default-branch ruleset that would require passing checks (issue #399) is still disabled. #453's pre-push hook is a local guard only, so a merge made elsewhere can still land red.
+- GitHub ruleset `20193076` (`Main required checks — no bypass`) is active on the default branch and requires `policy-gate` plus `merge-gate`, with review-thread resolution. It does **not** require the branch to be up to date before merge (`strict_required_status_checks_policy=false`), so documentation and operators must not describe strict-up-to-date protection as platform-enforced. #453's pre-push hook remains an additional local guard.
 - PR #437 remains historical KPROOF evidence; unresolved proof gaps are not silently promoted to success, but they no longer block separately approved post-deadline work.
 - Local Builder/runtime facts remain unavailable from GitHub alone.
 
