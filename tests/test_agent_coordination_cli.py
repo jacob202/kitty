@@ -15,6 +15,7 @@ BASE = "b" * 40
 def coordination_db(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     db_file = tmp_path / "kitty.db"
     monkeypatch.setattr(agent_coordination, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr(agent_coordination, "BUILDER_QUEUE_DB", tmp_path / "builder.db")
     monkeypatch.setattr(agent_workspace, "WORKSPACE_DB_FILE", db_file)
     return db_file
 
@@ -54,6 +55,7 @@ def test_cli_claim_status_and_guard_round_trip(coordination_db: Path, tmp_path: 
     assert code == 0
     status = json.loads(captured.out)
     assert [claim["session_id"] for claim in status["claims"]] == ["session-one"]
+    assert status["builder_claims"] == []
 
     code, captured = _run([
         "guard", "--worktree", str(worktree), "--path", "gateway/routes/chat.py", "--json"
@@ -70,6 +72,8 @@ def test_cli_conflict_is_nonzero_and_names_owner(coordination_db: Path, tmp_path
     assert code == 2
     assert "chatgpt/coordination-mvp" in captured.err
     assert captured.out == ""
+    messages = agent_workspace.list_messages(agent_workspace.GLOBAL_WORKSPACE_ID, limit=20)
+    assert any("COORDINATION CLAIM CONFLICT" in message["content"] for message in messages)
 
 
 def test_cli_release_posts_result_and_removes_active_claim(coordination_db: Path, tmp_path: Path, capsys) -> None:

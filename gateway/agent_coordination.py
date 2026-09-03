@@ -8,13 +8,14 @@ state database so supported agents can fail closed before overlapping edits.
 from __future__ import annotations
 
 import json
+import sqlite3
 import time
 import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
 from gateway import db as kitty_db
-from gateway.paths import KITTY_DB_FILE
+from gateway.paths import BUILDER_QUEUE_DB, KITTY_DB_FILE
 
 MUTATING_ROLES = frozenset({"OWN", "INTEGRATE"})
 READ_ONLY_ROLES = frozenset({"REVIEW", "RESEARCH"})
@@ -85,6 +86,72 @@ def _active_rows(conn, now: float) -> list[Any]:
     ).fetchall()
 
 
+def list_builder_claims(*, builder_db_path: Path | None = None) -> list[dict[str, Any]]:
+    """Project active Builder branch leases into coordination without mutating Builder."""
+    database = Path(builder_db_path) if builder_db_path is not None else BUILDER_QUEUE_DB
+    if not database.exists():
+        return []
+    uri = f"file:{database.resolve()}?mode=ro"
+    try:
+        conn = sqlite3.connect(uri, uri=True)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT l.initiative_id, l.packet_id, l.worker_id, l.branch,
+                   l.worktree_path, l.base_sha, p.task_id,
+                   p.allowed_paths_json, t.state
+            FROM branch_leases AS l
+            LEFT JOIN initiative_packets AS p
+              ON p.initiative_id = l.initiative_id AND p.packet_id = l.packet_id
+            LEFT JOIN tasks AS t ON t.id = p.task_id
+            WHERE t.state IS NULL OR t.state NOT IN ('done', 'failed', 'cancelled')
+            ORDER BY l.initiative_id ASC, l.packet_id ASC
+            """
+        ).fetchall()
+    except sqlite3.Error as exc:
+        raise CoordinationClaimError(f"cannot read Builder ownership projection: {exc}") from exc
+    finally:
+        try:
+            conn.close()
+        except UnboundLocalError:
+            pass
+
+    projected: list[dict[str, Any]] = []
+    for row in rows:
+        raw_paths = row["allowed_paths_json"]
+        try:
+            paths = json.loads(raw_paths) if raw_paths else []
+        except json.JSONDecodeError as exc:
+            raise CoordinationClaimError(
+                f"Builder {row['initiative_id']}/{row['packet_id']} has invalid allowed_paths_json"
+            ) from exc
+        if not isinstance(paths, list) or not all(isinstance(path, str) for path in paths):
+            raise CoordinationClaimError(
+                f"Builder {row['initiative_id']}/{row['packet_id']} has invalid allowed paths"
+            )
+        projected.append(
+            {
+                "source": "builder",
+                "participant_id": row["worker_id"],
+                "session_id": row["task_id"] or f"builder:{row['initiative_id']}/{row['packet_id']}",
+                "role": "OWN",
+                "lane_id": f"{row['initiative_id']}/{row['packet_id']}",
+                "initiative_id": row["initiative_id"],
+                "packet_id": row["packet_id"],
+                "task_id": row["task_id"],
+                "state": row["state"] or "unknown",
+                "base_sha": row["base_sha"],
+                "branch": row["branch"],
+                "worktree_path": str(Path(row["worktree_path"]).expanduser().resolve()),
+                "paths": _normalized_unique(paths, _normalize_path),
+                "resources": [
+                    _normalize_resource(f"builder:{row['initiative_id']}/{row['packet_id']}")
+                ],
+            }
+        )
+    return projected
+
+
 def _conflict(existing: dict[str, Any], paths: list[str], resources: list[str]) -> str | None:
     resource_overlap = sorted(set(existing["resources"]) & set(resources))
     if resource_overlap:
@@ -109,6 +176,7 @@ def claim(
     resources: Iterable[str] = (),
     lease_seconds: int = 1800,
     db_path: Path | None = None,
+    builder_db_path: Path | None = None,
     now: float | None = None,
 ) -> dict[str, Any]:
     participant_id = _required(participant_id, "participant_id")
@@ -137,6 +205,15 @@ def claim(
     try:
         conn.execute("BEGIN IMMEDIATE")
         active = [_decode(row) for row in _active_rows(conn, timestamp)]
+        if role in MUTATING_ROLES:
+            for builder_claim in list_builder_claims(builder_db_path=builder_db_path):
+                reason = _conflict(builder_claim, normalized_paths, normalized_resources)
+                same_worktree = builder_claim["worktree_path"] == worktree
+                if reason or same_worktree:
+                    detail = reason or f"worktree {worktree}"
+                    raise CoordinationConflictError(
+                        f"claim conflicts with Builder {builder_claim['initiative_id']}/{builder_claim['packet_id']}: {detail}"
+                    )
         for existing in active:
             if existing["session_id"] == session_id:
                 raise CoordinationConflictError(

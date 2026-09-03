@@ -93,3 +93,95 @@ def test_atomic_race_allows_only_one_conflicting_owner(tmp_path: Path) -> None:
         thread.join()
 
     assert sorted(results) == ["claimed", "conflict"]
+
+
+def _seed_builder_lease(db_path: Path, *, state: str = "running") -> None:
+    import sqlite3
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE tasks (id TEXT PRIMARY KEY, state TEXT NOT NULL);
+            CREATE TABLE initiative_packets (
+                initiative_id TEXT NOT NULL,
+                packet_id TEXT NOT NULL,
+                task_id TEXT NOT NULL,
+                allowed_paths_json TEXT NOT NULL,
+                PRIMARY KEY (initiative_id, packet_id)
+            );
+            CREATE TABLE branch_leases (
+                lease_id INTEGER PRIMARY KEY,
+                initiative_id TEXT NOT NULL,
+                packet_id TEXT NOT NULL,
+                worker_id TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                worktree_path TEXT NOT NULL,
+                base_sha TEXT NOT NULL
+            );
+            """
+        )
+        conn.execute("INSERT INTO tasks VALUES (?, ?)", ("kb_builder", state))
+        conn.execute(
+            "INSERT INTO initiative_packets VALUES (?, ?, ?, ?)",
+            ("initiative-a", "PACKET-1", "kb_builder", '["gateway/runtime", "tests/runtime"]'),
+        )
+        conn.execute(
+            "INSERT INTO branch_leases VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (1, "initiative-a", "PACKET-1", "dsh-worker", "kittybuilder/packet-1", "/tmp/builder-packet-1", BASE),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_builder_branch_lease_projects_as_read_only_coordination_claim(tmp_path: Path) -> None:
+    builder_db = tmp_path / "builder.db"
+    _seed_builder_lease(builder_db)
+    projected = agent_coordination.list_builder_claims(builder_db_path=builder_db)
+    assert len(projected) == 1
+    assert projected[0]["task_id"] == "kb_builder"
+    assert projected[0]["role"] == "OWN"
+    assert projected[0]["paths"] == ["gateway/runtime", "tests/runtime"]
+    assert projected[0]["resources"] == ["builder:initiative-a/packet-1"]
+
+
+def test_builder_branch_lease_blocks_overlapping_interactive_mutation(tmp_path: Path) -> None:
+    coordination_db = _db(tmp_path / "coordination")
+    builder_db = tmp_path / "builder.db"
+    _seed_builder_lease(builder_db)
+    with pytest.raises(agent_coordination.CoordinationConflictError, match="Builder initiative-a/PACKET-1"):
+        agent_coordination.claim(
+            participant_id="chatgpt",
+            session_id="interactive",
+            role="OWN",
+            lane_id="runtime-fix",
+            base_sha=BASE,
+            branch="feat/runtime-fix",
+            worktree_path=str(tmp_path / "interactive"),
+            paths=["gateway/runtime/doctor.py"],
+            resources=["runtime:provenance"],
+            db_path=coordination_db,
+            builder_db_path=builder_db,
+        )
+
+
+def test_terminal_builder_task_does_not_block_interactive_claim(tmp_path: Path) -> None:
+    coordination_db = _db(tmp_path / "coordination")
+    builder_db = tmp_path / "builder.db"
+    _seed_builder_lease(builder_db, state="done")
+    claim = agent_coordination.claim(
+        participant_id="chatgpt",
+        session_id="interactive",
+        role="OWN",
+        lane_id="runtime-fix",
+        base_sha=BASE,
+        branch="feat/runtime-fix",
+        worktree_path=str(tmp_path / "interactive"),
+        paths=["gateway/runtime/doctor.py"],
+        resources=["runtime:provenance"],
+        db_path=coordination_db,
+        builder_db_path=builder_db,
+    )
+    assert claim["session_id"] == "interactive"

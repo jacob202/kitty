@@ -86,6 +86,23 @@ def _project(claim: dict[str, Any], *, released: bool = False) -> dict[str, Any]
     return {"ok": True, "message_id": message["id"]}
 
 
+def _project_conflict(args: argparse.Namespace, error: Exception) -> None:
+    content = (
+        "COORDINATION CLAIM CONFLICT\n"
+        f"requested_by={args.participant_id} lane={args.lane_id} session={args.session_id}\n"
+        f"branch={args.branch} worktree={args.worktree_path}\n"
+        f"reason={error}"
+    )
+    try:
+        agent_workspace.post_global_message(
+            sender_id=args.participant_id,
+            content=content,
+            message_kind="status",
+        )
+    except Exception:
+        return
+
+
 def _git_output(cwd: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(cwd), *args],
@@ -137,7 +154,10 @@ def _dispatch(args: argparse.Namespace) -> Any:
         claim = agent_coordination.release(args.claim_id, args.session_id)
         return {"claim": claim, "gar_projection": _project(claim, released=True)}
     if args.command == "status":
-        return {"claims": agent_coordination.list_claims(active_only=not args.include_all)}
+        return {
+            "claims": agent_coordination.list_claims(active_only=not args.include_all),
+            "builder_claims": agent_coordination.list_builder_claims(),
+        }
     if args.command == "guard":
         worktree, paths = _guard_inputs(args)
         return agent_coordination.guard_paths(worktree, paths)
@@ -148,6 +168,11 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         result = _dispatch(args)
+    except agent_coordination.CoordinationConflictError as exc:
+        if args.command == "claim":
+            _project_conflict(args, exc)
+        print(str(exc), file=sys.stderr)
+        return 2
     except (agent_coordination.CoordinationClaimError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
