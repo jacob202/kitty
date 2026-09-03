@@ -82,7 +82,7 @@ Routes should remain thin. Product logic belongs in domain modules and establish
 | Delivery order | `docs/ROADMAP.md` |
 | Current approved work | `docs/ACTIVE_MISSION.md` |
 | Repository evidence | Git, GitHub, CI, and supported probes |
-| Session continuation | `.claude/STATE.md` and `.claude/HANDOFF.md` only while identity metadata remains valid |
+| Interactive/session continuity | `workspace_global` via the Global Agent Room; `.claude/STATE.md` and `.claude/HANDOFF.md` are validated legacy fallback only |
 
 Storage is intentionally mixed: SQLite for canonical structured state, JSONL for append-oriented records, JSON for configuration/small state, ChromaDB and mem0 for semantic/reference memory, and filesystem artifacts for logs and evidence. New storage systems require an ADR.
 
