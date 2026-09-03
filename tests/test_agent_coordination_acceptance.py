@@ -372,6 +372,8 @@ def test_registry_covers_repository_documentation_surfaces() -> None:
         ".agents/skills/agent-council/SKILL.md",
         "docs/README.md",
         "docs/packets/KH-REMOTE-01.md",
+        "docs/archive/recon-2026-07/2026-07-17-agent-leverage/experiments/proto_1_mission_contract/mission_pydantic.py",
+        "docs/archive/recon-2026-07/2026-07-17-agent-leverage/github_metadata.txt",
         "gateway/kitty-chat/README.md",
         "tests/test_builder_paid_routing.py",
         "tests/test_documentation_authority.py",

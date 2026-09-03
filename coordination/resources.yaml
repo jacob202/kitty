@@ -19,7 +19,7 @@ resources:
     - '*.md'
     - .agents/skills/**/*.md
     - .claude/**/*.md
-    - docs/**/*.md
+    - docs/**
     - docs/ACTIVE_MISSION.md
     - docs/PROJECT_STATUS.md
     - docs/ROADMAP.md
