@@ -61,6 +61,7 @@ class Source(str, Enum):
     INBOX = "inbox"
     MEMORY_PALACE = "memory_palace"
     SIGNALS = "signals"
+    CHATS = "chats"
     FACTS = "facts"
 
     def __str__(self) -> str:  # pragma: no cover - trivial
@@ -601,6 +602,14 @@ def _default_adapters() -> list[StoreAdapter]:
             adapters.append(MemPalaceAdapter())
     except Exception as e:  # optional backend must never break the graph
         logger.warning("MemPalace adapter unavailable: %s", e)
+
+    try:
+        from gateway.chat_search import ChatMessagesAdapter
+
+        adapters.append(ChatMessagesAdapter())
+    except Exception as e:
+        logger.warning("ChatMessages adapter unavailable: %s", e)
+
     return adapters
 
 

@@ -7,6 +7,7 @@
 #   kitty down      Stop both
 #   kitty status    Show what's running + health check
 #   kitty doctor    Full preflight check (gateway/doctor.py)
+#   kitty health    Quick health check — is everything running?
 #   kitty context --agent  Print deterministic repository continuity JSON
 #   kitty logs      Tail live logs for both services
 #   kitty backup    Back up app-owned data under data/backups/kitty/
@@ -263,6 +264,12 @@ ensure_gateway_secret() {
   fi
 }
 
+# ── ANSI color codes ──────────────────────────────────────────────────────────
+GREEN=[92m
+RED=[91m
+YELLOW=[93m
+RESET=[0m
+
 # ── Subcommands ───────────────────────────────────────────────────────────────
 
 startup_identity() {
@@ -296,47 +303,89 @@ check_ui_freshness() {
 }
 
 cmd_up() {
-  echo "Starting Kitty..."
+  local success=0
+  echo ""
+  echo "  ⚡ Starting Kitty..."
+  echo ""
   startup_identity "kitty" "-" "$$"
   ensure_gateway_secret
 
   # LiteLLM
   if pid_alive "$RUN_DIR/litellm.pid"; then
-    echo "  LiteLLM  already running (pid $(cat "$RUN_DIR/litellm.pid"))"
+    echo "  ✓ LiteLLM   already running"
   else
-    assert_port_available "LiteLLM" "$LITELLM_PORT"
+    assert_port_available "LiteLLM" "$LITELLM_PORT" || return 1
+    printf "  ⏳ LiteLLM   starting... "
     nohup bash "$KITTY_ROOT/gateway/start_litellm.sh" \
       >"$LOG_DIR/litellm.log" 2>&1 &
     echo $! >"$RUN_DIR/litellm.pid"
-    startup_identity "LiteLLM" "$LITELLM_PORT" "$!"
+    startup_identity "LiteLLM" "$LITELLM_PORT" "$!" >/dev/null
+    _i=0
+    while [ $_i -lt 10 ]; do
+      if http_ok "http://127.0.0.1:$LITELLM_PORT/health/readiness" \
+           -H "Authorization: Bearer $LITELLM_MASTER_KEY" 2>/dev/null; then
+        echo "✓"
+        break
+      fi
+      printf "."
+      sleep 1
+      _i=$((_i + 1))
+    done
+    if [ $_i -ge 10 ]; then
+      echo "✗"
+      echo "  ⚠ LiteLLM   not responding — check: kitty logs"
+    fi
   fi
 
   # Gateway
   if pid_alive "$RUN_DIR/gateway.pid"; then
-    echo "  Gateway  already running (pid $(cat "$RUN_DIR/gateway.pid"))"
+    echo "  ✓ Gateway    already running"
   else
-    assert_port_available "Gateway" "$GATEWAY_PORT"
+    assert_port_available "Gateway" "$GATEWAY_PORT" || return 1
+    printf "  ⏳ Gateway    starting... "
     nohup bash "$KITTY_ROOT/gateway/start_gateway.sh" \
       >"$LOG_DIR/gateway.log" 2>&1 &
     echo $! >"$RUN_DIR/gateway.pid"
-    startup_identity "Gateway" "$GATEWAY_PORT" "$!"
+    startup_identity "Gateway" "$GATEWAY_PORT" "$!" >/dev/null
+    _i=0
+    while [ $_i -lt 15 ]; do
+      if http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
+        echo "✓"
+        break
+      fi
+      printf "."
+      sleep 1
+      _i=$((_i + 1))
+    done
+    if [ $_i -ge 15 ]; then
+      echo "✗"
+      echo "  ⚠ Gateway    not responding — check: kitty logs"
+    else
+      success=1
+    fi
   fi
 
-  # Poll up to 15 seconds for gateway to be healthy
-  echo "  Waiting for gateway..."
-  _i=0
-  while [ $_i -lt 15 ]; do
-    if http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
-      echo "  Gateway  healthy ✓  http://127.0.0.1:$GATEWAY_PORT"
-      break
+  echo ""
+  if [ "$success" -eq 1 ] || pid_alive "$RUN_DIR/gateway.pid"; then
+    local litellm_status="?"
+    if http_ok "http://127.0.0.1:$LITELLM_PORT/health/readiness" \
+         -H "Authorization: Bearer $LITELLM_MASTER_KEY" 2>/dev/null; then
+      litellm_status="✓"
+    else
+      litellm_status="✗"
     fi
-    sleep 1
-    _i=$((_i + 1))
-  done
-  if [ $_i -ge 15 ]; then
-    echo "  Gateway  not responding yet — check: kitty logs"
+    echo "  ───────────────"
+    echo "  Gateway   http://127.0.0.1:$GATEWAY_PORT  ✓"
+    echo "  LiteLLM   http://127.0.0.1:$LITELLM_PORT  $litellm_status"
+    echo "  UI        http://127.0.0.1:$UI_PORT"
+    echo ""
+    echo "  ✨ Kitty is running. Run 'kitty health' for a full check."
+  else
+    echo "  ❌ Kitty failed to start. Run 'kitty health' for details."
+    return 1
   fi
 }
+
 
 # Start only the Next.js UI, leaving gateway and LiteLLM alone. `up`/`down`
 # boot out the launchd jobs `install` created, so anything that just wants the
@@ -348,6 +397,7 @@ cmd_ui() {
     echo "Starting UI on http://127.0.0.1:$UI_PORT ..."
     KITTY_UI_PORT="$UI_PORT" \
       KITTY_GATEWAY_URL="http://127.0.0.1:$GATEWAY_PORT" \
+      KITTY_UI_BIND_ALL=true \
       nohup bash "$KITTY_ROOT/scripts/desktop/start_ui.sh" \
         >"$LOG_DIR/ui.log" 2>&1 &
     echo $! >"$RUN_DIR/ui.pid"
@@ -416,7 +466,51 @@ cmd_down() {
   rm -f "$RUN_DIR/ui.pid" "$RUN_DIR/gateway.pid" "$RUN_DIR/litellm.pid"
 }
 
+cmd_status_quick() {
+  local fails=0
+  local ui_port="${UI_PORT:-4000}"
+
+  if http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
+    local litellm_status="${GREEN}OK${RESET}"
+    if curl -sf --max-time 3 "http://127.0.0.1:$GATEWAY_PORT/health" 2>/dev/null | grep -q '"litellm_reachable": *true'; then
+      litellm_status="${GREEN}OK${RESET}"
+    else
+      litellm_status="${RED}FAIL${RESET}"
+    fi
+    printf "  %b Gateway  %b\n" "${GREEN}\xE2\x9C\x93${RESET}" "$litellm_status"
+  else
+    printf "  %b Gateway  %b\n" "${RED}\xE2\x9C\x97${RESET}" "${RED}FAIL${RESET}"
+    fails=1
+  fi
+
+  if http_ok "http://127.0.0.1:$LITELLM_PORT/health/readiness" -H "Authorization: Bearer $LITELLM_MASTER_KEY" 2>/dev/null; then
+    printf "  %b LiteLLM  %b\n" "${GREEN}\xE2\x9C\x93${RESET}" "${GREEN}OK${RESET}"
+  else
+    printf "  %b LiteLLM  %b\n" "${RED}\xE2\x9C\x97${RESET}" "${RED}FAIL${RESET}"
+  fi
+
+  if http_ok "http://127.0.0.1:$ui_port/"; then
+    printf "  %b UI       %b\n" "${GREEN}\xE2\x9C\x93${RESET}" "${GREEN}OK${RESET}"
+  else
+    printf "  %b UI       %b\n" "${RED}\xE2\x9C\x97${RESET}" "${RED}FAIL${RESET}"
+    fails=1
+  fi
+
+  local data_dir="$KITTY_ROOT/data"
+  if [[ -d "$data_dir" ]]; then
+    printf "  %b Data     %b\n" "${GREEN}\xE2\x9C\x93${RESET}" "${GREEN}OK${RESET}"
+  else
+    printf "  %b Data     %b\n" "${YELLOW}\xE2\x9A\xA0${RESET}" "${YELLOW}WARN${RESET}"
+  fi
+
+  return "$fails"
+}
+
 cmd_status() {
+  if [[ "${1:-}" == "--quick" ]]; then
+    cmd_status_quick
+    return $?
+  fi
   local sha authority_sha authority_relation dirty_state branch build_id build_source supervisor_mode svc_probe
   sha="$(git -C "$KITTY_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")"
   branch="$(git -C "$KITTY_ROOT" branch --show-current 2>/dev/null || true)"
@@ -906,6 +1000,71 @@ cmd_verify_home() {
   return "$fails"
 }
 
+cmd_health() {
+  local fails=0
+  local ui_port="${UI_PORT:-4000}"
+
+  echo ""
+  echo -e "  \033[1m** Kitty Health Check **\033[0m"
+  echo ""
+
+  # Gateway
+  if http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
+    local litellm_status="FAIL"
+    if curl -sf --max-time 3 "http://127.0.0.1:$GATEWAY_PORT/health" 2>/dev/null | grep -q '"litellm_reachable": *true'; then
+      litellm_status="OK"
+    fi
+    echo -e "  ${GREEN}[OK]${RESET}   Gateway    http://127.0.0.1:$GATEWAY_PORT  (LiteLLM: $litellm_status)"
+  else
+    echo -e "  ${RED}[FAIL]${RESET} Gateway    not responding"
+    echo "        Try: kitty up"
+    fails=1
+  fi
+
+  if http_ok "http://127.0.0.1:$LITELLM_PORT/health/readiness" -H "Authorization: Bearer $LITELLM_MASTER_KEY" 2>/dev/null; then
+    echo -e "  ${GREEN}[OK]${RESET}   LiteLLM    http://127.0.0.1:$LITELLM_PORT"
+  else
+    echo -e "  ${RED}[FAIL]${RESET} LiteLLM    not responding (models won't load)"
+  fi
+
+  if http_ok "http://127.0.0.1:$ui_port/"; then
+    echo -e "  ${GREEN}[OK]${RESET}   UI         http://127.0.0.1:$ui_port"
+  else
+    echo -e "  ${RED}[FAIL]${RESET} UI         not responding"
+    echo "        Try: kitty ui"
+    fails=1
+  fi
+
+  local data_dir="$KITTY_ROOT/data"
+  if [[ -d "$data_dir" ]]; then
+    echo -e "  ${GREEN}[OK]${RESET}   Data dir   $data_dir"
+  else
+    echo -e "  ${YELLOW}[WARN]${RESET} Data dir   $data_dir (missing)"
+  fi
+
+  local ts_ip=""
+  if command -v tailscale >/dev/null 2>&1; then
+    ts_ip="$(tailscale ip -4 2>/dev/null | head -1 || true)"
+  fi
+  if [[ -z "$ts_ip" ]]; then
+    ts_ip="$(ifconfig 2>/dev/null | awk '/inet 100\./ { print $2; exit }' || true)"
+  fi
+  if [[ -n "$ts_ip" ]] && http_ok "http://$ts_ip:$ui_port/" 2>/dev/null; then
+    echo -e "  ${GREEN}[OK]${RESET}   Phone      http://$ts_ip:$ui_port  (via Tailscale)"
+  elif [[ -n "$ts_ip" ]]; then
+    echo -e "  ${YELLOW}[WARN]${RESET} Phone     Tailscale is up but UI not reachable on it"
+    echo "        Try: make ui-tailnet"
+  fi
+
+  echo ""
+  if [ "$fails" -eq 0 ]; then
+    echo -e "  ${GREEN}All checks passed - Kitty is healthy!${RESET}"
+  else
+    echo -e "  ${RED}$fails check(s) failed.${RESET} Fix the items above, then run: kitty health"
+  fi
+  return "$fails"
+}
+
 cmd_help() {
   grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -24
 }
@@ -916,7 +1075,7 @@ case "${1:-start}" in
   up)        cmd_up ;;
   ui)        cmd_ui ;;
   down)      cmd_down ;;
-  status)    cmd_status ;;
+  status)    shift; cmd_status "$@" ;;
   doctor)    shift; cmd_doctor "$@" ;;
   context)   shift; cmd_context "$@" ;;
   logs)      cmd_logs ;;
@@ -936,6 +1095,7 @@ case "${1:-start}" in
   project)   shift; cmd_project "$@" ;;
   governor)  shift; cmd_governor "$@" ;;
   tutor)     shift; cmd_tutor "$@" ;;
+  health)    cmd_health ;;
   verify-home) cmd_verify_home ;;
   help|--help|-h) cmd_help ;;
   *)

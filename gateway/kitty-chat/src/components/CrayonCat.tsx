@@ -144,7 +144,7 @@ function leftEye(state: CatState) {
     case 'idle':
       return <ellipse cx={64} cy={96} rx={7} ry={2.5} fill="var(--cat-green)" />
     case 'working':
-      return <circle cx={64} cy={95} r={6} fill="var(--c-yellow)" />
+      return <circle className="cat-eye-pulse" cx={64} cy={95} r={6} fill="var(--c-yellow)" />
     case 'done':
       return <path d="M56 95 Q64 83 72 95" stroke="var(--c-green)" strokeWidth={3} fill="none" strokeLinecap="round" />
     case 'broke':
@@ -157,7 +157,7 @@ function rightEye(state: CatState) {
     case 'idle':
       return <ellipse cx={96} cy={96} rx={7} ry={2.5} fill="var(--cat-green)" />
     case 'working':
-      return <circle cx={96} cy={95} r={6} fill="var(--c-yellow)" />
+      return <circle className="cat-eye-pulse" cx={96} cy={95} r={6} fill="var(--c-yellow)" />
     case 'done':
       return <path d="M88 95 Q96 83 104 95" stroke="var(--c-green)" strokeWidth={3} fill="none" strokeLinecap="round" />
     case 'broke':
