@@ -104,6 +104,84 @@ def test_litellm_launcher_avoids_repo_package_shadowing(tmp_path: Path) -> None:
     )
 
 
+
+def test_litellm_launcher_keeps_repo_owned_supervisor_process(tmp_path: Path) -> None:
+    """The tracked launcher PID must keep a repo cwd while LiteLLM stays isolated."""
+    import shutil
+    import signal
+    import time
+
+    fake_venv = tmp_path / "venv-litellm"
+    fake_bin = fake_venv / "bin"
+    fake_bin.mkdir(parents=True)
+    ready_path = tmp_path / "litellm-ready"
+
+    (fake_bin / "activate").write_text(
+        f'export PATH="{fake_bin}:$PATH"\n',
+        encoding="utf-8",
+    )
+    python = fake_bin / "python"
+    python.write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
+    python.chmod(0o755)
+    litellm = fake_bin / "litellm"
+    litellm.write_text(
+        "#!/bin/bash\n"
+        'printf "ready\\n" >"$LITELLM_READY"\n'
+        "trap 'exit 0' TERM INT\n"
+        "while :; do sleep 1; done\n",
+        encoding="utf-8",
+    )
+    litellm.chmod(0o755)
+
+    env = {
+        **os.environ,
+        "LITELLM_READY": str(ready_path),
+        "LITELLM_VENV": str(fake_venv),
+    }
+    proc = subprocess.Popen(
+        ["bash", str(ROOT / "gateway/start_litellm.sh")],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        for _ in range(50):
+            if ready_path.exists():
+                break
+            time.sleep(0.1)
+        assert ready_path.exists(), proc.stderr.read() if proc.poll() is not None else ""
+
+        proc_link = Path(f"/proc/{proc.pid}/cwd")
+        if proc_link.exists():
+            supervisor_cwd = proc_link.resolve()
+        else:
+            lsof = shutil.which("lsof")
+            assert lsof is not None, "need /proc or lsof to inspect process cwd"
+            result = subprocess.run(
+                [lsof, "-a", "-p", str(proc.pid), "-d", "cwd", "-Fn"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            cwd_line = next(line for line in result.stdout.splitlines() if line.startswith("n"))
+            supervisor_cwd = Path(cwd_line[1:]).resolve()
+
+        assert supervisor_cwd == ROOT.resolve()
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait(timeout=5)
+
+
 def test_kitty_launcher_points_at_live_gateway_scripts() -> None:
     launcher = _read_text("kitty")
     assert 'bash "$KITTY_ROOT/gateway/start_litellm.sh"' in launcher

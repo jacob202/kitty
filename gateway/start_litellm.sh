@@ -88,7 +88,18 @@ if [[ "${LITELLM_SMOKE:-0}" == "1" ]]; then
   exit 0
 fi
 
-# Starting outside the repo prevents Kitty's local mcp/ package from shadowing
-# the MCP SDK imported by LiteLLM's proxy runtime.
-cd "${LITELLM_VENV}"
-litellm --config "${LITELLM_CONFIG_PATH}" --port "${LITELLM_PORT}" --host "${LITELLM_HOST}"
+# Keep this launcher process rooted in Kitty so ./kitty can prove ownership of
+# the PID it records. Run only the LiteLLM child outside the repo so Kitty's
+# local mcp/ package cannot shadow LiteLLM's installed MCP SDK.
+(
+  cd "${LITELLM_VENV}"
+  exec litellm --config "${LITELLM_CONFIG_PATH}" --port "${LITELLM_PORT}" --host "${LITELLM_HOST}"
+) &
+litellm_pid=$!
+
+forward_termination() {
+  kill -TERM "${litellm_pid}" 2>/dev/null || true
+}
+trap forward_termination TERM INT
+
+wait "${litellm_pid}"
