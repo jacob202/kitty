@@ -64,3 +64,17 @@ def test_precommit_runs_existing_tests_after_coordination_guard_passes(tmp_path:
     )
     assert "guard-rc-0" in result.stdout
     assert "Running pre-commit tests" in result.stdout
+
+
+def test_tracked_precommit_hook_delegates_to_coordination_template() -> None:
+    hook = ROOT / "scripts/hooks/pre-commit"
+    assert hook.exists()
+    text = hook.read_text(encoding="utf-8")
+    assert "scripts/pre-commit.template" in text
+    assert "exec" in text
+
+
+def test_install_hooks_target_installs_tracked_hook_directory() -> None:
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    assert "git config core.hooksPath scripts/hooks" in makefile
+    assert "pre-commit" in makefile.split("hooks:", 1)[1].split("\n\n", 1)[0]
