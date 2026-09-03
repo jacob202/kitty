@@ -3,9 +3,13 @@
 **Ratified:** 2026-07-26 by Jacob
 **Authority:** architectural and execution frame under accepted ADRs
 
-This map governs shape: what belongs where, what may be built, and in what
-order. It does not override live repository, runtime, Git, GitHub, or Builder
-evidence.
+This is a supporting layering reference for Kitty/KittyBuilder shape: what
+belongs where, boundaries, and non-goals. It is not a roadmap, status source,
+or authority-order source. `docs/CONSTITUTION.md`, accepted ADRs and
+`docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md`, `docs/ROADMAP.md`,
+and `docs/AUTHORITY_MAP.md` own authority order, delivery sequencing, and live
+status. This map does not override live repository, runtime, Git, GitHub, or
+Builder evidence.
 
 ## North star
 
@@ -20,17 +24,16 @@ The complete delivery chain is:
 
 All proposed work must strengthen this chain.
 
-## Authority order
+## Authority precedence
 
-When sources disagree, higher wins:
-
-1. Live repository, runtime, Git, and GitHub evidence
-2. Durable Builder records and immutable receipts
-3. Versioned generated snapshots
-4. Accepted ADRs and canonical governance documents
-5. `docs/ROADMAP.md`, the active Mission, and approved executable contracts
-6. Research, audits, old plans, and generated summaries
-7. Agent narrative or chat history
+Authority ordering is owned by `docs/CONSTITUTION.md` (the highest design
+artifact), accepted ADRs and
+`docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md`, and the active
+`docs/ROADMAP.md`, routed by `docs/AUTHORITY_MAP.md`. This map does not define
+a competing authority order. When sources disagree, live repository, runtime,
+Git, and GitHub evidence wins; below that, the Constitution/ADR/ROADMAP chain
+decides. See `docs/AUTHORITY_MAP.md` for the conflict rules and the owner of
+each concern.
 
 ## Architectural layers
 
@@ -130,53 +133,21 @@ Keep governance small, canonical, and enforceable. Escalate when authority is
 missing or a ratified decision would change — not merely because a file is
 categorized as protected.
 
-## Delivery sequence
+## Delivery sequencing
 
-### Phase 1 — Trust foundation and first complete proof
+Delivery sequencing and phase gating are owned by `docs/ROADMAP.md` — the one
+active forward-looking sequence and its exit criteria (ADR 0020; Ratification
+Decision 5). This map does not define competing delivery phases. The delivery
+chain shape in the North Star section above (intent → plan → packet →
+execution → verification → review → merge → memory → UI) describes the path an
+approved outcome travels, not a phase schedule. Basic proactive selection of
+already-approved packets is the operating rule in ADR 0021, not a deferred
+phase.
 
-- restore functioning Python and frontend CI;
-- finish the current manifest and governance PRs;
-- repair contradictory planning and mission authorities;
-- close Builder reliability and recovery by evidence;
-- author verified `free-exec` manifest packets;
-- prove proactive unattended execution in daylight;
-- complete one real life-project resume loop end to end.
+## Non-goals
 
-**Exit:** Builder accurately proves what happened, and Kitty turns one real
-project's state into a delivered next move without archaeology.
-
-### Phase 2 — Unified workers
-
-- define `WorkerSession` from the existing adapter contract;
-- encode shell-adapter behavior as contract tests;
-- adapt worker backends without changing Builder semantics;
-- unify attempts, receipts, logs, outcomes, and explicit model policy.
-
-**Exit:** worker backends are interchangeable without moving truth into model
-sessions.
-
-### Phase 3 — Unified runtime and UI
-
-- version the canonical Builder snapshot;
-- extend SSE only where cursor, replay, filtering, or reconnect evidence
-  requires it;
-- refactor the existing `BuilderSurface` rather than building another cockpit;
-- ensure CLI, API, and UI tell the same verifiable story.
-
-**Exit:** every interface reports identical supported state.
-
-### Phase 4 — Broader controlled autonomy
-
-- overlap-aware cross-initiative scheduling;
-- automated repair preparation and decision escalation;
-- broader policy-controlled merge classes;
-- adaptive model routing backed by quality/cost evidence.
-
-Basic proactive selection of already-approved packets is not deferred to this
-phase; it is the operating rule in ADR 0021. Phase 4 expands autonomy only after
-the lower layers are proven.
-
-## Non-goals until Phase 1 exits
+Delivery-phase gating is owned by `docs/ROADMAP.md`. These layering non-goals
+hold unless current ROADMAP authority explicitly authorizes the work:
 
 Do not:
 
@@ -203,7 +174,7 @@ Before implementation, record:
 7. validation strategy;
 8. migration and compatibility concerns;
 9. scope and path-collision risk;
-10. why the work belongs in the current phase.
+10. why the work fits the current `docs/ROADMAP.md` priority.
 
 Work that conflicts with this map is not implemented. Surface the conflict and
 propose the smallest aligned alternative.
