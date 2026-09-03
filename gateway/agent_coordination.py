@@ -118,6 +118,14 @@ def list_builder_claims(*, builder_db_path: Path | None = None) -> list[dict[str
 
     projected: list[dict[str, Any]] = []
     for row in rows:
+        state = row["state"] or "unknown"
+        worktree_path = Path(row["worktree_path"]).expanduser().resolve()
+        # Builder can retain historical branch-lease rows after a blocked/queued
+        # worktree has been intentionally retired. Those rows are evidence, not
+        # live mutation ownership. Preserve active execution states fail-closed,
+        # but do not let an absent recoverable worktree freeze broad path fences.
+        if state in {"blocked", "queued"} and not worktree_path.exists():
+            continue
         raw_paths = row["allowed_paths_json"]
         try:
             paths = json.loads(raw_paths) if raw_paths else []
@@ -139,10 +147,10 @@ def list_builder_claims(*, builder_db_path: Path | None = None) -> list[dict[str
                 "initiative_id": row["initiative_id"],
                 "packet_id": row["packet_id"],
                 "task_id": row["task_id"],
-                "state": row["state"] or "unknown",
+                "state": state,
                 "base_sha": row["base_sha"],
                 "branch": row["branch"],
-                "worktree_path": str(Path(row["worktree_path"]).expanduser().resolve()),
+                "worktree_path": str(worktree_path),
                 "paths": _normalized_unique(paths, _normalize_path),
                 "resources": [
                     _normalize_resource(f"builder:{row['initiative_id']}/{row['packet_id']}")

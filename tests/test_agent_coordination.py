@@ -95,7 +95,7 @@ def test_atomic_race_allows_only_one_conflicting_owner(tmp_path: Path) -> None:
     assert sorted(results) == ["claimed", "conflict"]
 
 
-def _seed_builder_lease(db_path: Path, *, state: str = "running") -> None:
+def _seed_builder_lease(db_path: Path, *, state: str = "running", worktree_path: str = "/tmp/builder-packet-1") -> None:
     import sqlite3
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +129,7 @@ def _seed_builder_lease(db_path: Path, *, state: str = "running") -> None:
         )
         conn.execute(
             "INSERT INTO branch_leases VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (1, "initiative-a", "PACKET-1", "dsh-worker", "kittybuilder/packet-1", "/tmp/builder-packet-1", BASE),
+            (1, "initiative-a", "PACKET-1", "dsh-worker", "kittybuilder/packet-1", worktree_path, BASE),
         )
         conn.commit()
     finally:
@@ -235,3 +235,20 @@ def test_renew_and_release_preserve_session_fencing(tmp_path: Path) -> None:
     )
     assert released["released_at"] == 106.0
     assert agent_coordination.list_claims(db_path=db_path, now=107.0) == []
+
+
+def test_blocked_builder_lease_without_recoverable_worktree_is_not_live(tmp_path: Path) -> None:
+    builder_db = tmp_path / "builder.db"
+    _seed_builder_lease(builder_db, state="blocked", worktree_path=str(tmp_path / "missing"))
+    assert agent_coordination.list_builder_claims(builder_db_path=builder_db) == []
+
+
+def test_blocked_builder_lease_with_recoverable_worktree_still_blocks(tmp_path: Path) -> None:
+    builder_db = tmp_path / "builder.db"
+    recoverable = tmp_path / "builder-worktree"
+    recoverable.mkdir()
+    _seed_builder_lease(builder_db, state="blocked", worktree_path=str(recoverable))
+    projected = agent_coordination.list_builder_claims(builder_db_path=builder_db)
+    assert len(projected) == 1
+    assert projected[0]["state"] == "blocked"
+    assert projected[0]["worktree_path"] == str(recoverable.resolve())
