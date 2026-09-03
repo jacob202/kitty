@@ -97,28 +97,39 @@ where `updated_at < 7 days ago`.
 **Status:** DEFINED. Needs `stale-draft-close.yml` workflow. GitHub's
 `actions/stale` can handle this, but it's currently pinned at v9 in #312.
 
-## 7. Roadmap inventory coverage check
+## 7. Planning inputs are inert until explicitly activated
 
-**What:** Every file under `docs/plans/`, `docs/planning/`, `docs/packets/`,
-`docs/initiatives/` must appear in `docs/DISPOSITION_LEDGER.md`. A new file
-added without a ledger row fails CI.
+**What:** A new plan, packet, or initiative is inert by default. File existence,
+manifest validity, historical ledger membership, or a persuasive status label
+cannot activate work. Activation requires explicit current approval (the living
+roadmap/active Mission or Jacob's live instruction) plus a fresh ownership check
+at execution time.
 
-**Enforcement:** CI check on push to `main`. Scans the four directories,
-verifies every file has a row in the ledger. New files fail the check.
+**Enforcement:**
+- Builder remains authoritative for engineering execution state and leases.
+- `workspace_global` and GitHub issue #490 provide live interactive
+  coordination/collision evidence.
+- Packet/manifests may be validated for shape without being activated.
+- CI may verify links/schema/declared scope, but it must not infer approval from
+  a file merely existing.
 
-**Status:** DEFINED. Needs `ledger-coverage-check.yml` workflow (or a
-`scripts/check_ledger_coverage.sh` called from CI).
+**Status:** ENFORCED as an authority rule. The archived August disposition
+ledger is historical evidence, not a universal coverage gate.
 
-## 8. Active mission phase must exist in the roadmap
+## 8. Active Mission and roadmap must agree on current direction
 
-**What:** `docs/ACTIVE_MISSION.md` declares a phase (extracted from the
-mission title or `kitty-mission` JSON block). That phase must have a section
-in `docs/ROADMAP.md`.
+**What:** `docs/ROADMAP.md` names the current broad Mission and
+`docs/ACTIVE_MISSION.md` records its approval/status. A terminal or superseded
+Mission cannot remain described as running elsewhere, and an older milestone
+plan cannot silently replace the living roadmap.
 
-**Enforcement:** CI check on PRs that modify `docs/ACTIVE_MISSION.md`.
+**Enforcement:** Current-document review plus the cold-start/context receipt
+checks. Do not infer a Mission phase from an old numbering scheme; compare the
+actual current records.
 
-**Status:** ENFORCED by this roadmap rewrite. Phase 2 now exists in the
-roadmap and KLF-001 sits within it.
+**Status:** ENFORCED as documentation authority. A dedicated CI parser is not
+currently required because Mission activation is an explicit operator decision,
+not something CI may invent.
 
 ## 9. Evidence requirements by type
 
@@ -170,9 +181,8 @@ approve its own work.
    - `pr-single-lane-check.yml` — blocks second concurrent feature PR
    - `stale-draft-close.yml` — auto-closes stale drafts
    - `pr-overlap-check.yml` — detects file overlap between PRs
-   - `ledger-coverage-check.yml` — verifies every planning file is in the ledger
    - `pr-model-origin-check.yml` — prevents self-review
 
 3. **Procedural (no CI needed):**
    - Evidence requirements by type — enforced by PR review, not automation.
-   - Active mission phase check — already satisfied by this roadmap.
+   - Mission/roadmap agreement — review the actual current records; do not infer activation from old phase numbering.

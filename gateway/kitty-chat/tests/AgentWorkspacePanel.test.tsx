@@ -18,13 +18,16 @@ vi.mock('../src/lib/gateway', () => ({
   updateGlobalAgentReceipt,
 }))
 
-function globalRoom(messages: AgentWorkspaceMessage[] = []): AgentWorkspace {
+function globalRoom(
+  messages: AgentWorkspaceMessage[] = [],
+  agents?: AgentWorkspace['agents'],
+): AgentWorkspace {
   return {
     id: 'workspace_global',
     name: 'Global Agent Room',
     objective: 'Shared durable coordination for Jacob and authorized agents.',
     status: 'active', created_at: 1, updated_at: 1,
-    agents: [
+    agents: agents ?? [
       { id: 'chatgpt', display_name: 'ChatGPT', role: 'external', model: null, status: 'registered' },
       { id: 'claude', display_name: 'Claude', role: 'external', model: null, status: 'registered' },
       { id: 'codex', display_name: 'Codex', role: 'external', model: null, status: 'registered' },
@@ -76,6 +79,63 @@ describe('AgentWorkspacePanel global command center', () => {
     expect(screen.getAllByText('registered')).toHaveLength(4)
     expect(screen.queryByText(/online/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /create shared room/i })).not.toBeInTheDocument()
+  })
+
+  it('renders participants added after this component was written, by name not raw id', async () => {
+    // Regression: CANONICAL_AGENTS was a hardcoded copy of the roster that had
+    // already gone stale (it omitted DSH), so any newer sender rendered as a
+    // bare id in the transcript and could not be chosen as a DM recipient.
+    // The live room response is now the only source of truth.
+    fetchGlobalAgentRoom.mockResolvedValue(globalRoom([], [
+      { id: 'chatgpt', display_name: 'ChatGPT', role: 'external', model: null, status: 'registered' },
+      { id: 'dsh', display_name: 'DSH', role: 'principal', model: null, status: 'registered' },
+      { id: 'commandcode', display_name: 'Command Code', role: 'external', model: null, status: 'registered' },
+    ]))
+
+    render(<AgentWorkspacePanel />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Global Agent Room' })).toBeInTheDocument())
+
+    expect(screen.getByText('DSH')).toBeInTheDocument()
+    expect(screen.getByText('Command Code')).toBeInTheDocument()
+    expect(screen.queryByText('commandcode')).not.toBeInTheDocument()
+
+    // Selectable as a direct-message recipient even though the old list never knew it.
+    const recipient = screen.getByLabelText('Recipient') as HTMLSelectElement
+    expect(Array.from(recipient.options).map((option) => option.value)).toContain('commandcode')
+    expect(screen.getByText('Direct · Command Code')).toBeInTheDocument()
+  })
+
+  it('derives the header member count from the response instead of stating a fixed number', async () => {
+    // Six participants, one of them retired; the old pill claimed a fixed count
+    // regardless, contradicting the cards rendered beside it.
+    fetchGlobalAgentRoom.mockResolvedValue(globalRoom([], [
+      { id: 'chatgpt', display_name: 'ChatGPT', role: 'external', model: null, status: 'registered' },
+      { id: 'claude', display_name: 'Claude', role: 'external', model: null, status: 'retired' },
+      { id: 'codex', display_name: 'Codex', role: 'external', model: null, status: 'registered' },
+      { id: 'kitty', display_name: 'Kitty', role: 'principal', model: null, status: 'registered' },
+      { id: 'dsh', display_name: 'DSH', role: 'principal', model: null, status: 'registered' },
+      { id: 'commandcode', display_name: 'Command Code', role: 'external', model: null, status: 'registered' },
+    ]))
+
+    render(<AgentWorkspacePanel />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Global Agent Room' })).toBeInTheDocument())
+
+    expect(screen.getByText('6 agents · 5 registered · 1 retired')).toBeInTheDocument()
+    expect(screen.queryByText(/four registered agents/i)).not.toBeInTheDocument()
+  })
+
+  it('labels each roster entry with the status the room actually reports', async () => {
+    fetchGlobalAgentRoom.mockResolvedValue(globalRoom([], [
+      { id: 'chatgpt', display_name: 'ChatGPT', role: 'external', model: null, status: 'registered' },
+      { id: 'claude', display_name: 'Claude', role: 'external', model: null, status: 'retired' },
+    ]))
+
+    render(<AgentWorkspacePanel />)
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Global Agent Room' })).toBeInTheDocument())
+
+    // Previously every card said "registered" regardless of the real status.
+    expect(screen.getByText('retired')).toBeInTheDocument()
+    expect(screen.getAllByText('registered')).toHaveLength(1)
   })
 
   it('sends a direct message from Jacob to the selected agent', async () => {

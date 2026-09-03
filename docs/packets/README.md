@@ -3,6 +3,15 @@
 Executor-ready work units for the state + action spine (D9,
 `docs/OPERATOR_STRATEGY.md` §15). One packet = one branch = one PR.
 
+**Current-status note (2026-09-03):** this file retains the legacy numbered
+packet registry and useful packet-authoring lessons. It is not the current
+execution order. `docs/ROADMAP.md` owns delivery order,
+`docs/ACTIVE_MISSION.md` records the current broad Mission, Builder owns
+engineering execution state, and `workspace_global` plus GitHub issue #490
+provide live interactive coordination. Named packet families such as `KF-*`,
+`KH-*`, and `OK-*` are not made active by appearing on disk or by the historical
+numbered registry below.
+
 Rules for executors (any model or human):
 
 - Read the packet, not the whole repo. The packet carries all context you
@@ -13,8 +22,9 @@ Rules for executors (any model or human):
   keep going.
 - Before merge: full CI green on check runs (not combined status), reviewer
   pass on the diff, Jacob's review where the packet names it.
-- **Claims:** check `.claude/STATE.md` before picking up a packet — it is
-  the live claim board. Claim before you build.
+- **Claims:** before picking up work, re-check current Builder state and live
+  `workspace_global` / GitHub issue #490 ownership. `.claude` continuity files
+  are legacy fallback only, not a live claim board.
 
 ## Packet intake gate
 
@@ -66,7 +76,12 @@ anyone notices (that's how 026 collided a third time — L-CAND-13).
 
 📋 ≠ ✅. If Jacob asks "is X done" the answer distinguishes these words.
 
-## The finish line: move-in day
+## Historical finish line: move-in day
+
+This section preserves the earlier move-in framing. Current release-quality exit
+criteria live in `docs/ROADMAP.md` and supersede this historical checklist for
+execution sequencing.
+
 
 Decided by Jacob 2026-07-04 (D12 in `docs/DECISIONS.md`). Jacob has never
 used Kitty and won't until it clears this bar. H1 is **done enough to move
@@ -124,7 +139,11 @@ authored)
 | 027 | Builder restart/recovery proof                                                       | Builder free worker (KittyBuilder)   | 🚧 in Builder queue — spec is the initiative manifest `docs/initiatives/packet-027-v1.json` (#174/#175), not a packets/ file      |
 | 028 | Reasoning engine: visible thinking, Auto/Fast/Balanced/Deep modes, token optimizer   | Claude Code / Codex                  | 📋 spec authored 2026-07-14 — wave 4 of the chat cutting-edge plan (PR #164, closed), renumbered from that branch's 026; #164 archaeology: `docs/plans/pr164-archaeology.md` |
 
-## Execution order (set 2026-07-04, supersedes 2026-07-03)
+## Historical execution order (set 2026-07-04)
+
+Preserved for provenance only. Do not use this ordering to activate current
+work; use `docs/ROADMAP.md` plus current approval and live ownership evidence.
+
 
 **Wave 0 — Kitty gets a house: ✅ complete 2026-07-05.**
 Ethernet ✅. Tailscale ✅. iMessage-to-self live ✅. `PUSH_IMESSAGE_RECIPIENT`

@@ -18,5 +18,7 @@ Do not restore an archived document to active use merely because it is detailed 
 - `ARCHIVE_MANIFEST_2026-07-24.md` — initial consolidation of 28 files/folders.
 - `ARCHIVE_MANIFEST_2026-07-25.md` — follow-up dispositions and moves.
 - `PLANS_2026-07-24.md` — superseded session tracker archived 2026-07-28 because it named obsolete roadmap and mission authorities.
+- `DISPOSITION_LEDGER_2026-08-08.md` — frozen planning-disposition snapshot; current activation no longer depends on universal ledger membership.
+- `KNOWLEDGE_GRAPH_2026-08-05.md` — frozen relationship-archaeology analysis; not current status or sequencing.
 
 Git history is the complete record for files removed or summarized during archival cleanup.

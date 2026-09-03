@@ -11,7 +11,7 @@ Create or extend `docs/CONTEXT.md` when the grilling loop introduces a domain te
 
 **Meaning:** One sentence definition.
 
-**Modules:** Which gateway modules own this concept (e.g. `memory_graph`, `context_builder`).
+**Modules:** Which gateway modules own this concept (e.g. `memory_graph`, `context_assembler`).
 
 **Not:** Common confusions to avoid.
 ```
