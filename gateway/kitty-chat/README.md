@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kitty Chat — Kitty's native frontend
 
-## Getting Started
+This is Kitty's native UI, a Next.js app in `gateway/kitty-chat/`. Per
+[ADR 0039](../../docs/adr/0039-kitty-native-product-surface.md) it is Kitty's
+canonical user-facing product surface — not a generic `create-next-app`
+project. Open WebUI remains optional reference software only.
 
-First, run the development server:
+## Relationship to the Gateway
+
+The frontend renders product state; the backend owns the durable truth. The
+FastAPI Gateway in the parent `gateway/` directory (app entry `../app.py`) and
+the LiteLLM model proxy serve it. The UI reaches the Gateway through the shared
+`/proxy/*` surface and waits on `/proxy/health` before mounting app content.
+Frontend state may optimistically improve responsiveness but must reconcile
+back to server truth, and a reload must reconstruct important state from the
+backend (ADR 0039).
+
+## Product launch
+
+The normal way to run Kitty is the repo launcher, which starts the Gateway,
+LiteLLM, and this UI through one canonical bootstrap
+(`../../scripts/desktop/start_ui.sh`) and opens the browser. From the repo
+root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+./kitty            # Gateway + LiteLLM + native UI, opens browser (same as ./kitty start)
+./kitty ui         # native UI only
+./kitty up         # Gateway + LiteLLM only (no UI)
+./kitty status     # mode, SHA, ports, freshness for every managed listener
+./kitty down       # stop only this checkout's owned listeners
 ```
 
-Open [http://localhost:4000](http://localhost:4000) with your browser to see the result.
+The UI is served at `http://127.0.0.1:4000` (loopback). See the
+[Launcher Contract](../../docs/reference/LAUNCHER_CONTRACT.md) for the required
+shared properties (build-freshness check, port-conflict handling, ownership-safe
+shutdown). Remote/Tailnet serving is **not** a supported product path:
+`make ui-tailnet` bypasses the canonical bootstrap and the server-side proxy
+rejects non-loopback Hosts (tracked as defect `KH-REMOTE-01`), so do not
+advertise remote access from here.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Frontend development (dev-only)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+These run Next directly and are **not** product-runtime evidence — they skip
+the canonical UI bootstrap and cannot support source-freshness or phone-access
+claims. From this directory:
 
-## Learn More
+```bash
+npm ci             # install deps once
+npm run dev        # next dev -H 127.0.0.1 -p 4000 (loopback only)
+npm run build      # production build
+npm run start      # serve the production build (loopback only)
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Test, build, and smoke targets
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Run from the repo root unless noted. Full tier details are in
+[`../../TESTING.md`](../../TESTING.md) and the root `../../Makefile`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Target | What it runs |
+| --- | --- |
+| `make ui-test` | Vitest unit/component suite (`npm test`) |
+| `make ui-build` | production Next.js build; refuses to run while this directory has uncommitted source changes |
+| `make smoke-test` | Playwright browser smoke (builds first) |
+| `make smoke-test-hermetic` | Playwright against fake LiteLLM + real Gateway, end to end |
 
-## Deploy on Vercel
+Or run directly from this directory: `npm test`, `npm run build`,
+`npm run test:smoke`, `npm run test:smoke:hermetic`. Vitest specs live under
+`tests/`; Playwright specs under `tests/smoke/`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Local security boundary
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Kitty is a local-first, single-user companion on the host Mac. The native UI
+binds to loopback (`127.0.0.1:4000`); the canonical bootstrap refuses to serve a
+stale build and refuses to launch when a conflicting listener — including a
+sibling Kitty worktree — holds a required port. There is no supported remote
+product path: do not expose the UI on `0.0.0.0` or rely on Tailnet reachability
+for product behavior.

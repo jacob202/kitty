@@ -9,10 +9,19 @@
 
 ## CRITICAL: Before ANY Push
 
-1. **ALWAYS run the relevant tests locally before pushing:**
-   - Backend changes: `python3.12 -m pytest tests/ -q --tb=short`
-   - Frontend changes: `cd gateway/kitty-chat && npm test && npm run build`
+1. **Run the narrowest relevant checks that cover your change before pushing**
+   (matches `AGENTS.md` / `TESTING.md`). Full suite, lint, typecheck, and build
+   are `/qg` or CI gates — do not run them on every push unless asked.
+   - Backend: `python3.12 -m pytest tests/<changed_file>.py -q --tb=short`
+     (fast hermetic tier; `make test` runs the whole fast tier if you really
+     touched many files). Add the required process/git integration tier only
+     when your change crosses a subprocess/worktree boundary: `make test-integration`.
+   - Frontend: `cd gateway/kitty-chat && npm test` (Vitest unit/component); add
+     `make ui-build` only when a production build is in scope.
    - If you touch routing/llm code: `python3.12 -m pytest tests/test_chat_completions.py tests/test_llm_client.py -q`
+   - Broad local parity with the PR coverage gate is `make test-ci`; the full
+     required Python tier is `make test-all`. Reserve these for `/qg` or an
+     explicit request, not the routine pre-push loop.
 
 2. **NEVER remove or rename symbols that tests depend on without updating the tests:**
    - Check `grep -r "symbol_name" tests/` before removing/renaming any exported function
@@ -21,7 +30,7 @@
 
 3. **NEVER push code that breaks existing tests:**
    - If a test fails because of your change, fix the test or fix your code — do not push broken code
-   - Run the full test suite locally before pushing if you touched core modules
+   - Run the narrowest tests that cover your change before pushing; reserve the full suite for `/qg`/CI
 
 ## CRITICAL: PR Descriptions
 
@@ -34,7 +43,9 @@ Every PR description MUST include:
 - how to verify the change works
 ```
 
-The `check-description` CI job REQUIRES these exact section headers. Do not use `## What changed` or any other variant.
+These headers match `.github/pull_request_template.md`. They are useful review
+context, not an enforced CI gate — there is no `check-description` job. Do not
+use `## What changed` or any other variant that diverges from the template.
 
 ## CRITICAL: Symbol Compatibility
 

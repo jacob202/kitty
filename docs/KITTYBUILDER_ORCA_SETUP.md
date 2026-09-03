@@ -33,38 +33,58 @@ The implementer must not approve its own work. A model approval must be from a s
 
 ## Provider Routing
 
-Default to OpenCode first:
+Builder model routing is owned by [`docs/FREE_WORKERS.md`](FREE_WORKERS.md): two
+explicit DeepSeek Harness (DSH) lanes — `--free` (zero-spend, OpenRouter free
+models only) and `--paid` (governed OpenRouter value route with the compute
+governor). Omitting both is not an implicit default. Current routing lives in
+the sources, not here, so it does not go stale when providers change:
 
-1. OpenCode cheap/free model for task cards, planning, packaging, and mechanical audits.
-2. OpenCode stronger cheap coding model for implementation.
-3. OpenCode reviewer for normal scoped review.
-4. Codex Terra/Sol only for queue/state/concurrency/auth/destructive risk, or when OpenCode is blocked.
+- Command contract and `--free`/`--paid` dispatch: `gateway/builder_cli.py`
+  (`./kitty builder initiative run-packet <initiative> <packet> --free|--paid --watch`).
+- DSH worker/reviewer adapters: `scripts/kittybuilder_dsh_worker.sh`,
+  `scripts/kittybuilder_dsh_reviewer.sh`, `scripts/kittybuilder_dsh.sh`.
+- Paid model/ceiling config: `config/builder_paid_routes.json`; compute
+  governor: `gateway/compute_governor.py` + `config/compute_governor.json`.
+- OpenCode free-train launcher and adapters: `scripts/opencode_free_train.sh`,
+  `scripts/kittybuilder_opencode_worker.sh`,
+  `scripts/kittybuilder_opencode_reviewer.sh`; OpenCode defaults in `opencode.jsonc`.
 
-Cap silent provider retries quickly: one cheap attempt, one stronger attempt, then block or escalate. Do not loop through providers silently.
+Do not copy model lists into docs — they go stale when providers change. Cap
+silent provider retries quickly: one cheap attempt, one stronger attempt, then
+block or escalate. Do not loop through providers silently.
 
 ## Free-Only Build Train
 
-The repository `opencode.jsonc` defaults to OpenCode Zen free models, disables session sharing, blocks external-directory access and subagent spawning, and denies push, PR creation/merge, destructive git cleanup, and file deletion even when OpenCode runs with `--auto`.
+The repository `opencode.jsonc` defaults to OpenCode free models (e.g.
+`opencode/deepseek-v4-flash-free`), disables session sharing (`share: disabled`),
+blocks external-directory access, subagent spawning (`task`), and questions,
+and denies force-push, `git reset`/`clean`/`restore`, and `rm` even when OpenCode
+runs with `--auto`. The launcher (`scripts/opencode_free_train.sh`) itself never
+pushes or merges.
 
 Launch one task card from a clean Orca worktree:
 
 ```bash
-bash scripts/opencode_free_train.sh docs/KITTYBUILDER_PHASE1A_PR4_CLI_TASK.md
+bash scripts/opencode_free_train.sh <task-card.md>
 ```
 
-The launcher uses this zero-cost ladder:
+The zero-cost fallback ladder is defined in `scripts/opencode_free_train.sh`
+itself — read that source for the current list, and see
+[`docs/FREE_WORKERS.md`](FREE_WORKERS.md) for the authoritative DSH `--free`
+routing. Do not copy the model list into docs; it goes stale when providers
+change. `OPENCODE_FREE_MODEL` forces one builder model and
+`OPENCODE_FREE_REVIEW_MODEL` forces one reviewer model.
 
-1. `opencode/deepseek-v4-flash-free`
-2. `opencode/mimo-v2.5-free`
-3. `opencode/nemotron-3-ultra-free`
-4. `opencode/north-mini-code-free`
-5. `openrouter/poolside/laguna-xs-2.1:free`
-6. `openrouter/tencent/hy3:free`
-7. `openrouter/free` as the final availability fallback
+A failed model may hand off only if it left both the worktree and `HEAD`
+unchanged. Once a builder changes anything, automatic provider fallback stops.
+A successful build is reviewed by a different free model in a read-only lane.
+Transcripts are written outside the repo under `/tmp` unless
+`OPENCODE_FREE_LOG_DIR` is set.
 
-A failed model may hand off only if it left both the worktree and `HEAD` unchanged. Once a builder changes anything, automatic provider fallback stops. A successful build is reviewed by a different free model in a read-only lane. Transcripts are written outside the repo under `/tmp` unless `OPENCODE_FREE_LOG_DIR` is set.
-
-Free endpoints may log prompts or use trial data for improvement. Use them only for public repository code and task instructions. Never expose `.env` files, credentials, runtime personal data, private memories, or uncommitted user content.
+Free endpoints may log prompts or use trial data for improvement. Use them only
+for public repository code and task instructions. Never expose `.env` files,
+credentials, runtime personal data, private memories, or uncommitted user
+content.
 
 Provider credentials remain in OpenCode's user credential store or environment. Never commit API keys. Check configured providers with:
 
@@ -87,12 +107,14 @@ prompts must use local staged copies, never an external queue path. A missing
 file, mismatched hash, invalid contract, or reviewer worktree mutation is a
 hard failure and leaves the attempt evidence available for inspection.
 
-Both adapters walk the same zero-cost ladder as the free train: a model that
-fails cleanly (no result written, worktree and `HEAD` untouched) hands off to
-the next free model inside the same attempt; any partial work stops fallback
+Each adapter family has its own checked-in zero-cost fallback ladder (see the
+adapter source and [`docs/FREE_WORKERS.md`](FREE_WORKERS.md) for the current
+list); the fail-loud handoff rule is shared: a model that fails cleanly (no
+result written, worktree and `HEAD` untouched) hands off to the next free
+model inside the same attempt, and any partial work stops fallback
 immediately. `KITTYBUILDER_MODEL` / `KITTYBUILDER_REVIEW_MODEL` force a single
-model, `KITTYBUILDER_MODELS` / `KITTYBUILDER_REVIEW_MODELS` (space-separated)
-replace the ladders.
+model; `KITTYBUILDER_MODELS` / `KITTYBUILDER_REVIEW_MODELS` (space-separated)
+replace the ladder.
 
 For a bounded launch with durable artifact paths, use the packet loop's watch
 surface with the `--free` preset (see `docs/FREE_WORKERS.md`):

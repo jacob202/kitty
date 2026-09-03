@@ -14,15 +14,15 @@ Generate a ready-to-fill session scaffold:
 make vibe-session OUTCOME="one clear result" MINUTES=60
 ```
 
-Or run the script directly:
+Or run the script directly from the repo root:
 
 ```bash
-python3.12 /home/runner/work/kitty/kitty/scripts/vibe_session.py "one clear result" --minutes 60 --active-task "one active task"
+python3.12 scripts/vibe_session.py "one clear result" --minutes 60 --active-task "one active task"
 ```
 
 The scaffold is written to:
 
-`/home/runner/work/kitty/kitty/.agent/session_logs/<timestamp>-vibe-session.md`
+`.agent/session_logs/<timestamp>-vibe-session.md`
 
 ## Strict task funnel
 
