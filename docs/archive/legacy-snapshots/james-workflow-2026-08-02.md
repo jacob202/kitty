@@ -1,4 +1,6 @@
 # The James workflow — proven 2026-08-02
+> **Historical snapshot archived 2026-09-03 — not current instruction.** Original status, commands, branch names, provider details, and next-step language below are preserved as dated evidence only. Use `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, current ADRs, and live runtime/Git evidence for present work.
+
 
 Photorealistic images of Jacob's own likeness, generated locally on open weights.
 Every setting below produced a real image; nothing here is theory.

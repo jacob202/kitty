@@ -24,6 +24,9 @@ After this lands, Jacob can see or do this concrete thing:
 - [ ] visible proof, command output, phone notification, UI card, report, or review artifact
 
 This is the human-visible finish line. Tests are not enough by themselves.
+Packet completion cannot close the parent user outcome by itself. A subagent
+`DONE`, passing tests, or a merged PR is implementation evidence only; the
+parent outcome still needs its own applicable verification.
 
 ## Why this exists
 
@@ -48,6 +51,7 @@ The rule this packet should preserve. Example:
 - **Content classes:** `chat`, `todo`, `calendar`, `journal`, `mail_body`, `health_admin`, `benefits`, `recovery_support`, `memory`, `none`
 - **Cloud allowed?** yes / no / only after redaction
 - **Forbidden:** list what must not be sent, stored, surfaced, or automated
+- **Automated acceptance data:** if a run writes app state, name the isolated data root; never use Jacob's canonical app data
 
 ## Files likely touched
 

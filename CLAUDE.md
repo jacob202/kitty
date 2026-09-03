@@ -196,8 +196,9 @@ Proceed with every unblocked part before asking.
 The shared engineering limits — fail loud, verify before claiming, focused
 diffs, no force-push/history-rewrite/secret/auth/env/irreversible actions, the
 Builder publication carve-out, auto-merge prohibitions, ADR/workflow-signal
-routing, and the session-end skill routing — are owned by `AGENTS.md`. Do not
-restate them; apply them.
+routing, the challenge/clarification discipline, the rule that implementation
+evidence is not user-outcome completion, and automatic substantial-task
+session-end routing — are owned by `AGENTS.md`. Do not restate them; apply them.
 
 ## Continuity compatibility
 

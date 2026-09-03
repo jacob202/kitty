@@ -19,7 +19,7 @@ references resolving instead.
 |---|---|---|
 | Planning | `docs/archive/planning-2026-07-24/` | 7 frozen `docs/planning/` files |
 | Recon | `docs/archive/recon-2026-07/` | `docs/recon/` files + the agent-leverage experiment dir |
-| Legacy snapshots | `docs/archive/legacy-snapshots/` | 11 flat dated/orphan status snapshots |
+| Legacy snapshots | `docs/archive/legacy-snapshots/` | dated/orphan status snapshots, retired runbooks, and stale session plans |
 | Superseded design | `docs/archive/superseded-design/` | 9 superseded/unratified large design families |
 | Documentation audit | `docs/archive/audits-2026-07/DOCUMENTATION_AUDIT.md` | stale 2026-07-30 doc-health audit (joined existing 2026-07 audits) |
 
@@ -103,6 +103,16 @@ excludes `docs/archive/`.
 - `skill-improvement-queue.md` — 2026-08-10 ephemeral skill audit output (a later
   snapshot than the 2026-06-22 copy already in `docs/archive/`).
 
+### `docs/plans/` dated/session execution material → `docs/archive/legacy-snapshots/`
+
+- `image-studio-runpod-vertical-slice-2026-07-30.md` — dated authorized session input; no current roadmap/mission reference.
+- `image-studio-next-four-2026-08-02.md` — branch/session-specific next-work plan tied to obsolete PR #384.
+- `openwebui-onboarding-progress.md` and `openwebui-onboarding-checklist.json` — obsolete OpenWebUI daily-driver session state; Native Kitty is canonical.
+- `qol-06-safe-retry-2026-08-23.md` — expired interactive implementation lease/status, not current activation evidence.
+- `feat-kittybuilder-follow-on-roadmap.md` — stale follow-on roadmap using superseded OpenCode-era worker assumptions; no current inbound authority reference.
+- `james-workflow-2026-08-02.md` — dated RunPod/ComfyUI session recipe with historical pod, cost, and stop commands; no current inbound reference.
+- `kitty-ui-enhancement-plan.html` — 2026-07-28 branch/worktree execution plan with no current inbound authority reference.
+
 ### `docs/reference/` → `docs/archive/audits-2026-07/`
 
 - `DOCUMENTATION_AUDIT.md` — 2026-07-30 doc-health classification audit; stale.
@@ -121,6 +131,8 @@ excludes `docs/archive/`.
 | `docs/PLANS.md` (superseded Image Studio list) | `docs/planning/image-studio-character-system-2026-07-24.md` → archive path |
 | `docs/plans/image-studio-character-first-architecture-2026-07-28.md` (sources) | same path update |
 | `docs/reference/CODEBASE_MAP.md` (docs map table) | `docs/reference/DOCUMENTATION_AUDIT.md` → archive path |
+| `docs/PLANS.md` (KittyBuilder evidence) | stale follow-on-roadmap source path → `docs/archive/legacy-snapshots/feat-kittybuilder-follow-on-roadmap.md` |
+| `docs/plans/openwebui-agent-handoff-2026-08-02.md` | stale onboarding-progress source path → archived snapshot path |
 
 Left as historical prose (not repaired, per rule 9 / protected stores): the
 `docs/planning/` mention in `docs/README.md` (guarded by

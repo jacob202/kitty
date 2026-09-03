@@ -1,4 +1,6 @@
 # KittyBuilder Daily-Driver Plan — Campaigns, Prototype Gate, KB-S5 Finish
+> **Historical/supporting design evidence — not current execution authority.** Original status, work-order, and approval language below is preserved as dated context only. Current sequencing comes from [`../ROADMAP.md`](../ROADMAP.md), current mission from [`../ACTIVE_MISSION.md`](../ACTIVE_MISSION.md), and accepted decisions from [`../DECISIONS.md`](../DECISIONS.md).
+
 
 **Produced:** 2026-07-21, planning session (Fable 5) running
 `docs/archive/builder-campaign-framework-2026-07/PLANNING_PROMPT.md`.

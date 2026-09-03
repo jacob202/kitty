@@ -11,12 +11,25 @@ defaults, hide unavailable evidence, or add silent recovery. External calls may
 retry with a visible warning, then must raise the real error with status,
 parameters, and response context.
 
+## Judgment and clarification
+
+Do not agree reflexively with Jacob or treat a factual premise as true merely
+because he stated it. Challenge unsupported premises with the best available
+evidence and say when the evidence disagrees. Never invent facts, certainty, or
+understanding. Never claim understanding when material ambiguity remains. Ask
+one consolidated clarifying question when its answer can materially change the
+outcome; otherwise resolve what you can from the repository, tools, and existing
+context, state any bounded assumption that matters, and avoid ceremonial or
+low-value questions.
+
 ## Before work
 
 For repository-changing work or stale inherited context, run `START_HERE.md`.
 It is the single source for checkout verification, live Git state, the context
 receipt, authority reading order, mission/checkpoint freshness, and the final
-mutation gate. Use staged loading from
+mutation gate. Read `config/PREFERENCES.md` once per session for Jacob-specific
+interaction and taste defaults; preferences are personal context, not
+architecture/runtime evidence, and never override verified repository truth. Use staged loading from
 `docs/reference/CONTEXT_ENGINEERING.md`; read only the authority required by
 the task. Inspect Builder only when the task involves Builder state, ownership,
 execution, or collision risk.
@@ -65,7 +78,15 @@ After a meaningful change, run the narrowest relevant checks and report exact
 results. Do not run the full suite, lint, typecheck, or build unless the task
 asks for it or `/qg`/CI requires it. Runtime, UI, launch, and environment
 claims need their corresponding live proof. Never call work complete from
-inspection alone; use the final states in `verified-delivery`.
+inspection alone; use the final states in `verified-delivery`. Implementation,
+packet completion, tests, a green PR, or a subagent reporting `DONE` are
+implementation evidence only. A user outcome closes only when its applicable
+outcome contract is verified against the exact running candidate or, for a
+non-runtime documentation/process task, the exact repository state and the
+reader/operator behavior the task was meant to change. Material course
+corrections to how agents work must be persisted into load-bearing doctrine,
+preferences, tests, or enforcement before closeout; a chat or GAR message alone
+is not enough.
 
 ## Reviewer routing
 
@@ -100,7 +121,9 @@ creating an isolated task worktree/branch, committing verified task work, pushin
 that non-main branch, and opening or updating its PR. It does not authorize the
 higher-impact actions listed above or material scope expansion. Before `gh` or
 push, check for an ambient `GITHUB_TOKEN`; prefer `env -u GITHUB_TOKEN gh ...`
-when stored auth is valid, and never print credential values. Before merge,
+when stored auth is valid, and never print credential values. Never poll CI: use
+one `gh pr checks <N> --watch` command when waiting on a PR, and never wrap `gh`
+status checks in sleep/loop polling. Before merge,
 inspect every required Actions check run. A green aggregate status is not enough.
 Do not enable or rely on auto-merge for dependency/lockfile, CI, auth/security,
 destructive/schema, human-judgment, collision, unverifiable-gate, or scope-
@@ -129,10 +152,14 @@ assignment, inspect Builder only for collision awareness, and leave an explicit
 no-op when no valid assignment exists. Explicit `builder next`, `builder
 status`, or `review builder` are different intents.
 
-When the user says `session end`, `wrap up`, or equivalent, execute
-`.agents/skills/session-end/SKILL.md`. It owns the live survey, exact evidence,
-KB receipt, continuity updates, learning signals, validation, and stop rule; it
-must not create an automatic issue or start another assignment.
+When a substantial interactive assignment is genuinely verified complete,
+execute `.agents/skills/session-end/SKILL.md` automatically before the final
+closeout response; the user does not need to ask for session end. Also execute
+it when the user explicitly says `session end`, `wrap up`, or equivalent. It
+owns the live survey, exact evidence, KB receipt, continuity updates, learning
+signals, validation, and stop rule; it must not create an automatic issue or
+start another assignment. Do not trigger it for an ordinary turn, a question,
+a checkpoint, pending review/CI, or any case where assigned work remains.
 
 For implementation, repair, review, or completion claims, use
 `.agents/skills/verified-delivery/SKILL.md`. For modernization or maintenance

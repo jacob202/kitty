@@ -38,6 +38,12 @@ authority; they do not replace the owners above.
 - [`FREE_MODEL_PACKET_STANDARD.md`](FREE_MODEL_PACKET_STANDARD.md) — packet-quality/classification standard for deterministic free-exec work.
 - [`contracts/`](contracts/) — supporting design/runtime contracts; individual files state whether they are executable policy, proposed schema, or historical input.
 - [`KITTYBUILDER_QUICKSTART.md`](KITTYBUILDER_QUICKSTART.md) — supported Builder operator commands and execution safety rails.
+- [`WORKFLOW.md`](WORKFLOW.md) and [`PRODUCT_ACCEPTANCE.md`](PRODUCT_ACCEPTANCE.md) — PR/review flow and running-product acceptance.
+- [`UX_RULES.md`](UX_RULES.md) — current user-facing interaction rules.
+- [`FREE_WORKERS.md`](FREE_WORKERS.md) and [`KITTYBUILDER_MCP.md`](KITTYBUILDER_MCP.md) — current Builder model routing and MCP operator boundary.
+- [`CAMPAIGN_PLAYBOOK.md`](CAMPAIGN_PLAYBOOK.md) — supported multi-packet campaign execution guidance.
+- [`CAPABILITY_MANIFEST.md`](CAPABILITY_MANIFEST.md) — compatibility/front-door pointer to the maintained capability contract.
+- [`PLANS.md`](PLANS.md) — plan navigation/disposition index; not an activation authority.
 - [`reference/`](reference/) — reusable technical guidance generally.
 
 ## Execution inputs

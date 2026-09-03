@@ -1,4 +1,6 @@
 # Kitty Product Experience v1
+> **Historical/supporting design evidence — not current execution authority.** Original status, work-order, and approval language below is preserved as dated context only. Current sequencing comes from [`../ROADMAP.md`](../ROADMAP.md), current mission from [`../ACTIVE_MISSION.md`](../ACTIVE_MISSION.md), and accepted decisions from [`../DECISIONS.md`](../DECISIONS.md).
+
 
 **Date:** 2026-07-20
 **Status:** Draft for Jacob's review

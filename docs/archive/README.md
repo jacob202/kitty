@@ -19,7 +19,7 @@ Do not restore an archived document to active use merely because it is detailed 
 |---|---|---|
 | Planning | `planning-2026-07-24/` | frozen `docs/planning/` files (2026-07-24) |
 | Recon | `recon-2026-07/` | `docs/recon/` scouting/landscape + the agent-leverage experiment dir (2026-07) |
-| Legacy snapshots | `legacy-snapshots/` | flat dated/orphan status snapshots (2026-04 → 2026-09) |
+| Legacy snapshots | `legacy-snapshots/` | flat dated/orphan status snapshots and retired session plans (2026-04 → 2026-09) |
 | Superseded design | `superseded-design/` | superseded/unratified large design families (2026-07 → 2026-08) |
 | 2026-07 audits | `audits-2026-07/` | audit/harvest reports; the 2026-07-30 `DOCUMENTATION_AUDIT` joined here |
 
@@ -35,6 +35,6 @@ and flat archived files remain as recorded by the manifests below.
 - `PLANS_2026-07-24.md` — superseded session tracker archived 2026-07-28 because it named obsolete roadmap and mission authorities.
 - `DISPOSITION_LEDGER_2026-08-08.md` — frozen planning-disposition snapshot; current activation no longer depends on universal ledger membership.
 - `KNOWLEDGE_GRAPH_2026-08-05.md` — frozen relationship-archaeology analysis; not current status or sequencing.
-- `ARCHIVE_MANIFEST_2026-09-03.md` — 2026-09-03 consolidation of frozen planning/recon material, dated snapshots, superseded design families, the stale documentation audit, the old task ledger, Orca setup, and desktop Slice-1 runbook. Load-bearing paths keep compatibility pointers; packet-number collisions were deliberately not touched.
+- `ARCHIVE_MANIFEST_2026-09-03.md` — 2026-09-03 consolidation of frozen planning/recon material, dated snapshots, superseded design families, the stale documentation audit, the old task ledger, Orca setup, desktop Slice-1 runbook, and retired session/execution plans. Load-bearing paths keep compatibility pointers; packet-number collisions were deliberately not touched.
 
 Git history is the complete record for files removed or summarized during archival cleanup.

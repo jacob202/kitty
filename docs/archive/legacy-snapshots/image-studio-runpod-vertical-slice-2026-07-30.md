@@ -1,4 +1,6 @@
 # Image Studio RunPod Vertical Slice
+> **Historical snapshot archived 2026-09-03 — not current instruction.** Original status, commands, branch names, provider details, and next-step language below are preserved as dated evidence only. Use `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, current ADRs, and live runtime/Git evidence for present work.
+
 
 **Status:** Jacob-authorized implementation input
 **Authorized:** 2026-07-30

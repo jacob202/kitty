@@ -14,12 +14,17 @@ existing, and it is not a roadmap.
   (ADR 0020); the current broad mission to [`../ACTIVE_MISSION.md`](../ACTIVE_MISSION.md).
   Durable architecture decisions live in [`../DECISIONS.md`](../DECISIONS.md) and
   [`../adr/`](../adr/) and override conflicting plan content.
-- **Recency is not activation.** A plan cannot become current work by being
-  newer, more detailed, or marked "ready." It must be sequenced by the roadmap
-  after repository truth and current gates are verified.
+- **Recency and old self-labels are not activation.** A plan cannot become current
+  work by being newer, more detailed, or containing historical words such as
+  "authorized," "active," "binding," or "ready." Current activation must be
+  established from today's roadmap/mission/ownership evidence, not from a dated
+  plan's own prose.
 - **Superseded plans are archived.** When a plan describes an older repository
   state, it is superseded or moved to [`../archive/`](../archive/) rather than
   left marked "ready to implement."
+- **Generated compatibility artifact:** `migration-health.md` remains at this
+  legacy path because `scripts/migration-audit.sh` writes it. It is dated
+  evidence, not a plan or activation source.
 
 ## Relationship to other plan-like surfaces
 

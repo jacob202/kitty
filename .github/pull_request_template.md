@@ -7,6 +7,15 @@
 
 > Summary/Test plan are useful review context, not merge-policy ceremony.
 
+## User outcome
+- User outcome advanced: <!-- what becomes true for Jacob/user because of this PR -->
+- Governing outcome/acceptance contract: <!-- Mission, packet demo contract, issue, or explicit user request -->
+- Exact running candidate or exact repository state used for proof:
+- Evidence that proves the outcome rather than only the implementation:
+- Isolated data root: <!-- required when automated acceptance/runs write app state; never Jacob's canonical app data -->
+
+> A commit, packet, test suite, subagent `DONE`, green PR, or merge is implementation evidence. It does not by itself close the user outcome. User-facing runtime work requires proof on the exact running candidate.
+
 ## Scope and risk
 - Area: <!-- backend / frontend / docs / ci / mixed -->
 - Risk: <!-- low / medium / high -->

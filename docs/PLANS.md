@@ -49,20 +49,19 @@ sequencing remain owned by `docs/ROADMAP.md` plus explicit Jacob approval and th
 Superseded Image Studio evidence:
 
 - `docs/archive/planning-2026-07-24/image-studio-character-system-2026-07-24.md` — older repository state and provider assumptions.
-- Other removed session plans remain recoverable from Git history; missing paths are not current planning inputs.
+- Retired session plans are preserved under `docs/archive/legacy-snapshots/`; Git history remains the complete provenance. Missing former `docs/plans/` paths are not current planning inputs.
 
 ### KittyBuilder
 
 - `docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md` — retained as supporting design
   evidence; sequencing belongs to `docs/ROADMAP.md`.
-- `docs/plans/feat-kittybuilder-follow-on-roadmap.md` — retained backlog input,
-  not an independent roadmap.
+- `docs/archive/legacy-snapshots/feat-kittybuilder-follow-on-roadmap.md` — archived OpenCode-era backlog input; not an independent roadmap or current execution source.
 
 ### Product experience and coherence
 
 - `docs/plans/KITTY_PRODUCT_EXPERIENCE_V1.md` — retained supporting design evidence; it is not an authority unless ratified.
 - `docs/plans/KX_COHERENCE_AUDIT.md` — retained audit input.
-- Removed session-specific plan files remain available through Git history rather than dangling current links.
+- Retired session-specific plan files are preserved under `docs/archive/legacy-snapshots/` rather than left as current-looking execution inputs.
 
 ## Historical status
 
