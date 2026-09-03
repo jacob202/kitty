@@ -59,7 +59,8 @@ current sequence lives in [`ROADMAP.md`](ROADMAP.md).
 - [`KNOWLEDGE_GRAPH.md`](KNOWLEDGE_GRAPH.md) — compatibility pointer to the archived 2026-08-05 relationship analysis.
 - [`KITTY_MASTER_PROGRAM.md`](KITTY_MASTER_PROGRAM.md) — derived historical synthesis; current sequence lives in `ROADMAP.md`.
 - [`audit/`](audit/) — dated findings and evidence, including [`audit/GITHUB_OPERATING_PICTURE_2026-08-04.md`](audit/GITHUB_OPERATING_PICTURE_2026-08-04.md). Sequential-audit companion (dated 2026-08-23): [`audit/post_audit_support_2026-08-23/README.md`](audit/post_audit_support_2026-08-23/README.md).
-- `phases/` and `planning/` — legacy organization; treat as historical unless current authority links to it.
+- `phases/` — legacy organization; treat as historical unless current authority links to it.
+- `archive/planning-2026-07-24/` — the retired former `docs/planning/` tree, preserved for history only.
 
 ## History
 

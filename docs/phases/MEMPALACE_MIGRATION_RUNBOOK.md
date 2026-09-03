@@ -32,7 +32,7 @@ off until you set the env flag — so rollback is trivial (step 8).
 
 ```bash
 cd /path/to/kitty
-python3.11 -m pip install mempalace        # the only new dependency
+python3.12 -m pip install mempalace        # the only new dependency
 ollama serve &                             # mem0's embedder must be reachable
 ```
 
@@ -119,8 +119,8 @@ These were intentionally left for *after* the package is confirmed:
    Claude and it'll finish surfacing typed edges (currently a count) in
    `MemPalaceAdapter.correlate()`.
 2. **Retire mem0 (optional)** — once you trust MemPalace, decide whether to make
-   it the *primary* episodic store (swap `gateway/context_builder.py`'s memory
-   source) or keep both. This is a deliberate, separate change with its own tests.
+   it the *primary* episodic store by changing the adapter composition in
+   `gateway/memory_graph.py`, or keep both. This is a deliberate, separate change with its own tests.
 
 ## What's tested in CI
 

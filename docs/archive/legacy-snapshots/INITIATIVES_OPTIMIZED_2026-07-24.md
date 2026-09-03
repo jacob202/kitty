@@ -27,7 +27,7 @@ becomes unusable without compaction.
 where and who can access it.
 **What:**
 - Document PII tiers: local-only, cloud-ok, never-store
-- Enforce at the LLM boundary (extend existing `privacy_tier` system)  
+- Enforce at the LLM boundary (extend existing `privacy_tier` system)
 - Health data, financial data, email content → never leaves local gateway
   unless explicitly tagged cloud-ok
 - User-visible privacy labels on features

@@ -1092,7 +1092,7 @@ Each owner must provide a probe function with this signature:
 ```python
 async def probe_<subsystem>() -> dict[str, Any]:
     """Return a fact envelope for this subsystem.
-    
+
     Must return within the subsystem's deadline (default 3 seconds).
     Must never raise — catch all errors and return an unknown or unavailable fact.
     Must use _fact(), _unknown(), or an equivalent envelope constructor.

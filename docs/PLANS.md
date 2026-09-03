@@ -1,18 +1,18 @@
 # Kitty Planning Index
 
 **Status:** Navigation and disposition index; not a roadmap
-**Updated:** 2026-08-19
+**Updated:** 2026-09-03
 **Roadmap authority:** `docs/ROADMAP.md` — the only roadmap
-**Mission record:** `docs/ACTIVE_MISSION.md` — KPROOF-001 is terminal/superseded; no running mission is implied
+**Mission record:** `docs/ACTIVE_MISSION.md` — current approved mission/acceptance contract; re-read it for present status
 
-`docs/ROADMAP_V2.md` is a blocked milestone-detail appendix, not an active roadmap. This file exists to point readers
+`docs/ROADMAP_V2.md` is historical/superseded milestone detail, not an active roadmap. This file exists to point readers
 to reviewed plans and to prevent older session plans from silently regaining
 authority.
 
 ## Operating rule
 
 - Use `docs/ROADMAP.md` for priority and sequencing.
-- Use `docs/ACTIVE_MISSION.md` for the canonical mission record; its current status is terminal, so it is not a running scope gate.
+- Use `docs/ACTIVE_MISSION.md` for the canonical mission record and its current status/acceptance contract.
 - Treat every file under `docs/plans/` as supporting evidence unless the
   canonical roadmap explicitly activates it. The former `docs/planning/` folder
   was archived to `docs/archive/planning-2026-07-24/` on 2026-09-03.
@@ -44,7 +44,7 @@ or other identity/repair machinery only if native capability fails Kitty's
 acceptance bar.
 
 This index does not activate Image Lab implementation by itself. Priority and
-sequencing remain owned by `docs/ROADMAP.md` plus explicit Jacob approval. KPROOF-001 no longer authorizes or blocks this work.
+sequencing remain owned by `docs/ROADMAP.md` plus explicit Jacob approval and the current mission/ownership chain.
 
 Superseded Image Studio plans:
 

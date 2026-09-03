@@ -224,7 +224,7 @@ Volatile file/test counts are intentionally omitted. Derive them from the curren
 | Active mission | One approved current mission | `docs/ACTIVE_MISSION.md` |
 | Feature reality | Product-surface capability check | `docs/FEATURE_REALITY_2026-07-28.md` |
 | Alignment map | Kitty/KittyBuilder layering and authority | `docs/ALIGNMENT_MAP.md` |
-| Builder docs | Operator quickstart and Orca setup | `docs/KITTYBUILDER_QUICKSTART.md`, `docs/KITTYBUILDER_ORCA_SETUP.md` |
+| Builder docs | Current operator quickstart and routing | `docs/KITTYBUILDER_QUICKSTART.md`, `docs/FREE_WORKERS.md` |
 | Learnings | Durable lessons from past work | `docs/LEARNINGS.md` |
 | Constitution | Engineering principles | `docs/CONSTITUTION.md` |
 | Docs index | Documentation directory navigation | `docs/README.md` |

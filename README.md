@@ -26,13 +26,10 @@ Native Kitty frontend
 
 ## Start here
 
-1. [`START_HERE.md`](START_HERE.md) — cold-start reading order.
-2. [`docs/AUTHORITY_MAP.md`](docs/AUTHORITY_MAP.md) — where each kind of truth lives.
-3. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — current boundaries and state ownership.
-4. [`docs/ROADMAP.md`](docs/ROADMAP.md) — the short active delivery sequence.
-5. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — verified repository state and explicit unknowns.
-6. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md) — the one approved current mission.
-7. [`docs/audit/GITHUB_OPERATING_PICTURE_2026-08-04.md`](docs/audit/GITHUB_OPERATING_PICTURE_2026-08-04.md) — dated evidence from the GitHub truth pass.
+For repository work, begin with [`START_HERE.md`](START_HERE.md). It owns the
+cold-start receipt and canonical reading order. [`docs/README.md`](docs/README.md)
+is the documentation directory map; [`docs/AUTHORITY_MAP.md`](docs/AUTHORITY_MAP.md)
+routes each kind of truth to its owner.
 
 ## Quick start
 
@@ -55,7 +52,7 @@ cp .env.example .env
 
 Native Kitty is the canonical product at `http://127.0.0.1:4000` for local use. `./kitty up` starts only Gateway + LiteLLM; `./kitty ui` starts only the native UI. Open WebUI remains available only as an optional compatibility/reference client through `scripts/openwebui_local.py`; it is not required for the normal Kitty product path.
 
-**Current remote-access caveat:** `./kitty ui` presently forces an all-interface UI bind while the server-side `/proxy` still rejects non-loopback Hosts. That mismatch is a known defect, not supported Tailnet access. Keep Gateway/LiteLLM and the proxy secret boundary closed; [`KH-REMOTE-01`](docs/packets/KH-REMOTE-01.md) owns the authenticated phone/Tailnet repair.
+**Remote-access caveat:** `kitty health` can report the UI socket reachable on the Tailscale IP, but that is not proof that normal `/proxy`-backed product workflows are authorized remotely. `./kitty ui` still binds broadly while the server-side proxy rejects non-loopback Hosts. Keep Gateway/LiteLLM and the proxy secret boundary closed; [`KH-REMOTE-01`](docs/packets/KH-REMOTE-01.md) owns authenticated phone/Tailnet access.
 
 ## Verification
 
@@ -70,17 +67,18 @@ cd gateway/kitty-chat && npm test && npm run build
 
 Repository CI does not prove local credentials, provider balances, launchd state, real paid routes, or Jacob's installed Open WebUI database. Runtime claims require supported local verification and explicit charge authorization where applicable.
 
-## Durable rules
+## Manage the local stack
 
-- Accepted ADRs define architecture and supersession.
-- `docs/ROADMAP.md` is the only active delivery order.
-- `docs/PROJECT_STATUS.md` is a dated evidence summary, not a live dashboard.
-- `docs/ACTIVE_MISSION.md` is the only approved current mission.
-- Plans, packets, issue comments, and archived documents are inputs or history unless promoted explicitly.
-- Builder execution truth lives in its supported database/API/CLI.
-- New context reads go through `memory_graph`; app-state writes use established storage boundaries.
-- Never commit secrets or treat generated files under `data/`, `logs/`, or `.next/` as documentation.
-- Open WebUI remains loopback-only while its auth-disabled compatibility path is in use. Native Kitty remote access also requires a separately reviewed authenticated boundary; the current bind-all/proxy mismatch is not an exception.
+```bash
+./kitty status        # supported service summary
+./kitty doctor --json # environment/runtime diagnostics
+./kitty down          # stop Kitty-managed services
+./kitty               # start the normal local product path again
+```
+
+Architecture, roadmap, mission, engineering, and execution rules live in their
+canonical owners linked from `START_HERE.md`; this README intentionally does not
+duplicate them.
 
 ## Repository navigation
 
