@@ -53,11 +53,17 @@ if contains_cmd '(^|[;&|()]+[[:space:]]*)git[[:space:]]+push'; then
       emit_deny "Blocked: you are on '$CURRENT' (a protected branch). Switch to a feature branch."
     fi
   fi
-  # Force push (but allow --force-with-lease)
-  if contains_cmd 'git[[:space:]]+push([[:space:]]+[^[:space:]]+)*[[:space:]]+(-[a-zA-Z]*f[a-zA-Z]*|--force)([[:space:]=]|$)' \
-     && ! contains_cmd '\-\-force-with-lease'; then
-    emit_deny "Blocked: force push is not allowed. Use --force-with-lease if you must overwrite remote."
+  # Force push is forbidden in every spelling, including lease-protected force.
+  if contains_cmd 'git[[:space:]]+push.*(--force-with-lease([=[:space:]]|$)|--force-if-includes([[:space:]]|$)|--force([=[:space:]]|$)|-[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$))'; then
+    emit_deny "Blocked: force push/history rewrite is not allowed, including --force-with-lease. Publish a new commit/branch instead."
   fi
+fi
+
+# Interactive agents do not schedule deferred merges. A user-authorized merge
+# can be performed explicitly after required checks/review pass; Builder's own
+# governed publication policy is a separate path.
+if contains_cmd 'gh[[:space:]]+pr[[:space:]]+merge[^;&|]*--auto([[:space:]]|$)'; then
+  emit_deny "Blocked: interactive gh pr merge --auto can merge later without a fresh authorization check. Watch required checks, then merge explicitly if authorized."
 fi
 
 # ── PR self-approval protections ────────────────────────────────────────

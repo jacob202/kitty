@@ -53,11 +53,28 @@ say() { printf '%s\n' "$*" >&2; }
 # Local safety belt: normal delivery reaches main through a reviewed PR.
 # Server-side required checks are the authoritative enforcement.
 if [[ "${PREFLIGHT}" != "1" ]]; then
-  while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  ZERO_SHA="0000000000000000000000000000000000000000"
+  while read -r _local_ref local_sha remote_ref remote_sha; do
     if [[ "${remote_ref}" == "refs/heads/main" && "${KITTY_ALLOW_DIRECT_MAIN_PUSH:-0}" != "1" ]]; then
       say "${RED}Push blocked — direct push to main.${OFF}"
       say "Open/merge a PR instead. Emergency local-hook override: KITTY_ALLOW_DIRECT_MAIN_PUSH=1 git push ..."
       exit 1
+    fi
+
+    # Shared doctrine forbids history rewrites, including --force-with-lease.
+    # Enforce the invariant from the ref update itself rather than guessing
+    # which git-push flag spelling produced it.
+    if [[ "${local_sha}" != "${ZERO_SHA}" && "${remote_sha}" != "${ZERO_SHA}" ]]; then
+      if ! git cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+        say "${RED}Push blocked — remote tip ${remote_sha:0:12} is not present locally.${OFF}"
+        say "Fetch the remote branch and retry; refusing an unverifiable history update."
+        exit 1
+      fi
+      if ! git merge-base --is-ancestor "${remote_sha}" "${local_sha}"; then
+        say "${RED}Push blocked — non-fast-forward history rewrite detected for ${remote_ref}.${OFF}"
+        say "Force-push and --force-with-lease are forbidden. Publish a new commit/branch instead."
+        exit 1
+      fi
     fi
   done
 fi
@@ -111,7 +128,8 @@ if [[ -n "${BASE_REF}" ]]; then
 else
   CHANGED=""
 fi
-if [[ -z "${BASE_REF}" ]] || grep -q '^gateway/kitty-chat/' <<<"${CHANGED}"; then
+FRONTEND_CHANGED="$(printf '%s\n' "${CHANGED}" | grep '^gateway/kitty-chat/' | grep -Ev '\.(md|mdx)$' || true)"
+if [[ -z "${BASE_REF}" ]] || [[ -n "${FRONTEND_CHANGED}" ]]; then
   RUN_FRONTEND=1
 else
   RUN_FRONTEND=0
