@@ -182,15 +182,16 @@ ledger date and needs disposition.
 
 ## docs/phases/ (12 files)
 
-All phase documents are ARCHIVED or BACKLOG. The phases directory contains
-historical phase plans (PHASE_B, PHASE_C, etc.) and companion voice charters
-that predate the current roadmap structure. None are active execution inputs.
+All phase documents are historical: ARCHIVED, BACKLOG, or a SUPERSEDED
+compatibility pointer. The phases directory contains historical phase plans
+(PHASE_B, PHASE_C, etc.) and companion voice charters that predate the current
+roadmap structure. None are active execution inputs.
 Specific dispositions:
 
 | File | Disposition | Notes |
 |---|---|---|
 | `COMPANION_VOICE_CHARTER.md` | BACKLOG | Voice direction; activates during Phase 4. |
-| `CONTEXT_ENGINEERING.md` | ACTIVE | Staged context loading rules. Referenced by AGENTS.md. |
+| `CONTEXT_ENGINEERING.md` | SUPERSEDED | Compatibility pointer only. Current staged context-loading authority is `docs/reference/CONTEXT_ENGINEERING.md`, referenced by `AGENTS.md`. |
 | `DESKTOP_SLICE_1_RUNBOOK.md` | ARCHIVED | Historical runbook. |
 | `EVALS.md` | BACKLOG | Evaluation framework. |
 | `MEMPALACE_MIGRATION_RUNBOOK.md` | ARCHIVED | Historical migration runbook. |
