@@ -14,6 +14,12 @@ resources:
     - tests/test_builder_loop.py
     - tests/test_builder_queue.py
     - tests/test_builder_supervisor.py
+  chat:continuity:
+    paths:
+    - gateway/chats_store.py
+    - gateway/routes/chats.py
+    - tests/test_chats_route.py
+    - tests/test_chats_store.py
   docs:roadmap:
     paths:
     - '*.md'
@@ -35,6 +41,15 @@ resources:
     - gateway/kitty-chat/tests/ImageLab*.tsx
     - gateway/routes/image_studio_jobs.py
     - tests/test_image_*.py
+  library:artifacts:
+    paths:
+    - gateway/artifact_store.py
+    - gateway/kitty-chat/src/components/LibraryView.tsx
+    - gateway/kitty-chat/src/components/artifacts/ArtifactCanvas.tsx
+    - gateway/kitty-chat/tests/ArtifactCanvas.test.tsx
+    - gateway/kitty-chat/tests/LibraryView.test.tsx
+    - gateway/routes/artifacts.py
+    - tests/test_artifacts_routes.py
   memory:continuity:
     paths:
     - gateway/agent_workspace.py

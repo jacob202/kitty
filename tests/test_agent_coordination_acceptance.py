@@ -23,6 +23,8 @@ REQUIRED_RESOURCES = {
     "docs:roadmap",
     "memory:continuity",
     "image-lab:generation",
+    "chat:continuity",
+    "library:artifacts",
 }
 
 
@@ -407,5 +409,31 @@ def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
         ), path
     for path in action_paths:
         assert "ui:action-grammar" in agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ), path
+
+
+def test_registry_covers_chat_and_library_product_truth_surfaces() -> None:
+    chat_paths = [
+        "gateway/chats_store.py",
+        "gateway/routes/chats.py",
+        "tests/test_chats_store.py",
+        "tests/test_chats_route.py",
+    ]
+    library_paths = [
+        "gateway/artifact_store.py",
+        "gateway/routes/artifacts.py",
+        "gateway/kitty-chat/src/components/LibraryView.tsx",
+        "gateway/kitty-chat/src/components/artifacts/ArtifactCanvas.tsx",
+        "gateway/kitty-chat/tests/ArtifactCanvas.test.tsx",
+        "gateway/kitty-chat/tests/LibraryView.test.tsx",
+        "tests/test_artifacts_routes.py",
+    ]
+    for path in chat_paths:
+        assert "chat:continuity" in agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ), path
+    for path in library_paths:
+        assert "library:artifacts" in agent_coordination.resolve_paths_to_resources(
             [path], registry_path=TRACKED_REGISTRY
         ), path
