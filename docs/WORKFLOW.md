@@ -62,10 +62,14 @@ adding an independent safety signal.
 
 ### Default-branch ruleset
 
-The active default-branch ruleset requires only `policy-gate` and `merge-gate`.
-Strict up-to-date checking, pull-request protection, deletion protection, and
-non-fast-forward protection remain enabled. Legacy `pr-policy` and `review-gate`
-compatibility jobs were retired after the two stable gate names were activated.
+The active default-branch ruleset requires only `policy-gate` and `merge-gate`,
+with pull-request protection, review-thread resolution, deletion protection, and
+non-fast-forward protection. Strict up-to-date checking is **not** enabled
+(`strict_required_status_checks_policy=false`), so a stale PR is not made current
+by the platform before merge. Refresh/revalidate a stale branch before treating
+its exact-head evidence as proof of the final combined tree. Legacy `pr-policy`
+and `review-gate` compatibility jobs were retired after the two stable gate names
+were activated.
 
 ### One classifier
 

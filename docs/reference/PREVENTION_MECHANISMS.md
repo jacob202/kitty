@@ -21,14 +21,15 @@ before `merge-gate` passes. GitHub ruleset enforcement applies this at the
 platform level.
 
 Post-merge validation on `main` is scope-aware for the same reason PRs are.
-Strict up-to-date checking plus zero bypass actors mean a merge commit carries
-exactly the tree its PR head validated, so re-running the code suite after a
-docs-only merge cannot detect a failure the PR gate did not. Red-main detection
-is preserved for every merge that touched code, and the nightly full suite in
-`.github/workflows/nightly-health.yml` is the time-based canary that catches
-drift no merge introduced.
+The live default-branch ruleset does **not** require strict up-to-date checking
+(`strict_required_status_checks_policy=false`). Required checks therefore prove
+the PR head they ran on, but the platform does not itself prove a stale branch's
+final combined tree after newer `main` changes. Refresh/revalidate stale branches
+before merge when that distinction matters. The nightly full suite in
+`.github/workflows/nightly-health.yml` remains the time-based canary for drift.
 
-**Status:** ENFORCED. Branch protection is configured on GitHub.
+**Status:** PARTIALLY ENFORCED. Required gates and no-bypass protection are
+platform-enforced; strict branch freshness is not.
 
 ## 2. One active implementation lane
 
@@ -47,11 +48,12 @@ Dependabot PRs are exempt.
 **What:** A PR branch must be based on a recent `main` commit (within 48 hours).
 A branch with merge conflicts is blocked from merge.
 
-**Enforcement:** GitHub branch protection "Require branches to be up to date
-before merging." CI check verifies the base is within 48 hours of `origin/main`.
+**Enforcement:** GitHub blocks merge conflicts, but the active ruleset does not
+require branches to be up to date before merge. No current CI check enforces the
+48-hour freshness rule.
 
-**Status:** PARTIALLY ENFORCED. "Up to date" check is platform-level.
-Freshness check needs CI workflow.
+**Status:** DEFINED / NOT ENFORCED for freshness. Merge conflicts are blocked;
+branch-age/current-base enforcement still needs an explicit mechanism if retained.
 
 ## 4. Open-PR overlap detection
 
@@ -65,17 +67,21 @@ changed files against all other open PRs' changed files.
 
 ## 5. Required checks and independent review
 
-**What:** Every PR must pass all six CI jobs and receive an independent review
-from a model other than the author.
+**What:** Every ready PR must satisfy the scope-appropriate deterministic gate.
+Sensitive changes additionally require exact-head risk approval and trusted
+independent review; native UI changes require the product-acceptance contract.
+Ordinary PRs do not acquire a model-review dependency merely by existing.
 
 **Enforcement:**
-- CI: branch protection requires all six jobs.
-- Review: PR Agent Review (#327) posts a review. A human or second model must
-  approve. For T0 (safe) work: PR Agent Review pass is sufficient. For T1 work:
-  separate model approval required. For T2 work: Jacob's approval required.
+- The default-branch ruleset requires the stable `policy-gate` and `merge-gate`.
+- `merge-gate` requires Python/frontend/browser jobs only when the canonical
+  changed-path classifier says they apply; docs-only PRs may skip code jobs.
+- `policy-gate` reclassifies the live PR and requires exact-head approval plus
+  trusted independent review for sensitive scope.
+- Native UI source/public changes require the product-acceptance evidence block.
 
-**Status:** PARTIALLY ENFORCED. CI jobs enforced by branch protection. Review
-policy is defined but needs enforcement workflow for model-origin checks.
+**Status:** ENFORCED for the current scope-aware policy. Broader independent
+review of ordinary nonsensitive PRs is optional rather than a merge requirement.
 
 ## 6. Stale-draft policy
 
@@ -151,8 +157,10 @@ approve its own work.
 
 ## Implementation priority
 
-1. **Platform-enforced (already working):** Red-main freeze (branch protection),
-   required CI checks, branch up-to-date requirement.
+1. **Platform-enforced (already working):** required `policy-gate` /
+   `merge-gate`, pull-request and review-thread protection, deletion protection,
+   non-fast-forward protection, and zero bypass actors. Strict branch
+   up-to-date enforcement is **not** enabled.
 
 2. **CI workflows to add (in order):**
    - `pr-single-lane-check.yml` — blocks second concurrent feature PR
