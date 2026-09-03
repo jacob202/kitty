@@ -121,7 +121,7 @@ def test_missing_interpreter_blocks_the_push(tmp_path):
 def test_make_hooks_points_git_at_the_hook_directory():
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
     assert "\nhooks:" in makefile, "no `make hooks` target to install the gate"
-    assert "core.hooksPath scripts/hooks" in makefile
+    assert "core.hooksPath .githooks" in makefile
     assert "hooks" in makefile.split("\n", 1)[0], "`hooks` missing from .PHONY"
 
 

@@ -7,7 +7,7 @@ import json
 import sys
 from typing import Any
 
-from gateway import agent_workspace
+from gateway import agent_coordination, agent_workspace
 from gateway import db as kitty_db
 
 _MESSAGE_KINDS = ("prompt", "plan", "handoff", "review", "result", "status")
@@ -186,6 +186,19 @@ def _direct_inbox(
     return [_with_receipt_state(row) for row in reversed(rows)]
 
 
+def _renew_coordination_claim_if_active(session_id: str) -> None:
+    db_path = agent_coordination.default_db_path()
+    if not db_path.exists():
+        return
+    active = agent_coordination.list_claims(active_only=True, db_path=db_path)
+    if not any(claim["session_id"] == session_id for claim in active):
+        return
+    try:
+        agent_coordination.renew(session_id, db_path=db_path)
+    except agent_coordination.CoordinationClaimError as exc:
+        raise AgentRoomCliError(f"coordination heartbeat renewal failed: {exc}") from exc
+
+
 def _dispatch(args: argparse.Namespace) -> Any:
     if args.command == "ensure":
         return agent_workspace.ensure_global_workspace()
@@ -235,9 +248,9 @@ def _dispatch(args: argparse.Namespace) -> Any:
             declared_status=args.declared_status,
         )
     if args.command == "heartbeat":
-        return agent_workspace.heartbeat(
-            args.session_id, args.participant_id
-        )
+        result = agent_workspace.heartbeat(args.session_id, args.participant_id)
+        _renew_coordination_claim_if_active(args.session_id)
+        return result
     if args.command == "checkout":
         return agent_workspace.checkout(
             args.session_id, args.participant_id
