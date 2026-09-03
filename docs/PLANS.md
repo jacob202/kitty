@@ -1,18 +1,18 @@
 # Kitty Planning Index
 
 **Status:** Navigation and disposition index; not a roadmap
-**Updated:** 2026-08-19
+**Updated:** 2026-09-03
 **Roadmap authority:** `docs/ROADMAP.md` — the only roadmap
-**Mission record:** `docs/ACTIVE_MISSION.md` — KPROOF-001 is terminal/superseded; no running mission is implied
+**Mission record:** `docs/ACTIVE_MISSION.md` — current approved mission/acceptance contract; re-read it for present status
 
-`docs/ROADMAP_V2.md` is a blocked milestone-detail appendix, not an active roadmap. This file exists to point readers
+`docs/ROADMAP_V2.md` is historical/superseded milestone detail, not an active roadmap. This file exists to point readers
 to reviewed plans and to prevent older session plans from silently regaining
 authority.
 
 ## Operating rule
 
 - Use `docs/ROADMAP.md` for priority and sequencing.
-- Use `docs/ACTIVE_MISSION.md` for the canonical mission record; its current status is terminal, so it is not a running scope gate.
+- Use `docs/ACTIVE_MISSION.md` for the canonical mission record and its current status/acceptance contract.
 - Treat every file under `docs/plans/` as supporting evidence unless the
   canonical roadmap explicitly activates it. The former `docs/planning/` folder
   was archived to `docs/archive/planning-2026-07-24/` on 2026-09-03.
@@ -44,30 +44,24 @@ or other identity/repair machinery only if native capability fails Kitty's
 acceptance bar.
 
 This index does not activate Image Lab implementation by itself. Priority and
-sequencing remain owned by `docs/ROADMAP.md` plus explicit Jacob approval. KPROOF-001 no longer authorizes or blocks this work.
+sequencing remain owned by `docs/ROADMAP.md` plus explicit Jacob approval and the current mission/ownership chain.
 
-Superseded Image Studio plans:
+Superseded Image Studio evidence:
 
-- `docs/archive/planning-2026-07-24/image-studio-character-system-2026-07-24.md` — older repository
-  state and provider assumptions;
-- `docs/plans/image-runner-and-recipe-cleanup.md` — runner work partially landed;
-  remaining capability-truth work moved into later architecture decisions.
+- `docs/archive/planning-2026-07-24/image-studio-character-system-2026-07-24.md` — older repository state and provider assumptions.
+- Retired session plans are preserved under `docs/archive/legacy-snapshots/`; Git history remains the complete provenance. Missing former `docs/plans/` paths are not current planning inputs.
 
 ### KittyBuilder
 
 - `docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md` — retained as supporting design
   evidence; sequencing belongs to `docs/ROADMAP.md`.
-- `docs/plans/feat-kittybuilder-follow-on-roadmap.md` — retained backlog input,
-  not an independent roadmap.
+- `docs/archive/legacy-snapshots/feat-kittybuilder-follow-on-roadmap.md` — archived OpenCode-era backlog input; not an independent roadmap or current execution source.
 
 ### Product experience and coherence
 
-- `docs/plans/KITTY_PRODUCT_EXPERIENCE_V1.md` — retained evidence.
+- `docs/plans/KITTY_PRODUCT_EXPERIENCE_V1.md` — retained supporting design evidence; it is not an authority unless ratified.
 - `docs/plans/KX_COHERENCE_AUDIT.md` — retained audit input.
-- `docs/plans/fix-kitty-ui-wiring.md` — partially landed; requires fresh review
-  before further execution.
-- `docs/plans/fix-council-ux-all.md` — retained backlog input.
-- `docs/plans/call-llm-error-contract.md` — retained implementation plan.
+- Retired session-specific plan files are preserved under `docs/archive/legacy-snapshots/` rather than left as current-looking execution inputs.
 
 ## Historical status
 
@@ -83,7 +77,7 @@ preserved in Git history but is no longer operational guidance.
 | Current priority and sequencing | `docs/ROADMAP.md` |
 | Mission record / acceptance contract | `docs/ACTIVE_MISSION.md` |
 | Authority relationships | `docs/AUTHORITY_MAP.md` |
-| Product direction | `docs/NORTH_STAR.md` and `docs/KITTY_PRODUCT_ARCHITECTURE.md` |
+| Product direction | `docs/NORTH_STAR.md`; current system shape in `docs/ARCHITECTURE.md` |
 | Current project status | `docs/PROJECT_STATUS.md` and runtime evidence |
 | Decisions | `docs/DECISIONS.md` and `docs/adr/` |
 | Image Lab durable execution architecture | `docs/adr/0040-image-lab-flux2-execution-architecture.md` |

@@ -1,13 +1,16 @@
 ---
 name: session-end
-description: "Close a work session completely: survey live work, preserve evidence, record execution ownership and KB effectiveness, extract durable knowledge/corrections, record deduplicated workflow signals, update continuity, and leave one honest next action. USE WHEN: session end, end session, wrap up, close session, finish session, save my work, ship it, before you go, finalize session"
+description: "Close substantial work completely after verified completion or an explicit end-session request: survey live work, preserve evidence, record execution ownership and KB effectiveness, extract durable knowledge/corrections, record deduplicated workflow signals, update continuity, and leave one honest next action. USE WHEN: substantial assigned work is genuinely complete; session end; end session; wrap up; close session; finish session; save my work; ship it; before you go; finalize session"
 ---
 
 # Session End — Evidence, Continuity, Measured Learning
 
-When the user signals the session is ending, run every step. The result is a
-trustworthy continuation point and a measurable learning receipt, not a goodbye
-message.
+Run every step when substantial assigned work is genuinely complete or when the
+user signals the session is ending. The user does not need to ask for closeout
+after a substantial assignment reaches verified completion. Do not run this for
+an ordinary turn, a question, a checkpoint, pending review/CI, or while assigned
+work remains. The result is a trustworthy continuation point and a measurable
+learning receipt, not a goodbye message.
 
 **The cross-tool KB is `~/kb` (absolute), a separate repository. Never write to
 a repo-relative `kb/` path.**

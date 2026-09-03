@@ -18,7 +18,7 @@ Two modes. `$ARGUMENTS` containing `handoff` → write the handoff note (end of 
 
 Rebuild context in four steps, cheapest first. Read; never modify anything.
 
-1. **Handoff note**: if `.claude/HANDOFF.md` exists, read it first — it's the previous session's intent and beats anything inferable from git. Note its date; flag if it predates the latest commit (it may be stale).
+1. **Handoff note (legacy fallback hint only)**: if `.claude/HANDOFF.md` exists, read it as a hint — but it NEVER beats fresher Git, the Global Agent Room (`workspace_global`), Builder, or runtime evidence. `.claude/HANDOFF.md` and `.claude/STATE.md` are legacy compatibility checkpoints, not authority; if the note's recorded branch/HEAD/path/mission no longer matches live state, treat it as stale, flag it, and skip it. For the authority order see `docs/AUTHORITY_MAP.md` and `START_HERE.md` — catchup is a quick read-only survey, not the cold-start receipt, so do not re-run the full receipt procedure here.
 2. **Branch state**:
    - `git status` — uncommitted/staged work in flight
    - `git log --oneline $(git merge-base HEAD origin/HEAD 2>/dev/null || echo HEAD~10)..HEAD` — what this branch did
@@ -67,3 +67,4 @@ Show the note and confirm before writing. Overwrite any existing note (it descri
 - Catchup mode is strictly read-only.
 - Never paste large diffs into the summary — reference `file:line` and characterize.
 - The handoff captures decisions and dead ends, not narrative. "Tried X, broke Y, use Z instead" is the gold standard line.
+- `.claude/HANDOFF.md` and `.claude/STATE.md` are legacy fallback hints only and never override fresher Git/GAR/Builder/runtime evidence; see `docs/AUTHORITY_MAP.md`.

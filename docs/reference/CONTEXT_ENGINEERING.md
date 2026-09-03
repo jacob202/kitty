@@ -5,19 +5,10 @@ cold-start checks and `verified-delivery` owns completion language.
 
 ## Load by task
 
-1. Prove `workspace_global` access first, then choose the receipt from the actual
-   continuation source:
-   - when an unread GAR handoff or known durable thread identifies the
-     assignment, use `./kitty context --agent --skip-legacy-continuity` for code
-     work; add `--compact --skip-builder` for informational/planning work;
-   - when GAR is available but no durable room locator exists yet and a legacy
-     checkpoint is needed as the compatibility fallback, run the strict
-     `./kitty context --agent` receipt and trust the checkpoint only if that
-     validation succeeds;
-   - when GAR is unavailable, report that and use the same strict compatibility
-     receipt.
-   Treat unknowns as unknowns. A legacy-skipping receipt never validates a
-   legacy fallback.
+1. `START_HERE.md` owns the cold-start receipt and the GAR/legacy/compatibility
+   branching (when to use `--skip-legacy-continuity`, when to fall back to the
+   strict receipt, and how to handle an unavailable room). Run that receipt
+   first. This playbook covers staged loading *after* the receipt resolves.
 2. Classify the request:
    - informational: authority map plus directly relevant authority;
    - planning: add roadmap, active mission, and a deterministically located

@@ -11,9 +11,7 @@ snapshots were moved without a stub and their small number of meaningful inbound
 links were repaired. Accepted decision history (ADR bodies, `docs/decisions/`)
 was preserved verbatim — no historical link was mass-edited; pointers keep those
 references resolving instead.
-**Scope:** this worktree only. No commit. Excluded paths (README, START_HERE,
-AUTHORITY_MAP, current ADRs/DECISIONS, `docs/packets/*`, runtime code, active
-initiative manifests) were not modified.
+**Integration note:** the initial history lane ran in an isolated worktree. The manifest was finalized on the integration branch after the front-door pass also retired the old `TASKS.md` ledger, the obsolete Orca/OpenCode setup guide, and the old desktop Slice-1 runbook. Current ADRs/DECISIONS, `docs/packets/*`, runtime code, and active initiative manifests were not moved.
 
 ## Archive groups created
 
@@ -21,7 +19,7 @@ initiative manifests) were not modified.
 |---|---|---|
 | Planning | `docs/archive/planning-2026-07-24/` | 7 frozen `docs/planning/` files |
 | Recon | `docs/archive/recon-2026-07/` | `docs/recon/` files + the agent-leverage experiment dir |
-| Legacy snapshots | `docs/archive/legacy-snapshots/` | 11 flat dated/orphan status snapshots |
+| Legacy snapshots | `docs/archive/legacy-snapshots/` | dated/orphan status snapshots, retired runbooks, and stale session plans |
 | Superseded design | `docs/archive/superseded-design/` | 9 superseded/unratified large design families |
 | Documentation audit | `docs/archive/audits-2026-07/DOCUMENTATION_AUDIT.md` | stale 2026-07-30 doc-health audit (joined existing 2026-07 audits) |
 
@@ -53,6 +51,8 @@ document's status or phase sequence.
 | `docs/FEATURE_REALITY_2026-07-28.md` | 2026-07-28 point-in-time capability reality check | `PROJECT_STATUS.md`, runtime evidence | Listed in the active `repomix.config.json` include bundle (archive is ignored by repomix) and cited by `reference/CODEBASE_MAP.md`; stub keeps the include valid without editing config |
 | `docs/INITIATIVES_OPTIMIZED_2026-07-24.md` | 2026-07-24 feature-sequencing claim; predates ADR 0020 | `ROADMAP.md` (ADR 0020) | Cited by ADR 0020 |
 | `docs/CONTINUITY_RECOVERY.md` | 2026-08-05 full-repo recovery snapshot; verified-state now stale | `ACTIVE_MISSION.md`, live Builder/GAR/Git evidence | Cited by a `docs/superpowers/plans/` plan (protected lane) and `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` |
+| `TASKS.md` | June 2026 task/status ledger with stale test counts and completed-phase claims | `ROADMAP.md`, `ACTIVE_MISSION.md`, `PROJECT_STATUS.md`, Builder projections | Runtime code still resolves `TASKS.md`; the root path remains a compatibility pointer while the full ledger is `TASKS_2026-06-18.md` |
+| `docs/KITTYBUILDER_ORCA_SETUP.md` | Earlier Orca/OpenCode worker setup; no longer current Builder routing | `KITTYBUILDER_QUICKSTART.md`, `FREE_WORKERS.md`, tracked DSH adapters/config | Setup scripts/plans still cite the path; a pointer prevents those citations from becoming current routing guidance |
 
 ### Recon → `docs/archive/recon-2026-07/`
 
@@ -103,10 +103,25 @@ excludes `docs/archive/`.
 - `skill-improvement-queue.md` — 2026-08-10 ephemeral skill audit output (a later
   snapshot than the 2026-06-22 copy already in `docs/archive/`).
 
+### `docs/plans/` dated/session execution material → `docs/archive/legacy-snapshots/`
+
+- `image-studio-runpod-vertical-slice-2026-07-30.md` — dated authorized session input; no current roadmap/mission reference.
+- `image-studio-next-four-2026-08-02.md` — branch/session-specific next-work plan tied to obsolete PR #384.
+- `openwebui-onboarding-progress.md` and `openwebui-onboarding-checklist.json` — obsolete OpenWebUI daily-driver session state; Native Kitty is canonical.
+- `qol-06-safe-retry-2026-08-23.md` — expired interactive implementation lease/status, not current activation evidence.
+- `feat-kittybuilder-follow-on-roadmap.md` — stale follow-on roadmap using superseded OpenCode-era worker assumptions; no current inbound authority reference.
+- `james-workflow-2026-08-02.md` — dated RunPod/ComfyUI session recipe with historical pod, cost, and stop commands; no current inbound reference.
+- `kitty-ui-enhancement-plan.html` — 2026-07-28 branch/worktree execution plan with no current inbound authority reference.
+
 ### `docs/reference/` → `docs/archive/audits-2026-07/`
 
 - `DOCUMENTATION_AUDIT.md` — 2026-07-30 doc-health classification audit; stale.
   Joined the existing 2026-07 audit-harvest folder.
+
+### `docs/phases/` → `docs/archive/legacy-snapshots/`
+
+- `DESKTOP_SLICE_1_RUNBOOK.md` — old launchd Slice-1 operating runbook. Current launcher/runtime behavior is owned by `docs/reference/LAUNCHER_CONTRACT.md`; no current code or test requires this historical path.
+- `MEMPALACE_MIGRATION_RUNBOOK.md` remains in `docs/phases/` because migration scripts still cite it directly.
 
 ## Inbound links repaired (current docs only)
 
@@ -116,6 +131,8 @@ excludes `docs/archive/`.
 | `docs/PLANS.md` (superseded Image Studio list) | `docs/planning/image-studio-character-system-2026-07-24.md` → archive path |
 | `docs/plans/image-studio-character-first-architecture-2026-07-28.md` (sources) | same path update |
 | `docs/reference/CODEBASE_MAP.md` (docs map table) | `docs/reference/DOCUMENTATION_AUDIT.md` → archive path |
+| `docs/PLANS.md` (KittyBuilder evidence) | stale follow-on-roadmap source path → `docs/archive/legacy-snapshots/feat-kittybuilder-follow-on-roadmap.md` |
+| `docs/plans/openwebui-agent-handoff-2026-08-02.md` | stale onboarding-progress source path → archived snapshot path |
 
 Left as historical prose (not repaired, per rule 9 / protected stores): the
 `docs/planning/` mention in `docs/README.md` (guarded by
@@ -126,11 +143,7 @@ Left as historical prose (not repaired, per rule 9 / protected stores): the
 
 ## Checked and explicitly NOT moved
 
-- **`TASKS.md` (root) — REFUSED.** Self-marked "Superseded 2026-07-17" (already a
-  tombstone, not misleading current-looking material). Tooling depends on it:
-  `tests/test_run_gates_script.py::test_tasks_md_present` asserts
-  `(ROOT / "TASKS.md").exists()`. Per the task's own condition ("if no tooling
-  depends on it"), it stays at root.
+- **`TASKS.md` path — KEPT AS A POINTER.** Tooling still resolves the root path, so only the stale full ledger moved; the compatibility path remains present.
 - **Packet-number collisions in `docs/packets/` — NOT TOUCHED.** Prefixes `021`,
   `022`, `026` each have two packets (`021-memory-taste-and-creative-continuity`
   vs `021-project-registry-and-resume`; `022-chat-log-idea-mine` vs
@@ -157,7 +170,4 @@ plans/specs, and the MEMPALACE runbook were not moved.
 
 ## Verification
 
-See the task report for: `git status`/moves/stubs, the current-doc markdown-link
-scan (excluding vendor/history), `tests/test_documentation_authority.py` and
-`tests/test_run_gates_script.py` results, and `git diff --check`. No commit was
-made.
+Final integration re-runs the current-doc markdown-link scan, documentation/cold-start/skill/operator regressions, and `git diff --check` on the exact publication head. The initial isolated-lane test results remain supporting evidence, not the final completion claim.

@@ -2,13 +2,18 @@
 
 **Status:** ratified 2026-07-26. Phase 1 artifact under `docs/ALIGNMENT_MAP.md`.
 
-The paid-model budget is exhausted. Unattended nightly execution therefore runs
-on the free DSH/OpenRouter ladder (`docs/FREE_WORKERS.md`). Those models cannot
-reason, cannot hold a codebase in their head, and cannot be trusted to report
-their own success.
+This is a packet-quality and classification contract, not a routing or budget
+status report. Current route, provider, model, and cost truth lives in
+`docs/FREE_WORKERS.md` and the Builder configuration it points to
+(`config/builder_paid_routes.json`, `config/compute_governor.json`); do not
+re-derive either here.
 
-This document defines what a packet must look like for one of them to execute
-it correctly, and — more importantly — for Builder to *prove* it did.
+Unattended free execution rests on an engineering assumption, not a claim
+about what free models can or cannot do: a `free-exec` packet must not depend
+on worker judgment or self-verification, and its correctness must be decidable
+by a falsifiable gate — not by the worker's own report. This document defines
+what a packet must look like for that to hold, and — more importantly — for
+Builder to *prove* it did.
 
 ## The one rule
 
@@ -16,18 +21,20 @@ it correctly, and — more importantly — for Builder to *prove* it did.
 > packet and the gate. The model types. The gate decides.**
 
 Every judgement call that would otherwise happen at execution time must
-already be resolved in the packet text. Anything left open is a decision a
-model incapable of deciding will make badly and then report as success.
+already be resolved in the packet text. Anything left open is a decision the
+packet asks the worker to make and then self-report as correct — exactly what
+a `free-exec` packet must not require.
 
 ## Why this is a verification standard, not a prompting standard
 
 The instinct is "write simpler instructions." That is half of it, and the less
 important half.
 
-A model too weak to reason is also too weak to know whether it succeeded. So
-the binding constraint is not *can it do the work* — it is **can a script tell
-whether the work is right**. If acceptance requires a human to look, the packet
-is not free-model-ready no matter how simple the instructions are.
+A worker whose correctness is not independently verified cannot be trusted to
+report its own success. So the binding constraint is not *can it do the work* —
+it is **can a script tell whether the work is right**. If acceptance requires a
+human to look, the packet is not free-model-ready no matter how simple the
+instructions are.
 
 This is why the standard is stricter about gates than about wording.
 

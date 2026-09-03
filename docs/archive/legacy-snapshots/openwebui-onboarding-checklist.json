@@ -1,8 +1,15 @@
 {
+  "archive_metadata": {
+    "archived_on": "2026-09-03",
+    "authority_status": "historical_snapshot_not_current_instruction",
+    "note": "OpenWebUI daily-driver acceptance state is historical; Native Kitty is canonical. Use current roadmap, mission, ADRs, and live evidence.",
+    "original_progress_document": "docs/plans/openwebui-onboarding-progress.md",
+    "archived_progress_document": "docs/archive/legacy-snapshots/openwebui-onboarding-progress.md"
+  },
   "schema_version": 2,
   "branch": "feat/openwebui-tomorrow-ready",
   "pull_request": 384,
-  "progress_document": "docs/plans/openwebui-onboarding-progress.md",
+  "progress_document": "docs/archive/legacy-snapshots/openwebui-onboarding-progress.md",
   "runbook": "docs/runbooks/OPENWEBUI_TOMORROW.md",
   "current_slice": "final-live-acceptance",
   "overall_state": "repository-verified-live-pending",

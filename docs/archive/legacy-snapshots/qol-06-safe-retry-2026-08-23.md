@@ -1,4 +1,6 @@
 # QoL-06 — Unified Safe Retry
+> **Historical snapshot archived 2026-09-03 — not current instruction.** Original status, commands, branch names, provider details, and next-step language below are preserved as dated evidence only. Use `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, current ADRs, and live runtime/Git evidence for present work.
+
 
 **Status:** Active (implementation)
 **Authorized by:** docs/quality_of_life_packets.md §06; interactive lane, lease 2026-08-23T22:00:00-06:00

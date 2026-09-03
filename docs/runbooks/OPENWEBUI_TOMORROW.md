@@ -1,5 +1,7 @@
 # Open WebUI tomorrow-ready runbook
 
+> **Historical compatibility runbook — 2026-08-02. Do not use this as current startup or architecture guidance.** Native Kitty is the canonical frontend under ADR 0039; use the root `README.md` and `docs/reference/LAUNCHER_CONTRACT.md` for current operation. Open WebUI is optional compatibility only. This path is retained because dated onboarding artifacts still cite it; commands, versions, and topology below are historical evidence and require fresh validation before reuse.
+
 This is an additive local shell for Kitty. It does not replace or delete the current Next.js UI, migrate historical data, or fork Open WebUI. Open WebUI is the replaceable interface; Kitty Gateway remains authoritative for model routing, providers, memory, projects, Tutor, tools, and Builder state.
 
 ## One-time bootstrap

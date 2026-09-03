@@ -54,7 +54,7 @@ supported Builder projections remain authoritative for current facts.
 ### B8 wrong assignment
 
 - Date: 2026-08-02–05.
-- Evidence: [B8 forensics](/Users/jacobbrizinnski/Projects/kitty/artifacts/forensic-b8-wrong-assignment-2026-08-05.md:12-24).
+- Evidence: [B8 forensics](../../../artifacts/forensic-b8-wrong-assignment-2026-08-05.md).
 - Task: `kb_msb4yx3n_f6e8`; intended onboarding repair was never materialized
   as a Builder task.
 - Result: stale attempt 111 reactivated B8; attempts 106–114 ran the unrelated

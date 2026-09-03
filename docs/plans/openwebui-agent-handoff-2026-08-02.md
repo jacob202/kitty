@@ -1,5 +1,7 @@
 # Open WebUI onboarding handoff — 2026-08-02
 
+> **Status: historical handoff, not current operating guidance.** All “current” and “verified” claims below are scoped to the 2026-08-02 session. For present authority and startup use `START_HERE.md`, `docs/AUTHORITY_MAP.md`, the root `README.md`, and live Git/Builder/GAR/runtime evidence. Native Kitty is now canonical; Open WebUI is optional compatibility, and legacy `.claude` checkpoints are fallback continuity rather than primary authority.
+
 **Purpose:** verified starting context for the next Claude Code or OpenCode session. This document is a handoff input, not a replacement for live inspection.
 
 ## Read first
@@ -224,7 +226,7 @@ Do not proceed to broader model menus, agents, skills, tools, Image Studio, Tuto
 - Use cheap bounded agents for inventories and read-only classification.
 - Do not use subagents for trivial greps or overlapping edits.
 - Work one vertical slice at a time; define acceptance criteria first and do not move on until it passes in the real UI.
-- Maintain `docs/plans/openwebui-onboarding-progress.md` and a machine-readable acceptance checklist.
+- Maintain `docs/archive/legacy-snapshots/openwebui-onboarding-progress.md` and the archived machine-readable acceptance checklist.
 - Preserve backups and rollback throughout.
 - Never expose or commit secrets, runtime databases, logs, personal content, model weights, or absolute local paths.
 - Stop for new charges, destructive data risk, unavailable credentials, or publication/merge beyond authorization.

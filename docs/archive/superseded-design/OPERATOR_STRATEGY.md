@@ -261,7 +261,7 @@ Route by task class, not vibes — extending `domain_router`:
 
 - ~~**Local models (MLX):** persona chat, triage classification, summarization
   of private material that shouldn't leave the machine.~~ **Aspirational, not
-  built** — [ADR 0022](adr/0022-retire-privacy-boundary.md). Persona chat,
+  built** — [ADR 0022](../../adr/0022-retire-privacy-boundary.md). Persona chat,
   triage and summarization all run on cloud models. The only live MLX path is
   `POST /knowledge/expert`.
 - **Sonnet-class cloud:** drafting (emails, briefs, summaries), routine
@@ -275,7 +275,7 @@ Route by task class, not vibes — extending `domain_router`:
 - ~~A privacy boundary rides the router: data classes (email bodies, journal,
   health/admin docs) are tagged local-only unless the specific task's
   approval says otherwise. This is decision D-privacy (§17).~~
-  **Retired 2026-07-27 by [ADR 0022](adr/0022-retire-privacy-boundary.md).**
+  **Retired 2026-07-27 by [ADR 0022](../../adr/0022-retire-privacy-boundary.md).**
   The boundary only ever raised on an explicit opt-in string and never routed
   anything locally; Kitty makes no local-only data guarantee.
 
@@ -417,7 +417,7 @@ and friends move behind a "system" view — they're operator tooling, not home.
 - ~~Local-first is a default with teeth: triage, persona, and private-material
   summarization run local; if the local model is down, those tasks fail loud
   rather than silently escalating to cloud.~~ **Never implemented; retired by
-  [ADR 0022](adr/0022-retire-privacy-boundary.md).** These run on cloud models.
+  [ADR 0022](../../adr/0022-retire-privacy-boundary.md).** These run on cloud models.
   The fail-loud-on-local-down pattern survives only in `/knowledge/expert`.
 - Cloud reasoning (Sonnet/Opus/Fable-class) is for drafting, planning, and
   strategy — content either non-sensitive or explicitly approved to leave.
@@ -845,7 +845,7 @@ Each week ends shippable; no packet depends on a later one.
    bodies, health/admin docs = local-only by default; calendar titles,
    todo text = cloud-permitted) and enforce at `llm_client` routing, not by
    convention.~~ **Retired 2026-07-27 by
-   [ADR 0022](adr/0022-retire-privacy-boundary.md).** It shipped as a label,
+   [ADR 0022](../../adr/0022-retire-privacy-boundary.md).** It shipped as a label,
    not a route — the "local" tier called cloud models for the whole time it
    existed. Jacob chose to drop the claim rather than build the route.
 

@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Manual smoke test for gateway/mcp_council_server.py (the /mcp-kitty-council skill).
-# Sends initialize -> tools/list -> tools/call(consult_council) over stdio JSON-RPC.
-# Expect JSON lines on stdout; errors on stderr.
+# Compatibility tombstone retained because the coordination registry tracks this exact path.
+# The legacy mcp-kitty-council server/orchestrator was retired; do not resurrect it here.
 set -euo pipefail
-cd "$(dirname "$0")/.."
-
-printf '%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"consult_council","arguments":{"query":"repair an audio amplifier with ML"}}}' \
-  | python3 gateway/mcp_council_server.py
+cat >&2 <<'MSG'
+RETIRED: scripts/mcp_council_smoketest.sh no longer has a live MCP server to smoke-test.
+Use the current read-only council entrypoint instead:
+  python3 scripts/agent_council.py --help
+See .agents/skills/agent-council/SKILL.md for current guidance.
+MSG
+exit 2
