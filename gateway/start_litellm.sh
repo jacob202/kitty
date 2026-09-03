@@ -43,13 +43,33 @@ if ! command -v litellm >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! python - <<'PY' >/dev/null 2>&1
+litellm_preflight() {
+  python - "${LITELLM_REQUIREMENTS_FILE}" <<'PY' >/dev/null 2>&1
 import importlib.metadata as md
+import sys
+from pathlib import Path
+
+from packaging.requirements import Requirement
+
 import litellm.constants as c
+import websockets
+
 assert hasattr(c, "COMPETITOR_LLM_TEMPERATURE")
-assert md.version("openai") == "2.24.0"
+requirements_path = Path(sys.argv[1])
+requirements = [
+    Requirement(line.strip())
+    for line in requirements_path.read_text(encoding="utf-8").splitlines()
+    if line.strip() and not line.lstrip().startswith("#")
+]
+openai_requirement = next(
+    requirement for requirement in requirements if requirement.name.lower() == "openai"
+)
+installed_openai = md.version("openai")
+assert installed_openai in openai_requirement.specifier
 PY
-then
+}
+
+if ! litellm_preflight; then
   echo "Error: LiteLLM installation appears inconsistent for proxy mode."
   if [[ "${LITELLM_AUTO_REPAIR}" == "1" ]]; then
     echo "Attempting auto-repair from ${LITELLM_REQUIREMENTS_FILE}..."
@@ -64,13 +84,7 @@ then
   fi
 fi
 
-if ! python - <<'PY' >/dev/null 2>&1
-import importlib.metadata as md
-import litellm.constants as c
-assert hasattr(c, "COMPETITOR_LLM_TEMPERATURE")
-assert md.version("openai") == "2.24.0"
-PY
-then
+if ! litellm_preflight; then
   echo "Error: LiteLLM preflight still failing after repair attempt."
   exit 1
 fi

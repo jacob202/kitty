@@ -188,3 +188,26 @@ def test_kitty_launcher_points_at_live_gateway_scripts() -> None:
     assert 'bash "$KITTY_ROOT/gateway/start_gateway.sh"' in launcher
     assert "start_tool_servers.sh" not in launcher
     assert "start_all.sh" not in launcher
+
+
+def test_litellm_dependency_contract_is_self_consistent_and_proxy_ready() -> None:
+    """Tracked install instructions and launcher preflight must enforce one contract."""
+    from packaging.requirements import Requirement
+
+    requirements = [
+        Requirement(line.strip())
+        for line in _read_text("gateway/requirements.litellm.txt").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    by_name = {requirement.name.lower(): requirement for requirement in requirements}
+
+    assert "proxy" in by_name["litellm"].extras
+    openai_specifiers = list(by_name["openai"].specifier)
+    assert len(openai_specifiers) == 1
+    assert openai_specifiers[0].operator == "=="
+
+    launcher = _read_text("gateway/start_litellm.sh")
+    assert 'md.version("openai") == "2.24.0"' not in launcher
+    assert "from packaging.requirements import Requirement" in launcher
+    assert "import websockets" in launcher
+    assert "openai_requirement.specifier" in launcher
