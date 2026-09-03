@@ -975,7 +975,11 @@ export async function runAgentWorkspaceTurn(
 }
 
 export async function fetchGlobalAgentRoom(): Promise<AgentWorkspace> {
-  return gfetch<AgentWorkspace>('/agent-room/global')
+  const json = await gfetch<{ agents?: unknown }>('/agent-room/global')
+  if (!Array.isArray(json.agents)) {
+    throw new Error('Gateway global room returned an invalid payload: expected an agents array')
+  }
+  return json as AgentWorkspace
 }
 
 export async function fetchGlobalAgentMessages(limit = 100): Promise<AgentWorkspaceMessage[]> {
