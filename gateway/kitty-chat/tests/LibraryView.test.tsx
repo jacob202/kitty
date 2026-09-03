@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -136,6 +136,97 @@ describe('LibraryView artifact truth', () => {
     expect(details).not.toBeNull()
     expect(within(details as HTMLElement).getByText(/project 8/i)).toBeInTheDocument()
     expect(within(details as HTMLElement).getByText(/conversation chat-new/i)).toBeInTheDocument()
+  })
+
+  it('shows a registered file as missing instead of ready when its backing file is gone', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      artifacts: [{
+        id: 'artifact_missing', project_id: 7, kind: 'capture', media_type: 'image/png',
+        display_name: 'missing-reference.png', state: 'ready', storage_available: false,
+        size_bytes: 2048, created_at: 1787259000, created_by: 'capture',
+        conversation_id: 'chat-1', metadata: {}, error: null,
+      }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+
+    renderLibrary()
+
+    expect(await screen.findByText('missing-reference.png')).toBeInTheDocument()
+    expect(screen.getByText('Missing')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /open missing-reference/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /use missing-reference\.png in chat unavailable/i })).toBeDisabled()
+    expect(screen.getByText(/missing from disk/i)).toBeInTheDocument()
+  })
+
+  it('archives a Library artifact through the reversible lifecycle route', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/proxy/artifacts/artifact_1/archive')) {
+        expect(init?.method).toBe('PATCH')
+        expect(JSON.parse(String(init?.body))).toEqual({ archived: true })
+        return new Response(JSON.stringify({
+          id: 'artifact_1', project_id: 7, kind: 'capture', media_type: 'image/png',
+          display_name: 'camera-reference.png', state: 'archived', storage_available: true,
+          size_bytes: 2048, created_at: 1787259000, created_by: 'capture',
+          conversation_id: 'chat-1', metadata: { archived_from_state: 'ready' }, error: null,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.includes('/proxy/artifacts')) {
+        return new Response(JSON.stringify({ artifacts: [{
+          id: 'artifact_1', project_id: 7, kind: 'capture', media_type: 'image/png',
+          display_name: 'camera-reference.png', state: 'ready', storage_available: true,
+          size_bytes: 2048, created_at: 1787259000, created_by: 'capture',
+          conversation_id: 'chat-1', metadata: {}, error: null,
+        }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderLibrary()
+    fireEvent.click(await screen.findByRole('button', { name: /archive camera-reference\.png/i }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/proxy/artifacts/artifact_1/archive',
+      expect.objectContaining({ method: 'PATCH' }),
+    ))
+  })
+
+  it('can reveal archived history and restore an artifact', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/proxy/artifacts/artifact_old/archive')) {
+        expect(JSON.parse(String(init?.body))).toEqual({ archived: false })
+        return new Response(JSON.stringify({
+          id: 'artifact_old', project_id: null, kind: 'text', media_type: 'text/plain',
+          display_name: 'old-proof.txt', state: 'ready', storage_available: true,
+          size_bytes: 12, created_at: 1787250000, created_by: 'acceptance',
+          metadata: {}, error: null,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.includes('include_archived=true')) {
+        return new Response(JSON.stringify({ artifacts: [{
+          id: 'artifact_old', project_id: null, kind: 'text', media_type: 'text/plain',
+          display_name: 'old-proof.txt', state: 'archived', storage_available: true,
+          size_bytes: 12, created_at: 1787250000, created_by: 'acceptance',
+          metadata: { archived_from_state: 'ready' }, error: null,
+        }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.includes('/proxy/artifacts')) {
+        return new Response(JSON.stringify({ artifacts: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderLibrary()
+    fireEvent.click(await screen.findByRole('button', { name: /show archived/i }))
+    expect(await screen.findByText('old-proof.txt')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /restore old-proof\.txt/i }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/proxy/artifacts/artifact_old/archive',
+      expect.objectContaining({ method: 'PATCH' }),
+    ))
   })
 
   it('stages a ready image into chat and switches to the chat view', async () => {

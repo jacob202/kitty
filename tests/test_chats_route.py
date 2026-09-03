@@ -67,6 +67,26 @@ def test_delete_missing_is_ok(client):
     assert r.json() == {"ok": True}
 
 
+def test_archive_hides_chat_from_default_list_and_include_archived_recovers_it(client):
+    client.post("/chats", json={"id": "real", "title": "real"})
+    client.post("/chats", json={"id": "proof", "title": "acceptance proof"})
+
+    archive = client.patch("/chats/proof/archive", json={"archived": True})
+
+    assert archive.status_code == 200
+    assert archive.json()["archived"] is True
+    assert [c["id"] for c in client.get("/chats").json()["chats"]] == ["real"]
+    history = client.get("/chats", params={"include_archived": "true"}).json()["chats"]
+    assert {c["id"] for c in history} == {"real", "proof"}
+
+
+def test_archive_requires_boolean_and_existing_chat(client):
+    client.post("/chats", json={"id": "proof", "title": "acceptance proof"})
+
+    assert client.patch("/chats/proof/archive", json={"archived": "yes"}).status_code == 400
+    assert client.patch("/chats/missing/archive", json={"archived": True}).status_code == 404
+
+
 def test_patch_objective_sets_and_returns(client):
     client.post("/chats", json={"id": "abc", "title": "test"})
 

@@ -75,6 +75,34 @@ def test_delete_missing_chat_returns_false():
     assert deleted is False
 
 
+def test_archived_chat_is_hidden_from_default_list_but_preserved():
+    chats_store.upsert_chat({"id": "real", "title": "real"})
+    chats_store.upsert_chat({"id": "proof", "title": "acceptance proof"})
+
+    archived = chats_store.set_archived("proof", True)
+
+    assert archived["archived"] is True
+    assert [chat["id"] for chat in chats_store.list_chats()] == ["real"]
+    assert {chat["id"] for chat in chats_store.list_chats(include_archived=True)} == {"real", "proof"}
+    assert chats_store.get_chat("proof")["archived"] is True
+
+
+def test_archived_chat_can_be_restored_without_losing_payload():
+    chats_store.upsert_chat({"id": "proof", "title": "acceptance proof", "messages": [{"role": "user", "text": "keep me"}]})
+    chats_store.set_archived("proof", True)
+
+    restored = chats_store.set_archived("proof", False)
+
+    assert restored["archived"] is False
+    assert restored["messages"] == [{"role": "user", "text": "keep me"}]
+    assert [chat["id"] for chat in chats_store.list_chats()] == ["proof"]
+
+
+def test_set_archived_raises_for_missing_chat():
+    with pytest.raises(chats_store.ChatNotFoundError, match="does not exist"):
+        chats_store.set_archived("missing", True)
+
+
 def test_list_orders_newest_first():
     chats_store.upsert_chat({"id": "old", "title": "old"})
     chats_store.upsert_chat({"id": "new", "title": "new"})

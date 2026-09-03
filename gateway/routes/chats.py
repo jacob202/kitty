@@ -56,9 +56,9 @@ def _recover_memory_items(raw_memory: object) -> list[dict[str, str]]:
 
 
 @router.get("/chats")
-async def get_chats():
-    """Return all saved chat sessions."""
-    return {"chats": chats_store.list_chats()}
+async def get_chats(include_archived: bool = False):
+    """Return normal saved chats, with archived/history rows opt-in."""
+    return {"chats": chats_store.list_chats(include_archived=include_archived)}
 
 
 @router.post("/chats")
@@ -76,6 +76,21 @@ async def delete_chat(chat_id: str):
     """Delete a chat session."""
     chats_store.delete_chat(chat_id)
     return {"ok": True}
+
+
+@router.patch("/chats/{chat_id}/archive")
+async def archive_chat(chat_id: str, request: Request):
+    """Reversibly hide or restore a chat from the normal conversation list."""
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="invalid JSON body") from exc
+    if not isinstance(body, dict) or not isinstance(body.get("archived"), bool):
+        raise HTTPException(status_code=400, detail="archived must be a boolean")
+    try:
+        return chats_store.set_archived(chat_id, body["archived"])
+    except chats_store.ChatNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.patch("/chats/{chat_id}/objective")

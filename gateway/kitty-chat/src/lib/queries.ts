@@ -722,10 +722,10 @@ export function useProjects() {
   return useQuery({ queryKey: ['projects'], queryFn: fetchProjects, refetchInterval: 60_000 })
 }
 
-export function useArtifacts(limit = 100) {
+export function useArtifacts(limit = 100, includeArchived = false) {
   return useQuery({
-    queryKey: ['artifacts', limit],
-    queryFn: () => fetchArtifacts(limit),
+    queryKey: ['artifacts', limit, includeArchived],
+    queryFn: () => fetchArtifacts(limit, includeArchived),
     staleTime: 30_000,
     retry: false,
   })

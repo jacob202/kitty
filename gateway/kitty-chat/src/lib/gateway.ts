@@ -1839,6 +1839,8 @@ export interface GatewayArtifact {
   display_name: string
   state: string
   storage_uri?: string
+  /** False when the registry row exists but its local backing file does not. */
+  storage_available?: boolean
   content_hash?: string
   size_bytes: number
   created_at: number
@@ -1902,8 +1904,9 @@ export async function fetchProjects(): Promise<GatewayProject[]> {
   return json.projects ?? []
 }
 
-export async function fetchArtifacts(limit = 100): Promise<GatewayArtifact[]> {
-  const json = await gfetch<unknown>(`/artifacts?limit=${limit}`)
+export async function fetchArtifacts(limit = 100, includeArchived = false): Promise<GatewayArtifact[]> {
+  const history = includeArchived ? '&include_archived=true' : ''
+  const json = await gfetch<unknown>(`/artifacts?limit=${limit}${history}`)
   if (!isRecord(json) || !Array.isArray(json.artifacts)) {
     throw new Error('Saved files returned an invalid response')
   }
@@ -1913,6 +1916,15 @@ export async function fetchArtifacts(limit = 100): Promise<GatewayArtifact[]> {
 
 export async function fetchArtifact(artifactId: string): Promise<GatewayArtifact> {
   const json = await gfetch<unknown>(`/artifacts/${encodeURIComponent(artifactId)}`)
+  return normalizeGatewayArtifact(json)
+}
+
+export async function setArtifactArchived(artifactId: string, archived: boolean): Promise<GatewayArtifact> {
+  const json = await gfetch<unknown>(`/artifacts/${encodeURIComponent(artifactId)}/archive`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ archived }),
+  })
   return normalizeGatewayArtifact(json)
 }
 
@@ -1928,6 +1940,7 @@ function normalizeGatewayArtifact(item: unknown): GatewayArtifact {
     || typeof item.size_bytes !== 'number'
     || typeof item.created_at !== 'number'
     || typeof item.created_by !== 'string'
+    || (item.storage_available !== undefined && typeof item.storage_available !== 'boolean')
   ) {
     throw new Error('Saved files returned an invalid response')
   }

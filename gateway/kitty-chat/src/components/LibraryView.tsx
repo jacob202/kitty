@@ -4,7 +4,7 @@ import { DocumentsPanel } from '@/components/DocumentsPanel'
 import { ArtifactCanvas, canPreviewArtifact } from '@/components/artifacts/ArtifactCanvas'
 import { useArtifacts } from '@/lib/queries'
 import type { GatewayArtifact, ChatImageAttachment } from '@/lib/gateway'
-import { useArtifactInChat } from '@/lib/gateway'
+import { setArtifactArchived, useArtifactInChat } from '@/lib/gateway'
 import { describeFailure } from '@/lib/failure-copy'
 import { useKitty } from '@/state/KittyContext'
 
@@ -14,9 +14,27 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
   const { setAttachments, setActiveView } = useKitty()
   const [useError, setUseError] = useState<string | null>(null)
   const [selectedArtifact, setSelectedArtifact] = useState<GatewayArtifact | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
+  const [archivePendingId, setArchivePendingId] = useState<string | null>(null)
+  const [archiveError, setArchiveError] = useState<string | null>(null)
   const pad = isMobile ? '20px 16px 124px' : '32px 40px 48px'
-  const artifacts = useArtifacts()
+  const artifacts = useArtifacts(100, showArchived)
   const recentArtifacts = [...(artifacts.data ?? [])].sort((a, b) => b.created_at - a.created_at)
+
+  const handleArchive = async (artifact: GatewayArtifact) => {
+    const shouldArchive = artifact.state !== 'archived'
+    setArchiveError(null)
+    setArchivePendingId(artifact.id)
+    try {
+      await setArtifactArchived(artifact.id, shouldArchive)
+      if (selectedArtifact?.id === artifact.id) setSelectedArtifact(null)
+      await artifacts.refetch()
+    } catch (err) {
+      setArchiveError(describeFailure(err))
+    } finally {
+      setArchivePendingId(null)
+    }
+  }
 
   const handleUseInChat = async (artifact: GatewayArtifact) => {
     setUseError(null)
@@ -43,15 +61,25 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
             <h2 id="recent-artifacts-heading" style={sectionTitleStyle}>Recent artifacts</h2>
             <p style={subtitleStyle}>Saved outputs are canonical here even when search indexing is delayed or unavailable.</p>
           </div>
-          <button
-            type="button"
-            aria-label="Refresh artifacts"
-            onClick={() => void artifacts.refetch()}
-            disabled={artifacts.isFetching}
-            style={refreshStyle}
-          >
-            {artifacts.isFetching ? 'Refreshing…' : 'Refresh'}
-          </button>
+          <div style={headerActionsStyle}>
+            <button
+              type="button"
+              aria-pressed={showArchived}
+              onClick={() => setShowArchived((current) => !current)}
+              style={refreshStyle}
+            >
+              {showArchived ? 'Hide archived' : 'Show archived'}
+            </button>
+            <button
+              type="button"
+              aria-label="Refresh artifacts"
+              onClick={() => void artifacts.refetch()}
+              disabled={artifacts.isFetching}
+              style={refreshStyle}
+            >
+              {artifacts.isFetching ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {artifacts.isLoading && <p style={mutedStyle}>Loading artifacts…</p>}
@@ -69,13 +97,15 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
                 artifact={artifact}
                 onOpen={() => { setUseError(null); setSelectedArtifact(artifact) }}
                 onUseInChat={() => void handleUseInChat(artifact)}
+                onArchive={() => void handleArchive(artifact)}
+                archivePending={archivePendingId === artifact.id}
               />
             ))}
           </ul>
         )}
-        {useError && (
+        {(useError || archiveError) && (
           <p role="alert" style={{ ...mutedStyle, color: 'var(--color-destructive)', marginTop: 10 }}>
-            {useError}
+            {useError ?? archiveError}
           </p>
         )}
       </section>
@@ -107,14 +137,19 @@ function artifactErrorMessage(error: unknown): string {
   return describeFailure(error)
 }
 
-function ArtifactRow({ artifact, onOpen, onUseInChat }: { artifact: GatewayArtifact; onOpen: () => void; onUseInChat: () => void }) {
+function ArtifactRow({ artifact, onOpen, onUseInChat, onArchive, archivePending }: { artifact: GatewayArtifact; onOpen: () => void; onUseInChat: () => void; onArchive: () => void; archivePending: boolean }) {
   const ingestion = typeof artifact.metadata?.ingestion_status === 'string' ? artifact.metadata.ingestion_status : null
   const created = new Date(artifact.created_at * 1000)
-  const state = humanize(artifact.state)
+  const backingMissing = artifact.storage_available === false
+  const state = backingMissing ? 'Missing' : humanize(artifact.state)
   const isImage = artifact.media_type.startsWith('image/')
   const chatReady = isChatReady(artifact)
   const previewReady = canPreviewArtifact(artifact)
-  const chatUnavailableReason = !isImage
+  const chatUnavailableReason = backingMissing
+    ? 'This saved file is missing from disk. Re-import it to use it again.'
+    : artifact.state === 'archived'
+      ? 'Restore this file before using it in chat.'
+      : !isImage
     ? 'Only images can be attached into a chat message from Library.'
     : artifact.state !== 'ready'
       ? 'This file is not ready to use in chat yet.'
@@ -131,7 +166,7 @@ function ArtifactRow({ artifact, onOpen, onUseInChat }: { artifact: GatewayArtif
               <span aria-hidden="true">·</span>
               <span>{formatBytes(artifact.size_bytes)}</span>
               <span aria-hidden="true">·</span>
-              <span style={statusStyle(artifact.state)}>{state}</span>
+              <span style={statusStyle(backingMissing ? 'missing' : artifact.state)}>{state}</span>
             </div>
           </div>
           <time style={timeStyle} dateTime={created.toISOString()}>{created.toLocaleDateString('en-CA')}</time>
@@ -167,6 +202,15 @@ function ArtifactRow({ artifact, onOpen, onUseInChat }: { artifact: GatewayArtif
               Use in chat unavailable
             </button>
           )}
+          <button
+            type="button"
+            aria-label={`${artifact.state === 'archived' ? 'Restore' : 'Archive'} ${artifact.display_name}`}
+            onClick={onArchive}
+            disabled={archivePending}
+            style={secondaryButtonStyle}
+          >
+            {archivePending ? 'Saving…' : artifact.state === 'archived' ? 'Restore' : 'Archive'}
+          </button>
           {!chatReady && <span style={openUnavailableStyle}>{chatUnavailableReason}</span>}
         </div>
 
@@ -190,6 +234,7 @@ function ArtifactRow({ artifact, onOpen, onUseInChat }: { artifact: GatewayArtif
 function isChatReady(artifact: GatewayArtifact): boolean {
   return artifact.media_type.startsWith('image/')
     && artifact.state === 'ready'
+    && artifact.storage_available !== false
     && CHAT_IMAGE_TYPES.has(artifact.media_type)
 }
 
@@ -210,7 +255,7 @@ function statusStyle(state: string): CSSProperties {
   const normalized = state.toLowerCase()
   const color = normalized === 'ready' || normalized === 'success'
     ? 'var(--color-success)'
-    : normalized === 'failed' || normalized === 'error' || normalized === 'unavailable'
+    : normalized === 'failed' || normalized === 'error' || normalized === 'unavailable' || normalized === 'missing'
       ? 'var(--color-destructive)'
       : 'var(--color-text-secondary)'
   return { color, fontWeight: 650 }
@@ -231,6 +276,7 @@ const sectionTitleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-di
 const subtitleStyle: CSSProperties = { margin: '4px 0 0', color: 'var(--color-text-secondary)', fontSize: 13, lineHeight: 1.5, maxWidth: 680 }
 const mutedStyle: CSSProperties = { margin: 0, color: 'var(--color-text-secondary)', fontSize: 13, lineHeight: 1.5 }
 const emptyStyle: CSSProperties = { ...mutedStyle, padding: '20px 0', borderTop: '1px solid var(--color-separator)' }
+const headerActionsStyle: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap' }
 const refreshStyle: CSSProperties = { border: '1px solid var(--color-separator)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', borderRadius: 'var(--r-control)', padding: '8px 14px', minHeight: 44, cursor: 'pointer', flexShrink: 0, fontWeight: 600 }
 const artifactListStyle: CSSProperties = { listStyle: 'none', margin: 0, padding: 0, borderTop: '1px solid var(--color-separator)' }
 const artifactItemStyle: CSSProperties = { listStyle: 'none', padding: '16px 0', borderBottom: '1px solid var(--color-separator)', minWidth: 0 }
@@ -245,3 +291,5 @@ const openButtonStyle: CSSProperties = { minHeight: 44, border: 'none', backgrou
 const useButtonStyle: CSSProperties = { minHeight: 44, border: '1px solid var(--color-separator)', background: 'var(--color-surface)', color: 'var(--color-accent)', borderRadius: 'var(--r-control)', padding: '8px 12px', fontSize: 13, fontWeight: 650, cursor: 'pointer' }
 const openUnavailableStyle: CSSProperties = { color: 'var(--color-text-secondary)', fontSize: 11, lineHeight: 1.4, maxWidth: 460 }
 const technicalGridStyle: CSSProperties = { marginTop: 6, paddingLeft: 14, display: 'flex', gap: '4px 14px', flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: 10, overflowWrap: 'anywhere' }
+
+const secondaryButtonStyle: CSSProperties = { minHeight: 44, border: '1px solid var(--color-separator)', background: 'transparent', color: 'var(--color-text-secondary)', borderRadius: 'var(--r-control)', padding: '8px 12px', fontSize: 13, fontWeight: 650, cursor: 'pointer' }

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 
 from gateway import artifact_store
@@ -20,6 +20,7 @@ def get_artifacts(
     conversation_id: str | None = None,
     kind: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
+    include_archived: bool = False,
 ) -> dict:
     try:
         return {
@@ -28,11 +29,29 @@ def get_artifacts(
                 conversation_id=conversation_id,
                 kind=kind,
                 limit=limit,
+                include_archived=include_archived,
             )
         }
     except artifact_store.ArtifactError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+
+
+@router.patch("/artifacts/{artifact_id}/archive")
+async def archive_artifact(artifact_id: str, request: Request) -> dict:
+    """Reversibly archive or restore an artifact from normal Library results."""
+    try:
+        body = await request.json()
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="invalid JSON body") from exc
+    if not isinstance(body, dict) or not isinstance(body.get("archived"), bool):
+        raise HTTPException(status_code=400, detail="archived must be a boolean")
+    try:
+        return artifact_store.set_archived(artifact_id, body["archived"])
+    except artifact_store.ArtifactError as exc:
+        message = str(exc)
+        status = 404 if "does not exist" in message else 409
+        raise HTTPException(status_code=status, detail=message) from exc
 
 
 _TEXT_PREVIEW_MEDIA_TYPES = {"text/markdown", "text/plain", "text/x-markdown"}

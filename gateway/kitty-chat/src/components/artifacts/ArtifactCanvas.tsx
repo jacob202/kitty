@@ -25,7 +25,9 @@ const PREVIEWABLE_MEDIA = new Set([
 ])
 
 export function canPreviewArtifact(artifact: GatewayArtifact): boolean {
-  return artifact.state === 'ready' && PREVIEWABLE_MEDIA.has(artifact.media_type.toLowerCase())
+  return artifact.state === 'ready'
+    && artifact.storage_available !== false
+    && PREVIEWABLE_MEDIA.has(artifact.media_type.toLowerCase())
 }
 
 export function ArtifactCanvas({

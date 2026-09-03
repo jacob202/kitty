@@ -51,14 +51,17 @@ def init_db() -> None:
     _import_legacy_chats_once()
 
 
-def list_chats() -> list[dict]:
-    """Return all chats, most-recently-updated first."""
+def list_chats(*, include_archived: bool = False) -> list[dict]:
+    """Return saved chats, hiding archived/history rows by default."""
     init_db()
     with kitty_db.connect(CHATS_DB_FILE) as conn:
         rows = conn.execute(
             "SELECT id, payload, objective FROM chats ORDER BY updated_at DESC, id ASC"
         ).fetchall()
-    return [_row_to_chat(r) for r in rows]
+    chats = [_row_to_chat(r) for r in rows]
+    if include_archived:
+        return chats
+    return [chat for chat in chats if chat.get("archived") is not True]
 
 
 def get_chat(chat_id: str) -> dict | None:
@@ -89,6 +92,18 @@ def delete_chat(chat_id: str) -> bool:
         cursor = conn.execute("DELETE FROM chats WHERE id = ?", (chat_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+
+def set_archived(chat_id: str, archived: bool) -> dict:
+    """Reversibly hide or restore one chat without deleting its history."""
+    if not isinstance(archived, bool):
+        raise ValueError("archived must be a boolean")
+    chat = get_chat(chat_id)
+    if chat is None:
+        raise ChatNotFoundError(f"chat {chat_id!r} does not exist")
+    updated = {**chat, "archived": archived}
+    upsert_chat(updated)
+    return get_chat(chat_id) or updated
 
 
 def _upsert_chat_raw(conn: sqlite3.Connection, chat: dict) -> None:

@@ -32,6 +32,7 @@ describe('ArtifactCanvas', () => {
     expect(canPreviewArtifact(artifact({ media_type: 'text/markdown' }))).toBe(true)
     expect(canPreviewArtifact(artifact({ media_type: 'text/html' }))).toBe(false)
     expect(canPreviewArtifact(artifact({ state: 'processing' }))).toBe(false)
+    expect(canPreviewArtifact(artifact({ storage_available: false }))).toBe(false)
   })
 
   it('renders an image through the artifact-id content route', () => {

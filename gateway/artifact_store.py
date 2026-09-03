@@ -236,7 +236,13 @@ def list_artifacts(
     conversation_id: str | None = None,
     kind: str | None = None,
     limit: int = 100,
+    include_archived: bool = False,
 ) -> list[dict[str, Any]]:
+    """List canonical artifacts, with archived history opt-in.
+
+    Missing backing files remain visible: callers need to distinguish a real
+    user file that disappeared from deliberately archived test/history rows.
+    """
     if limit <= 0 or limit > 500:
         raise ArtifactError(f"limit must be between 1 and 500, got {limit}")
     if project_id is not None and (isinstance(project_id, bool) or project_id <= 0):
@@ -244,6 +250,8 @@ def list_artifacts(
     init_db()
     clauses: list[str] = []
     params: list[Any] = []
+    if not include_archived:
+        clauses.append("state != 'archived'")
     if project_id is not None:
         clauses.append("project_id = ?")
         params.append(project_id)
@@ -263,10 +271,55 @@ def list_artifacts(
     return [_row_to_artifact(row) for row in rows]
 
 
+def set_archived(artifact_id: str, archived: bool) -> dict[str, Any]:
+    """Reversibly archive an artifact while preserving its prior lifecycle state."""
+    if not isinstance(archived, bool):
+        raise ArtifactError("archived must be a boolean")
+    init_db()
+    with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
+        row = conn.execute("SELECT * FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
+        if row is None:
+            raise ArtifactError(f"artifact {artifact_id} does not exist")
+        current = _row_to_artifact(row)
+        state = current["state"]
+        metadata = dict(current.get("metadata") or {})
+
+        if archived:
+            if state == "archived":
+                return current
+            if state not in {"pending", "ready", "failed"}:
+                raise ArtifactError(f"artifact {artifact_id} has unsupported state {state!r}")
+            metadata["archived_from_state"] = state
+            next_state = "archived"
+        else:
+            if state != "archived":
+                return current
+            prior = metadata.pop("archived_from_state", None)
+            if prior not in {"pending", "ready", "failed"}:
+                raise ArtifactError(
+                    f"artifact {artifact_id} cannot be restored because its prior state is unknown"
+                )
+            next_state = prior
+
+        conn.execute(
+            "UPDATE artifacts SET state = ?, metadata_json = ? WHERE id = ?",
+            (next_state, json.dumps(metadata, ensure_ascii=False), artifact_id),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
+    if updated is None:
+        raise ArtifactError(f"artifact {artifact_id} disappeared during archive update")
+    return _row_to_artifact(updated)
+
+
 def _row_to_artifact(row: Any) -> dict[str, Any]:
     result = dict(row)
     try:
         result["metadata"] = json.loads(result.pop("metadata_json"))
     except (TypeError, json.JSONDecodeError) as exc:
         raise ArtifactError(f"artifact {result.get('id')} has corrupt metadata: {exc}") from exc
+    storage_uri = result.get("storage_uri")
+    result["storage_available"] = bool(
+        isinstance(storage_uri, str) and storage_uri and Path(storage_uri).is_file()
+    )
     return result

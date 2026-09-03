@@ -64,6 +64,53 @@ class TestGetArtifacts:
         assert r.status_code == 200
         assert len(r.json()["artifacts"]) <= 1
 
+    def test_missing_backing_file_remains_visible_with_truthful_availability(self, client):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        from pathlib import Path
+        Path(artifact["storage_uri"]).unlink()
+
+        response = client.get("/artifacts")
+
+        assert response.status_code == 200
+        rows = response.json()["artifacts"]
+        assert len(rows) == 1
+        assert rows[0]["id"] == artifact["id"]
+        assert rows[0]["state"] == "ready"
+        assert rows[0]["storage_available"] is False
+
+    def test_archived_artifact_is_hidden_by_default_but_preserved_in_history(self, client):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+
+        archived = client.patch(f"/artifacts/{artifact['id']}/archive", json={"archived": True})
+
+        assert archived.status_code == 200
+        assert archived.json()["state"] == "archived"
+        assert client.get("/artifacts").json()["artifacts"] == []
+        history = client.get("/artifacts", params={"include_archived": "true"}).json()["artifacts"]
+        assert len(history) == 1
+        assert history[0]["id"] == artifact["id"]
+        assert history[0]["state"] == "archived"
+
+    def test_archive_restore_preserves_previous_failed_state(self, client):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        with artifact_store.kitty_db.connect(artifact_store.ARTIFACTS_DB_FILE) as conn:
+            conn.execute("UPDATE artifacts SET state = 'failed', error = 'index failed' WHERE id = ?", (artifact["id"],))
+            conn.commit()
+
+        assert client.patch(f"/artifacts/{artifact['id']}/archive", json={"archived": True}).status_code == 200
+        restored = client.patch(f"/artifacts/{artifact['id']}/archive", json={"archived": False})
+
+        assert restored.status_code == 200
+        assert restored.json()["state"] == "failed"
+        assert restored.json()["error"] == "index failed"
+        assert restored.json()["metadata"].get("archived_from_state") is None
+
+    def test_archive_requires_boolean_and_existing_artifact(self, client):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+
+        assert client.patch(f"/artifacts/{artifact['id']}/archive", json={"archived": "yes"}).status_code == 400
+        assert client.patch("/artifacts/missing/archive", json={"archived": True}).status_code == 404
+
 
 class TestGetArtifact:
     def test_happy_path(self, client):
