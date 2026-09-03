@@ -67,6 +67,10 @@ checked-in routes are:
 | `frontier` | DeepSeek V4 Pro | Qwen 3.7 Max | CAD 0.50 |
 
 The exact model IDs and ceilings are owned by `config/builder_paid_routes.json`.
+The cheap lane's primary **DeepSeek V4 Flash + MiniMax M3** pair currently
+projects to **CAD 0.0624** for the configured attempt assumptions. That value is
+a route estimate, not a spend guarantee; the CAD 0.10 ceiling and compute
+governor remain authoritative.
 The compute governor still decides whether a requested paid dispatch may run,
 downgrade, or defer; the configured ceiling is not a promise that the full
 amount will be spent.

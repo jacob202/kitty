@@ -11,11 +11,17 @@ Existing does not mean current. Use this index instead of inferring authority fr
 | Architecture and boundaries | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | Durable decisions | [`DECISIONS.md`](DECISIONS.md) and [`adr/`](adr/) |
 | Active delivery order | [`ROADMAP.md`](ROADMAP.md) |
-| Verified repository state | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) |
+| Dated shipped/status evidence | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) |
 | One approved mission | [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md) |
 | Code/data-flow map | [`reference/CODEBASE_MAP.md`](reference/CODEBASE_MAP.md) |
 | Gateway API/client boundary | [`reference/GATEWAY_API.md`](reference/GATEWAY_API.md) |
-| Current GitHub truth pass | [`audit/GITHUB_OPERATING_PICTURE_2026-08-04.md`](audit/GITHUB_OPERATING_PICTURE_2026-08-04.md) |
+
+## Historical and derived catalogs
+
+- [`DISPOSITION_LEDGER.md`](DISPOSITION_LEDGER.md) — compatibility pointer to the archived 2026-08-08 planning snapshot; not current activation authority.
+- [`KNOWLEDGE_GRAPH.md`](KNOWLEDGE_GRAPH.md) — compatibility pointer to the archived 2026-08-05 relationship analysis.
+- [`KITTY_MASTER_PROGRAM.md`](KITTY_MASTER_PROGRAM.md) — derived historical synthesis; current sequence lives in `ROADMAP.md`.
+- [`audit/GITHUB_OPERATING_PICTURE_2026-08-04.md`](audit/GITHUB_OPERATING_PICTURE_2026-08-04.md) — dated GitHub evidence only.
 
 ## Supporting material
 
