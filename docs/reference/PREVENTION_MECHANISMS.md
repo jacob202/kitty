@@ -29,7 +29,8 @@ jobs because their own diff contains no code; code-bearing merges retain
 red-main detection, and the nightly full suite in
 `.github/workflows/nightly-health.yml` remains the time-based canary.
 
-**Status:** ENFORCED. The default-branch ruleset is active on GitHub.
+**Status:** PARTIALLY ENFORCED. The required gates and no-bypass protections are
+active on GitHub; strict branch freshness is not platform-enforced.
 
 ## 2. One active implementation lane
 
