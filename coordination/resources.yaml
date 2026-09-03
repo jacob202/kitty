@@ -1,4 +1,14 @@
 resources:
+  agent-runtime:containment:
+    paths:
+    - gateway/builder_contract_gate.py
+    - gateway/builder_identity.py
+    - gateway/builder_runner.py
+    - integrations/discord_command_center/workspace.py
+    - tests/test_builder_contract_gate.py
+    - tests/test_builder_identity.py
+    - tests/test_builder_runner.py
+    - tests/test_discord_command_center_phase0.py
   builder:initiative-lifecycle:
     paths:
     - gateway/builder_initiative.py
