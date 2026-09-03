@@ -386,7 +386,7 @@ def create_job(
         if not plan_id.strip():
             raise ImageJobError("plan_id must not be empty")
         _check_text_bounded(plan_id, "plan_id")
-    valid_ops = {"txt2img", "img2img", "variation", "upscale", "inpaint"}
+    valid_ops = {"txt2img", "img2img", "variation", "upscale", "inpaint", "import"}
     if operation not in valid_ops:
         raise ImageJobError(
             f"operation must be one of {sorted(valid_ops)}, got {operation!r}"

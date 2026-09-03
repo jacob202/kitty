@@ -14,6 +14,10 @@ import {
   fetchGatewayRuntimeManifest,
   fetchGatewaySearch,
   fetchActivity,
+  fetchResearchRuns,
+  startResearch,
+  fetchIntelligence,
+  refreshIntelligenceConnections,
   fetchGatewayWeather,
   // todos
   fetchGatewayTodos,
@@ -569,12 +573,50 @@ export function useGenerateImage() {
   })
 }
 
+export function useResearchRuns() {
+  return useQuery({
+    queryKey: ['research', 'runs'],
+    queryFn: () => fetchResearchRuns(),
+    refetchInterval: 3_000,
+    retry: false,
+  })
+}
+
+export function useStartResearch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { topic: string; project_id?: number | null }) => startResearch(input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['research', 'runs'] })
+      void qc.invalidateQueries({ queryKey: ['activity'] })
+      void qc.invalidateQueries({ queryKey: ['artifacts'] })
+    },
+  })
+}
+
 export function useActivity() {
   return useQuery({
     queryKey: ['activity'],
     queryFn: () => fetchActivity(),
     refetchInterval: 10_000,
     retry: false,
+  })
+}
+
+export function useIntelligence() {
+  return useQuery({
+    queryKey: ['intelligence'],
+    queryFn: () => fetchIntelligence(3),
+    refetchInterval: 60_000,
+    retry: false,
+  })
+}
+
+export function useRefreshIntelligenceConnections() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: refreshIntelligenceConnections,
+    onSuccess: (projection) => qc.setQueryData(['intelligence'], projection),
   })
 }
 

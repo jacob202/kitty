@@ -137,8 +137,16 @@ async function installHermeticStubs(
         sources: {},
       })
     }
+    if (path === '/intelligence') {
+      return json(route, {
+        items: [],
+        counts: { shown: 0, total_candidates: 0 },
+        sources: {},
+      })
+    }
     if (path === '/inbox/triaged') return json(route, { entries: [] })
     if (path === '/projects') return json(route, { projects: [] })
+    if (path === '/artifacts') return json(route, { artifacts: [] })
     if (path === '/projects/next-steps') return json(route, [])
     if (path === '/context/project') return json(route, { project: null })
     if (path === '/deadlines') return json(route, { deadlines: [] })
@@ -161,12 +169,21 @@ async function installHermeticStubs(
     if (path === '/studio/characters') {
       return json(route, { characters: [] })
     }
+    if (path === '/studio/recipes') return json(route, { recipes: [] })
     if (path === '/studio/estimate') {
+      const unknownEstimate = {
+        cost: { state: 'unknown', usd: null, basis: 'offline', samples: 0 },
+        duration: { state: 'unknown', seconds: null, basis: 'offline', samples: 0 },
+      }
       return json(route, {
-        estimate: {
-          cost: { state: 'unknown', usd: null, basis: 'offline', samples: 0 },
-          duration: { state: 'unknown', seconds: null, basis: 'offline', samples: 0 },
-        },
+        provider: 'comfyui',
+        model_id: null,
+        recipe_id: 'comfyui_txt2img',
+        routing_reason: 'hermetic offline estimate',
+        operation: 'txt2img',
+        count: 1,
+        per_image_estimate: unknownEstimate,
+        estimate: unknownEstimate,
       })
     }
     unexpectedPaths.push(`${method} ${path}`)

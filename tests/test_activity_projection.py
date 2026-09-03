@@ -21,6 +21,10 @@ def test_activity_projection_normalizes_existing_authorities():
             'session_id': 12, 'goal': 'Compare the two implementations',
             'status': 'completed', 'created_at': 10.0, 'updated_at': 20.0,
         }]),
+        patch('gateway.research_runs.list_runs', return_value=[{
+            'id': 'rrun_1', 'topic': 'battery chemistry', 'status': 'running',
+            'stage': 'reading', 'created_at': 32.0, 'updated_at': 33.0, 'error': None,
+        }]),
         patch('gateway.builder_status.build_control_plane_summary', return_value={
             'initiatives': [{
                 'initiative_id': 'kitty-polish', 'title': 'Kitty polish',
@@ -34,13 +38,14 @@ def test_activity_projection_normalizes_existing_authorities():
 
     assert response.status_code == 200
     body = response.json()
-    assert body['counts'] == {'total': 4, 'waiting': 2, 'running': 1, 'failed': 0, 'completed': 1}
-    assert [item['source'] for item in body['items']] == ['action', 'builder', 'automation', 'agent']
+    assert body['counts'] == {'total': 5, 'waiting': 2, 'running': 2, 'failed': 0, 'completed': 1}
+    assert [item['source'] for item in body['items']] == ['action', 'builder', 'research', 'automation', 'agent']
     assert body['items'][0]['state'] == 'waiting'
     assert body['items'][0]['destination'] == 'home'
     assert body['items'][1]['destination'] == 'work'
-    assert body['items'][2]['destination'] == 'automations'
-    assert body['items'][3]['destination'] == 'agent-sessions'
+    assert body['items'][2]['destination'] == 'research'
+    assert body['items'][3]['destination'] == 'automations'
+    assert body['items'][4]['destination'] == 'agent-sessions'
     assert all(source['state'] == 'available' for source in body['sources'].values())
 
 
@@ -49,6 +54,7 @@ def test_activity_projection_is_partial_when_one_authority_is_unavailable():
         patch('gateway.action_queue.list_actions', side_effect=OSError('actions db unavailable')),
         patch('gateway.automation_runs.list_runs', return_value=[]),
         patch('gateway.agent_runner.list_agents', return_value=[]),
+        patch('gateway.research_runs.list_runs', return_value=[]),
         patch('gateway.builder_status.build_control_plane_summary', return_value={'initiatives': [], 'queue': {}}),
     ):
         response = TestClient(app).get('/activity')

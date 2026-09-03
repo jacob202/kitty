@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
-from gateway import artifact_store, chat_lifecycle, chats_store
+from gateway import artifact_store, chat_lifecycle, chats_store, context_compaction
 
 logger = logging.getLogger("kitty.routes.chats")
 
@@ -116,6 +116,23 @@ def get_chat_lifecycle(chat_id: str) -> dict:
         return chat_lifecycle.list_conversation(chat_id)
     except chat_lifecycle.ChatLifecycleError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/chats/{chat_id}/compact")
+async def compact_chat(chat_id: str) -> dict:
+    """Trigger context compaction for a chat session.
+
+    Summarises older messages into a memory checkpoint, stores it via
+    explicit_memory, and replaces the compacted messages with a single
+    "Previously..." summary message. Returns checkpoint metadata.
+    """
+    result = context_compaction.compact_chat(chat_id)
+    if result is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Compaction skipped: chat not found, below threshold, or summarisation failed",
+        )
+    return result
 
 
 def _recover_messages(conversation_id: str) -> list[dict]:

@@ -55,6 +55,7 @@ def test_not_registered_by_default(monkeypatch):
         "todos",
         "inbox",
         "signals",
+        "chats",
     ]
 
 

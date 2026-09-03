@@ -32,6 +32,7 @@ import {
   type ExpertProfile,
 } from '@/lib/gateway'
 import { validateAttachments, type AttachmentError } from '@/lib/attachment-validation'
+import { appendContextMarkers, stripContextMarkers, type ContextReference, type ContextReferenceKind } from '@/lib/context-references'
 import { normalizeMemoryEvidence } from '@/lib/types'
 import { usePwaInstall } from '@/lib/pwa'
 import { REDIRECTS, getView } from '@/lib/views'
@@ -137,7 +138,7 @@ const USER_INITIALS = getInitials('jacobbrizinski@gmail.com')
 
 function latestSearchQuery(chat: Chat | null): string {
   if (!chat) return ''
-  const lastUser = [...chat.messages].reverse().find((m) => m.role === 'user')?.content?.trim()
+  const lastUser = stripContextMarkers([...chat.messages].reverse().find((m) => m.role === 'user')?.content ?? '')
   if (lastUser) return lastUser
   if (chat.title !== 'new chat') return chat.title.trim()
   return ''
@@ -165,6 +166,9 @@ interface KittyContextValue {
   setInput: (v: string) => void
   attachments: MessageAttachment[]
   setAttachments: React.Dispatch<React.SetStateAction<MessageAttachment[]>>
+  contextRefs: ContextReference[]
+  handleAddContextRef: (ref: ContextReference) => void
+  handleRemoveContextRef: (kind: ContextReferenceKind, id: string) => void
   handleAddFiles: (files: FileList) => Promise<void>
   handleRemoveAttachment: (id: string) => void
   attachmentErrors: AttachmentError[]
@@ -294,6 +298,7 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'offline'>('idle')
   const [lastOutcome, setLastOutcome] = useState<'done' | 'broke' | null>(null)
   const [attachments, setAttachments] = useState<MessageAttachment[]>([])
+  const [contextRefs, setContextRefs] = useState<ContextReference[]>([])
   const [overrideModel, setOverrideModel] = useState<Model | null>(null)
   const [attachmentErrors, setAttachmentErrors] = useState<AttachmentError[]>([])
 
@@ -521,6 +526,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     setChats((prev) => [...prev, chat])
     setActiveChatId(chat.id)
     setInput('')
+    setContextRefs([])
   }, [activeModel.id])
 
   const handleNewExpertChat = useCallback((expert: ExpertProfile) => {
@@ -534,6 +540,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     setChats((prev) => [...prev, chat])
     setActiveChatId(chat.id)
     setInput('')
+    setContextRefs([])
   }, [activeModel.id])
 
   const handleToggleTheme = useCallback(() => {
@@ -552,6 +559,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
 
   const handleSelectChat = useCallback((id: string) => {
     setActiveChatId(id)
+    setContextRefs([])
     if (isMobile) setMobileSidebarOpen(false)
   }, [isMobile])
 
@@ -561,6 +569,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   }, [handleNewChat, isMobile])
 
   const handleCloseChat = useCallback((id: string) => {
+    if (id === activeChatId) setContextRefs([])
     setChats((prev) => {
       const next = prev.filter((c) => c.id !== id)
       if (next.length === 0) {
@@ -575,7 +584,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       const remaining = chats.filter((c) => c.id !== id)
       return remaining[remaining.length - 1]?.id ?? null
     })
-  }, [chats])
+  }, [chats, activeChatId])
 
   const handleSelectModel = useCallback((m: Model) => {
     setActiveModel(m)
@@ -689,17 +698,19 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   const handleSend = useCallback(async () => {
     const text = input.trim()
     if (!text || isStreaming || !activeChat) return
-    const userMsg: Message = { id: newMsgId(), role: 'user', content: text, timestamp: new Date(), attachments: attachments.length ? [...attachments] : undefined }
+    const durableText = appendContextMarkers(text, contextRefs)
+    const userMsg: Message = { id: newMsgId(), role: 'user', content: durableText, timestamp: new Date(), attachments: attachments.length ? [...attachments] : undefined }
     const isFirst = activeChat.messages.length === 0
     const title = isFirst ? text.slice(0, 32) + (text.length > 32 ? '…' : '') : activeChat.title
     updateChat(activeChat.id, (c) => ({ ...c, title, messages: [...c.messages, userMsg], updatedAt: new Date() }))
     setInput('')
     setAttachments([])
+    setContextRefs([])
     const attachmentIds = attachments.map((a) => a.id)
     const oneShot = overrideModel ?? undefined
     setOverrideModel(null)
     void runStream(activeChat, [...activeChat.messages, userMsg], title, attachmentIds, oneShot)
-  }, [input, isStreaming, activeChat, runStream, overrideModel, attachments, updateChat])
+  }, [input, isStreaming, activeChat, runStream, overrideModel, attachments, contextRefs, updateChat])
 
   const handleRetry = useCallback(() => {
     if (!activeChat || isStreaming) return
@@ -771,11 +782,24 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       const result = await uploadCaptureFile(file, { conversationId: activeChat.id, projectId: activeProject?.id })
       if (result?.artifact_id) added.push({ id: result.artifact_id, display_name: file.name, media_type: file.type || 'application/octet-stream', size: file.size })
     }
-    if (added.length) setAttachments((prev) => [...prev, ...added])
-  }, [activeChat, activeProject?.id])
+    if (added.length) {
+      setAttachments((prev) => [...prev, ...added])
+      queryClient.invalidateQueries({ queryKey: ['artifacts'] })
+    }
+  }, [activeChat, activeProject?.id, queryClient])
 
   const handleRemoveAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id))
+  }, [])
+
+  const handleAddContextRef = useCallback((ref: ContextReference) => {
+    setContextRefs((current) => current.some((item) => item.kind === ref.kind && item.id === ref.id)
+      ? current
+      : [...current, ref].slice(-8))
+  }, [])
+
+  const handleRemoveContextRef = useCallback((kind: ContextReferenceKind, id: string) => {
+    setContextRefs((current) => current.filter((item) => item.kind !== kind || item.id !== id))
   }, [])
 
   const handleDecideInChat = useCallback((entry: GatewayTriageEntry) => {
@@ -809,7 +833,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   const value: KittyContextValue = {
     chats, activeChat, activeChatId, handleNewChat, handleNewExpertChat, handleSelectChat, handleCloseChat,
     handleSend, handleStop, handleRetry, handleSwitchBranch, handleTogglePin,
-    input, setInput, attachments, setAttachments, handleAddFiles, handleRemoveAttachment,
+    input, setInput, attachments, setAttachments, contextRefs, handleAddContextRef, handleRemoveContextRef, handleAddFiles, handleRemoveAttachment,
     attachmentErrors, isStreaming,
     activeModel, availableModels, overrideModel, setOverrideModel, handleSelectModel,
     persistChat,

@@ -73,14 +73,23 @@ def test_main_prints_orientation_from_probe_results(resume_module, monkeypatch, 
 
     assert resume_module.main() == 0
 
+    # resume.py's sectioned output intentionally carries ANSI styling on all
+    # streams (see the ANSI helpers in scripts/resume.py), so the golden
+    # string includes the escape codes.
+    B, C, R, G, Y = "\x1b[1m", "\x1b[96m", "\x1b[0m", "\x1b[92m", "\x1b[93m"
     assert capsys.readouterr().out == (
-        "Kitty — 2026-08-23\n\n"
-        "Branch:       audit/tests [dirty]\n"
-        "Open PRs:     #42 Harden tests\n"
-        "Tests:        4716/4716 tests collected\n"
-        "Services:     pass=9 warn=1 fail=0\n"
-        "Active pkt:   123 Fix tests\n"
-        "Blocked:      124 Blocked\n"
-        "Local-only:   local-only\n"
-        "Last session: session.md\n"
+        f"{B}Kitty{R} — 2026-08-23\n"
+        f"\n{B}{C}Git{R}\n{C}───{R}\n"
+        f"  Branch:  audit/tests {Y}[dirty]{R}\n"
+        f"  Open PRs:  #42 Harden tests\n"
+        f"\n{B}{C}Tests{R}\n{C}─────{R}\n"
+        f"  Collected:  \x1b[91m✗{R} 4716/4716 tests collected\n"
+        f"\n{B}{C}Services{R}\n{C}────────{R}\n"
+        f"  Checks:  {G}9 pass{R}, {Y}1 warn{R}, 0 fail\n"
+        f"\n{B}{C}Packets{R}\n{C}───────{R}\n"
+        f"  Active:   123 Fix tests\n"
+        f"  Blocked:  124 Blocked\n"
+        f"\n{B}{C}Workspace{R}\n{C}─────────{R}\n"
+        f"  Local-only:    local-only\n"
+        f"  Last session:  session.md\n"
     )

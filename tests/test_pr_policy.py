@@ -10,7 +10,7 @@ SHA = "a" * 40
 
 def _acceptance_body(*, accepted: bool = False) -> str:
     checks = "x" if accepted else " "
-    return f"""## Product acceptance (required for user-facing changes)
+    return f"""## Product acceptance (required only when `gateway/kitty-chat/src/` or `public/` changes)
 - User goal: understand the result
 - Starting state and dependent services: service running
 - Running-app steps and visible result: exercise the changed flow
@@ -258,3 +258,34 @@ def test_main_reads_current_pr_and_review_evidence_from_api(tmp_path, monkeypatc
 
     monkeypatch.setattr(pr_policy, "_github_json", fake_github_json)
     pr_policy.main()
+
+
+
+def test_product_acceptance_works_with_both_heading_formats() -> None:
+    """The policy must accept both the PR template heading and the old variant."""
+    path = "gateway/kitty-chat/src/components/HomeState.tsx"
+    old_heading = "## Product acceptance (required for user-facing changes)"
+    fields = [
+        "- User goal: understand the result",
+        "- Starting state and dependent services: service running",
+        "- Running-app steps and visible result: exercise the changed flow",
+        "- Failure/recovery path tested: provider unavailable",
+        "- Viewports tested: phone and desktop",
+        "- Evidence: recording-123",
+        "- Independent task-completion reviewer: reviewer-2",
+        "- Remaining limitations or dead ends: none",
+    ]
+    checks = "\n".join(f"- [x] {check}" for check in pr_policy.ACCEPTANCE_CHECKS)
+    body = old_heading + "\n" + "\n".join(fields) + "\n" + checks
+    violations = pr_policy.evaluate_policy(
+        _pr(body), [path], independent_review_approved=True
+    )
+    assert violations == []
+
+    new_heading = "## Product acceptance (required only when `gateway/kitty-chat/src/` or `public/` changes)"
+    body2 = new_heading + "\n" + "\n".join(fields) + "\n" + checks
+    violations2 = pr_policy.evaluate_policy(
+        _pr(body2), [path], independent_review_approved=True
+    )
+    assert violations2 == []
+

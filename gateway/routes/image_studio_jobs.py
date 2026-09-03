@@ -2,26 +2,39 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from gateway import image_batches, image_estimates, image_recipes
-from gateway.image_runner import FLUX_EDIT_MODEL, FLUX_GENERATE_MODEL, OPENROUTER_IMAGE_MODEL
+from gateway import paths as _paths
+from gateway.image_runner import (
+    FLUX_EDIT_MODEL,
+    FLUX_GENERATE_MODEL,
+    OPENAI_IMAGE_MODEL,
+    OPENROUTER_IMAGE_MODEL,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["image-studio-jobs"])
 
+_SOURCE_IMAGE_ROOT = _paths.DATA_DIR / "images" / "imports"
+_SOURCE_IMAGE_MAX_BYTES = 20 * 1024 * 1024
+_SOURCE_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
+
 QualityTier = Literal["fast", "quality", "maximum"]
 IdentityMode = Literal["creative", "balanced", "identity_first"]
 OutputCount = Literal[1, 2, 4]
+ImageOperation = Literal["txt2img", "img2img"]
 
 
 class StudioEstimateRequest(BaseModel):
     quality: QualityTier = "quality"
+    operation: ImageOperation = "txt2img"
     identity: IdentityMode = "balanced"
     character_id: str | None = None
     recipe_id: str | None = None
@@ -65,6 +78,8 @@ def _exact_model_id(provider: str) -> str | None:
     provider = provider.strip().lower()
     if provider == "openrouter":
         return OPENROUTER_IMAGE_MODEL
+    if provider == "openai":
+        return OPENAI_IMAGE_MODEL
     if provider == "flux":
         return FLUX_GENERATE_MODEL
     if provider == "comfyui":
@@ -93,6 +108,8 @@ def _iteration_model_id(recipe: object, *, operation: str) -> str | None:
         return FLUX_EDIT_MODEL if operation == "img2img" else FLUX_GENERATE_MODEL
     if provider == "openrouter":
         return OPENROUTER_IMAGE_MODEL
+    if provider == "openai":
+        return OPENAI_IMAGE_MODEL
     if provider == "comfyui":
         from gateway.image_gen import SDXL_PHOTONIC
 
@@ -143,38 +160,58 @@ def _validate_iteration_route(request: dict) -> None:
         raise HTTPException(status_code=409, detail="source route model changed; refusing to reroute the iteration")
 
 
+async def _runtime_available_providers() -> set[str]:
+    """Return provider ids whose actual execution transports are ready now."""
+    from gateway.routes.extended import image_status
+
+    status = await image_status()
+    return {
+        str(engine.get("name", "")).strip().lower()
+        for engine in status.get("engines", [])
+        if engine.get("available") is True and engine.get("name")
+    }
+
+
 async def studio_estimate(req: StudioEstimateRequest) -> dict:
     try:
+        available_providers = await _runtime_available_providers()
         decision = image_recipes.auto_route(
             has_character=bool(req.character_id),
             character_count=1 if req.character_id else 0,
             quality_tier=req.quality,
             identity_mode=req.identity,
-            operation="txt2img",
+            operation=req.operation,
             preferred_recipe=req.recipe_id,
+            available_providers=available_providers,
         )
     except image_recipes.RecipeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     recipe = decision.recipe
+    if req.operation == "img2img" and (recipe is None or not recipe.supports_img2img):
+        raise HTTPException(
+            status_code=503,
+            detail=f"recipe {decision.recipe_id!r} does not support img2img",
+        )
     provider = recipe.provider if recipe else "comfyui"
     # When a recipe is present, resolve the exact model from the recipe's
     # execution_target rather than the provider alone; FLUX.2 carries a
     # target that _iteration_model_id can resolve without I/O.  The
     # no-recipe fallback keeps the original provider-only path.
     model_id = (
-        _iteration_model_id(recipe, operation="txt2img")
-        if recipe
+        _iteration_model_id(recipe, operation=req.operation)
+        if recipe is not None
         else _exact_model_id(provider)
     )
     per_image = image_estimates.estimate(
-        provider, model_id=model_id, operation="txt2img"
+        provider, model_id=model_id, operation=req.operation
     )
     return {
         "provider": provider,
         "model_id": model_id,
         "recipe_id": decision.recipe_id,
         "routing_reason": decision.reason,
+        "operation": req.operation,
         "count": req.count,
         "per_image_estimate": per_image,
         "estimate": image_batches.scale_estimate(per_image, req.count),
@@ -186,18 +223,146 @@ async def studio_estimate_route(req: StudioEstimateRequest) -> dict:
     return await studio_estimate(req)
 
 
+
+
+@router.post("/studio/sessions/{session_id}/source-image")
+async def studio_import_source_image(session_id: str, file: UploadFile) -> dict:
+    """Import a user-owned image as the durable edit source for a Studio session."""
+    from gateway import image_jobs, image_sessions, undo_journal
+    from gateway.image_quality import check_reference_image
+
+    try:
+        session = image_sessions.require_session(session_id)
+    except image_sessions.SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if session.status.is_terminal():
+        raise HTTPException(status_code=409, detail=f"image session {session_id!r} has ended")
+
+    media_type = (file.content_type or "").lower().strip()
+    if media_type not in _SOURCE_IMAGE_TYPES:
+        raise HTTPException(status_code=415, detail="source image must be PNG, JPEG, or WebP")
+    data = await file.read(_SOURCE_IMAGE_MAX_BYTES + 1)
+    if len(data) > _SOURCE_IMAGE_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="source image is too large (max 20 MB)")
+    if not data:
+        raise HTTPException(status_code=400, detail="source image is empty")
+
+    quality = check_reference_image(data)
+    if quality.has_blockers or not quality.format or not quality.width or not quality.height:
+        raise HTTPException(status_code=400, detail=quality.summary())
+    extension = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}.get(quality.format.upper())
+    if extension is None:
+        raise HTTPException(status_code=415, detail="source image must be PNG, JPEG, or WebP")
+
+    job = image_jobs.create_job(
+        provider="upload",
+        operation="import",
+        width=quality.width,
+        height=quality.height,
+        provider_params_json=json.dumps({
+            "source": "user_upload",
+            "original_name": file.filename,
+            "media_type": media_type,
+        }),
+    )
+    try:
+        image_sessions.attach_job(session_id, job.job_id)
+        image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
+        image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.RUNNING)
+        target_dir = _SOURCE_IMAGE_ROOT / job.job_id
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / f"source{extension}"
+        partial = target.with_suffix(target.suffix + ".part")
+        partial.write_bytes(data)
+        partial.replace(target)
+        image_jobs.update_job(
+            job.job_id,
+            output_path=str(target),
+            width=quality.width,
+            height=quality.height,
+        )
+        artifact = image_jobs.register_canonical_artifact(
+            job.job_id, project_id=session.project_id
+        )
+        image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUCCEEDED)
+        undo_journal_id = undo_journal.set_anchor_with_undo(session_id, job.job_id)
+    except Exception as exc:
+        current = image_jobs.get_job(job.job_id)
+        if current is not None and not current.status.is_terminal():
+            try:
+                image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.FAILED)
+            except Exception:
+                pass
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    refreshed = image_jobs.get_job(job.job_id)
+    assert refreshed is not None
+    return {
+        "job": refreshed.to_dict(),
+        "artifact": artifact,
+        "session": image_sessions.require_session(session_id).to_dict(),
+        "undo_journal_id": undo_journal_id,
+        "quality": {
+            "has_blockers": quality.has_blockers,
+            "has_warnings": quality.has_warnings,
+            "is_perfect": quality.is_perfect,
+            "summary": quality.summary(),
+            "advice": quality.advice(),
+            "dimensions": f"{quality.width}×{quality.height}",
+        },
+    }
+
+
 @router.post("/studio/batches")
 async def studio_create_batch(req: StudioBatchRequest) -> dict:
+    operation: ImageOperation = "txt2img"
+    recipe_id = req.recipe_id
+    character_id = req.character_id
+    if req.plan_id:
+        if not req.session_id:
+            raise HTTPException(
+                status_code=400, detail="a planned image batch requires session_id"
+            )
+        from gateway.image_plan_store import (
+            PlanNotApprovedError,
+            PlanNotFoundError,
+            PlanSessionMismatchError,
+            PlanStoreError,
+            require_approved_plan,
+        )
+        try:
+            plan = require_approved_plan(req.plan_id, req.session_id)
+        except PlanNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (PlanSessionMismatchError, PlanNotApprovedError, PlanStoreError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if plan.operation == "txt2img":
+            operation = "txt2img"
+        elif plan.operation == "img2img":
+            operation = "img2img"
+        else:
+            raise HTTPException(
+                status_code=400, detail=f"approved image plan has unknown operation {plan.operation!r}"
+            )
+        recipe_id = plan.recipe_id
+        character_id = plan.character_id
+
     preflight = await studio_estimate(
         StudioEstimateRequest(
             quality=req.quality,
             identity=req.identity,
-            character_id=req.character_id,
-            recipe_id=req.recipe_id,
+            operation=operation,
+            character_id=character_id,
+            recipe_id=recipe_id,
             count=req.count,
         )
     )
     request = req.model_dump(exclude={"count"})
+    if req.plan_id:
+        request["recipe_id"] = recipe_id
+    request["estimated_operation"] = operation
     request["estimated_provider"] = preflight["provider"]
     request["estimated_model_id"] = preflight["model_id"]
     return image_batches.create_batch(
@@ -316,7 +481,7 @@ async def execute_studio_batch_request(request: dict) -> dict:
         key: value
         for key, value in request.items()
         if key not in {
-            "estimated_provider", "estimated_model_id", "lineage_parent_id",
+            "estimated_provider", "estimated_model_id", "estimated_operation", "lineage_parent_id",
             "expected_provider", "expected_model_id",
         }
     }

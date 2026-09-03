@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useKitty } from '@/state/KittyContext'
 import { TopBar } from '@/components/TopBar'
 import { ThreadGoal } from '@/components/ThreadGoal'
@@ -17,17 +17,43 @@ import { StatusBar } from '@/components/StatusBar'
 import { WobFilters, PaperGrain } from '@/components/WobFilters'
 import { CatCorner } from '@/components/CrayonCat'
 import { composeSkillLaunchInput } from '@/lib/capability-launch'
-import { useActivity } from '@/lib/queries'
+import { useActivity, useArtifacts } from '@/lib/queries'
+import type { ContextCandidate } from '@/lib/context-references'
 
 export default function KittyChat() {
   const k = useKitty()
+  // Stable across renders: ChatMessage memoizes its markdown component map on
+  // this reference, and an inline arrow here would remount every card button
+  // (dropping in-flight clicks) on each parent render. setActiveView from
+  // context is itself useCallback'd with no deps.
+  const openWorkView = useCallback(() => k.setActiveView('work'), [k.setActiveView])
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
   const [selectedAgentSessionId, setSelectedAgentSessionId] = useState<number | null>(null)
   const [selectedAutomationRunId, setSelectedAutomationRunId] = useState<string | null>(null)
+  const [projectWorkspaceId, setProjectWorkspaceId] = useState<number | null>(null)
   const activity = useActivity()
+  const artifacts = useArtifacts(40)
   const activityAttentionCount = (activity.data?.counts.waiting ?? 0) + (activity.data?.counts.failed ?? 0)
   const activityIncomplete = Boolean(activity.error) || Object.values(activity.data?.sources ?? {}).some(source => source.state === 'unavailable')
+  const contextError = artifacts.error
+    ? 'Artifact results are unavailable right now — projects and conversations still work.'
+    : null
+
+  const contextCandidates: ContextCandidate[] = [
+    ...k.projects.map((project) => ({
+      kind: 'project' as const, id: String(project.id), label: project.name,
+      description: `Project · ${project.status}`,
+    })),
+    ...(artifacts.data ?? []).map((artifact) => ({
+      kind: 'artifact' as const, id: artifact.id, label: artifact.display_name,
+      description: `Artifact · ${artifact.kind}`,
+    })),
+    ...k.chats.filter((chat) => chat.id !== k.activeChatId).slice(-20).reverse().map((chat) => ({
+      kind: 'chat' as const, id: chat.id, label: chat.title || 'Untitled conversation',
+      description: 'Conversation',
+    })),
+  ]
   const modelUnavailable = !k.modelGateway.live || k.availableModels.length === 0
 
   return (
@@ -151,16 +177,20 @@ export default function KittyChat() {
                 onSwitchBranch: k.handleSwitchBranch,
                 onStartClick: () => k.textareaRef.current?.focus(),
                 onChipClick: (chip: string) => { k.setInput(chip); k.textareaRef.current?.focus() },
+                onOpenWork: openWorkView,
               }}
               homeProps={{
                 preferredName: k.preferredName,
                 onDecideInChat: k.handleDecideInChat,
                 onNavigate: k.setActiveView,
                 onExpertClick: (expert: any) => { k.handleNewExpertChat(expert); k.setActiveView('chat') },
+                onOpenProject: (projectId: number) => { k.handleSelectProject(projectId); setProjectWorkspaceId(projectId); k.setActiveView('projects') },
+                onPromptSelect: (text: string) => { k.setActiveView('chat'); k.handlePromptSelect(text) },
               }}
               builderProps={{ onBack: () => k.setActiveView('work') }}
               selectedAgentSessionId={selectedAgentSessionId}
               automationProps={{ selectedRunId: selectedAutomationRunId }}
+              projectsProps={{ initialProjectId: projectWorkspaceId }}
               toolsProps={{
                 loops: k.loops, insights: k.insights, promptTemplates: k.promptTemplates,
                 onLoopToggle: k.handleLoopToggle, onInsightDismiss: k.handleInsightDismiss,
@@ -189,6 +219,12 @@ export default function KittyChat() {
               attachments={k.attachments}
               onAddFiles={k.handleAddFiles}
               onRemoveAttachment={k.handleRemoveAttachment}
+              contextCandidates={contextCandidates}
+              contextRefs={k.contextRefs}
+              onAddContextRef={k.handleAddContextRef}
+              onRemoveContextRef={k.handleRemoveContextRef}
+              contextError={contextError}
+              onContextRetry={contextError ? () => { void artifacts.refetch() } : undefined}
               models={k.availableModels}
               overrideModel={k.overrideModel}
               onOverrideModel={k.setOverrideModel}

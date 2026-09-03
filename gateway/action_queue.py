@@ -47,7 +47,7 @@ import time
 import uuid
 from typing import Any, Callable
 
-from gateway import action_grants, calendar_integration, delegation, storage_router
+from gateway import action_grants, calendar_integration, delegation, storage_router, undo_journal
 from gateway import db as kitty_db
 from gateway.paths import ACTION_TIERS_FILE, DRAFTS_DIR, KITTY_DB_FILE
 
@@ -123,13 +123,70 @@ def init_db() -> None:
 # raises to signal a failed execution (recorded, never retried).
 
 
-def _exec_todo_create(payload: dict[str, Any]) -> str:
+def _exec_todo_create(payload: dict[str, Any]) -> tuple[str, str | None]:
+    """Create a todo and record an undo journal entry.
+
+    Returns (result_string, undo_journal_id). If journal recording fails after
+    todo creation, compensates by deleting the todo. If compensation cannot be
+    proven, returns a result indicating unknown outcome and no journal_id.
+    """
     content = str(payload["content"]).strip()
     todo = storage_router.add_todo(content)
-    return f"todo created (id={todo.get('id')}): {todo.get('content', content)}"
+    todo_id = int(todo["id"])
+    result_text = f"todo created (id={todo_id}): {todo.get('content', content)}"
+
+    # Record undo journal entry for the created todo
+    try:
+        journal_id = undo_journal.record(
+            entity_type="todo",
+            entity_id=str(todo_id),
+            operation="create",
+            before=None,  # no before state for create
+            after={"id": todo_id, "content": content, "status": "pending"},
+        )
+        return result_text, journal_id
+    except Exception as exc:
+        # Journal recording failed — try to compensate by deleting the todo
+        logger.warning(
+            "action: undo journal record failed for todo %s, attempting compensation: %s",
+            todo_id,
+            exc,
+        )
+        try:
+            deleted = storage_router.delete_todo(todo_id)
+        except Exception as comp_exc:
+            # Compensation raised an exception (e.g., DB error)
+            logger.error(
+                "action: compensation failed for todo %s after journal failure: %s",
+                todo_id,
+                comp_exc,
+            )
+            return (
+                f"UNKNOWN_OUTCOME: todo {todo_id} created but undo journal failed "
+                f"and compensation unproven — manual review required",
+                None,
+            )
+        if deleted:
+            # Compensation confirmed — the todo is gone, no journal entry exists
+            raise RuntimeError(
+                f"todo created but undo journal record failed; "
+                f"compensated by deleting todo {todo_id}"
+            ) from exc
+        else:
+            # delete_todo returned False — todo not found (already deleted?)
+            logger.error(
+                "action: compensation unproven for todo %s after journal failure "
+                "(delete_todo returned False)",
+                todo_id,
+            )
+            return (
+                f"UNKNOWN_OUTCOME: todo {todo_id} created but undo journal failed "
+                f"and compensation unproven — manual review required",
+                None,
+            )
 
 
-def _exec_note_draft(payload: dict[str, Any]) -> str:
+def _exec_note_draft(payload: dict[str, Any]) -> tuple[str, None]:
     content = str(payload["content"])
     title = (str(payload.get("title") or "").strip()) or "draft"
     DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -137,19 +194,18 @@ def _exec_note_draft(payload: dict[str, Any]) -> str:
     # silently overwrite each other while both report success.
     path = DRAFTS_DIR / f"{int(time.time())}-{_slug(title)}-{uuid.uuid4().hex[:8]}.md"
     path.write_text(f"# {title}\n\n{content}\n", encoding="utf-8")
-    # T1 contract: produce the local artifact, transmit nothing.
-    return f"draft written to {path}"
+    return f"draft written to {path}", None
 
 
-def _exec_packet_delegate(payload: dict[str, Any]) -> str:
+def _exec_packet_delegate(payload: dict[str, Any]) -> tuple[str, None]:
     # The action row itself carries id/title; the payload carries the packet
     # body fields. Build a minimal action-shaped dict for the renderer.
     action = {"payload": payload}
     path = delegation.write_packet(action)
-    return f"packet written to {path}"
+    return f"packet written to {path}", None
 
 
-def _exec_calendar_create(payload: dict[str, Any]) -> str:
+def _exec_calendar_create(payload: dict[str, Any]) -> tuple[str, None]:
     title = str(payload["title"]).strip()
     ok = calendar_integration.create(
         title,
@@ -159,10 +215,10 @@ def _exec_calendar_create(payload: dict[str, Any]) -> str:
     )
     if not ok:
         raise RuntimeError("calendar create failed (osascript unavailable or Calendar rejected it)")
-    return f"calendar event created: {title}"
+    return f"calendar event created: {title}", None
 
 
-_EXECUTORS: dict[str, Callable[[dict[str, Any]], str]] = {
+_EXECUTORS: dict[str, Callable[[dict[str, Any]], tuple[str, str | None]]] = {
     "todo.create": _exec_todo_create,
     "note.draft": _exec_note_draft,
     "packet.delegate": _exec_packet_delegate,
@@ -170,9 +226,9 @@ _EXECUTORS: dict[str, Callable[[dict[str, Any]], str]] = {
 }
 
 
-# --- Registry (tier file × executors) --------------------------------------
-
-_REGISTRY: dict[str, tuple[str, Callable[[dict[str, Any]], str]]] | None = None
+_REGISTRY: dict[
+    str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]
+] | None = None
 
 
 def _load_tiers() -> tuple[dict[str, str], set[str]]:
@@ -190,9 +246,9 @@ def _load_tiers() -> tuple[dict[str, str], set[str]]:
     return tiers, disabled
 
 
-def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
+def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]]:
     tiers, disabled = _load_tiers()
-    registry: dict[str, tuple[str, Callable[[dict[str, Any]], str]]] = {}
+    registry: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]] = {}
     for kind, fn in _EXECUTORS.items():
         if kind in disabled:
             raise ActionConfigError(
@@ -204,7 +260,7 @@ def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
     return registry
 
 
-def _registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
+def _registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]]:
     global _REGISTRY
     if _REGISTRY is None:
         _REGISTRY = _build_registry()
@@ -367,14 +423,18 @@ def execute(action_id: int) -> dict[str, Any]:
         raise ActionStateError(f"action {action_id} is no longer {status!r} — already claimed")
 
     try:
-        result = fn(action["payload"])
+        result, undo_journal_id = fn(action["payload"])
     except Exception as exc:
         logger.warning("action %s (%s) failed: %s", action_id, kind, exc)
         # No side effect happened, so the reservation must go back rather than
         # quietly eating part of the user's ceiling.
         _release_budget(action_id, decision, cost, reserved)
-        return _finish(action_id, "failed", f"{type(exc).__name__}: {exc}")
-    return _finish(action_id, "executed", result)
+        return _finish(action_id, "failed", f"{type(exc).__name__}: {exc}", None)
+    # Check for unknown outcome marker from todo.create compensation failure
+    if result.startswith("UNKNOWN_OUTCOME:"):
+        _release_budget(action_id, decision, cost, reserved)
+        return _finish(action_id, "unknown", result, None)
+    return _finish(action_id, "executed", result, undo_journal_id)
 
 
 def _reserve_budget(decision: action_grants.Decision, cost_usd: float | None) -> bool:
@@ -454,7 +514,7 @@ def reconcile_stale_executing() -> int:
     now = time.time()
     with kitty_db.connect(ACTIONS_DB_FILE) as conn:
         cursor = conn.execute(
-            "UPDATE actions SET status = 'unknown', result = ?, executed_at = ? "
+            "UPDATE actions SET status = 'unknown', result = ?, executed_at = ?, undo_journal_id = NULL "
             "WHERE status = 'executing'",
             (
                 "gateway restarted mid-execution; outcome unknown — not "
@@ -540,12 +600,12 @@ def _decide(
     return _require(action_id)
 
 
-def _finish(action_id: int, status: str, result: str) -> dict[str, Any]:
+def _finish(action_id: int, status: str, result: str, undo_journal_id: str | None = None) -> dict[str, Any]:
     init_db()
     with kitty_db.connect(ACTIONS_DB_FILE) as conn:
         conn.execute(
-            "UPDATE actions SET status = ?, result = ?, executed_at = ? WHERE id = ?",
-            (status, result, time.time(), action_id),
+            "UPDATE actions SET status = ?, result = ?, executed_at = ?, undo_journal_id = ? WHERE id = ?",
+            (status, result, time.time(), undo_journal_id, action_id),
         )
         conn.commit()
     return _require(action_id)
@@ -596,7 +656,7 @@ def _slug(text: str) -> str:
 _COLUMNS = (
     "id, created_at, source_kind, source_id, kind, title, preview, payload, "
     "risk_tier, status, result, decided_at, executed_at, scope_type, scope_id, "
-    "session_id, estimated_cost_usd, approval_fingerprint"
+    "session_id, estimated_cost_usd, approval_fingerprint, undo_journal_id"
 )
 
 
@@ -620,4 +680,5 @@ def _row_to_action(row: Any) -> dict[str, Any]:
         "session_id": row["session_id"],
         "estimated_cost_usd": row["estimated_cost_usd"],
         "approval_fingerprint": row["approval_fingerprint"],
+        "undo_journal_id": row["undo_journal_id"],
     }

@@ -33,10 +33,9 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any
 
 from gateway.paths import DATA_DIR, LOG_FILE
@@ -360,12 +359,10 @@ def generate_and_send() -> int:
     for insight in insights:
         try:
             capture(
-                headline=insight.headline,
-                detail=insight.detail,
+                text=insight.headline,
+                source_ref=insight.detail,
                 category=insight.category,
                 explicit_consent=False,
-                source="proactive_engine",
-                metadata=insight.source_data,
             )
             sent += 1
         except Exception as exc:

@@ -20,6 +20,14 @@ fi
 UI_DIR="${ROOT_DIR}/gateway/kitty-chat"
 KITTY_UI_HOST="${KITTY_UI_HOST:-127.0.0.1}"
 KITTY_UI_PORT="${KITTY_UI_PORT:-4000}"
+
+# Allow binding to 0.0.0.0 so Kitty is reachable from other devices on the
+# local network or Tailnet (iPhone, iPad, other laptops). Loopback-only is the
+# safe default — set KITTY_UI_BIND_ALL=true or KITTY_UI_HOST=0.0.0.0 to
+# override when you explicitly want tailnet access.
+if [[ "${KITTY_UI_BIND_ALL:-}" == "true" ]] && [[ "${KITTY_UI_HOST}" == "127.0.0.1" ]]; then
+  KITTY_UI_HOST="0.0.0.0"
+fi
 export KITTY_GATEWAY_URL="${KITTY_GATEWAY_URL:-http://127.0.0.1:8000}"
 
 # Diagnostic breadcrumb for "works in Terminal, dies under launchd": log the

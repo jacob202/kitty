@@ -136,6 +136,52 @@ class TestDrawThingsPath:
             assert job.intent_json == '{"intent_version":1,"operation":"txt2img"}'
 
     @pytest.mark.asyncio
+    async def test_drawthings_img2img_uses_source_image_and_preserves_lineage(self, tmp_path):
+        import io
+
+        from PIL import Image
+
+        source = io.BytesIO()
+        Image.new("RGB", (320, 240), "white").save(source, format="PNG")
+        parent = image_jobs.create_job("upload", "import")
+        fake_engine = _fake_drawthings_engine(available=True, data=b"edited-png")
+        seen: dict[str, object] = {}
+
+        async def generate_with_source(prompt: str, **kwargs):
+            source_path = kwargs["init_image"]
+            seen["prompt"] = prompt
+            seen["source_path"] = source_path
+            seen["source_exists_during_dispatch"] = source_path.is_file()
+            seen["source_bytes"] = source_path.read_bytes()
+            seen["denoising_strength"] = kwargs["denoising_strength"]
+            return b"edited-png"
+
+        fake_engine.generate_async = AsyncMock(side_effect=generate_with_source)
+        with (
+            patch("mcp.imagen.engines.get", return_value=fake_engine),
+            patch(
+                "mcp.imagen.io.save_image",
+                side_effect=_save_image_to(tmp_path / "dt_edit.png"),
+            ),
+        ):
+            result = await run(
+                "drawthings",
+                "change only the jacket",
+                source_image=source.getvalue(),
+                parent_id=parent.job_id,
+            )
+
+        assert seen["source_exists_during_dispatch"] is True
+        assert seen["source_bytes"] == source.getvalue()
+        assert seen["denoising_strength"] == pytest.approx(0.55)
+        assert not seen["source_path"].exists()
+        job = image_jobs.get_job(result.job_id)
+        assert job is not None
+        assert job.provider == "drawthings"
+        assert job.operation == "img2img"
+        assert job.parent_id == parent.job_id
+
+    @pytest.mark.asyncio
     async def test_drawthings_not_running_raises(self):
         fake_engine = _fake_drawthings_engine(available=False)
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from gateway import chat_search
 from gateway import search as unified_search
 
 router = APIRouter(tags=["search"])
@@ -22,6 +23,7 @@ _SECTION_TO_STORE = {
     "todos": "todos",
     "inbox": "inbox",
     "signals": "signals",
+    "chats": "chats",
 }
 
 
@@ -63,4 +65,29 @@ async def search(q: str = "", limit: int = 5):
         "stores": grouped.get("stores", []),
         "errors": grouped.get("errors", []),
         "degraded_stores": grouped.get("degraded_stores", []),
+    }
+
+
+@router.post("/chat/search")
+async def chat_search_endpoint(body: dict):
+    """Search across all chat messages using FTS5 keyword search.
+
+    Request body:
+        q (str): The search query (FTS5 syntax supported).
+        limit (int): Max results (default 10).
+
+    Returns:
+        Matching messages with chat context (chat title, snippet, role,
+        timestamp) ranked by relevance.
+    """
+    q = (body.get("q") or "").strip()
+    limit = min(int(body.get("limit", 10)), 100)
+
+    if not q:
+        return {"query": "", "results": []}
+
+    results = chat_search.search_chat_messages(q, limit=limit)
+    return {
+        "query": q,
+        "results": results,
     }

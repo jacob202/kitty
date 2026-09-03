@@ -16,6 +16,7 @@ const LibraryView = dynamic(() => import('./LibraryView'))
 const AutomationsView = dynamic(() => import('./AutomationsView'))
 const TutorShell = dynamic(() => import('./TutorShell'))
 const JournalPanel = dynamic(() => import('./JournalPanel'))
+const ResearchView = dynamic(() => import('./ResearchView'))
 const TerminalView = dynamic(() => import('./TerminalView'))
 const AgentWorkspacePanel = dynamic(() => import('./AgentWorkspacePanel').then((mod) => mod.AgentWorkspacePanel))
 const AgentSessionsPanel = dynamic(() => import('./AgentSessionsPanel').then((mod) => mod.AgentSessionsPanel))
@@ -38,14 +39,18 @@ interface ViewRendererProps {
     onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
     onStartClick: () => void
     onChipClick: (chip: string) => void
+    onOpenWork?: () => void
   }
   homeProps?: {
     preferredName: string
     onDecideInChat: (entry: any) => void
     onNavigate: (view: string) => void
     onExpertClick?: (expert: any) => void
+    onOpenProject?: (projectId: number) => void
+    onPromptSelect?: (text: string) => void
   }
   builderProps?: { onBack: () => void }
+  projectsProps?: { initialProjectId?: number | null }
   workProps?: { isMobile: boolean }
   selectedAgentSessionId?: number | null
   automationProps?: { selectedRunId?: string | null }
@@ -72,6 +77,7 @@ export function ViewRenderer({
   chatProps,
   homeProps,
   builderProps,
+  projectsProps,
   workProps,
   selectedAgentSessionId = null,
   automationProps,
@@ -106,7 +112,7 @@ export function ViewRenderer({
       case 'docs':
         return <LibraryView isMobile={isMobile} />
       case 'projects':
-        return <ProjectsView isMobile={isMobile} />
+        return <ProjectsView isMobile={isMobile} initialProjectId={projectsProps?.initialProjectId} />
       case 'automations':
         return <AutomationsView isMobile={isMobile} loops={toolsProps?.loops ?? []} loopsLoading={toolsProps?.loopsLoading ?? false} loopsError={toolsProps?.loopsError ?? null} onLoopToggle={toolsProps?.onLoopToggle ?? (() => {})} selectedRunId={automationProps?.selectedRunId ?? null} />
     case 'settings':
@@ -117,6 +123,8 @@ export function ViewRenderer({
       return <TutorShell isMobile={isMobile} />
     case 'journal':
       return <div style={pad}><JournalPanel /></div>
+    case 'research':
+      return <ResearchView isMobile={isMobile} />
     case 'terminal':
         return <TerminalView isMobile={isMobile} />
       default:

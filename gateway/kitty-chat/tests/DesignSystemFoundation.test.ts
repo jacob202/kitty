@@ -28,6 +28,12 @@ describe('Kitty design foundations', () => {
     }
   })
 
+  it('defines one shared overlay chrome contract', () => {
+    for (const token of ['--overlay-backdrop', '--overlay-backdrop-strong', '--shadow-overlay']) {
+      expect(css, `missing ${token}`).toContain(token)
+    }
+  })
+
   it('provides a visible keyboard focus treatment', () => {
     expect(css).toContain(':focus-visible')
     expect(css).toContain('var(--color-focus-ring)')

@@ -1,0 +1,71 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "one-kitty-phase1-action-grammar-20260902",
+  "title": "ONE KITTY Phase 1: canonical object/action contract plus shared renderer",
+  "description": "Phase 1 (canonical behavior) of docs/plans/ONE_KITTY_PACKET_MAP_2026-08-31.md, authored from the merged packet specs docs/packets/OK-ACTION-01.md and OK-ACTION-02.md. Packet OK-ACTION-01 records the authority inventory, proves one shared object/action contract against two real domains, and leaves every existing store authoritative. Packet OK-ACTION-02 renders and dispatches those actions through shared components while preserving owning-authority mutation paths and approval boundaries. Home migration (OK-ACTION-03/04), Chat concierge (OK-CHAT-01/02), and precision work stay out of scope.",
+  "packets": [
+    {
+      "id": "OK-ACTION-01",
+      "title": "Canonical object + action contract proven on two real domains",
+      "objective": "Define the smallest reusable product contract that lets Kitty render the same owned object with the same meaningful actions across Home, Chat, Work, Projects, Library, Automations, and Image Lab without creating a new source of truth. First verify current repo truth and record a compact authority inventory (action/approval/execute routes; project, work/builder, artifact, automation, deadline, image, and conversation identity plus destination and status semantics; existing overlapping frontend types) as packet evidence. Then implement the shared contract (KittyObjectRef, KittyAvailableAction, KittyObjectType, KittyTruthState as described in docs/packets/OK-ACTION-01.md; names may follow existing conventions) as small shared types/helpers under gateway/kitty-chat/src/lib/. Prefer frontend normalization of existing per-authority responses; add a read-only gateway projection helper only if frontend normalization demonstrably duplicates logic; never add a generic mutation endpoint. Integrate exactly two real domains chosen after inspection to minimize collision (recommended candidates: project next step, deadline, artifact, work item) so their projections conform to the shared shell without changing their source of truth, and record in evidence any domain that cannot safely fit the shell and why. Stable identity, deterministic canonical destination, truthful lifecycle states (never upgrade queued to running, unknown to failed, generated to durably stored, approval to execution), and unavailable actions carrying explicit reasons are contract requirements. Full Capability Launcher, universal @ search, Home redesign, Chat context injection, and new execution infrastructure are out of scope.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Authority inventory covering the eight inspection areas from docs/packets/OK-ACTION-01.md is recorded in packet evidence with file references.",
+        "One shared object/action contract exists under gateway/kitty-chat/src/lib/ (or an existing equivalent is proven sufficient and extended), renderable without knowing the originating surface.",
+        "Two real domain adapters produce the shared contract from their existing authoritative responses without modifying those authorities' stores or routes.",
+        "Canonical identity and destination are deterministic across two different projections of the same object (test-proven).",
+        "An unavailable action carries an explicit reason instead of silently disappearing (test-proven).",
+        "Lifecycle truth is never optimistically upgraded (test-proven).",
+        "No new store, workflow engine, or generic mutation endpoint is introduced; existing approval boundaries unchanged.",
+        "npm --prefix gateway/kitty-chat run test and the typecheck command in validation_commands pass."
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/src/lib/queries.ts",
+        "gateway/kitty-chat/src/lib/actions-contract.ts",
+        "gateway/kitty-chat/src/lib/actions-adapters.ts",
+        "gateway/kitty-chat/tests/actionsContract.test.ts",
+        "gateway/object_projection.py",
+        "tests/test_object_projection.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 30 },
+      "validation_commands": [
+        "npm --prefix gateway/kitty-chat run test",
+        "cd gateway/kitty-chat && npx tsc --noEmit"
+      ]
+    },
+    {
+      "id": "OK-ACTION-02",
+      "title": "Shared action renderer + executor for proof domains",
+      "objective": "Render and execute canonical Kitty actions consistently across surfaces using the OK-ACTION-01 contract while preserving each owning authority's real mutation path. Implement shared components under gateway/kitty-chat/src/components/actions/ (KittyActionBar, KittyActionButton, useKittyAction or equivalents fitting current conventions) reusing existing shared Button/Dialog/Sheet primitives rather than inventing parallel controls. The renderer must support: navigation actions with deterministic canonical destinations and no fake loading states; immediate safe mutations only where the owning authority already defines one, with immediate pressed/loading state and backend-truth reconciliation; approval-required mutations that show exactly what is approved with inspectable meaningful arguments, keep approval and execution lifecycle distinct, and never render failure or unknown as success; and an Ask Kitty action that produces a structured handoff/reference to Chat (smallest seam; no opaque IDs copied into prose; full concierge context stays with OK-CHAT-01/02). Visual grammar: one primary action maximum in compact card contexts, quieter secondary actions, destructive treatment only for destructive effects, explanatory copy for non-obvious disabled actions, loading that does not resize layout, 44px minimum touch targets on persistent phone controls, status color never carrying meaning alone. Render the two OK-ACTION-01 proof domains through the shared component in at least two different contexts/components. No broad Home migration (OK-ACTION-03 owns that), no action palette, no new backend authority.",
+      "depends_on": ["OK-ACTION-01"],
+      "acceptance_criteria": [
+        "Shared action renderer components exist under gateway/kitty-chat/src/components/actions/ and use existing shared primitives instead of parallel controls.",
+        "Navigation dispatch uses the canonical destination; pure client navigation shows no fake loading state (test-proven).",
+        "Mutation dispatch targets the owning authority route; approval and execution remain distinct lifecycle states with approval never rendered as success (test-proven).",
+        "Failed or unknown outcomes are not rendered as success; pending state is visible and layout-stable (test-proven).",
+        "Disabled actions are inaccessible and carry explanatory copy where the reason is non-obvious (test-proven).",
+        "Keyboard invocation and the 44px persistent-phone touch-target contract are covered by component tests where the current test setup supports them.",
+        "Ask Kitty produces a structured object reference handoff to Chat without opaque ID prose.",
+        "The two proof domains render through the shared component in two different contexts without domain-specific button wiring in those contexts.",
+        "npm --prefix gateway/kitty-chat run test and the typecheck command in validation_commands pass."
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/actions/KittyActionBar.tsx",
+        "gateway/kitty-chat/src/components/actions/KittyActionButton.tsx",
+        "gateway/kitty-chat/src/components/actions/useKittyAction.ts",
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/src/lib/queries.ts",
+        "gateway/kitty-chat/src/lib/actions-contract.ts",
+        "gateway/kitty-chat/src/lib/actions-adapters.ts",
+        "gateway/kitty-chat/tests/actionsRenderer.test.tsx",
+        "gateway/kitty-chat/tests/actionsContract.test.ts"
+      ],
+      "policy": { "max_attempts": 2, "priority": 30 },
+      "validation_commands": [
+        "npm --prefix gateway/kitty-chat run test",
+        "cd gateway/kitty-chat && npx tsc --noEmit"
+      ]
+    }
+  ]
+}

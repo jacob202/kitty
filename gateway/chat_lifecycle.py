@@ -8,6 +8,7 @@ status without forcing a client migration in the same packet.
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from dataclasses import dataclass
@@ -16,6 +17,8 @@ from typing import Any
 from gateway import db as kitty_db
 from gateway.memory_graph import MemoryEvidence
 from gateway.paths import KITTY_DB_FILE
+
+logger = logging.getLogger("kitty.chat_lifecycle")
 
 LIFECYCLE_DB_FILE = KITTY_DB_FILE
 
@@ -66,7 +69,16 @@ def _validate_memory_items(
 
 
 def init_db() -> None:
-    kitty_db.migrate(db_file=LIFECYCLE_DB_FILE)
+    applied = kitty_db.migrate(db_file=LIFECYCLE_DB_FILE)
+    # Rebuild FTS index when the chat messages FTS migration is first applied
+    if applied and any("chat_messages_fts" in name for name in applied):
+        try:
+            from gateway.chat_search import rebuild_fts_index
+            rebuild_fts_index()
+        except Exception:
+            logger.exception("Failed to rebuild chat FTS index after migration")
+        else:
+            logger.info("Rebuilt chat FTS index after migration")
 
 
 def start_turn(

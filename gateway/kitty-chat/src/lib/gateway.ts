@@ -364,6 +364,41 @@ export interface GatewayActivityProjection {
   sources: Record<string, { state: 'available' | 'unavailable'; reason: string | null }>
 }
 
+export interface GatewayIntelligenceItem {
+  id: string
+  source: 'deadline' | 'insight' | 'magic' | 'life' | string
+  title: string
+  detail: string
+  destination: string
+  project_id: number | null
+  prompt: string
+}
+
+export interface GatewayIntelligenceProjection {
+  items: GatewayIntelligenceItem[]
+  counts: { shown: number; total_candidates: number }
+  sources: Record<string, { state: 'available' | 'unavailable'; reason: string | null }>
+}
+
+export interface GatewayResearchRun {
+  id: string
+  topic: string
+  project_id: number | null
+  status: 'running' | 'completed' | 'failed' | 'interrupted' | string
+  stage: 'queued' | 'searching' | 'reading' | 'synthesizing' | 'saving' | 'completed' | 'failed' | 'interrupted' | string
+  sources: string[]
+  summary: string | null
+  artifact_id: string | null
+  error: string | null
+  created_at: number
+  updated_at: number
+  completed_at: number | null
+}
+
+export interface GatewayResearchRunsPayload {
+  runs: GatewayResearchRun[]
+}
+
 export interface GatewayWeather {
   temp_c?: number
   feels_like_c?: number
@@ -1093,6 +1128,26 @@ export async function fetchActivity(limit = 40): Promise<GatewayActivityProjecti
   return await gfetch<GatewayActivityProjection>(`/activity?limit=${limit}`)
 }
 
+export async function fetchIntelligence(limit = 3): Promise<GatewayIntelligenceProjection> {
+  return await gfetch<GatewayIntelligenceProjection>(`/intelligence?limit=${limit}`)
+}
+
+export async function refreshIntelligenceConnections(): Promise<GatewayIntelligenceProjection> {
+  return await gfetch<GatewayIntelligenceProjection>('/intelligence/refresh-connections', { method: 'POST' }, 60_000)
+}
+
+export async function fetchResearchRuns(limit = 30): Promise<GatewayResearchRunsPayload> {
+  return await gfetch<GatewayResearchRunsPayload>(`/research/runs?limit=${limit}`)
+}
+
+export async function startResearch(input: { topic: string; project_id?: number | null }): Promise<{ run: GatewayResearchRun }> {
+  return await gfetch<{ run: GatewayResearchRun }>('/research/runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic: input.topic, project_id: input.project_id ?? null }),
+  }, 10_000)
+}
+
 export async function fetchCapabilities(): Promise<GatewayCapabilitiesPayload> {
   try {
     const json = await gfetch<{ capabilities?: GatewayCapability[] }>('/capabilities')
@@ -1452,10 +1507,13 @@ export interface ImageEngineStatus {
   label: string
   available: boolean
   unavailable_reason?: string | null
+  supports_img2img?: boolean
+  edit_only?: boolean
 }
 
 export interface ImageStatus {
   available: boolean
+  edit_available: boolean
   backend?: string
   engines?: ImageEngineStatus[]
 }
@@ -1467,11 +1525,13 @@ export async function fetchImageStatus(): Promise<ImageStatus> {
   // "start ComfyUI" recovery, which sends the user down the wrong path.
   const json = await gfetch<{
     available?: boolean
+    edit_available?: boolean
     backend?: string
     engines?: ImageEngineStatus[]
   }>('/image/status')
   return {
     available: json.available === true,
+    edit_available: json.edit_available === true,
     backend: json.backend,
     engines: json.engines ?? [],
   }

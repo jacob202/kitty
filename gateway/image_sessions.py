@@ -542,7 +542,7 @@ def set_anchor(session_id: str, job_id: str) -> ImageSession:
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         row = conn.execute(
-            "SELECT job_id, session_id, status, artifact_id, output_path FROM image_jobs"
+            "SELECT job_id, session_id, status, artifact_id, canonical_artifact_id, output_path FROM image_jobs"
             " WHERE job_id = ?",
             (job_id,),
         ).fetchone()
@@ -565,7 +565,7 @@ def set_anchor(session_id: str, job_id: str) -> ImageSession:
         conn.execute(
             "UPDATE image_sessions SET anchor_job_id = ?, anchor_artifact_id = ?,"
             " updated_at = ? WHERE session_id = ?",
-            (job_id, row["artifact_id"], now, session_id),
+            (job_id, row["canonical_artifact_id"] or row["artifact_id"], now, session_id),
         )
     return require_session(session_id)
 

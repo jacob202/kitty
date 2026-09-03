@@ -22,7 +22,7 @@ from gateway.paths import KITTY_DB_FILE
 
 DB_FILE = KITTY_DB_FILE
 
-ENTITY_TYPES = frozenset({"memory", "character", "automation", "image"})
+ENTITY_TYPES = frozenset({"memory", "character", "automation", "image", "todo"})
 
 
 class UndoError(Exception):
@@ -275,6 +275,17 @@ def _restore(entry: dict[str, Any]) -> dict[str, Any]:
         else:
             image_sessions.clear_anchor(entity_id)
         return {"entity_type": entity_type, "entity_id": entity_id, "restored": "image"}
+
+    if entity_type == "todo":
+        from gateway import storage_router
+
+        # For create operation, undo means delete the created todo
+        if operation == "create":
+            deleted = storage_router.delete_todo(int(entity_id))
+            if not deleted:
+                raise UndoError(f"todo {entity_id} not found or already deleted")
+            return {"entity_type": entity_type, "entity_id": entity_id, "restored": "todo"}
+        raise UndoError(f"unsupported todo operation: {operation!r}")
 
     raise UndoError(f"unsupported entity type: {entity_type!r}")
 

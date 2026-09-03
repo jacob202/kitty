@@ -75,3 +75,25 @@ def test_flux_needs_its_own_key(monkeypatch):
 
 def test_flux_is_a_dispatchable_engine():
     assert "flux" in image_runner.ENGINES
+
+
+def test_openai_images_are_off_until_explicitly_enabled(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    available, reason = image_runner.openai_images_available()
+    assert available is False
+    assert "KITTY_IMAGE_OPENAI_ENABLED" in reason or "KITTY_IMAGE_PAID_ENABLED" in reason
+
+
+def test_openai_images_need_the_openai_key(monkeypatch):
+    monkeypatch.setenv("KITTY_IMAGE_OPENAI_ENABLED", "1")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    available, reason = image_runner.openai_images_available()
+    assert available is False
+    assert "OPENAI_API_KEY" in reason
+
+
+def test_openai_images_are_dispatchable_when_enabled(monkeypatch):
+    monkeypatch.setenv("KITTY_IMAGE_OPENAI_ENABLED", "1")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    assert image_runner.openai_images_available() == (True, "")
+    assert "openai" in image_runner.ENGINES

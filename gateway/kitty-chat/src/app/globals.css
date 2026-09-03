@@ -5,6 +5,9 @@
    composer ends up underneath it. */
 :root {
   --bottom-nav-height: calc(56px + env(safe-area-inset-bottom, 0px));
+  --overlay-backdrop: rgba(12, 15, 24, 0.44);
+  --overlay-backdrop-strong: rgba(8, 10, 16, 0.70);
+  --shadow-overlay: 0 24px 64px rgba(15, 20, 32, 0.22);
 }
 
 /* ── KITTY THEMES: semantic color contract ───────────────────── */
@@ -324,3 +327,69 @@ textarea::placeholder { color: var(--ink-2); opacity: .8; }
     animation: none;
   }
 }
+
+/* ── Stolen from deepseek-harness: corner-shape (superellipse 1.5) ──── */
+/* Smooth corner curvature — between round and squircle on supporting engines.
+   Full-round shapes (pills, circles) opt out with corner-shape: round. */
+@supports (corner-shape: superellipse(1.5)) {
+  :root {
+    --kitty-corner-shape: superellipse(1.5);
+  }
+  *,
+  *::before,
+  *::after {
+    corner-shape: var(--kitty-corner-shape);
+  }
+}
+
+/* ── Stolen from deepseek-harness: enhanced scrollbar with per-surface rebind ── */
+body {
+  --kitty-scrollbar-thumb: var(--line);
+  --kitty-scrollbar-thumb-hover: var(--ink-2);
+  --kitty-scrollbar-width: 6px;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  body,
+  body * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--kitty-scrollbar-thumb) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--kitty-scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--kitty-scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Stolen from deepseek-harness: elevation & shadow tokens ────────── */
+:root {
+  --kitty-shadow-lv1: 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  --kitty-shadow-lv2: 0 4px 12px 0 rgba(0, 0, 0, 0.02), 0 2px 8px 0 rgba(0, 0, 0, 0.04);
+  --kitty-shadow-lv3: 0 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 4px 0 rgba(0, 0, 0, 0.02), 0 12px 32px 0 rgba(0, 0, 0, 0.08);
+  --kitty-elevation-panel: 0 3px 8px 0 rgba(0, 0, 0, 0.03), 0 0 16px 0 rgba(0, 0, 0, 0.02);
+  --kitty-elevation-prominent: 0 3px 8px 0 rgba(0, 0, 0, 0.04), 0 0 20px 0 rgba(0, 0, 0, 0.05);
+  --kitty-elevation-soft: 0 4px 16px 0 rgba(0, 0, 0, 0.03), 0 0 24px 0 rgba(0, 0, 0, 0.03);
+}
+
+/* ── Stolen from shadcn/ui + deepseek-harness: backdrop blur utilities ── */
+.backdrop-blur-sm { backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.backdrop-blur-md { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.backdrop-blur-lg { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }

@@ -59,7 +59,14 @@ describe('BottomNav', () => {
     expect(screen.queryByRole('menu', { name: 'More destinations' })).not.toBeInTheDocument()
   })
 
-  it.each(['automations', 'agents'])('marks More current for %s', (activeView) => {
+  it('routes Research from the mobile More menu', () => {
+    render(<BottomNav activeView="home" onViewChange={onViewChange} />)
+    fireEvent.click(screen.getByLabelText('More'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Research' }))
+    expect(onViewChange).toHaveBeenCalledWith('research')
+  })
+
+  it.each(['automations', 'agents', 'research'])('marks More current for %s', (activeView) => {
     render(<BottomNav activeView={activeView} onViewChange={onViewChange} />)
     expect(screen.getByLabelText('More')).toHaveAttribute('aria-current', 'page')
   })
