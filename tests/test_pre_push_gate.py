@@ -11,6 +11,7 @@ fail-loud behaviour, so a missing toolchain blocks the push instead of waving it
 through.
 """
 
+import json
 import os
 import re
 import shutil
@@ -302,3 +303,59 @@ def test_relative_hooks_path_uses_linked_worktree_hook(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "WORKTREE" in result.stderr
     assert "CANONICAL" not in result.stderr
+
+
+def test_frontend_readme_does_not_trigger_frontend_gate(hook_text):
+    """Frontend docs are documentation, matching scripts.pr_scope.classify()."""
+    assert "FRONTEND_CHANGED" in hook_text
+    assert "grep -Ev '\\.(md|mdx)$'" in hook_text
+
+
+def test_hook_blocks_non_fast_forward_feature_push(tmp_path):
+    """The installed hook enforces no history rewrite from the ref graph itself."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Kitty Test"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "kitty-test@example.invalid"], cwd=repo, check=True)
+    (repo / "README.md").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
+    seed = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    subprocess.run(["git", "switch", "-qc", "feature"], cwd=repo, check=True)
+    (repo / "README.md").write_text("seed\nremote\n", encoding="utf-8")
+    subprocess.run(["git", "commit", "-qam", "remote tip"], cwd=repo, check=True)
+    remote_tip = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    subprocess.run(["git", "switch", "-q", "--detach", seed], cwd=repo, check=True)
+    (repo / "README.md").write_text("seed\nrewrite\n", encoding="utf-8")
+    subprocess.run(["git", "commit", "-qam", "rewritten tip"], cwd=repo, check=True)
+    local_tip = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    hook = repo / "scripts/hooks/pre-push"
+    hook.parent.mkdir(parents=True)
+    shutil.copy2(HOOK, hook)
+    hook.chmod(hook.stat().st_mode | stat.S_IXUSR)
+    update = f"refs/heads/feature {local_tip} refs/heads/feature {remote_tip}\n"
+    result = subprocess.run([str(hook)], cwd=repo, input=update, capture_output=True, text=True, timeout=60)
+    assert result.returncode != 0
+    assert "non-fast-forward history rewrite" in result.stderr
+    assert "--force-with-lease" in result.stderr
+
+
+def test_claude_command_guard_blocks_force_with_lease_and_auto_merge():
+    hook = ROOT / ".claude/hooks/block-dangerous-commands.sh"
+    if shutil.which("jq") is None:
+        pytest.skip("jq is required by the Claude command guard")
+    for command, expected in (
+        ("git push --force-with-lease origin feature", "force push/history rewrite"),
+        ("gh pr merge 810 --auto", "merge --auto"),
+    ):
+        payload = json.dumps({"tool_input": {"command": command}})
+        result = subprocess.run(["bash", str(hook)], cwd=ROOT, input=payload, capture_output=True, text=True, timeout=30)
+        assert result.returncode == 2, (command, result.stdout, result.stderr)
+        assert expected in result.stdout + result.stderr
+
+
+def test_polling_guard_never_recommends_auto_merge_as_a_wait_strategy():
+    polling = (ROOT / ".claude/hooks/block-polling.sh").read_text(encoding="utf-8")
+    assert "gh pr checks <N> --watch" in polling
+    assert "gh pr merge <N> --auto" not in polling

@@ -386,11 +386,17 @@ def test_registry_covers_repository_documentation_surfaces() -> None:
 
 def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
     runtime_paths = [
+        ".claude/hooks/block-dangerous-commands.sh",
+        ".claude/hooks/block-polling.sh",
+        "coordination/resources.yaml",
         "kitty",
         "gateway/doctor.py",
         "scripts/desktop/start_ui.sh",
+        "scripts/hooks/pre-push",
+        "tests/test_agent_coordination_acceptance.py",
         "tests/test_doctor_freshness.py",
         "tests/test_kitty_launcher_runtime.py",
+        "tests/test_pre_push_gate.py",
         "tests/test_start_ui_script.py",
     ]
     action_paths = [

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Block CI polling loops. Waiting on PR checks should use `gh pr checks
-# --watch` or `gh pr merge --auto`, never until/while/for + sleep loops.
+# --watch`, never until/while/for + sleep loops.
 # A blocked command costs nothing; a 16x sleep loop costs 16 round-trips.
 set -euo pipefail
 
@@ -21,7 +21,6 @@ if [ "$has_sleep" = "1" ] && [ "$has_gh_wait" = "1" ]; then
   echo "" >&2
   echo "Use instead:" >&2
   echo "  gh pr checks <N> --watch      # one command, exits when checks finish" >&2
-  echo "  gh pr merge <N> --auto        # GitHub merges automatically when checks pass" >&2
   echo "" >&2
   echo "If you must wait a bounded time, use: gh pr checks <N> --watch --interval 15" >&2
   exit 2

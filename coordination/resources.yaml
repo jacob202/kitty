@@ -45,6 +45,7 @@ resources:
     - tests/test_check_continuity_state.py
   runtime:provenance:
     paths:
+    - .claude/hooks/**
     - .githooks/**
     - Makefile
     - coordination/**
@@ -55,11 +56,13 @@ resources:
     - gateway/runtime_manifest.py
     - kitty
     - scripts/desktop/start_ui.sh
+    - scripts/hooks/**
     - tests/test_agent_coordination_acceptance.py
     - tests/test_doctor_freshness.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py
     - tests/test_kitty_launcher_runtime.py
+    - tests/test_pre_push_gate.py
     - tests/test_start_ui_script.py
   ui:action-grammar:
     paths:
