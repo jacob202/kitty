@@ -3,7 +3,13 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from gateway.run_workspace import GitWorktreeManager, snapshot_existing_worktree
+from gateway.run_workspace import (
+    GitWorktreeManager,
+    WorktreeIdentity,
+    authenticate_existing_worktree,
+    snapshot_existing_worktree,
+    verify_worktree_identity,
+)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -99,3 +105,36 @@ def test_snapshot_fails_closed_when_git_times_out(tmp_path: Path, monkeypatch) -
         assert "timed out" in str(exc).lower()
     else:
         raise AssertionError("a timed-out git audit must fail closed")
+
+
+
+def test_persisted_worktree_identity_round_trips_and_verifies(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    base = _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, base_ref="HEAD", run_root=tmp_path / "runs")
+    worktree = manager.create("persisted-run")
+
+    identity = authenticate_existing_worktree(repo, worktree, base_commit=base)
+    restored = WorktreeIdentity.from_payload(identity.to_payload())
+
+    assert restored == identity
+    verify_worktree_identity(restored, repo=repo, worktree=worktree)
+
+
+def test_verify_worktree_identity_rejects_changed_live_registration(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    base = _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, base_ref="HEAD", run_root=tmp_path / "runs")
+    worktree = manager.create("identity-tamper")
+    identity = authenticate_existing_worktree(repo, worktree, base_commit=base)
+
+    (worktree / ".git").write_text("gitdir: /tmp/attacker-gitdir\n", encoding="utf-8")
+
+    from gateway.run_workspace import RunWorkspaceError
+
+    try:
+        verify_worktree_identity(identity, repo=repo, worktree=worktree)
+    except RunWorkspaceError as exc:
+        assert "identity" in str(exc).lower() or "git" in str(exc).lower()
+    else:
+        raise AssertionError("changed live worktree registration must fail closed")

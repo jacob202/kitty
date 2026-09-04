@@ -11,6 +11,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Mapping
 
 _SAFE_RUN_ID = re.compile(r"^[A-Za-z0-9._-]+$")
 _GIT_TIMEOUT_SECONDS = 20
@@ -26,6 +27,43 @@ class WorktreeIdentity:
     repo_common_dir: Path
     worktree_git_dir: Path
     base_commit: str
+
+    def to_payload(self) -> dict[str, str]:
+        return {
+            "repo_git_dir": str(self.repo_git_dir),
+            "repo_common_dir": str(self.repo_common_dir),
+            "worktree_git_dir": str(self.worktree_git_dir),
+            "base_commit": self.base_commit,
+        }
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "WorktreeIdentity":
+        expected = {
+            "repo_git_dir",
+            "repo_common_dir",
+            "worktree_git_dir",
+            "base_commit",
+        }
+        if set(payload) != expected:
+            raise RunWorkspaceError("persisted worktree identity has invalid fields")
+        paths: dict[str, Path] = {}
+        for key in ("repo_git_dir", "repo_common_dir", "worktree_git_dir"):
+            value = payload[key]
+            if not isinstance(value, str) or not value:
+                raise RunWorkspaceError(f"persisted worktree identity {key} is invalid")
+            path = Path(value)
+            if not path.is_absolute():
+                raise RunWorkspaceError(f"persisted worktree identity {key} is not absolute")
+            paths[key] = path
+        base_commit = payload["base_commit"]
+        if not isinstance(base_commit, str) or not base_commit:
+            raise RunWorkspaceError("persisted worktree identity base_commit is invalid")
+        return cls(
+            repo_git_dir=paths["repo_git_dir"],
+            repo_common_dir=paths["repo_common_dir"],
+            worktree_git_dir=paths["worktree_git_dir"],
+            base_commit=base_commit,
+        )
 
 
 @dataclass(frozen=True)
@@ -196,6 +234,53 @@ def _snapshot(
         insertions=insertions,
         deletions=deletions,
     )
+
+
+def authenticate_existing_worktree(
+    repo: Path, worktree: Path, *, base_commit: str
+) -> WorktreeIdentity:
+    """Capture creation-time Git identity for an existing linked worktree."""
+    repo = repo.resolve()
+    worktree = worktree.resolve()
+    repo_git_dir = _git_path_from_cwd(repo, "rev-parse", "--git-dir")
+    repo_common_dir = _git_path_from_cwd(repo, "rev-parse", "--git-common-dir")
+    worktree_git_dir = _git_path_from_cwd(worktree, "rev-parse", "--git-dir")
+    worktree_common_dir = _git_path_from_cwd(worktree, "rev-parse", "--git-common-dir")
+    if worktree_common_dir != repo_common_dir:
+        raise RunWorkspaceError(
+            "worktree common gitdir does not match controlling repository identity"
+        )
+    identity = WorktreeIdentity(
+        repo_git_dir=repo_git_dir,
+        repo_common_dir=repo_common_dir,
+        worktree_git_dir=worktree_git_dir,
+        base_commit=base_commit,
+    )
+    _verify_base(identity, worktree)
+    return identity
+
+
+def verify_worktree_identity(
+    identity: WorktreeIdentity, *, repo: Path, worktree: Path
+) -> None:
+    """Fail closed unless live Git discovery matches persisted identity exactly."""
+    repo = repo.resolve()
+    worktree = worktree.resolve()
+    live = {
+        "repo_git_dir": _git_path_from_cwd(repo, "rev-parse", "--git-dir"),
+        "repo_common_dir": _git_path_from_cwd(repo, "rev-parse", "--git-common-dir"),
+        "worktree_git_dir": _git_path_from_cwd(worktree, "rev-parse", "--git-dir"),
+        "worktree_common_dir": _git_path_from_cwd(worktree, "rev-parse", "--git-common-dir"),
+    }
+    if live["repo_git_dir"] != identity.repo_git_dir:
+        raise RunWorkspaceError("controlling repository gitdir identity changed")
+    if live["repo_common_dir"] != identity.repo_common_dir:
+        raise RunWorkspaceError("controlling repository common gitdir identity changed")
+    if live["worktree_git_dir"] != identity.worktree_git_dir:
+        raise RunWorkspaceError("worktree gitdir identity changed")
+    if live["worktree_common_dir"] != identity.repo_common_dir:
+        raise RunWorkspaceError("worktree common gitdir identity changed")
+    _verify_base(identity, worktree)
 
 
 def snapshot_existing_worktree(
