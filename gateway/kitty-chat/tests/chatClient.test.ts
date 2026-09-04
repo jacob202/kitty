@@ -143,7 +143,7 @@ describe('streamChat truthful failure recovery', () => {
         for await (const chunk of streamChat('kitty-default', messages)) out.push(chunk)
         return out
       })()
-    ).rejects.toMatchObject({ kind: 'routing', userMessage: expect.stringContaining('selected model provider') })
+    ).rejects.toMatchObject({ kind: 'routing', userMessage: expect.stringContaining('no model provider') })
   })
 
   it('maps a structured attachment 4xx to restage copy', async () => {
