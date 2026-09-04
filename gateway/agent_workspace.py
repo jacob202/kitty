@@ -287,11 +287,17 @@ def _with_receipt_state(row: Any) -> dict[str, Any]:
 
 
 def list_inbox(
-    participant_id: str, *, unread_only: bool = False, limit: int = 100
+    participant_id: str,
+    *,
+    unread_only: bool = False,
+    direct_only: bool = False,
+    limit: int = 100,
 ) -> list[dict[str, Any]]:
     participant_id = validate_global_participant(participant_id)
     if not isinstance(unread_only, bool):
         raise AgentWorkspaceError("unread_only must be a boolean")
+    if not isinstance(direct_only, bool):
+        raise AgentWorkspaceError("direct_only must be a boolean")
     if isinstance(limit, bool) or limit <= 0 or limit > 500:
         raise AgentWorkspaceError("limit must be between 1 and 500")
     ensure_global_workspace()
@@ -307,6 +313,7 @@ def list_inbox(
               AND m.sender_id <> ?
               AND m.created_at >= ?
               AND (m.recipient_id = ? OR m.recipient_id IS NULL)
+              AND (? = 0 OR m.recipient_id = ?)
               AND (? = 0 OR r.seen_at IS NULL)
             ORDER BY m.created_at DESC, m.id DESC
             LIMIT ?
@@ -316,6 +323,8 @@ def list_inbox(
                 GLOBAL_WORKSPACE_ID,
                 participant_id,
                 joined_at,
+                participant_id,
+                1 if direct_only else 0,
                 participant_id,
                 1 if unread_only else 0,
                 limit,

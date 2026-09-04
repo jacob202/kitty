@@ -11,7 +11,9 @@ handoffs, status, review requests, results, direct messages, and thread replies.
 Default to a direct message when one owner needs to act, and reply in the existing
 thread when continuing a question, review, or gotcha. Broadcast only when multiple
 participants genuinely need the same context. Broadcast status and result messages
-are shared context, not assignment inbox items.
+are shared context, not assignment inbox items. Acknowledge only messages whose
+contents were actually consumed; do not bulk-ACK a stale unread backlog. Presence is
+presence only and must never be treated as ownership.
 Use GitHub issue #490 (`[coordination] Kitty campaign live lanes`) for the
 authoritative interactive ownership/collision markers. The room does not replace
 Builder execution state, #490 ownership, or Git/GitHub publication evidence. Do

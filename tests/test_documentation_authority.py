@@ -248,5 +248,11 @@ def test_agent_room_doctrine_keeps_broadcast_feed_out_of_assignment_inbox() -> N
     assert "--unread --direct-only --json" in start_here
     assert "--unread --direct-only --json" in agents
     assert "--unread --direct-only --json" in next_skill
+    assert "room_inbox(unread_only=true, direct_only=true)" in start_here
+    assert "room_inbox(unread_only=true, direct_only=true)" in agents
+    assert "room_inbox(unread_only=true, direct_only=true)" in next_skill
     assert "broadcast status and result messages are shared context, not assignment inbox items" in coordination
     assert "reply in the existing thread" in coordination
+    assert "do not bulk-ack" in coordination
+    assert "presence is presence only" in coordination
+    assert "does not replace builder execution state" in coordination

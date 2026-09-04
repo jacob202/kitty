@@ -476,3 +476,31 @@ def test_dead_provider_chain_keeps_raw_diagnostics_in_the_event_log(workspace_db
     failed = [event for event in result["events"] if event["type"] == "agent_failed"][-1]
     assert failed["metadata"]["error_type"] == "ProviderChainExhausted"
     assert "openrouter: no api key configured" in failed["metadata"]["error_message"]
+
+
+def test_direct_assignment_inbox_excludes_routine_broadcasts_without_marking_receipts(workspace_db):
+    agent_workspace.ensure_global_workspace()
+    direct = agent_workspace.post_global_message(
+        sender_id="jacob",
+        recipient_id="codex",
+        content="Please review this handoff.",
+        message_kind="handoff",
+    )
+    broadcast = agent_workspace.post_global_message(
+        sender_id="chatgpt",
+        content="Routine shared status.",
+        message_kind="status",
+    )
+
+    assignments = agent_workspace.list_inbox(
+        "codex", unread_only=True, direct_only=True
+    )
+
+    assert [message["id"] for message in assignments] == [direct["id"]]
+    assert assignments[0]["receipt_state"] == "sent"
+    assert assignments[0]["seen_at"] is None
+    assert assignments[0]["acknowledged_at"] is None
+
+    shared_inbox = agent_workspace.list_inbox("codex", unread_only=True)
+    assert [message["id"] for message in shared_inbox] == [direct["id"], broadcast["id"]]
+    assert all(message["receipt_state"] == "sent" for message in shared_inbox)
