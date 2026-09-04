@@ -10,6 +10,7 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from gateway.chat_errors import (
@@ -18,6 +19,7 @@ from gateway.chat_errors import (
     ChatTurnError,
     sse_error_event,
 )
+from gateway.llm_client import ProviderChainExhausted
 
 # ── ChatTurnError + copy ──────────────────────────────────────────────────────
 
@@ -111,6 +113,7 @@ def test_stream_non_2xx_litellm_raises_routing_error():
         return_value={"error": {"message": "Provider returned an invalid balance bucket"}}
     )
     resp.content = error_body
+    resp.aread = AsyncMock(return_value=error_body)
     stream_cm = AsyncMock()
     stream_cm.__aenter__.return_value = resp
 
@@ -121,6 +124,7 @@ def test_stream_non_2xx_litellm_raises_routing_error():
         with (
             patch("gateway.llm_client.selected_provider_name", return_value=None),
             patch("gateway.http_client.get_http_client", new=AsyncMock(return_value=client)),
+            patch("gateway.llm_client.call_llm", side_effect=ProviderChainExhausted(["fallbacks exhausted"])),
         ):
             with pytest.raises(ChatTurnError) as excinfo:
                 await _collect(
@@ -136,6 +140,36 @@ def test_stream_non_2xx_litellm_raises_routing_error():
     assert err.message == FRIENDLY_MESSAGES[ChatErrorKind.ROUTING]
 
 
+def test_stream_non_2xx_litellm_falls_back_when_provider_is_auto():
+    from gateway.llm_client import iter_chat_completions_stream
+
+    request = httpx.Request("POST", "http://127.0.0.1:8001/v1/chat/completions")
+    resp = httpx.Response(403, request=request, content=b'{"error":{"message":"Key limit exceeded"}}')
+    stream_cm = AsyncMock()
+    stream_cm.__aenter__.return_value = resp
+    client = MagicMock()
+    client.stream = MagicMock(return_value=stream_cm)
+
+    async def run():
+        with (
+            patch("gateway.llm_client.selected_provider_name", return_value=None),
+            patch("gateway.http_client.get_http_client", new=AsyncMock(return_value=client)),
+            patch("gateway.llm_client.call_llm", return_value="fallback answered") as fallback,
+        ):
+            chunks = await _collect(
+                iter_chat_completions_stream(
+                    {"model": "kitty-default", "messages": [{"role": "user", "content": "hi"}]}
+                )
+            )
+        return chunks, fallback
+
+    chunks, fallback = asyncio.run(run())
+    assert fallback.call_count == 1
+    payload = json.loads(chunks[0].decode().removeprefix("data: ").strip())
+    assert payload["choices"][0]["delta"]["content"] == "fallback answered"
+    assert chunks[-1] == b"data: [DONE]\n\n"
+
+
 def test_stream_5xx_litellm_raises_upstream_error():
     from gateway.llm_client import iter_chat_completions_stream
 
@@ -143,6 +177,7 @@ def test_stream_5xx_litellm_raises_upstream_error():
     resp.status_code = 503
     resp.json = MagicMock(return_value={"error": {"message": "upstream unavailable"}})
     resp.content = b"{}"
+    resp.aread = AsyncMock(return_value=b"{}")
     stream_cm = AsyncMock()
     stream_cm.__aenter__.return_value = resp
 
@@ -153,6 +188,7 @@ def test_stream_5xx_litellm_raises_upstream_error():
         with (
             patch("gateway.llm_client.selected_provider_name", return_value=None),
             patch("gateway.http_client.get_http_client", new=AsyncMock(return_value=client)),
+            patch("gateway.llm_client.call_llm", side_effect=ProviderChainExhausted(["fallbacks exhausted"])),
         ):
             with pytest.raises(ChatTurnError) as excinfo:
                 await _collect(

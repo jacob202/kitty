@@ -2472,6 +2472,41 @@ export async function executeOperatorCommand(payload: OperatorCommandPayload): P
 // gateway/conversation_handoff.py) so a job proposed from a Kitty chat and one
 // proposed by an MCP client share one approval mechanism and one durable store.
 
+export interface BuilderCompileResult {
+  ok: boolean
+  error_code?: string | null
+  error?: string | null
+  task?: {
+    objective: string
+    instructions: string
+    allowed_paths: string[]
+    title?: string
+    initiative_id?: string
+    acceptance_criteria?: string[]
+    validation_commands?: string[]
+  }
+  route?: {
+    provider: string
+    model: string
+    route_model?: string
+    estimated_cost_cad: number | null
+  }
+}
+
+export async function compileBuilderProposal(
+  payload: { request: string },
+): Promise<BuilderCompileResult> {
+  return await gfetch<BuilderCompileResult>(
+    '/builder/conversation/compile',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    65_000,
+  )
+}
+
 export interface ConversationProposeRequest {
   objective: string
   instructions: string

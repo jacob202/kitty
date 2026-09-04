@@ -40,9 +40,13 @@ resources:
     - gateway/context_*.py
     - gateway/explicit_memory.py
     - gateway/memory*.py
+    - gateway/project_store.py
     - gateway/routes/agent_workspace.py
+    - gateway/routes/session_context.py
     - tests/test_agent_workspace.py
     - tests/test_check_continuity_state.py
+    - tests/test_project_store.py
+    - tests/test_session_context_route.py
   runtime:provenance:
     paths:
     - .claude/hooks/**
@@ -52,26 +56,35 @@ resources:
     - gateway/agent_coordination*.py
     - gateway/agent_room_cli.py
     - gateway/doctor.py
+    - gateway/llm_client.py
     - gateway/routes/runtime.py
     - gateway/runtime_manifest.py
     - kitty
     - scripts/desktop/start_ui.sh
     - scripts/hooks/**
     - tests/test_agent_coordination_acceptance.py
+    - tests/test_chat_errors.py
     - tests/test_doctor_freshness.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py
     - tests/test_kitty_launcher_runtime.py
+    - tests/test_llm_client.py
     - tests/test_pre_push_gate.py
     - tests/test_start_ui_script.py
   ui:action-grammar:
     paths:
+    - gateway/conversation_handoff.py
     - gateway/kitty-chat/src/components/WorkView.tsx
+    - gateway/kitty-chat/src/components/builder/BuilderProposalCard.tsx
     - gateway/kitty-chat/src/components/chat/ActionCard.tsx
     - gateway/kitty-chat/src/lib/actions-adapters.ts
     - gateway/kitty-chat/src/lib/actions-contract.ts
     - gateway/kitty-chat/src/lib/gateway.ts
     - gateway/kitty-chat/src/lib/queries.ts
     - gateway/kitty-chat/tests/ActionCard.test.tsx
+    - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx
     - gateway/kitty-chat/tests/actionsContract.test.ts
+    - gateway/routes/conversation_handoff.py
+    - tests/test_conversation_handoff.py
+    - tests/test_conversation_handoff_routes.py

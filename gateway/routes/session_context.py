@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -13,6 +14,15 @@ router = APIRouter(tags=["session"])
 
 HANDOFF_FILE = ROOT / ".claude" / "HANDOFF.md"
 STATE_FILE = ROOT / ".claude" / "STATE.md"
+
+
+def _using_explicit_isolated_data_root() -> bool:
+    raw = os.environ.get("KITTY_DATA_ROOT", "").strip()
+    if not raw:
+        return False
+    configured = Path(raw).expanduser().resolve()
+    canonical = (ROOT / "data").resolve()
+    return configured != canonical
 
 
 def _sections(path: Path) -> list[tuple[str, list[str]]]:
@@ -69,6 +79,13 @@ def _last_session_topic(state_sections: list[tuple[str, list[str]]]) -> str | No
 @router.get("/session/context")
 def get_session_context() -> dict[str, str | list[str] | None]:
     """Return the current handoff topic, active threads, and explicit next actions."""
+    if _using_explicit_isolated_data_root():
+        return {
+            "current_branch": None,
+            "last_session_topic": None,
+            "open_threads": [],
+            "next_actions": [],
+        }
     handoff_sections = _sections(HANDOFF_FILE)
     state_sections = _sections(STATE_FILE)
     open_threads = _bullets(handoff_sections, "Resume here")

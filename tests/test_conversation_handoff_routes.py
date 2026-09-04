@@ -127,3 +127,18 @@ def test_propose_route_rejects_empty_allowed_paths(client: TestClient) -> None:
         json={"objective": "x", "instructions": "y", "allowed_paths": []},
     )
     assert response.status_code == 422
+
+
+def test_compile_route_delegates_plain_language_request(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    received = {}
+
+    def fake_compile(request: str):
+        received["request"] = request
+        return {"ok": True, "task": {"objective": "Add proof", "instructions": "Add it", "allowed_paths": ["proof.txt"]}}
+
+    monkeypatch.setattr(conversation_handoff, "compile_request", fake_compile)
+    response = client.post("/builder/conversation/compile", json={"request": "Add proof.txt"})
+
+    assert response.status_code == 200
+    assert response.json()["task"]["allowed_paths"] == ["proof.txt"]
+    assert received == {"request": "Add proof.txt"}

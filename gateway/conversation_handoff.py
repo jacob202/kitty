@@ -20,10 +20,14 @@ remains the single authority.
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import UTC, datetime
 from typing import Any
 
+from gateway import llm_client
+from gateway.builder_scope import normalize_allowed_paths
+from gateway.prompts import BUILDER_PROPOSAL_PROMPT
 from mcp.builder import commands as _commands
 from mcp.builder import context as _context
 from mcp.builder import repo_tools
@@ -34,6 +38,103 @@ _DEFAULT_PACKET_ID = "packet-1"
 _DEFAULT_ACCEPTANCE_CRITERIA = (
     "Implementation matches the approved objective and instructions.",
 )
+
+_PROPOSAL_MODEL = "kitty-small"
+_PROPOSAL_SYSTEM_PROMPT = BUILDER_PROPOSAL_PROMPT + """
+
+Compiler endpoint rules:
+- Return ONLY the JSON object described above, without the offer sentence or markdown fence.
+- Do not execute anything or claim work is queued, running, or complete.
+- Keep allowed_paths as narrow repo-relative paths; unsafe scope is rejected server-side.
+"""
+
+
+def _proposal_json(text: str) -> dict[str, Any]:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        first_newline = stripped.find("\n")
+        last_fence = stripped.rfind("```")
+        if first_newline >= 0 and last_fence > first_newline:
+            stripped = stripped[first_newline + 1:last_fence].strip()
+    if not stripped.startswith("{"):
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start >= 0 and end > start:
+            stripped = stripped[start:end + 1]
+    payload = json.loads(stripped)
+    if not isinstance(payload, dict):
+        raise ValueError("proposal compiler did not return a JSON object")
+    return payload
+
+
+def compile_request(request: str) -> dict[str, Any]:
+    """Compile plain language into a bounded Builder task without chat context.
+
+    This intentionally bypasses the personal chat context assembler. It uses the
+    existing LLM provider hub only for task shaping; no planning artifact, queue
+    row, approval, or worker is created here.
+    """
+    if not isinstance(request, str) or not request.strip():
+        return {
+            "ok": False,
+            "error_code": "request_required",
+            "error": "Describe the result you want Builder to produce.",
+        }
+
+    messages = [
+        {"role": "system", "content": _PROPOSAL_SYSTEM_PROMPT},
+        {"role": "user", "content": request.strip()},
+    ]
+    try:
+        text = llm_client.call_llm(
+            messages,
+            model=_PROPOSAL_MODEL,
+            max_tokens=900,
+            temperature=0,
+            timeout=60,
+            operation="builder.proposal.compile",
+            metadata={"route": "builder_proposal_compile"},
+        )
+        raw = _proposal_json(text)
+    except Exception:
+        return {
+            "ok": False,
+            "error_code": "proposal_compile_failed",
+            "error": "Kitty could not prepare the proposal with the current model route. Check model/provider availability in Settings, then try again.",
+        }
+
+    objective = raw.get("objective")
+    if not isinstance(objective, str) or not objective.strip():
+        return {"ok": False, "error_code": "proposal_invalid", "error": "Kitty could not produce a usable objective. Make the requested outcome more concrete, then try again."}
+    try:
+        allowed_paths = normalize_allowed_paths(raw.get("allowed_paths"))
+    except ValueError:
+        return {
+            "ok": False,
+            "error_code": "proposal_scope_invalid",
+            "error": "Kitty could not determine a safe file scope. Narrow the request to one concrete file or area, then try again.",
+        }
+
+    task: dict[str, Any] = {
+        "objective": objective.strip(),
+        "instructions": request.strip(),
+        "allowed_paths": allowed_paths,
+    }
+    for key in ("title", "initiative_id"):
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            task[key] = value.strip()
+    for key in ("acceptance_criteria", "validation_commands"):
+        value = raw.get(key)
+        if value is not None:
+            if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
+                return {"ok": False, "error_code": "proposal_invalid", "error": f"Compiled proposal has invalid {key}."}
+            task[key] = [item.strip() for item in value]
+
+    return {
+        "ok": True,
+        "task": task,
+    }
 
 
 def _slugify(text: str, *, max_len: int = 40) -> str:

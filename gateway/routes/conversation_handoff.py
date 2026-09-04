@@ -19,6 +19,10 @@ logger = logging.getLogger("kitty.conversation_handoff_routes")
 router = APIRouter(tags=["conversation-handoff"])
 
 
+class CompileRequest(BaseModel):
+    request: str = Field(min_length=1, max_length=8000)
+
+
 class ProposeRequest(BaseModel):
     objective: str = Field(min_length=1, max_length=2000)
     instructions: str = Field(min_length=1, max_length=8000)
@@ -35,6 +39,20 @@ class ApproveRequest(BaseModel):
     expected_base_sha: str
     approval_nonce: str
     confirmed: bool = False
+
+
+@router.post("/builder/conversation/compile")
+def compile_builder_request(body: CompileRequest) -> dict:
+    """Shape plain language into one bounded Builder task. No Builder mutation."""
+    try:
+        return conversation_handoff.compile_request(body.request)
+    except Exception:
+        logger.exception("conversation compile failed")
+        return {
+            "ok": False,
+            "operation": "conversation_compile",
+            "error": "Kitty could not prepare the proposal. Check model/provider availability in Settings, then try again.",
+        }
 
 
 @router.post("/builder/conversation/propose")

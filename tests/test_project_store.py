@@ -7,6 +7,7 @@ from gateway import project_store
 @pytest.fixture(autouse=True)
 def isolate_project_store(monkeypatch, tmp_path):
     """Keep project tests away from live user data."""
+    monkeypatch.delenv("KITTY_DATA_ROOT", raising=False)
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
 
@@ -25,6 +26,14 @@ def test_init_seeds_benefits_admin_project():
     assert "benefits-admin" in projects
     assert projects["benefits-admin"]["kind"] == "admin"
     assert projects["benefits-admin"]["status"] == "active"
+
+
+def test_explicit_isolated_data_root_starts_without_personal_seed_projects(monkeypatch, tmp_path):
+    monkeypatch.setenv("KITTY_DATA_ROOT", str(tmp_path / "acceptance-data"))
+
+    project_store.init_db()
+
+    assert project_store.list_projects() == []
 
 
 def test_seed_is_idempotent_across_repeated_init():

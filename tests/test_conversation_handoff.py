@@ -278,3 +278,67 @@ def test_paid_execution_remains_behind_existing_authorization_boundary() -> None
 
     assert result["ok"] is False
     assert result["error_code"] == "spend_not_authorized"
+
+
+def test_compile_request_uses_lightweight_builder_only_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gateway import llm_client
+
+    seen = {}
+
+    def fake_call(messages, **kwargs):
+        seen["messages"] = messages
+        seen["kwargs"] = kwargs
+        return '{"objective":"Add the proof file","instructions":"Create rc0-builder-proof.txt with exactly rc0 builder proof.","allowed_paths":["rc0-builder-proof.txt"],"acceptance_criteria":["The file contains exactly rc0 builder proof."]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+
+    request = 'Add a text file named rc0-builder-proof.txt containing exactly "rc0 builder proof".'
+    result = conversation_handoff.compile_request(request)
+
+    assert result["ok"] is True
+    assert result["task"]["objective"] == "Add the proof file"
+    assert result["task"]["instructions"] == request
+    assert result["task"]["allowed_paths"] == ["rc0-builder-proof.txt"]
+    assert "route" not in result
+    assert seen["kwargs"]["model"] == "kitty-small"
+    assert seen["kwargs"]["temperature"] == 0
+    combined = "\n".join(str(message.get("content", "")) for message in seen["messages"])
+    from gateway.prompts import BUILDER_PROPOSAL_PROMPT
+    assert BUILDER_PROPOSAL_PROMPT in combined
+    assert len(combined) < 5000
+    assert "personal memory" not in combined.lower()
+    assert "morning brief" not in combined.lower()
+
+
+def test_compile_request_rejects_unbounded_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gateway import llm_client
+
+    monkeypatch.setattr(
+        llm_client,
+        "call_llm",
+        lambda *args, **kwargs: '{"objective":"Change everything","instructions":"Edit the repository.","allowed_paths":["."]}',
+    )
+    result = conversation_handoff.compile_request("Fix everything in the repository")
+
+    assert result["ok"] is False
+    assert result["error_code"] == "proposal_scope_invalid"
+    assert "repository" not in result["error"].lower()
+    assert "narrow" in result["error"].lower()
+
+
+def test_compile_request_translates_provider_failure_without_internal_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gateway import llm_client
+
+    def fail(*args, **kwargs):
+        raise llm_client.ProviderChainExhausted(["openrouter: 401 sk-secret-token", "local: connection refused 127.0.0.1:8010"])
+
+    monkeypatch.setattr(llm_client, "call_llm", fail)
+
+    result = conversation_handoff.compile_request("Change gateway/example.py so the example returns true.")
+
+    assert result["ok"] is False
+    assert result["error_code"] == "proposal_compile_failed"
+    assert "openrouter" not in result["error"].lower()
+    assert "127.0.0.1" not in result["error"]
+    assert "sk-secret-token" not in result["error"]
+    assert "settings" in result["error"].lower()

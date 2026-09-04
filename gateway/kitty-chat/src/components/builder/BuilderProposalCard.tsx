@@ -65,6 +65,8 @@ export function BuilderProposalCard({ task, chatId, messageIndex, onOpenWork }: 
   const storageKey = `kitty.builder-proposal.${chatId}.${messageIndex}`
   const propose = useProposeBuilderJob()
   const approve = useApproveBuilderJob()
+  const [draft, setDraft] = useState<BuilderProposalTask>(task)
+  const [editing, setEditing] = useState(false)
   const [proposal, setProposal] = useState<ConversationProposal | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [resumedMissionId, setResumedMissionId] = useState<string | null>(null)
@@ -75,10 +77,10 @@ export function BuilderProposalCard({ task, chatId, messageIndex, onOpenWork }: 
   }, [storageKey])
 
   if (resumedMissionId) {
-    return <ResumedBuilderJob task={task} resume={resume} onOpenWork={onOpenWork} />
+    return <ResumedBuilderJob task={draft} resume={resume} onOpenWork={onOpenWork} />
   }
 
-  if (!task.objective || !task.instructions || !task.allowed_paths?.length) {
+  if (!draft.objective || !draft.instructions || !draft.allowed_paths?.length) {
     return (
       <div style={cardStyle}>
         <span style={errorText}>
@@ -92,13 +94,13 @@ export function BuilderProposalCard({ task, chatId, messageIndex, onOpenWork }: 
     setProposal(null)
     propose.mutate(
       {
-        objective: task.objective,
-        instructions: task.instructions,
-        allowed_paths: task.allowed_paths,
-        title: task.title,
-        initiative_id: task.initiative_id,
-        acceptance_criteria: task.acceptance_criteria,
-        validation_commands: task.validation_commands,
+        objective: draft.objective,
+        instructions: draft.instructions,
+        allowed_paths: draft.allowed_paths,
+        title: draft.title,
+        initiative_id: draft.initiative_id,
+        acceptance_criteria: draft.acceptance_criteria,
+        validation_commands: draft.validation_commands,
       },
       { onSuccess: (data) => setProposal(data) },
     )
@@ -132,17 +134,70 @@ export function BuilderProposalCard({ task, chatId, messageIndex, onOpenWork }: 
     <div style={cardStyle}>
       <div style={headerRow}>
         <span style={badgeStyle}>BUILDER PROPOSAL</span>
-        <span style={titleStyle}>{task.title || task.objective}</span>
+        <span style={titleStyle}>{draft.title || draft.objective}</span>
       </div>
 
-      <p style={fieldStyle}><strong>Objective:</strong> {task.objective}</p>
-      <p style={fieldStyle}><strong>Instructions:</strong> {task.instructions}</p>
-      <p style={fieldStyle}><strong>Allowed paths:</strong> {task.allowed_paths.join(', ')}</p>
+      {editing ? (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={editLabelStyle}>
+            Objective
+            <input
+              aria-label="Proposal objective"
+              value={draft.objective}
+              onChange={(event) => setDraft(current => ({ ...current, objective: event.target.value }))}
+              style={editInputStyle}
+            />
+          </label>
+          <label style={editLabelStyle}>
+            Instructions
+            <textarea
+              aria-label="Proposal instructions"
+              value={draft.instructions}
+              onChange={(event) => setDraft(current => ({ ...current, instructions: event.target.value }))}
+              rows={4}
+              style={editInputStyle}
+            />
+          </label>
+          <label style={editLabelStyle}>
+            Allowed paths — one per line
+            <textarea
+              aria-label="Proposal allowed paths"
+              value={draft.allowed_paths.join('\n')}
+              onChange={(event) => setDraft(current => ({
+                ...current,
+                allowed_paths: event.target.value.split(/\r?\n/).map(path => path.trim()).filter(Boolean),
+              }))}
+              rows={3}
+              style={editInputStyle}
+            />
+          </label>
+          <button
+            type="button"
+            aria-label="Save proposal changes"
+            onClick={() => setEditing(false)}
+            disabled={!draft.objective.trim() || !draft.instructions.trim() || draft.allowed_paths.length === 0}
+            style={btnBase}
+          >
+            Save changes
+          </button>
+        </div>
+      ) : (
+        <>
+          <p style={fieldStyle}><strong>Objective:</strong> {draft.objective}</p>
+          <p style={fieldStyle}><strong>Instructions:</strong> {draft.instructions}</p>
+          <p style={fieldStyle}><strong>Allowed paths:</strong> {draft.allowed_paths.join(', ')}</p>
+        </>
+      )}
 
-      {!proposal && (
-        <button type="button" onClick={doPropose} disabled={propose.isPending} style={btnPrimary}>
-          {propose.isPending ? 'Compiling…' : 'Compile as Builder Mission'}
-        </button>
+      {!proposal && !editing && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" onClick={doPropose} disabled={propose.isPending} style={btnPrimary}>
+            {propose.isPending ? 'Compiling…' : 'Compile as Builder Mission'}
+          </button>
+          <button type="button" aria-label="Edit proposal" onClick={() => setEditing(true)} style={btnBase}>
+            Edit proposal
+          </button>
+        </div>
       )}
 
       {propose.isError && (
@@ -178,7 +233,7 @@ export function BuilderProposalCard({ task, chatId, messageIndex, onOpenWork }: 
             </button>
           ) : (
             <div style={confirmRow}>
-              <span style={{ flex: 1 }}>Create this Builder job? Nothing runs until Builder&apos;s own free worker picks it up.</span>
+              <span style={{ flex: 1 }}>Create this Builder job? Builder will choose the execution route under current policy; any spend remains subject to Builder&apos;s authorization gates.</span>
               <button type="button" onClick={doApprove} disabled={approve.isPending} style={btnConfirm}>
                 {approve.isPending ? '…' : 'Confirm'}
               </button>
@@ -316,6 +371,19 @@ const badgeStyle: CSSProperties = {
 const titleStyle: CSSProperties = { fontWeight: 600 }
 
 const fieldStyle: CSSProperties = { margin: 0, lineHeight: 1.5 }
+
+const editLabelStyle: CSSProperties = { display: 'grid', gap: 4, fontSize: 11, color: 'var(--ink-2)' }
+const editInputStyle: CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  border: '1px solid var(--line)',
+  borderRadius: 6,
+  background: 'var(--surface-1)',
+  color: 'var(--ink)',
+  padding: '7px 8px',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+}
 
 const ulStyle: CSSProperties = { margin: '2px 0', paddingLeft: 18 }
 

@@ -391,25 +391,44 @@ def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
         "coordination/resources.yaml",
         "kitty",
         "gateway/doctor.py",
+        "gateway/llm_client.py",
         "scripts/desktop/start_ui.sh",
         "scripts/hooks/pre-push",
         "tests/test_agent_coordination_acceptance.py",
+        "tests/test_chat_errors.py",
         "tests/test_doctor_freshness.py",
         "tests/test_kitty_launcher_runtime.py",
+        "tests/test_llm_client.py",
         "tests/test_pre_push_gate.py",
         "tests/test_start_ui_script.py",
     ]
+    memory_paths = [
+        "gateway/project_store.py",
+        "gateway/routes/session_context.py",
+        "tests/test_project_store.py",
+        "tests/test_session_context_route.py",
+    ]
     action_paths = [
+        "gateway/conversation_handoff.py",
+        "gateway/routes/conversation_handoff.py",
+        "tests/test_conversation_handoff.py",
+        "tests/test_conversation_handoff_routes.py",
         "gateway/kitty-chat/src/components/WorkView.tsx",
+        "gateway/kitty-chat/src/components/builder/BuilderProposalCard.tsx",
         "gateway/kitty-chat/src/lib/gateway.ts",
         "gateway/kitty-chat/src/lib/queries.ts",
         "gateway/kitty-chat/src/lib/actions-contract.ts",
         "gateway/kitty-chat/src/lib/actions-adapters.ts",
         "gateway/kitty-chat/tests/actionsContract.test.ts",
+        "gateway/kitty-chat/tests/BuilderProposalCard.test.tsx",
         "gateway/kitty-chat/tests/WorkViewCockpit.test.tsx",
     ]
     for path in runtime_paths:
         assert "runtime:provenance" in agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ), path
+    for path in memory_paths:
+        assert "memory:continuity" in agent_coordination.resolve_paths_to_resources(
             [path], registry_path=TRACKED_REGISTRY
         ), path
     for path in action_paths:

@@ -472,6 +472,50 @@ def test_call_provider_exception_returns_empty():
     assert result == ""
 
 
+def test_call_provider_ollama_native_disables_thinking():
+    """An Ollama-native local endpoint uses deterministic non-thinking chat."""
+    from gateway.llm_client import ProviderConfig, _call_provider
+
+    provider = ProviderConfig(
+        name="local",
+        route="local_ollama",
+        base_url="http://127.0.0.1:11434/api",
+        model_default="qwen3.5:4b",
+        requires_key=False,
+        kind="local",
+        free_tier=True,
+    )
+    mock_resp = MagicMock()
+    mock_resp.is_success = True
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "model": "qwen3.5:4b",
+        "message": {"role": "assistant", "content": '{"ok":true}'},
+        "prompt_eval_count": 10,
+        "eval_count": 5,
+    }
+
+    with (
+        patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client._post", return_value=mock_resp) as mock_post,
+        patch("gateway.llm_client.log_llm_usage"),
+    ):
+        result = _call_provider(
+            provider,
+            messages=[{"role": "user", "content": "compile"}],
+            max_tokens=300,
+            temperature=0,
+            timeout=45,
+        )
+
+    assert result == '{"ok":true}'
+    call = mock_post.call_args
+    assert call.args[0] == "http://127.0.0.1:11434/api/chat"
+    assert call.kwargs["json"]["think"] is False
+    assert call.kwargs["json"]["stream"] is False
+    assert call.kwargs["json"]["options"] == {"temperature": 0, "num_predict": 300}
+
+
 def test_call_provider_success_path_with_response_format():
     """Successful _call_provider returns extracted text and includes response_format."""
     from gateway.llm_client import PROVIDERS, _call_provider

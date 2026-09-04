@@ -3,7 +3,7 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { BuilderProposalCard, type BuilderProposalTask } from '@/components/builder/BuilderProposalCard'
-import { friendlyChatError, streamChat } from '@/lib/chat-client'
+import { useCompileBuilderProposal } from '@/lib/queries'
 import {
   useBuilderAction,
   usePreflight,
@@ -128,9 +128,9 @@ function WorkBuilderRequest() {
   const [request, setRequest] = useState('')
   const [proposal, setProposal] = useState<BuilderProposalTask | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [route, setRoute] = useState<{ provider?: string; requestedModel?: string } | null>(null)
   const [preparing, setPreparing] = useState(false)
   const [proposalKey, setProposalKey] = useState(0)
+  const compileProposal = useCompileBuilderProposal()
 
   const prepare = async () => {
     const trimmed = request.trim()
@@ -138,27 +138,21 @@ function WorkBuilderRequest() {
     setPreparing(true)
     setError(null)
     setProposal(null)
-    setRoute(null)
-    let reply = ''
     try {
-      for await (const chunk of streamChat('kitty-default', [{ role: 'user', content: trimmed, id: `work-builder-${Date.now()}`, timestamp: new Date() }])) {
-        reply += chunk.content
-        if (chunk.provider || chunk.requestedModel) {
-          setRoute(current => ({
-            provider: chunk.provider ?? current?.provider,
-            requestedModel: chunk.requestedModel ?? current?.requestedModel,
-          }))
-        }
-      }
-      const parsed = parseBuilderProposal(reply)
-      if (!parsed) {
-        setError('Kitty could not turn that request into a bounded Builder proposal. Add one concrete outcome or affected area, then try again.')
+      const result = await compileProposal.mutateAsync({ request: trimmed })
+      if (!result.ok || !result.task) {
+        setError(result.error || 'Kitty could not turn that request into a bounded Builder proposal. Add one concrete outcome or affected area, then try again.')
         return
       }
       setProposalKey(value => value + 1)
-      setProposal(parsed)
+      setProposal(result.task)
     } catch (err) {
-      setError(friendlyChatError(err).userMessage)
+      const message = err instanceof Error ? err.message : ''
+      setError(
+        !message || /failed to fetch|networkerror|load failed/i.test(message)
+          ? 'Could not reach the Kitty gateway — check that it is running, then try again.'
+          : 'Kitty could not prepare the proposal with the current model route. Check model/provider availability in Settings, then try again.',
+      )
     } finally {
       setPreparing(false)
     }
@@ -188,11 +182,9 @@ function WorkBuilderRequest() {
         >
           {preparing ? 'Preparing…' : error ? 'Try again' : 'Prepare proposal'}
         </button>
-        {route && (
-          <span style={metaStyle}>
-            {[route.provider, route.requestedModel].filter(Boolean).join(' · ')}
-          </span>
-        )}
+        <span style={metaStyle}>
+          Proposal preparation uses Kitty's current model routing; execution route and spend are shown by Builder before execution.
+        </span>
       </div>
       {error && <div role="alert" style={preflightErrorStyle}>{error}</div>}
       {proposal && (
@@ -205,19 +197,6 @@ function WorkBuilderRequest() {
       )}
     </section>
   )
-}
-
-export function parseBuilderProposal(content: string): BuilderProposalTask | null {
-  const match = content.match(/```kitty-builder-proposal\s*([\s\S]*?)```/i)
-  if (!match) return null
-  try {
-    const parsed = JSON.parse(match[1].trim()) as Partial<BuilderProposalTask>
-    if (!parsed.objective?.trim() || !parsed.instructions?.trim() || !Array.isArray(parsed.allowed_paths) || parsed.allowed_paths.length === 0) return null
-    if (parsed.allowed_paths.some(path => typeof path !== 'string' || !path.trim())) return null
-    return parsed as BuilderProposalTask
-  } catch {
-    return null
-  }
 }
 
 function WorkGroupSection({ group, items, builderRunning, schedulerEnabled }: { group: WorkGroup; items: GatewayWorkItem[]; builderRunning: boolean; schedulerEnabled: boolean | null }) {
