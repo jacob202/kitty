@@ -91,6 +91,7 @@ resources:
     - gateway/kitty-chat/src/lib/work.ts
     - gateway/kitty-chat/tests/ActionCard.test.tsx
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
+    - gateway/kitty-chat/tests/WorkViewActions.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx
     - gateway/kitty-chat/tests/WorkViewProjection.test.tsx
     - gateway/kitty-chat/tests/actionsContract.test.ts

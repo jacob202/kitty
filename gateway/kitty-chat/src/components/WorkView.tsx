@@ -404,7 +404,7 @@ export function rowAction(item: GatewayWorkItem, builderRunning: boolean, schedu
 }
 
 const START_BUILDER_CONFIRM =
-  'Run ready work now? This starts one global Builder pass and may start up to two free Builder runs.'
+  'Run ready work now? This starts one global Builder pass and may start up to two Builder runs. Execution routes and any spend remain subject to current Builder routing and spend policy.'
 
 function canCancel(item: GatewayWorkItem): boolean {
   const terminal = item.next_action === 'cancelled' || item.next_action === 'done' || item.state === 'completed'

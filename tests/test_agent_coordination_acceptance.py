@@ -421,6 +421,7 @@ def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
         "gateway/kitty-chat/src/lib/actions-adapters.ts",
         "gateway/kitty-chat/tests/actionsContract.test.ts",
         "gateway/kitty-chat/tests/BuilderProposalCard.test.tsx",
+        "gateway/kitty-chat/tests/WorkViewActions.test.tsx",
         "gateway/kitty-chat/tests/WorkViewCockpit.test.tsx",
     ]
     for path in runtime_paths:
