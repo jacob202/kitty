@@ -191,6 +191,23 @@ def test_write_planning_artifact_inherits_caller_session_into_temp_worktree(
     assert len(result["commit_sha"]) == 40
 
 
+def test_write_planning_artifact_accepts_explicit_session_for_temp_worktree(
+    repo: Path,
+) -> None:
+    _install_session_gated_hook(repo)
+    base = _git(repo, "rev-parse", "HEAD")
+
+    result = repo_tools.write_planning_artifact(
+        kind="design",
+        slug="explicit-session-proof",
+        markdown="# Design\n\nExplicit session.\n",
+        expected_base_sha=base,
+        agent_session_id="kitty-builder-planning-test",
+    )
+
+    assert len(result["commit_sha"]) == 40
+
+
 def test_write_planning_artifact_still_fails_closed_without_a_session(
     repo: Path,
 ) -> None:

@@ -75,6 +75,41 @@ def _initiative_rows(db_path: Path) -> list[dict]:
     return bi.list_initiatives(db_path=db_path)
 
 
+def test_planning_artifact_claim_is_exact_and_released(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry = repo / "coordination" / "resources.yaml"
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text("resources:\n  docs:roadmap:\n    paths:\n      - docs/**\n", encoding="utf-8")
+    base = _git(repo, "rev-parse", "HEAD")
+    acquired: list[dict] = []
+    released: list[str] = []
+
+    def fake_acquire(**kwargs):
+        acquired.append(kwargs)
+        return {"status": "ACQUIRED", "claim": {"session_id": kwargs["session_id"]}}
+
+    monkeypatch.setattr(conversation_handoff.agent_coordination, "acquire", fake_acquire)
+    monkeypatch.setattr(
+        conversation_handoff.agent_coordination,
+        "release",
+        lambda session_id, **kwargs: released.append(session_id) or {"released": 1},
+    )
+
+    with conversation_handoff._planning_artifact_claim(
+        slug="claim-proof", base_sha=base, task_id="conv-claim-proof"
+    ) as session_id:
+        assert session_id.startswith("kitty-builder-planning-")
+
+    assert len(acquired) == 1
+    assert acquired[0]["resource_id"] == "docs:roadmap"
+    assert acquired[0]["paths"] == [
+        conversation_handoff.repo_tools.planning_artifact_path("design", "claim-proof"),
+        conversation_handoff.repo_tools.planning_artifact_path("plan", "claim-proof"),
+    ]
+    assert released == [acquired[0]["session_id"]]
+
+
 def test_propose_without_approval_does_not_create_builder_job(repo: Path) -> None:
     result = conversation_handoff.propose(**_task())
 

@@ -22,10 +22,12 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Iterator
 
-from gateway import llm_client
+from gateway import agent_coordination, llm_client
 from gateway.builder_scope import normalize_allowed_paths
 from gateway.prompts import BUILDER_PROPOSAL_PROMPT
 from mcp.builder import commands as _commands
@@ -220,6 +222,64 @@ def _plan_markdown(manifest: dict[str, Any], *, instructions: str) -> str:
     )
 
 
+@contextmanager
+def _planning_artifact_claim(
+    *,
+    slug: str,
+    base_sha: str,
+    task_id: str,
+) -> Iterator[str | None]:
+    """Own Builder's internal planning writes without widening user code scope."""
+    root = repo_tools.repo_root()
+    registry_path = root / "coordination" / "resources.yaml"
+    if not registry_path.exists():
+        # Minimal test repos and legacy deployments without KX do not need a
+        # synthetic claim. Their own Git hooks remain authoritative.
+        yield None
+        return
+
+    paths = [
+        repo_tools.planning_artifact_path("design", slug),
+        repo_tools.planning_artifact_path("plan", slug),
+    ]
+    resources = agent_coordination.resolve_paths_to_resources(
+        paths, registry_path=registry_path
+    )
+    if len(resources) != 1:
+        raise repo_tools.PlanningArtifactError(
+            "planning artifacts must resolve to exactly one coordination resource"
+        )
+
+    session_id = f"kitty-builder-planning-{uuid.uuid4().hex}"
+    db_path = agent_coordination.canonical_repo_root(root) / agent_coordination.DB_FILENAME
+    acquired = agent_coordination.acquire(
+        session_id=session_id,
+        participant="KittyBuilder",
+        role="OWN",
+        resource_id=resources[0],
+        lane="conversation-planning",
+        task_id=task_id,
+        branch=None,
+        worktree=str(root),
+        base_sha=base_sha,
+        paths=paths,
+        lease_seconds=5 * 60,
+        db_path=db_path,
+        registry_path=registry_path,
+    )
+    if acquired.get("status") != "ACQUIRED":
+        holder = acquired.get("holder") or {}
+        detail = holder.get("session_id") or "another active owner"
+        raise repo_tools.PlanningArtifactError(
+            f"planning artifacts are locked by {detail}"
+        )
+
+    try:
+        yield session_id
+    finally:
+        agent_coordination.release(session_id, db_path=db_path)
+
+
 def propose(
     *,
     objective: str,
@@ -274,23 +334,28 @@ def propose(
 
     slug = _slugify(manifest["initiative_id"])
     try:
-        design = repo_tools.write_planning_artifact(
-            kind="design",
-            slug=slug,
-            markdown=_design_markdown(manifest, objective=objective, instructions=instructions),
-            expected_base_sha=base_sha,
-        )
-        plan = repo_tools.write_planning_artifact(
-            kind="plan",
-            slug=slug,
-            markdown=_plan_markdown(manifest, instructions=instructions),
-            # A plan branches from the design commit itself, per
-            # docs/KITTYBUILDER_MCP.md ("expected_base_sha is the commit the
-            # plan branch starts from; in the normal workflow it is the
-            # design commit itself").
-            expected_base_sha=design["commit_sha"],
-            expected_dependency_sha=design["commit_sha"],
-        )
+        with _planning_artifact_claim(
+            slug=slug, base_sha=base_sha, task_id=manifest["initiative_id"]
+        ) as planning_session_id:
+            design = repo_tools.write_planning_artifact(
+                kind="design",
+                slug=slug,
+                markdown=_design_markdown(manifest, objective=objective, instructions=instructions),
+                expected_base_sha=base_sha,
+                agent_session_id=planning_session_id,
+            )
+            plan = repo_tools.write_planning_artifact(
+                kind="plan",
+                slug=slug,
+                markdown=_plan_markdown(manifest, instructions=instructions),
+                # A plan branches from the design commit itself, per
+                # docs/KITTYBUILDER_MCP.md ("expected_base_sha is the commit the
+                # plan branch starts from; in the normal workflow it is the
+                # design commit itself").
+                expected_base_sha=design["commit_sha"],
+                expected_dependency_sha=design["commit_sha"],
+                agent_session_id=planning_session_id,
+            )
     except Exception as exc:
         return receipt(
             "conversation_propose",
