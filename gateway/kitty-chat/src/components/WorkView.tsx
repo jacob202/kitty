@@ -2,6 +2,8 @@
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { BuilderProposalCard, type BuilderProposalTask } from '@/components/builder/BuilderProposalCard'
+import { friendlyChatError, streamChat } from '@/lib/chat-client'
 import {
   useBuilderAction,
   usePreflight,
@@ -70,6 +72,7 @@ export default function WorkView({
             </div>
           </div>
           {sourceReason && <DegradedSourceNotice reason={sourceReason} />}
+          <WorkBuilderRequest />
           {supervisor.data
             ? <BuilderRunBanner supervisor={supervisor.data} supervisorKnown={supervisorKnown} />
             : <BuilderRunBanner supervisor={{ schema_version: 1, running: false, active_runs: [], eligible_now: 0, on_hold: 0, last_tick_at: null, lock_path: null, scheduler_enabled: null }} supervisorKnown={false} />
@@ -119,6 +122,102 @@ export default function WorkView({
       </div>
     </div>
   )
+}
+
+function WorkBuilderRequest() {
+  const [request, setRequest] = useState('')
+  const [proposal, setProposal] = useState<BuilderProposalTask | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [route, setRoute] = useState<{ provider?: string; requestedModel?: string } | null>(null)
+  const [preparing, setPreparing] = useState(false)
+  const [proposalKey, setProposalKey] = useState(0)
+
+  const prepare = async () => {
+    const trimmed = request.trim()
+    if (!trimmed || preparing) return
+    setPreparing(true)
+    setError(null)
+    setProposal(null)
+    setRoute(null)
+    let reply = ''
+    try {
+      for await (const chunk of streamChat('kitty-default', [{ role: 'user', content: trimmed, id: `work-builder-${Date.now()}`, timestamp: new Date() }])) {
+        reply += chunk.content
+        if (chunk.provider || chunk.requestedModel) {
+          setRoute(current => ({
+            provider: chunk.provider ?? current?.provider,
+            requestedModel: chunk.requestedModel ?? current?.requestedModel,
+          }))
+        }
+      }
+      const parsed = parseBuilderProposal(reply)
+      if (!parsed) {
+        setError('Kitty could not turn that request into a bounded Builder proposal. Add one concrete outcome or affected area, then try again.')
+        return
+      }
+      setProposalKey(value => value + 1)
+      setProposal(parsed)
+    } catch (err) {
+      setError(friendlyChatError(err).userMessage)
+    } finally {
+      setPreparing(false)
+    }
+  }
+
+  return (
+    <section aria-label="Ask Builder" style={builderRequestStyle}>
+      <div style={{ display: 'grid', gap: 4 }}>
+        <strong style={{ color: 'var(--color-text-primary)' }}>Ask Builder</strong>
+        <span style={actionNoteStyle}>Describe the result you want. Kitty will prepare a bounded proposal before anything is created or run.</span>
+      </div>
+      <textarea
+        aria-label="Ask Builder for work"
+        value={request}
+        onChange={event => setRequest(event.target.value)}
+        placeholder="What should Builder change or fix?"
+        rows={3}
+        style={builderRequestInputStyle}
+      />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => void prepare()}
+          disabled={preparing || !request.trim()}
+          style={{ ...primaryActionStyle, opacity: preparing || !request.trim() ? 0.55 : 1 }}
+          aria-label={error ? 'Try preparing again' : 'Prepare Builder proposal'}
+        >
+          {preparing ? 'Preparing…' : error ? 'Try again' : 'Prepare proposal'}
+        </button>
+        {route && (
+          <span style={metaStyle}>
+            {[route.provider, route.requestedModel].filter(Boolean).join(' · ')}
+          </span>
+        )}
+      </div>
+      {error && <div role="alert" style={preflightErrorStyle}>{error}</div>}
+      {proposal && (
+        <BuilderProposalCard
+          key={proposalKey}
+          task={proposal}
+          chatId="work-builder-request"
+          messageIndex={proposalKey}
+        />
+      )}
+    </section>
+  )
+}
+
+export function parseBuilderProposal(content: string): BuilderProposalTask | null {
+  const match = content.match(/```kitty-builder-proposal\s*([\s\S]*?)```/i)
+  if (!match) return null
+  try {
+    const parsed = JSON.parse(match[1].trim()) as Partial<BuilderProposalTask>
+    if (!parsed.objective?.trim() || !parsed.instructions?.trim() || !Array.isArray(parsed.allowed_paths) || parsed.allowed_paths.length === 0) return null
+    if (parsed.allowed_paths.some(path => typeof path !== 'string' || !path.trim())) return null
+    return parsed as BuilderProposalTask
+  } catch {
+    return null
+  }
 }
 
 function WorkGroupSection({ group, items, builderRunning, schedulerEnabled }: { group: WorkGroup; items: GatewayWorkItem[]; builderRunning: boolean; schedulerEnabled: boolean | null }) {
@@ -224,6 +323,9 @@ function approvalLabel(item: GatewayWorkItem): string | null {
   const state = (approval as Record<string, unknown>).state
   return typeof state === 'string' ? `approval ${state}` : null
 }
+
+const builderRequestStyle: CSSProperties = { display: 'grid', gap: 10, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-surface)', background: 'var(--color-surface)', padding: '14px 16px' }
+const builderRequestInputStyle: CSSProperties = { width: '100%', resize: 'vertical', minHeight: 76, boxSizing: 'border-box', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', background: 'var(--color-surface-elevated)', color: 'var(--color-text-primary)', padding: '10px 12px', fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.45 }
 
 const workCanvasStyle: CSSProperties = { width: '100%', maxWidth: 1120, margin: '0 auto', display: 'grid', gap: 20, alignContent: 'start' }
 const workHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }

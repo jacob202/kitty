@@ -66,10 +66,12 @@ resources:
     - tests/test_start_ui_script.py
   ui:action-grammar:
     paths:
+    - gateway/kitty-chat/src/components/WorkView.tsx
     - gateway/kitty-chat/src/components/chat/ActionCard.tsx
     - gateway/kitty-chat/src/lib/actions-adapters.ts
     - gateway/kitty-chat/src/lib/actions-contract.ts
     - gateway/kitty-chat/src/lib/gateway.ts
     - gateway/kitty-chat/src/lib/queries.ts
     - gateway/kitty-chat/tests/ActionCard.test.tsx
+    - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx
     - gateway/kitty-chat/tests/actionsContract.test.ts
