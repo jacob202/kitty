@@ -1,0 +1,20 @@
+{
+  "category": "collision",
+  "evidence": "In this session: kitty room status returned message_count 0 and kitty agent status returned claims: [] on a brand-new clone at /home/user/kitty. grep of gateway/agent_coordination.py showed default_db_path() resolves to a repo-relative file, so it is per-checkout, not a shared backend. The night-shift prompt assumed this session could see real GAR history and existing KX claims from Jacobs Mac; it cannot.",
+  "fingerprint": "2f62aee29f37fe73",
+  "id": "wfs_20260904t180311z_2f62aee29f37fe73_d2b3bd4ae6563c3a",
+  "impact": "An autonomous run in a cloud session cannot use empty GAR/KX output as evidence that no other agent is working on the same lane. Treating local-stub emptiness as real collision clearance risks building a competing implementation of work already in progress on the canonical Mac checkout.",
+  "occurrence_count": 1,
+  "promotion_reason": "single non-critical observation; collect another occurrence",
+  "promotion_status": "observe",
+  "recorded_at": "2026-09-04T18:03:11.513012Z",
+  "schema_version": 1,
+  "severity": "high",
+  "source_session": "cloud-session-0fa8736f-night-shift",
+  "stable_key": "cloud-session-gar-kx-isolated-stub",
+  "store_scope": "repo-fallback",
+  "suggested_change": "Before trusting GAR/KX state in any non-canonical checkout, verify the coordination DB path is the shared one (or otherwise confirm the room backend is actually shared) rather than assuming CLI success means shared visibility. Night-shift/convergence prompts that presuppose local Mac state (existing worktrees, uncommitted work, live GAR history) should say explicitly what to do when dispatched into an isolated session that cannot see that state.",
+  "summary": "A Claude Code cloud/remote session for jacob202/kitty runs against an isolated fresh clone whose ./kitty room and ./kitty agent commands are backed by a local-only SQLite file (.kitty-coordination.db) created fresh in that container, not the canonical Mac checkouts shared history.",
+  "verified_by": "kitty room status; kitty agent status; grep gateway/agent_coordination.py default_db_path; git worktree list; kitty builder initiative doctor --json",
+  "window_days": 30
+}
