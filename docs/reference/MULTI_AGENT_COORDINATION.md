@@ -8,6 +8,10 @@ file defines how concurrent agents discover and coordinate that ownership.
 
 Use `workspace_global` for durable cross-agent communication: questions,
 handoffs, status, review requests, results, direct messages, and thread replies.
+Default to a direct message when one owner needs to act, and reply in the existing
+thread when continuing a question, review, or gotcha. Broadcast only when multiple
+participants genuinely need the same context. Broadcast status and result messages
+are shared context, not assignment inbox items.
 Use GitHub issue #490 (`[coordination] Kitty campaign live lanes`) for the
 authoritative interactive ownership/collision markers. The room does not replace
 Builder execution state, #490 ownership, or Git/GitHub publication evidence. Do

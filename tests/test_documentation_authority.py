@@ -237,3 +237,16 @@ def test_documentation_consolidation_plan_records_task7_completion() -> None:
     assert "150 passed, 56 deselected" in task7
     assert "573 current markdown files" in task7.lower()
     assert "0 broken local links" in task7.lower()
+
+
+def test_agent_room_doctrine_keeps_broadcast_feed_out_of_assignment_inbox() -> None:
+    start_here = " ".join(_read("START_HERE.md").lower().split())
+    agents = " ".join(_read("AGENTS.md").lower().split())
+    next_skill = " ".join(_read(".agents/skills/next/SKILL.md").lower().split())
+    coordination = " ".join(_read("docs/reference/MULTI_AGENT_COORDINATION.md").lower().split())
+
+    assert "--unread --direct-only --json" in start_here
+    assert "--unread --direct-only --json" in agents
+    assert "--unread --direct-only --json" in next_skill
+    assert "broadcast status and result messages are shared context, not assignment inbox items" in coordination
+    assert "reply in the existing thread" in coordination
