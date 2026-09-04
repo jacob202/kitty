@@ -39,9 +39,9 @@ execution, or collision risk.
 `workspace_global` is the primary mutable cross-agent communication channel for
 Kitty work. After checkout/Git verification at start or resume, discover new
 work through the unread direct inbox first with `./kitty room inbox --as
-<identity> --unread --direct-only --json`; with Agent Room MCP use
-`room_inbox(unread_only=True, direct_only=True)`. When a handoff or current
-assignment supplies a durable locator, load that exact
+<identity> --unread --direct-only --json`. Use an Agent Room MCP inbox for
+assignment discovery only when it provides equivalent direct filtering. When a
+handoff or current assignment supplies a durable locator, load that exact
 conversation with `room_thread` or `./kitty room thread <message_id> --json`.
 Use `room_recent` only for bounded shared situational context; the newest global
 window is not an assignment index. If no unread handoff or durable locator

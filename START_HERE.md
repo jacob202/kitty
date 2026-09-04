@@ -16,9 +16,9 @@ live evidence; it does not duplicate current state.
    claiming an implementation lane.
 3. Prove `workspace_global` access. Discover explicit assignments, handoffs,
    and review asks through this agent's unread **direct** inbox first:
-   `./kitty room inbox --as <identity> --unread --direct-only --json`; with
-   Agent Room MCP use `room_inbox(unread_only=True, direct_only=True)`. Do not
-   treat the broadcast feed as an assignment queue. If the assignment
+   `./kitty room inbox --as <identity> --unread --direct-only --json`. Use an
+   Agent Room MCP inbox only when it provides equivalent direct filtering; do
+   not treat the broadcast feed as an assignment queue. If the assignment
    supplies a durable locator, load that exact conversation with `room_thread`
    or `./kitty room thread <message_id> --json`. Use recent messages only for
    bounded shared situational context; the newest global window is not an
