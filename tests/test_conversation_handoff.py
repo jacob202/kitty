@@ -341,4 +341,4 @@ def test_compile_request_translates_provider_failure_without_internal_details(mo
     assert "openrouter" not in result["error"].lower()
     assert "127.0.0.1" not in result["error"]
     assert "sk-secret-token" not in result["error"]
-    assert "settings" in result["error"].lower()
+    assert "no model provider" in result["error"].lower() or "try again" in result["error"].lower()

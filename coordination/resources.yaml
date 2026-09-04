@@ -55,6 +55,7 @@ resources:
     - coordination/**
     - gateway/agent_coordination*.py
     - gateway/agent_room_cli.py
+    - gateway/chat_errors.py
     - gateway/doctor.py
     - gateway/llm_client.py
     - gateway/routes/runtime.py
@@ -83,12 +84,15 @@ resources:
     - gateway/kitty-chat/src/components/chat/ActionCard.tsx
     - gateway/kitty-chat/src/lib/actions-adapters.ts
     - gateway/kitty-chat/src/lib/actions-contract.ts
+    - gateway/kitty-chat/src/lib/chat-client.ts
     - gateway/kitty-chat/src/lib/gateway.ts
     - gateway/kitty-chat/src/lib/queries.ts
     - gateway/kitty-chat/tests/ActionCard.test.tsx
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx
     - gateway/kitty-chat/tests/actionsContract.test.ts
+    - gateway/kitty-chat/tests/chatClient.test.ts
+    - gateway/kitty-chat/tests/smoke/chat-trust-slice.spec.ts
     - gateway/routes/conversation_handoff.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py

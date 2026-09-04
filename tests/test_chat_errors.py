@@ -27,7 +27,7 @@ from gateway.llm_client import ProviderChainExhausted
 def test_chat_turn_error_has_user_facing_default_message():
     err = ChatTurnError(kind=ChatErrorKind.ROUTING, detail="litellm: HTTP 404")
     assert err.message == FRIENDLY_MESSAGES[ChatErrorKind.ROUTING]
-    assert "out of credit" in err.message or "different model" in err.message
+    assert "no model provider" in err.message or "retry" in err.message
     assert err.detail == "litellm: HTTP 404"
     # The raw detail must never be the user-facing message.
     assert "404" not in err.message

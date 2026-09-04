@@ -151,7 +151,7 @@ function WorkBuilderRequest() {
       setError(
         !message || /failed to fetch|networkerror|load failed/i.test(message)
           ? 'Could not reach the Kitty gateway — check that it is running, then try again.'
-          : 'Kitty could not prepare the proposal with the current model route. Check model/provider availability in Settings, then try again.',
+          : 'Kitty could not prepare the proposal right now — no model provider is available. Try again in a moment.',
       )
     } finally {
       setPreparing(false)

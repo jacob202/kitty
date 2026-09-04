@@ -100,7 +100,7 @@ def compile_request(request: str) -> dict[str, Any]:
         return {
             "ok": False,
             "error_code": "proposal_compile_failed",
-            "error": "Kitty could not prepare the proposal with the current model route. Check model/provider availability in Settings, then try again.",
+            "error": "Kitty could not prepare the proposal right now — no model provider is available. Try again in a moment.",
         }
 
     objective = raw.get("objective")

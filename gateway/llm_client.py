@@ -832,7 +832,16 @@ def call_llm(
 
     model = normalize_litellm_request_model(model) or route_model("")
 
-    selected = selected_provider_name()
+    # A selected provider that is not configured (no key, server down, env
+    # kill-switch) must not prevent the auto-routing fallback chain from
+    # reaching an available provider.  Fall through to the chain instead of
+    # raising — the user's preference is respected when the provider works,
+    # and gracefully bypassed when it does not.
+    try:
+        selected = selected_provider_name()
+    except ProviderChainExhausted as exc:
+        logger.warning("Selected provider unavailable (%s); using auto routing", exc)
+        selected = None
     if selected is not None:
         return call_selected_provider(
             selected,
