@@ -129,6 +129,58 @@ def test_propose_route_rejects_empty_allowed_paths(client: TestClient) -> None:
     assert response.status_code == 422
 
 
+def test_propose_route_translates_raw_planning_artifact_error(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A raw exception string from the repo/planning-artifact layer must never
+    reach the chat UI -- only the stable error_code and a plain-language
+    message. See DEFECTS-rc0.md's raw-error-copy class of finding."""
+
+    def fake_propose(**kwargs):
+        return {
+            "ok": False,
+            "state": "needs_decision",
+            "error_code": "planning_artifact_failed",
+            "error": "GitCommandError: git commit -m docs: save MCP design conv-x exited 1: "
+            "ERROR: no Kitty agent session is established for this worktree; run kitty agent claim first",
+            "next_action": "Resolve the planning-artifact error and propose again.",
+        }
+
+    monkeypatch.setattr(conversation_handoff, "propose", fake_propose)
+
+    response = client.post(
+        "/builder/conversation/propose",
+        json={"objective": "Fix the bug", "instructions": "Do the fix", "allowed_paths": ["gateway/"]},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["error_code"] == "planning_artifact_failed"
+    assert body["next_action"] == "Resolve the planning-artifact error and propose again."
+    assert "GitCommandError" not in body["error"]
+    assert "kitty agent claim" not in body["error"]
+
+
+def test_propose_route_translates_unhandled_exception(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_propose(**kwargs):
+        raise RuntimeError("sqlite3.OperationalError: database is locked at /private/tmp/x/kitty.db")
+
+    monkeypatch.setattr(conversation_handoff, "propose", fake_propose)
+
+    response = client.post(
+        "/builder/conversation/propose",
+        json={"objective": "Fix the bug", "instructions": "Do the fix", "allowed_paths": ["gateway/"]},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["ok"] is False
+    assert "sqlite3" not in body["error"]
+    assert "/private/tmp" not in body["error"]
+
+
 def test_compile_route_delegates_plain_language_request(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     received = {}
 

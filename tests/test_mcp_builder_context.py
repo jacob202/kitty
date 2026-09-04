@@ -108,13 +108,23 @@ def test_kitty_context_delegates_to_authoritative_context_receipt(
     assert result["context"]["unknowns"][0]["field"] == "builder"
 
 
-def test_status_snapshot_uses_genuinely_read_only_builder_projection(
+def test_status_snapshot_reads_through_the_one_builder_queue_db_symbol(
     monkeypatch: pytest.MonkeyPatch,
     snapshot: dict,
 ) -> None:
-    seen: dict[str, Path] = {}
+    """mission_approve() -> bi.apply_manifest() writes through
+    gateway.builder_queue.BUILDER_QUEUE_DB (see that module and
+    tests/test_conversation_handoff.py's `repo` fixture, which points both
+    reader and writer at one file via this exact symbol). Reading anything
+    else here -- a hand-rolled KITTY_DATA_ROOT/repo_root() reimplementation,
+    for instance -- can silently diverge from where mission_approve() actually
+    wrote, so a freshly approved job's resume()/status reads come back
+    "unavailable" even though it exists."""
+    import gateway.builder_queue as bq
+
     monkeypatch.delenv("KITTY_BUILDER_DATA_DIR", raising=False)
-    monkeypatch.setattr(context, "repo_root", lambda: Path("/tmp/kitty"))
+    monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", Path("/tmp/kitty-isolated/kittybuilder/builder_queue.db"))
+    seen: dict[str, Path] = {}
 
     def fake_readonly(*, db_path: Path) -> dict:
         seen["db_path"] = db_path
@@ -125,7 +135,7 @@ def test_status_snapshot_uses_genuinely_read_only_builder_projection(
     result = context._status_snapshot()
 
     assert result is snapshot
-    assert seen["db_path"] == Path("/tmp/kitty/data/kittybuilder/builder_queue.db")
+    assert seen["db_path"] == Path("/tmp/kitty-isolated/kittybuilder/builder_queue.db")
 
 
 def test_work_status_filters_exact_mission(monkeypatch: pytest.MonkeyPatch, snapshot: dict) -> None:

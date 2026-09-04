@@ -138,6 +138,74 @@ def test_plan_must_be_bound_to_existing_design_commit(repo: Path) -> None:
     assert _git(repo, "merge-base", "--is-ancestor", design["commit_sha"], plan["commit_sha"]) == ""
 
 
+def _install_session_gated_hook(repo: Path) -> None:
+    """Mirror `.githooks/pre-commit`'s real contract without the full CLI: any
+    commit in a worktree lacking a `kitty-agent-session` file in its own
+    git-dir is refused. Every real planning-artifact commit runs through a
+    temporary ``git worktree add`` sandbox with its own private git-dir, so
+    this reproduces the exact production interaction (KX-COORD-01's
+    per-worktree session-claim hook vs. the ephemeral MCP planning worktree)."""
+    hooks_dir = repo / ".githooks"
+    hooks_dir.mkdir(exist_ok=True)
+    hook = hooks_dir / "pre-commit"
+    hook.write_text(
+        "#!/usr/bin/env sh\n"
+        "set -eu\n"
+        'git_dir="$(git rev-parse --path-format=absolute --git-dir)"\n'
+        'if [ ! -f "$git_dir/kitty-agent-session" ]; then\n'
+        '  echo "ERROR: no Kitty agent session is established for this worktree; run kitty agent claim first" >&2\n'
+        "  exit 1\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+    # write_planning_artifact checks out the ephemeral worktree from a real
+    # base commit, so the hook must be a tracked file *in* that commit --
+    # not just present in the calling worktree's untracked working copy --
+    # or the temp worktree's checkout simply won't have it to run. This setup
+    # commit predates `core.hooksPath` being turned on, so it needs no
+    # bypass; every commit `write_planning_artifact` makes afterward is
+    # exactly what is under test.
+    _git(repo, "add", ".githooks/pre-commit")
+    _git(repo, "commit", "-m", "test: install session-gated pre-commit hook")
+    _git(repo, "config", "core.hooksPath", ".githooks")
+
+
+def test_write_planning_artifact_inherits_caller_session_into_temp_worktree(
+    repo: Path,
+) -> None:
+    _install_session_gated_hook(repo)
+    calling_git_dir = _git(repo, "rev-parse", "--path-format=absolute", "--git-dir")
+    (Path(calling_git_dir) / "kitty-agent-session").write_text(
+        "test-session-inherits\n", encoding="utf-8"
+    )
+    base = _git(repo, "rev-parse", "HEAD")
+
+    result = repo_tools.write_planning_artifact(
+        kind="design",
+        slug="hook-inherit-proof",
+        markdown="# Design\n\nHooked.\n",
+        expected_base_sha=base,
+    )
+
+    assert len(result["commit_sha"]) == 40
+
+
+def test_write_planning_artifact_still_fails_closed_without_a_session(
+    repo: Path,
+) -> None:
+    _install_session_gated_hook(repo)
+    base = _git(repo, "rev-parse", "HEAD")
+
+    with pytest.raises(repo_tools.GitCommandError, match="no Kitty agent session"):
+        repo_tools.write_planning_artifact(
+            kind="design",
+            slug="hook-refuse-proof",
+            markdown="# Design\n\nUnclaimed.\n",
+            expected_base_sha=base,
+        )
+
+
 def test_plan_rejects_missing_or_unrelated_dependency(repo: Path) -> None:
     base = _git(repo, "rev-parse", "HEAD")
     with pytest.raises(repo_tools.PlanningArtifactError, match="dependency"):

@@ -20,10 +20,25 @@ from .schemas import MCP_ARTIFACT_MARKER, receipt
 
 
 def _builder_db_path() -> Path:
+    # mission_approve() -> bi.apply_manifest() writes through
+    # gateway.builder_queue.BUILDER_QUEUE_DB (see that module's own default in
+    # gateway/paths.py: KITTY_BUILDER_DATA_DIR -> KITTY_DATA_ROOT -> the
+    # canonical checkout). This used to reimplement its own resolution here,
+    # independently, and only checked KITTY_BUILDER_DATA_DIR before falling
+    # straight to a hardcoded repo-relative path -- skipping the KITTY_DATA_ROOT
+    # tier entirely. A caller that isolates a run with just KITTY_DATA_ROOT (the
+    # acceptance-testing default -- see docs/contracts/PC-BUILDER.md) got a
+    # reader pointed at the canonical checkout while the writer used the
+    # isolated root, so resume/status reads of a freshly approved job failed
+    # as "unavailable". Reading the live module attribute (not a frozen
+    # import) also means this agrees with a test/operator override of
+    # gateway.builder_queue.BUILDER_QUEUE_DB itself, not just the env vars.
     override = os.environ.get("KITTY_BUILDER_DATA_DIR")
     if override:
         return Path(override) / "builder_queue.db"
-    return repo_root() / "data" / "kittybuilder" / "builder_queue.db"
+    import gateway.builder_queue as _builder_queue
+
+    return _builder_queue.BUILDER_QUEUE_DB
 
 
 def _status_snapshot() -> dict[str, Any]:
