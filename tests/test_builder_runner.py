@@ -1542,3 +1542,28 @@ def test_repo_root_honors_builder_runtime_override(tmp_path: Path, monkeypatch: 
     monkeypatch.setenv("KITTY_BUILDER_REPO_ROOT", str(canonical))
 
     assert br._repo_root(None) == canonical
+
+
+def test_run_worker_persists_creation_time_ownership_manifest(
+    repo: Path, db_path: Path
+) -> None:
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+
+    run = br.run_worker(
+        task["id"],
+        ["/usr/bin/true"],
+        repo_root=repo,
+        db_path=db_path,
+        heartbeat_seconds=1,
+        lease_seconds=5,
+    )
+
+    ownership_path = db_path.parent / "runs" / run["id"] / "ownership.json"
+    assert ownership_path.exists()
+    payload = json.loads(ownership_path.read_text(encoding="utf-8"))
+    assert payload["version"] == 1
+    assert payload["run_id"] == run["id"]
+    assert payload["task_id"] == task["id"]
+    assert payload["kx_session_id"] == f"builder-run:{run['id']}"
+    assert payload["declared_paths"] == ["README.md"]
+    assert payload["worktree_identity"]["base_commit"] == run["start_sha"]

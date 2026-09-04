@@ -47,6 +47,7 @@ from gateway import agent_workspace as agent_workspace
 from gateway import builder_execution_boundary as beb
 from gateway import builder_queue as bq
 from gateway import builder_scope as bs
+from gateway import run_workspace as rw
 from gateway.builder_brief import default_branch_name, render_worker_brief
 from gateway.builder_context import build_context_manifest, write_run_manifest
 from gateway.models.builder import AgentPreset, AgentPresetConfig, WorkerContextBundle
@@ -144,6 +145,16 @@ def preflight_worktree(
         **{f"git_{key.replace(' ', '_').replace('/', '_')}": value
            for key, value in metadata_paths.items()},
     }
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    """Persist one JSON record without exposing a partially-written file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temp_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    os.replace(temp_path, path)
 
 
 def _repo_root(repo_root: Path | None) -> Path:
@@ -1148,6 +1159,9 @@ def run_worker(
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
         start_sha = _git_output(["rev-parse", "HEAD"], cwd=wt_path).strip()
+        worktree_identity = rw.authenticate_existing_worktree(
+            root, wt_path, base_commit=start_sha
+        )
         run = bq.create_run(
             task_id,
             command,
@@ -1165,6 +1179,21 @@ def run_worker(
         run_id = str(run["id"])
         run_dir = log_dir / run_id
         run_dir.mkdir()
+        ownership_path = run_dir / "ownership.json"
+        _write_json_atomic(
+            ownership_path,
+            {
+                "version": 1,
+                "run_id": run_id,
+                "kx_session_id": f"builder-run:{run_id}",
+                "task_id": task_id,
+                "branch": branch,
+                "worktree": str(wt_path),
+                "declared_paths": sorted(task.get("allowed_paths") or []),
+                "required_resources": [],
+                "worktree_identity": worktree_identity.to_payload(),
+            },
+        )
         log_path = run_dir / "combined.log"
         brief_path = run_dir / "brief.md"
         gh_config_dir = run_dir / "gh-config"
