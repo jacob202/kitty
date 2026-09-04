@@ -131,7 +131,10 @@ For the resolved interactive task:
 4. run the narrowest meaningful verification;
 5. preserve exact evidence and limitations;
 6. avoid touching files owned by active parallel work;
-7. stop at any required human, security, money, secret, or destructive gate.
+7. preserve initiative without lane theft by following the canonical adjacent-work policy in `docs/reference/MULTI_AGENT_COORDINATION.md#adjacent-findings-and-initiative`: read-only adjacent investigation/capture is encouraged; adjacent mutation requires collision reconciliation plus durable `OWN`/`INTEGRATE` ownership before editing; KX `CONFLICT` means handoff; and security/data-loss/P0 urgency never self-bypasses ownership;
+8. stop at any required human, security, money, secret, or destructive gate.
+
+Exploration is never a scope violation. Silent lane-switching is.
 
 The same agent never treats its own implementation as independent approval.
 Review-only sessions must not quietly become implementation owners unless Jacob

@@ -92,6 +92,41 @@ to discard work.
 Never reconstruct unpublished local work from prose, summaries, or remembered
 diffs when the original work is recoverable.
 
+## Adjacent findings and initiative
+
+This section is the canonical normative wording for adjacent-work initiative. Agent skills may summarize it, but should point here rather than duplicate the full policy.
+
+Noticing, inspecting, reproducing, and root-causing problems outside the active
+assignment is not a scope violation and does not require mutation ownership.
+Read-only investigation is encouraged; use `RESEARCH` only when a sustained
+investigation benefits from a visible coordination marker, not as a prerequisite
+to curiosity.
+
+When adjacent work appears:
+
+1. **CAPTURE** — send one `workspace_global` message with the useful evidence:
+   symptom, exact reproduction, root cause when known, and suggested owner. Send
+   it directly to the owning lane when known, otherwise to the room. Capture is
+   lightweight and automatic; it does not create Builder queue work and does not
+   transfer implementation ownership.
+2. **ABSORB** — mutate adjacent work only when it directly serves the current
+   assignment's outcome and completion criteria, the collision check above shows
+   no valid conflicting owner, and the normal durable mutation ownership is
+   established **before editing**. For KX-registered scope this means an active
+   mutating `OWN` or `INTEGRATE` claim; `CONFLICT` means handoff, never silent
+   takeover. Keep the existing #490/Builder ownership marker semantics. If the
+   scope is not registered or ownership cannot be established, capture/handoff
+   instead of inventing a drive-by exception.
+3. **PREEMPT** — genuine security, data-loss, or P0 findings may reorder capture
+   and claim, never skip them. Notify the current owner/coordinator, use the
+   supported transfer/reclamation/emergency path, perform only the minimum
+   mitigation needed to contain the incident, then hand the lane back. Urgency
+   is not a self-declared ownership bypass.
+
+Before any adjacent mutation ask: **Am I still completing my assignment, or
+have I just found a more interesting outcome?** The second answer is a handoff,
+not a switch. Exploration is never a scope violation; silent lane-switching is.
+
 ## Product boundary
 
 Gateway is product truth. KittyBuilder owns durable engineering execution.
