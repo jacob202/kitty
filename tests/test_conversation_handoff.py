@@ -310,6 +310,22 @@ def test_compile_request_uses_lightweight_builder_only_prompt(monkeypatch: pytes
     assert "morning brief" not in combined.lower()
 
 
+def test_compile_request_request_scoped_fallback_is_explicit_and_does_not_change_saved_preference(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gateway import llm_client
+
+    seen = {}
+    def fake_call(messages, **kwargs):
+        seen.update(kwargs)
+        return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+    result = conversation_handoff.compile_request("Fix the launch bug.", allow_provider_fallback=True)
+
+    assert result["ok"] is True
+    assert seen["allow_provider_fallback"] is True
+    assert result["routing"] == {"mode": "request_scoped_fallback", "saved_preference_changed": False}
+
+
 def test_compile_request_rejects_unbounded_scope(monkeypatch: pytest.MonkeyPatch) -> None:
     from gateway import llm_client
 

@@ -184,8 +184,9 @@ def test_propose_route_translates_unhandled_exception(
 def test_compile_route_delegates_plain_language_request(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     received = {}
 
-    def fake_compile(request: str):
+    def fake_compile(request: str, *, allow_provider_fallback: bool = False):
         received["request"] = request
+        received["allow_provider_fallback"] = allow_provider_fallback
         return {"ok": True, "task": {"objective": "Add proof", "instructions": "Add it", "allowed_paths": ["proof.txt"]}}
 
     monkeypatch.setattr(conversation_handoff, "compile_request", fake_compile)
@@ -193,4 +194,20 @@ def test_compile_route_delegates_plain_language_request(client: TestClient, monk
 
     assert response.status_code == 200
     assert response.json()["task"]["allowed_paths"] == ["proof.txt"]
-    assert received == {"request": "Add proof.txt"}
+    assert received == {"request": "Add proof.txt", "allow_provider_fallback": False}
+
+
+def test_compile_route_forwards_explicit_request_scoped_provider_fallback(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    received = {}
+    def fake_compile(request: str, *, allow_provider_fallback: bool = False):
+        received.update(request=request, allow_provider_fallback=allow_provider_fallback)
+        return {"ok": False, "error_code": "proposal_compile_failed", "error": "unavailable"}
+
+    monkeypatch.setattr(conversation_handoff, "compile_request", fake_compile)
+    response = client.post(
+        "/builder/conversation/compile",
+        json={"request": "Add proof.txt", "allow_provider_fallback": True},
+    )
+
+    assert response.status_code == 200
+    assert received == {"request": "Add proof.txt", "allow_provider_fallback": True}

@@ -67,7 +67,7 @@ def _proposal_json(text: str) -> dict[str, Any]:
     return payload
 
 
-def compile_request(request: str) -> dict[str, Any]:
+def compile_request(request: str, *, allow_provider_fallback: bool = False) -> dict[str, Any]:
     """Compile plain language into a bounded Builder task without chat context.
 
     This intentionally bypasses the personal chat context assembler. It uses the
@@ -93,7 +93,8 @@ def compile_request(request: str) -> dict[str, Any]:
             temperature=0,
             timeout=60,
             operation="builder.proposal.compile",
-            metadata={"route": "builder_proposal_compile"},
+            metadata={"route": "builder_proposal_compile", "request_scoped_provider_fallback": allow_provider_fallback},
+            allow_provider_fallback=allow_provider_fallback,
         )
         raw = _proposal_json(text)
     except Exception:
@@ -134,6 +135,10 @@ def compile_request(request: str) -> dict[str, Any]:
     return {
         "ok": True,
         "task": task,
+        "routing": {
+            "mode": "request_scoped_fallback" if allow_provider_fallback else "saved_provider_preference",
+            "saved_preference_changed": False,
+        },
     }
 
 

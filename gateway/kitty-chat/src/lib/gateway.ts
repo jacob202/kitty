@@ -2494,7 +2494,7 @@ export interface BuilderCompileResult {
 }
 
 export async function compileBuilderProposal(
-  payload: { request: string },
+  payload: { request: string; allow_provider_fallback?: boolean },
 ): Promise<BuilderCompileResult> {
   return await gfetch<BuilderCompileResult>(
     '/builder/conversation/compile',

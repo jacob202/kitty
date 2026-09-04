@@ -132,14 +132,17 @@ function WorkBuilderRequest() {
   const [proposalKey, setProposalKey] = useState(0)
   const compileProposal = useCompileBuilderProposal()
 
-  const prepare = async () => {
+  const prepare = async (allowProviderFallback = false) => {
     const trimmed = request.trim()
     if (!trimmed || preparing) return
     setPreparing(true)
     setError(null)
     setProposal(null)
     try {
-      const result = await compileProposal.mutateAsync({ request: trimmed })
+      const result = await compileProposal.mutateAsync({
+        request: trimmed,
+        ...(allowProviderFallback ? { allow_provider_fallback: true } : {}),
+      })
       if (!result.ok || !result.task) {
         setError(result.error || 'Kitty could not turn that request into a bounded Builder proposal. Add one concrete outcome or affected area, then try again.')
         return
@@ -175,18 +178,32 @@ function WorkBuilderRequest() {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           type="button"
-          onClick={() => void prepare()}
+          onClick={() => void prepare(false)}
           disabled={preparing || !request.trim()}
           style={{ ...primaryActionStyle, opacity: preparing || !request.trim() ? 0.55 : 1 }}
           aria-label={error ? 'Try preparing again' : 'Prepare Builder proposal'}
         >
-          {preparing ? 'Preparing…' : error ? 'Try again' : 'Prepare proposal'}
+          {preparing ? 'Preparing…' : error ? 'Try same route again' : 'Prepare proposal'}
         </button>
+        {error && (
+          <button
+            type="button"
+            onClick={() => void prepare(true)}
+            disabled={preparing || !request.trim()}
+            style={{ ...secondaryActionStyle, opacity: preparing || !request.trim() ? 0.55 : 1 }}
+          >
+            Try another available model
+          </button>
+        )}
         <span style={metaStyle}>
           Proposal preparation uses Kitty's current model routing; execution route and spend are shown by Builder before execution.
         </span>
       </div>
-      {error && <div role="alert" style={preflightErrorStyle}>{error}</div>}
+      {error && (
+        <div role="alert" style={preflightErrorStyle}>
+          {error} Your request is still here. Trying another available model applies only to this proposal and does not change your saved provider preference.
+        </div>
+      )}
       {proposal && (
         <BuilderProposalCard
           key={proposalKey}
@@ -613,6 +630,7 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
   const review = evidenceRecord(evidence.review)
   const validation = evidenceRecord(evidence.validation)
   const publication = evidenceRecord(evidence.publication)
+  const execution = evidenceRecord(evidence.execution)
   const reviewVerdict = evidenceScalar(review?.verdict)
   const reviewSummary = boundedEvidenceText(review?.summary)
   const validationStatus = evidenceScalar(validation?.status)
@@ -621,6 +639,14 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
   const publicationChecks = evidenceScalar(publication?.checks_state)
   const publicationMerged = typeof publication?.merged === 'boolean' ? publication.merged : null
   const publicationMergedAt = evidenceDate(publication?.merged_at)
+  const executionState = evidenceScalar(execution?.state)
+  const executionProvider = evidenceScalar(execution?.provider)
+  const executionModel = evidenceScalar(execution?.model)
+  const executionRoute = evidenceScalar(execution?.route)
+  const executionRetries = evidenceScalar(execution?.retries)
+  const executionCost = typeof execution?.estimated_usage_cad === 'number' ? execution.estimated_usage_cad : null
+  const executionCostBasis = boundedEvidenceText(execution?.cost_basis)
+  const executionReason = boundedEvidenceText(execution?.reason)
 
   return (
     <>
@@ -632,6 +658,14 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
       {publicationChecks && <div>publication checks {publicationChecks}</div>}
       {publicationMerged !== null && <div>publication {publicationMerged ? 'merged' : 'not merged'}</div>}
       {publicationMerged === true && publicationMergedAt && <div>merged {publicationMergedAt}</div>}
+      {execution && <div>execution {executionState ?? 'recorded'}</div>}
+      {executionProvider && <div>provider {executionProvider}</div>}
+      {executionModel && <div>model {executionModel}</div>}
+      {executionRoute && <div>route {executionRoute}</div>}
+      {executionRetries !== null && <div>retries {executionRetries}</div>}
+      {executionCost !== null && <div>estimated spend CAD {executionCost.toFixed(4)}</div>}
+      {executionCostBasis && <div>{executionCostBasis}</div>}
+      {executionReason && <div>{executionReason}</div>}
     </>
   )
 }
@@ -641,5 +675,7 @@ function evidenceLabels(item: GatewayWorkItem): string[] {
   if (item.evidence.review) labels.push('Review evidence available')
   if (item.evidence.publication) labels.push('Publication evidence available')
   if (item.evidence.validation) labels.push('Validation evidence available')
+  const execution = evidenceRecord(item.evidence.execution)
+  if (execution?.state === 'settled') labels.push('Execution receipt available')
   return labels
 }

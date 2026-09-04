@@ -2,14 +2,16 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, mutate } = vi.hoisted(() => ({
+const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, useCompileBuilderProposal, mutate } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(),
   usePreflight: vi.fn(),
   useSupervisor: vi.fn(),
   useBuilderAction: vi.fn(),
+  useCompileBuilderProposal: vi.fn(),
   mutate: vi.fn(),
 }))
 vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction }))
+vi.mock('../src/lib/queries', () => ({ useCompileBuilderProposal }))
 
 function supervisor(overrides: Record<string, unknown> = {}) {
   return {
@@ -65,6 +67,8 @@ describe('WorkView projection', () => {
     usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
     useSupervisor.mockReset()
     useBuilderAction.mockReset()
+    useCompileBuilderProposal.mockReset()
+    useCompileBuilderProposal.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
     mutate.mockReset()
     useSupervisor.mockReturnValue({ data: supervisor(), isPending: false, isError: false, error: null })
     useBuilderAction.mockReturnValue({ mutate, isPending: false })
@@ -356,4 +360,39 @@ describe('WorkView visual hierarchy', () => {
     fireEvent.click(screen.getByText('Source details'))
     expect(screen.getByText('partial Builder data')).toBeVisible()
   })
+
+  it('shows the settled execution provider, model, route, retries, and locally estimated spend', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        state: 'completed',
+        evidence: {
+          ...base.evidence,
+          execution: {
+            state: 'settled',
+            route: 'cheap',
+            provider: 'openrouter',
+            model: 'openrouter/deepseek/deepseek-v4-flash',
+            retries: 1,
+            estimated_usage_cad: 0.0184,
+            cost_basis: 'Kitty local estimate — not a provider invoice',
+            recorded_at: '2026-08-13T12:01:00+00:00',
+          },
+        },
+      }],
+    })
+
+    expect(screen.getByText('Execution receipt available')).toBeVisible()
+    fireEvent.click(screen.getByText('Details'))
+    expect(screen.getByText('execution settled')).toBeVisible()
+    expect(screen.getByText('provider openrouter')).toBeVisible()
+    expect(screen.getByText('model openrouter/deepseek/deepseek-v4-flash')).toBeVisible()
+    expect(screen.getByText('route cheap')).toBeVisible()
+    expect(screen.getByText('retries 1')).toBeVisible()
+    expect(screen.getByText('estimated spend CAD 0.0184')).toBeVisible()
+    expect(screen.getByText('Kitty local estimate — not a provider invoice')).toBeVisible()
+  })
+
 })

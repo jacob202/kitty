@@ -1,8 +1,10 @@
 """Project one Builder initiative into a product Work item."""
 
+from gateway import compute_governor as cg
 from gateway._work_projection_details import _project_blocker, _project_packet, _project_run
 from gateway._work_projection_select import _has_live_run, _latest_attempt, _select_current_packet
 from gateway._work_projection_support import _bounded_reason, _latest_updated_at
+from gateway.paths import COMPUTE_GOVERNOR_DB
 
 
 def _project_work_item(initiative):
@@ -30,6 +32,7 @@ def _project_work_item(initiative):
             "validation": (current_attempt or {}).get("validation"),
             "review": (current_attempt or {}).get("review"),
             "publication": publication,
+            "execution": _project_execution_receipt(initiative["initiative_id"], current_packet),
             "approval": {
                 "state": "unavailable",
                 "reason": "No durable Gateway approval binding exists for Builder initiatives yet.",
@@ -69,3 +72,36 @@ def _packet_failed(packet):
         return True
     failure_kind = packet.get("failure_kind")
     return failure_kind not in {None, "blocked", "cancelled"}
+
+
+def _project_execution_receipt(initiative_id, packet):
+    if packet is None:
+        return None
+    base_sha = packet.get("base_sha")
+    packet_id = packet.get("packet_id")
+    if not base_sha or not packet_id or not COMPUTE_GOVERNOR_DB.exists():
+        return None
+    try:
+        receipt = cg.find_settled_receipt(
+            COMPUTE_GOVERNOR_DB,
+            task_type="implement",
+            subject_ref=f"{initiative_id}/{packet_id}",
+            head_sha=str(base_sha),
+        )
+    except Exception:
+        return {
+            "state": "unavailable",
+            "reason": "Kitty could not read the execution receipt right now.",
+        }
+    if receipt is None:
+        return None
+    return {
+        "state": "settled",
+        "route": receipt.get("route"),
+        "provider": receipt.get("provider"),
+        "model": receipt.get("model"),
+        "retries": int(receipt.get("retries") or 0),
+        "estimated_usage_cad": float(receipt.get("estimated_usage_cad") or 0.0),
+        "cost_basis": "Kitty local estimate — not a provider invoice",
+        "recorded_at": receipt.get("created_at"),
+    }

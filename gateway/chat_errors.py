@@ -34,9 +34,9 @@ class ChatErrorKind(str, Enum):
 # that the message is saved, and the one next action. No Dynamo to parse.
 FRIENDLY_MESSAGES: dict[ChatErrorKind, str] = {
     ChatErrorKind.ROUTING: (
-        "Kitty couldn't complete this request — no model provider was "
-        "available. Your message is saved. Tap retry to try again with "
-        "an available model."
+        "Kitty couldn't complete this request — the selected model provider "
+        "didn't accept it (it may be out of credit or unavailable). "
+        "Your message is saved. Tap retry, or check Settings to pick a different model."
     ),
     ChatErrorKind.UPSTREAM: (
         "Kitty's model provider couldn't finish this request. "

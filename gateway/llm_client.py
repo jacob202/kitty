@@ -814,6 +814,7 @@ def call_llm(
     response_format: dict[str, Any] | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
+    allow_provider_fallback: bool = False,
 ) -> str:
     """
     Centralized hub for all LLM calls.
@@ -832,28 +833,33 @@ def call_llm(
 
     model = normalize_litellm_request_model(model) or route_model("")
 
-    # A selected provider that is not configured (no key, server down, env
-    # kill-switch) must not prevent the auto-routing fallback chain from
-    # reaching an available provider.  Fall through to the chain instead of
-    # raising — the user's preference is respected when the provider works,
-    # and gracefully bypassed when it does not.
+    # Exact provider selection remains fail-closed by default. A caller may
+    # explicitly opt into one request-scoped recovery attempt that falls through
+    # to Kitty's automatic routing without changing the saved provider preference.
     try:
         selected = selected_provider_name()
     except ProviderChainExhausted as exc:
-        logger.warning("Selected provider unavailable (%s); using auto routing", exc)
+        if not allow_provider_fallback:
+            raise
+        logger.warning("Selected provider unavailable (%s); request-scoped fallback allowed", exc)
         selected = None
     if selected is not None:
-        return call_selected_provider(
-            selected,
-            messages,
-            request_model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            timeout=timeout,
-            response_format=response_format,
-            operation=operation,
-            metadata=metadata,
-        )
+        try:
+            return call_selected_provider(
+                selected,
+                messages,
+                request_model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                timeout=timeout,
+                response_format=response_format,
+                operation=operation,
+                metadata=metadata,
+            )
+        except ProviderChainExhausted as exc:
+            if not allow_provider_fallback:
+                raise
+            logger.warning("Selected provider failed (%s); request-scoped fallback allowed", exc)
 
     try:
         payload = {

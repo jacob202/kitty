@@ -104,4 +104,29 @@ describe('WorkView recovery cockpit', () => {
     expect(status).toHaveTextContent('last tick time unavailable')
     expect(status).toHaveTextContent('next run time unavailable')
   })
+
+  it('offers an explicit one-proposal alternate-model recovery without replacing the saved route', async () => {
+    const mutateAsync = vi.fn()
+      .mockResolvedValueOnce({ ok: false, error: 'The selected provider did not accept this request.' })
+      .mockResolvedValueOnce({
+        ok: true,
+        task: { objective: 'Fix launch', instructions: 'Fix the launch bug.', allowed_paths: ['gateway/launcher.py'] },
+        routing: { mode: 'request_scoped_fallback', saved_preference_changed: false },
+      })
+    useCompileBuilderProposal.mockReturnValue({ mutateAsync, isPending: false })
+    render(<WorkView isMobile={false} />)
+
+    const request = screen.getByRole('textbox', { name: 'Ask Builder for work' })
+    fireEvent.change(request, { target: { value: 'Fix the launch bug.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare Builder proposal' }))
+
+    expect(await screen.findByRole('button', { name: 'Try another available model' })).toBeInTheDocument()
+    expect(request).toHaveValue('Fix the launch bug.')
+    fireEvent.click(screen.getByRole('button', { name: 'Try another available model' }))
+
+    expect(await screen.findByTestId('work-builder-proposal')).toHaveTextContent('Fix launch')
+    expect(mutateAsync).toHaveBeenNthCalledWith(1, { request: 'Fix the launch bug.' })
+    expect(mutateAsync).toHaveBeenNthCalledWith(2, { request: 'Fix the launch bug.', allow_provider_fallback: true })
+  })
+
 })

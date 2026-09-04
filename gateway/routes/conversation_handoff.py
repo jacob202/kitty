@@ -41,6 +41,7 @@ def _translate_receipt_error(result: dict) -> dict:
 
 class CompileRequest(BaseModel):
     request: str = Field(min_length=1, max_length=8000)
+    allow_provider_fallback: bool = False
 
 
 class ProposeRequest(BaseModel):
@@ -65,7 +66,9 @@ class ApproveRequest(BaseModel):
 def compile_builder_request(body: CompileRequest) -> dict:
     """Shape plain language into one bounded Builder task. No Builder mutation."""
     try:
-        return conversation_handoff.compile_request(body.request)
+        return conversation_handoff.compile_request(
+            body.request, allow_provider_fallback=body.allow_provider_fallback
+        )
     except Exception:
         logger.exception("conversation compile failed")
         return {
