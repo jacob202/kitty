@@ -1,7 +1,7 @@
 # Outcome-First Product Delivery Design
 
 **Date:** 2026-09-03
-**Status:** approved design direction
+**Status:** reference design; **not execution or sequencing authority**
 **Purpose:** stop Kitty work from being declared complete when implementation exists but the intended user outcome still cannot be completed in the running product.
 
 ## Problem
@@ -18,57 +18,61 @@ The recurring failure chain is:
 6. Real dogfooding later reveals the intended workflow is incomplete, confusing, inert, stale, or misleading.
 7. A later audit rediscovers the same unmet requirement under a new finding ID.
 
-The system therefore needs an authority above individual packets: durable product contracts plus end-to-end acceptance that preserve the original intent.
+The system therefore needs an authority above individual packets: a durable statement of the currently active user outcome plus end-to-end acceptance that preserves the original intent.
+
 ## Prime delivery rule
 
 > Implementation is not the deliverable. The intended task being successfully completed in the running Kitty is the deliverable.
 
-A feature is not done because a route exists, a control renders, a unit test passes, or an agent reviewer approves a diff. It is done only when the relevant product contract is proven in the exact candidate running product.
+A feature is not done because a route exists, a control renders, a unit test passes, or an agent reviewer approves a diff. It is done only when the active user outcome is proven in the exact candidate running product.
 
-## Product contracts
+## Active outcome contract
 
-Each primary surface gets a concise non-negotiable contract describing what the user must be able to accomplish without internal knowledge.
+During recovery, keep a concise contract for the **currently activated user outcome**. Do not pre-create a contract family for every surface and do not turn contracts into another task/state system. The mechanism must prove useful on one repaired outcome before it expands.
 
-Examples:
+The contract records the starting state, intended result, prohibited workaround, failure/recovery behavior, and acceptance evidence. The following are candidate acceptance language when those surfaces become part of the active outcome, not six pre-activated contracts:
 
 - **Builder / Work:** describe desired work in ordinary language; understand the proposed work; change or approve it; see the actual model/provider and estimated/actual spend; understand the queue, provenance, ownership, running/blocked/next state; intervene and recover; inspect the result; never require packet IDs, CLI syntax, YAML, or a terminal for the normal lifecycle.
 - **Image Lab:** add or select source/character material; describe identity and desired output; understand route/cost before spend; generate; see why a generation cannot run; recover; compare/refine; retain identity/provenance/result truth.
 - **Library:** know why an item exists, where it came from, whether it is saved/indexing/indexed/failed, manage unwanted content safely, find uploaded material later, and use canonical references in Chat or Projects.
 - **Projects:** show only meaningful project objects; make lifecycle/staleness explicit; archive/manage obsolete records; answer where the user left off and what to do next; preserve identity across related surfaces.
-- **Automations:** create, edit, enable, run, inspect delivery/history, understand failure, retry safely, and survive restart without duplicate effects.## Delivery gates
+- **Automations:** create, edit, enable, run, inspect delivery/history, understand failure, retry safely, and survive restart without duplicate effects.
 
-### Gate 0 — Product Contract Authority
-Before implementation, define the exact user outcome, starting state, success state, prohibited workarounds, degraded behavior, and recovery behavior. Every implementation packet must name its parent contract.
+## Delivery checks
 
-### Gate 1 — Product Truth Cleanup
+### Check 0 — Outcome authority
+Before implementation, define the exact active user outcome, starting state, success state, prohibited workarounds, degraded behavior, and recovery behavior. Child implementation work may reference that outcome, but no new planning database or dashboard is implied.
+
+### Check 1 — Product Truth Cleanup
 Repair corrupt, stale, synthetic, misleading, or ambiguous underlying state before polishing its presentation. A better UI over untrustworthy data is not progress.
 
-### Gate 2 — Critical User Loops
+### Check 2 — Critical User Loops
 Implement vertically from intent through durable result. Prefer one complete usable workflow over several partially connected subsystems.
 
-### Gate 3 — Cross-Cutting Reliability
+### Check 3 — Cross-Cutting Reliability
 Repair shared state ownership, performance, error semantics, provenance, accessibility, persistence, and common primitives only where they strengthen proven product loops.
 
-### Gate 4 — Capability Unlocks
+### Check 4 — Capability Unlocks
 Expose hidden backend capability only when it improves an existing decision or workflow. Existing endpoints do not justify new cards or navigation by themselves.
 
-### Gate 5 — Ruthless Product Acceptance
+### Check 5 — Ruthless Product Acceptance
 Dogfood the exact candidate on the running application. Every material finding terminates in FIX, DELETE, explicit PARK with reason, or REJECT.
 
 ## Anti-half-ass requirement
 
-Every implementation packet must state how an implementation could technically satisfy its local requirements while still failing the product contract. Reviewers must actively test those failure modes.
+Every implementation packet that contributes to the active user outcome must state how it could technically satisfy its local requirements while still failing that outcome. Reviewers must actively test those failure modes.
 
 Examples include: a rendered button whose action is inert; a successful HTTP response whose outcome is not durable; a Builder inspector that exposes internals but cannot originate normal-language work; an Image Lab character record with no usable descriptor workflow; a Library inventory that faithfully renders acceptance-test debris; or a Projects page that accurately displays stale records that should no longer be active.
 
 ## Acceptance authority
 
-Independent product acceptance starts from the user outcome, not the diff. The reviewer receives the product contract and a running candidate first. Implementation details are inspected only after the task has been attempted as a user.
+Independent product acceptance starts from the user outcome, not the diff. The reviewer receives the active outcome statement and a running candidate first. Implementation details are inspected only after the task has been attempted as a user.
 
 For primary workflows, acceptance must cover desktop and iPhone-class widths, fresh start and reload, healthy and degraded dependencies, failure and recovery, and persistence where claimed. Fixture-only proof may validate mechanics but cannot substitute for a live-provider or live-runtime claim.
+
 ## Governance changes
 
-1. Product contracts outrank packet-local convenience. A packet cannot redefine success downward.
+1. The active user outcome outranks packet-local convenience. A packet cannot redefine success downward.
 2. Reviewers must record the original requested outcome, exact candidate SHA, environment, scenario, observed result, and any deviation.
 3. A merged PR is publication evidence, not product-completion evidence.
 4. User dogfooding is first-class acceptance evidence. Repeated user-reported failures must graduate into durable regression scenarios rather than remain chat history.
@@ -90,4 +94,4 @@ A secondary engineering metric is rework: the same user requirement should not r
 
 ## Immediate implication
 
-Before activating the large product-reality backlog, perform a meta audit of Kitty's product definition, architecture, technology stack, persistence model, runtime shape, development process, agent coordination, packet design, verification system, and historical churn. Use that audit to revise the recovery program so it fixes both the product and the mechanism that has repeatedly produced partial product outcomes.
+The meta audit is complete. Its findings are preserved in `docs/audit/KITTY_META_PRODUCT_ENGINEERING_AUDIT_2026-09-03.md` and the companion candidate inventories. This reference design is sequencing-neutral: the current `docs/ACTIVE_MISSION.md` / `docs/ROADMAP.md` authority selects **BUILDER-001** next. The Lead Integrator repairs the authority-selected outcome vertically and keeps only delivery mechanics that demonstrably prevent recurrence. If fresh product evidence changes sequencing, update the active authority explicitly; this design does not override it.
