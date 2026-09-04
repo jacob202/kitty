@@ -504,3 +504,26 @@ def test_direct_assignment_inbox_excludes_routine_broadcasts_without_marking_rec
     shared_inbox = agent_workspace.list_inbox("codex", unread_only=True)
     assert [message["id"] for message in shared_inbox] == [direct["id"], broadcast["id"]]
     assert all(message["receipt_state"] == "sent" for message in shared_inbox)
+
+
+def test_reply_to_direct_message_records_consumption_without_acknowledging_broadcast(workspace_db):
+    agent_workspace.ensure_global_workspace()
+    direct = agent_workspace.post_global_message(
+        sender_id="jacob", recipient_id="codex", content="Please review.", message_kind="review"
+    )
+    broadcast = agent_workspace.post_global_message(
+        sender_id="chatgpt", content="Shared status.", message_kind="status"
+    )
+
+    agent_workspace.post_global_message(
+        sender_id="codex", recipient_id="jacob", content="Reviewed.",
+        message_kind="review", parent_message_id=direct["id"],
+    )
+    agent_workspace.post_global_message(
+        sender_id="codex", content="Following up in thread.",
+        message_kind="status", parent_message_id=broadcast["id"],
+    )
+
+    inbox = {item["id"]: item for item in agent_workspace.list_inbox("codex")}
+    assert inbox[direct["id"]]["receipt_state"] == "acknowledged"
+    assert inbox[broadcast["id"]]["receipt_state"] == "sent"
