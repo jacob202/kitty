@@ -1523,6 +1523,9 @@ def run_worker(
                             lease_seconds=lease_seconds,
                             db_path=db_path,
                         )
+                        rw.verify_worktree_identity(
+                            persisted_identity, repo=root, worktree=wt_path
+                        )
                         bq.update_run(run_id, mark_heartbeat=True, db_path=db_path)
                         _presence_heartbeat(presence_session_id, presence_issues)
                     except bq.LeaseConflictError:

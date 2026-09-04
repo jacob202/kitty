@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -1617,3 +1618,58 @@ def test_run_worker_rejects_worktree_registration_tamper_before_launch(
             )
 
     assert launched is False
+
+
+
+def test_run_worker_stops_when_persisted_worktree_identity_changes_live(
+    repo: Path, db_path: Path
+) -> None:
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    attacker = repo.parent / "attacker-live-worktree"
+    subprocess.run(
+        ["git", "-C", str(repo), "worktree", "add", "--detach", str(attacker), "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    result: dict[str, object] = {}
+
+    def run() -> None:
+        try:
+            result["run"] = br.run_worker(
+                task["id"],
+                ["/bin/sleep", "2"],
+                repo_root=repo,
+                db_path=db_path,
+                heartbeat_seconds=0.1,
+                lease_seconds=2,
+                timeout_seconds=5,
+            )
+        except Exception as exc:
+            result["error"] = exc
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    run_row = None
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        runs = bq.list_runs(task_id=task["id"], db_path=db_path)
+        if runs and runs[-1].get("state") == bq.RUN_RUNNING:
+            run_row = runs[-1]
+            break
+        time.sleep(0.02)
+    assert run_row is not None
+    victim = Path(str(run_row["worktree_path"]))
+    (victim / ".git").write_text(
+        (attacker / ".git").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+
+    thread.join(timeout=0.8)
+    stopped_early = not thread.is_alive()
+    if thread.is_alive():
+        br.request_cancel(str(run_row["id"]), db_path=db_path)
+        thread.join(timeout=2)
+
+    assert stopped_early is True
+    assert isinstance(result.get("error"), br.RunnerError)
+    assert "identity" in str(result["error"]).lower() or "git" in str(result["error"]).lower()
