@@ -1567,3 +1567,53 @@ def test_run_worker_persists_creation_time_ownership_manifest(
     assert payload["kx_session_id"] == f"builder-run:{run['id']}"
     assert payload["declared_paths"] == ["README.md"]
     assert payload["worktree_identity"]["base_commit"] == run["start_sha"]
+
+
+def test_run_worker_rejects_worktree_registration_tamper_before_launch(
+    repo: Path, db_path: Path
+) -> None:
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    real_write = br._write_json_atomic
+    launched = False
+
+    def write_then_tamper(path: Path, payload: dict) -> None:
+        real_write(path, payload)
+        if path.name == "ownership.json":
+            worktree = Path(payload["worktree"])
+            attacker = repo.parent / "attacker-worktree"
+            subprocess.run(
+                ["git", "-C", str(repo), "worktree", "add", "--detach", str(attacker), "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            (worktree / ".git").write_text(
+                (attacker / ".git").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+
+    real_popen = br.subprocess.Popen
+
+    def guarded_popen(*args, **kwargs):
+        nonlocal launched
+        command = args[0] if args else kwargs.get("args")
+        executable = command[0] if isinstance(command, (list, tuple)) and command else command
+        if isinstance(executable, str) and Path(executable).name == "git":
+            return real_popen(*args, **kwargs)
+        launched = True
+        raise AssertionError("worker process must not launch after identity tamper")
+
+    with patch.object(br, "_write_json_atomic", side_effect=write_then_tamper), patch.object(
+        br.subprocess, "Popen", side_effect=guarded_popen
+    ):
+        with pytest.raises(br.RunnerError, match="identity|git"):
+            br.run_worker(
+                task["id"],
+                ["/usr/bin/true"],
+                repo_root=repo,
+                db_path=db_path,
+                heartbeat_seconds=1,
+                lease_seconds=5,
+            )
+
+    assert launched is False

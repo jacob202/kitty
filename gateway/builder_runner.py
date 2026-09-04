@@ -157,6 +157,24 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     os.replace(temp_path, path)
 
 
+def _read_persisted_worktree_identity(
+    path: Path, *, expected_run_id: str
+) -> rw.WorktreeIdentity:
+    """Load the exact creation-time worktree identity stored for a run."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise rw.RunWorkspaceError(
+            f"cannot read persisted ownership identity from {path}: {exc}"
+        ) from exc
+    if not isinstance(payload, dict) or payload.get("run_id") != expected_run_id:
+        raise rw.RunWorkspaceError("persisted ownership identity names the wrong run")
+    identity_payload = payload.get("worktree_identity")
+    if not isinstance(identity_payload, dict):
+        raise rw.RunWorkspaceError("persisted ownership identity is missing worktree_identity")
+    return rw.WorktreeIdentity.from_payload(identity_payload)
+
+
 def _repo_root(repo_root: Path | None) -> Path:
     if repo_root is not None:
         return Path(repo_root)
@@ -611,7 +629,7 @@ def _terminate_group(proc: subprocess.Popen[Any]) -> None:
 
 
 def _raise_worker_launch_error(
-    exc: OSError,
+    exc: Exception,
     *,
     run: dict[str, Any],
     task: dict[str, Any],
@@ -1393,6 +1411,12 @@ def run_worker(
                 extra_read_subpaths=validation_read_roots,
                 write_paths=boundary_write_paths,
             )
+            persisted_identity = _read_persisted_worktree_identity(
+                ownership_path, expected_run_id=run_id
+            )
+            rw.verify_worktree_identity(
+                persisted_identity, repo=root, worktree=wt_path
+            )
             proc = subprocess.Popen(
                 sandboxed_command,
                 cwd=wt_path,
@@ -1401,7 +1425,7 @@ def run_worker(
                 env=child_env,
                 start_new_session=True,  # own process group → clean termination
             )
-        except OSError as exc:
+        except (OSError, rw.RunWorkspaceError) as exc:
             _raise_worker_launch_error(
                 exc,
                 run=run,
