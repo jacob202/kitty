@@ -185,4 +185,70 @@ describe('Image Lab premium workspace', () => {
     expect(screen.getByRole('img', { name: 'Comparison image 1' })).toHaveAttribute('src', '/proxy/image/view/one.png')
     expect(screen.getByRole('img', { name: 'Comparison image 2' })).toHaveAttribute('src', '/proxy/image/view/two.png')
   })
+
+  it('shows and safely edits the durable character profile in place', async () => {
+    window.localStorage.clear()
+    const character = {
+      character_id: 'char_profile', name: 'Mia', description: 'Portrait anchor for editorial scenes.',
+      preferred_recipe: 'openai_gpt_image_2', identity_preset: 'identity_first',
+      references: [{ ref_id: 'ref_1', is_primary: true, original_name: 'mia.jpg', storage_path: '/tmp/mia.jpg' }],
+    }
+    const updated = {
+      ...character,
+      name: 'Mia Reference',
+      description: 'Keep facial identity stable across portrait edits.',
+      identity_preset: 'balanced',
+    }
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      const method = init?.method ?? 'GET'
+      if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [{
+        recipe_id: 'openai_gpt_image_2', display_name: 'GPT-Image-2 (OpenAI)', provider: 'openai',
+        quality_tier: 'quality', operation: 'txt2img', supports_img2img: true,
+        supports_characters: true, max_characters: 1, is_available: true,
+      }] }) }
+      if (target === '/proxy/studio/characters' && method === 'GET') {
+        return { ok: true, status: 200, json: async () => ({ characters: [character] }) }
+      }
+      if (target === '/proxy/studio/characters/char_profile' && method === 'PATCH') {
+        return { ok: true, status: 200, json: async () => updated }
+      }
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+    fireEvent.click(await screen.findByTestId('image-lab-character-picker'))
+    fireEvent.click(await screen.findByText('Mia'))
+
+    const profile = await screen.findByTestId('image-lab-character-profile')
+    expect(profile).toHaveTextContent('Portrait anchor for editorial scenes.')
+    expect(profile).toHaveTextContent('Identity first')
+    expect(profile).toHaveTextContent('GPT-Image-2 (OpenAI)')
+    expect(profile).toHaveTextContent('1 reference')
+    expect(screen.getByRole('combobox', { name: 'identity' })).toHaveValue('identity_first')
+
+    fireEvent.click(screen.getByRole('button', { name: /edit character profile/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Character profile name' }), { target: { value: 'Mia Reference' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Character profile description' }), { target: { value: 'Keep facial identity stable across portrait edits.' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Character identity protection' }), { target: { value: 'balanced' } })
+    fireEvent.click(screen.getByRole('button', { name: /save character profile/i }))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => (
+      String(url) === '/proxy/studio/characters/char_profile'
+      && (init as RequestInit | undefined)?.method === 'PATCH'
+      && JSON.stringify(JSON.parse(String((init as RequestInit).body))) === JSON.stringify({
+        name: 'Mia Reference',
+        description: 'Keep facial identity stable across portrait edits.',
+        identity_preset: 'balanced',
+      })
+    ))).toBe(true))
+    expect(profile).toHaveTextContent('Mia Reference')
+    expect(profile).toHaveTextContent('Keep facial identity stable across portrait edits.')
+    expect(profile).toHaveTextContent('Balanced')
+    expect(profile).toHaveTextContent('GPT-Image-2 (OpenAI)')
+    expect(screen.getByRole('combobox', { name: 'identity' })).toHaveValue('balanced')
+  })
+
 })

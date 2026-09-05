@@ -76,6 +76,7 @@ type StudioCharacter = {
   character_id: string
   name: string
   description: string | null
+  preferred_recipe: string | null
   identity_preset: string
   references: CharacterRef[]
 }
@@ -147,6 +148,17 @@ function duration(seconds: number): string {
   return `~${Math.max(1, Math.round(seconds / 60))} min`
 }
 
+function isIdentityMode(value: string): value is IdentityMode {
+  return value === 'creative' || value === 'balanced' || value === 'identity_first'
+}
+
+function identityModeLabel(value: string): string {
+  if (value === 'identity_first') return 'Identity first'
+  if (value === 'creative') return 'Creative'
+  if (value === 'balanced') return 'Balanced'
+  return 'Unknown'
+}
+
 async function jsonOrError(response: Response): Promise<any> {
   if (!response.ok) {
     const detail = await response.text()
@@ -166,7 +178,9 @@ function useStudioCharacters() {
     try {
       const payload = await jsonOrError(await fetch('/proxy/studio/characters'))
       const normalized = (payload.characters ?? []).map((character: StudioCharacter) => ({
-        ...character, references: character.references ?? [],
+        ...character,
+        preferred_recipe: character.preferred_recipe ?? null,
+        references: character.references ?? [],
       }))
       setCharacters(normalized)
     } catch (error) {
@@ -186,9 +200,30 @@ function useStudioCharacters() {
     })
     if (!response.ok) throw new Error(await response.text())
     const raw = await response.json() as StudioCharacter
-    const character = { ...raw, references: raw.references ?? [] }
+    const character = { ...raw, preferred_recipe: raw.preferred_recipe ?? null, references: raw.references ?? [] }
     setCharacters(previous => [character, ...previous])
     return character
+  }, [])
+
+  const updateCharacter = useCallback(async (
+    character: StudioCharacter,
+    updates: { name: string; description: string; identity_preset: IdentityMode },
+  ) => {
+    const response = await fetch(`/proxy/studio/characters/${encodeURIComponent(character.character_id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+    if (!response.ok) throw new Error(await response.text())
+    const raw = await response.json() as StudioCharacter
+    const updated: StudioCharacter = {
+      ...character,
+      ...raw,
+      preferred_recipe: raw.preferred_recipe ?? character.preferred_recipe ?? null,
+      references: raw.references ?? character.references,
+    }
+    setCharacters(previous => previous.map(item => item.character_id === updated.character_id ? updated : item))
+    return updated
   }, [])
 
   const uploadReference = useCallback(async (characterId: string, file: File) => {
@@ -212,7 +247,7 @@ function useStudioCharacters() {
     return { reference, quality: payload.quality }
   }, [])
 
-  return { characters, loading, error, fetchCharacters, createCharacter, uploadReference }
+  return { characters, loading, error, fetchCharacters, createCharacter, updateCharacter, uploadReference }
 }
 
 function ResultActions({ jobId, onNewBatch, onError }: {
@@ -280,7 +315,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const [compareOpen, setCompareOpen] = useState(false)
   const estimateAbort = useRef<AbortController | null>(null)
 
-  const { characters, loading: charactersLoading, error: charactersError, fetchCharacters, createCharacter, uploadReference } = useStudioCharacters()
+  const { characters, loading: charactersLoading, error: charactersError, fetchCharacters, createCharacter, updateCharacter, uploadReference } = useStudioCharacters()
   const [selectedCharacter, setSelectedCharacter] = useState<StudioCharacter | null>(null)
   const [boundCharacterId, setBoundCharacterId] = useState<string | null>(null)
   const [showCharPicker, setShowCharPicker] = useState(false)
@@ -288,6 +323,12 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const [charRefFile, setCharRefFile] = useState<File | null>(null)
   const [charUploading, setCharUploading] = useState(false)
   const [refQuality, setRefQuality] = useState<RefQuality | null>(null)
+  const [profileEditing, setProfileEditing] = useState(false)
+  const [profileName, setProfileName] = useState('')
+  const [profileDescription, setProfileDescription] = useState('')
+  const [profileIdentity, setProfileIdentity] = useState<IdentityMode>('balanced')
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
 
   const enginesAvailable = anchorJobId
     ? (status.data?.edit_available ?? status.data?.available) === true
@@ -324,6 +365,13 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     () => compareCandidates.filter(candidate => compareJobIds.includes(candidate.jobId)),
     [compareCandidates, compareJobIds],
   )
+  const preferredRecipeLabel = useMemo(() => {
+    const recipeId = selectedCharacter?.preferred_recipe
+    if (!recipeId) return 'Automatic'
+    const recipe = recipes.find(item => item.recipe_id === recipeId)
+    if (recipe) return recipe.display_name
+    return recipesError ? 'Saved route (route list unavailable)' : 'Saved route is not available now'
+  }, [selectedCharacter?.preferred_recipe, recipes, recipesError])
 
   const appendTurn = useCallback((turn: Omit<Turn, 'id'>) => {
     setTurns(previous => [...previous, { ...turn, id: turnId() }])
@@ -497,6 +545,9 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     if (!sessionId) {
       setSelectedCharacter(character)
       setBoundCharacterId(character.character_id)
+      if (isIdentityMode(character.identity_preset)) setIdentity(character.identity_preset)
+      setProfileEditing(false)
+      setProfileError(null)
       setShowCharPicker(false)
       return
     }
@@ -508,6 +559,9 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
       }))
       setSelectedCharacter(character)
       setBoundCharacterId(character.character_id)
+      if (isIdentityMode(character.identity_preset)) setIdentity(character.identity_preset)
+      setProfileEditing(false)
+      setProfileError(null)
       setShowCharPicker(false)
     } catch (err) {
       setError(humanError(err))
@@ -519,6 +573,8 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     if (!sessionId || !boundCharacterId) {
       setSelectedCharacter(null)
       setBoundCharacterId(null)
+      setProfileEditing(false)
+      setProfileError(null)
       return
     }
     try {
@@ -529,8 +585,44 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
       }))
       setSelectedCharacter(null)
       setBoundCharacterId(null)
+      setProfileEditing(false)
+      setProfileError(null)
     } catch (err) {
       setError(humanError(err))
+    }
+  }
+
+  function beginCharacterProfileEdit() {
+    if (!selectedCharacter) return
+    setProfileName(selectedCharacter.name)
+    setProfileDescription(selectedCharacter.description ?? '')
+    setProfileIdentity(isIdentityMode(selectedCharacter.identity_preset) ? selectedCharacter.identity_preset : 'balanced')
+    setProfileError(null)
+    setProfileEditing(true)
+  }
+
+  async function saveCharacterProfile() {
+    if (!selectedCharacter || profileSaving) return
+    const name = profileName.trim()
+    if (!name) {
+      setProfileError('Character name cannot be empty.')
+      return
+    }
+    setProfileSaving(true)
+    setProfileError(null)
+    try {
+      const updated = await updateCharacter(selectedCharacter, {
+        name,
+        description: profileDescription.trim(),
+        identity_preset: profileIdentity,
+      })
+      setSelectedCharacter(updated)
+      setIdentity(profileIdentity)
+      setProfileEditing(false)
+    } catch (err) {
+      setProfileError(humanError(err))
+    } finally {
+      setProfileSaving(false)
     }
   }
 
@@ -845,6 +937,105 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                     <strong style={referenceNameStyle}>No character bound</strong>
                     <div style={supportingTextStyle}>You can generate without one, or bind a saved character for identity continuity.</div>
                   </div>
+                </div>
+              )}
+
+              {selectedCharacter && (
+                <div data-testid="image-lab-character-profile" style={characterProfileStyle}>
+                  <div style={characterProfileHeaderStyle}>
+                    <div style={{ minWidth: 0 }}>
+                      <span style={profileEyebrowStyle}>Character profile</span>
+                      {!profileEditing && <strong style={referenceNameStyle}>{selectedCharacter.name}</strong>}
+                    </div>
+                    {!profileEditing && (
+                      <button type="button" aria-label="Edit character profile" onClick={beginCharacterProfileEdit} style={secondaryButtonStyle}>
+                        Edit profile
+                      </button>
+                    )}
+                  </div>
+
+                  {profileEditing ? (
+                    <div style={profileFormStyle}>
+                      <label style={profileFieldStyle}>
+                        <span style={profileLabelStyle}>Name</span>
+                        <input
+                          type="text"
+                          aria-label="Character profile name"
+                          value={profileName}
+                          onChange={event => setProfileName(event.target.value)}
+                          style={inputStyle}
+                        />
+                      </label>
+                      <label style={profileFieldStyle}>
+                        <span style={profileLabelStyle}>Description</span>
+                        <textarea
+                          aria-label="Character profile description"
+                          value={profileDescription}
+                          onChange={event => setProfileDescription(event.target.value)}
+                          rows={3}
+                          style={textareaStyle}
+                        />
+                      </label>
+                      <label style={profileFieldStyle}>
+                        <span style={profileLabelStyle}>Identity protection</span>
+                        <select
+                          aria-label="Character identity protection"
+                          value={profileIdentity}
+                          onChange={event => setProfileIdentity(event.target.value as IdentityMode)}
+                          style={selectStyle}
+                        >
+                          <option value="creative">Creative</option>
+                          <option value="balanced">Balanced</option>
+                          <option value="identity_first">Identity first</option>
+                        </select>
+                      </label>
+                      <div style={profileReadOnlyStyle}>
+                        <span style={profileLabelStyle}>Preferred route</span>
+                        <strong style={profileFactValueStyle}>{preferredRecipeLabel}</strong>
+                        <span style={supportingTextStyle}>Choose the route for this request in Create.</span>
+                      </div>
+                      <div style={profileActionRowStyle}>
+                        <button
+                          type="button"
+                          aria-label="Save character profile"
+                          onClick={() => void saveCharacterProfile()}
+                          disabled={profileSaving || !profileName.trim()}
+                          style={{ ...secondaryButtonStyle, opacity: profileSaving || !profileName.trim() ? 0.55 : 1 }}
+                        >
+                          {profileSaving ? 'Saving…' : 'Save profile'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setProfileEditing(false); setProfileError(null) }}
+                          disabled={profileSaving}
+                          style={secondaryButtonStyle}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={profileSummaryStyle}>
+                      <p style={profileDescriptionStyle}>{selectedCharacter.description?.trim() || 'No description saved yet.'}</p>
+                      <div style={profileFactsStyle}>
+                        <div style={profileFactStyle}>
+                          <span style={profileLabelStyle}>Identity protection</span>
+                          <strong style={profileFactValueStyle}>{identityModeLabel(selectedCharacter.identity_preset)}</strong>
+                        </div>
+                        <div style={profileFactStyle}>
+                          <span style={profileLabelStyle}>Preferred route</span>
+                          <strong style={profileFactValueStyle}>{preferredRecipeLabel}</strong>
+                        </div>
+                        <div style={profileFactStyle}>
+                          <span style={profileLabelStyle}>References</span>
+                          <strong style={profileFactValueStyle}>
+                            {selectedCharacter.references.length} reference{selectedCharacter.references.length === 1 ? '' : 's'}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {profileError && <div role="alert" style={profileErrorStyle}>{profileError}</div>}
                 </div>
               )}
 
@@ -1425,6 +1616,20 @@ const countStyle: CSSProperties = {
   flexShrink: 0, fontSize: 12, color: 'var(--color-text-muted)', paddingTop: 3,
 }
 const referenceStackStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 'var(--s-2)', minWidth: 0 }
+const characterProfileStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, padding: '12px', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', background: 'var(--color-surface-elevated)', minWidth: 0 }
+const characterProfileHeaderStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, minWidth: 0 }
+const profileEyebrowStyle: CSSProperties = { display: 'block', marginBottom: 3, color: 'var(--color-text-secondary)', fontSize: 10, fontWeight: 750, letterSpacing: '0.07em', textTransform: 'uppercase' }
+const profileSummaryStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }
+const profileDescriptionStyle: CSSProperties = { margin: 0, color: 'var(--color-text-secondary)', fontSize: 13, lineHeight: 1.5, overflowWrap: 'anywhere' }
+const profileFactsStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, minWidth: 0 }
+const profileFactStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }
+const profileLabelStyle: CSSProperties = { color: 'var(--color-text-secondary)', fontSize: 11, lineHeight: 1.35 }
+const profileFactValueStyle: CSSProperties = { color: 'var(--color-text-primary)', fontSize: 12, lineHeight: 1.4, overflowWrap: 'anywhere' }
+const profileFormStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }
+const profileFieldStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }
+const profileReadOnlyStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }
+const profileActionRowStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }
+const profileErrorStyle: CSSProperties = { color: 'var(--color-destructive)', fontSize: 12, lineHeight: 1.45 }
 const boundReferenceStyle: CSSProperties = {
   minHeight: 64, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--s-2)', minWidth: 0,
   padding: '10px 12px', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', background: 'var(--color-selected)',
