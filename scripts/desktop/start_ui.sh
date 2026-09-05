@@ -61,9 +61,13 @@ assert_clean_ui_source() {
 }
 
 record_build_source() {
-  local source_sha
+  local source_sha dirty
   source_sha="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || true)"
+  dirty="$(git -C "${ROOT_DIR}" status --porcelain --untracked-files=normal -- gateway/kitty-chat 2>/dev/null || true)"
   if [[ -n "${source_sha}" ]]; then
+    if [[ -n "${dirty}" ]]; then
+      source_sha="dirty:${source_sha}"
+    fi
     printf '%s\n' "${source_sha}" > "${BUILD_SOURCE_STAMP}"
   fi
 }

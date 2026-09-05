@@ -16,8 +16,10 @@ import argparse
 import json
 import os
 import pathlib
+import shlex
 import shutil
 import ssl
+import subprocess
 import sys
 import time
 import urllib.request
@@ -299,58 +301,373 @@ def _check_push_channel(env: dict) -> list[Check]:
     ]
 
 
+_PROCESS_START_UNSET = object()
+
+
+def _listener_process_info(*, port: int) -> dict[str, object]:
+    """Return process identity for one TCP listener without relying on /proc."""
+    try:
+        listener = subprocess.run(
+            ["lsof", f"-tiTCP:{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"state": "unknown", "error": f"listener probe failed: {exc}"}
+
+    raw_pids = [line.strip() for line in listener.stdout.splitlines() if line.strip()]
+    if not raw_pids:
+        if listener.returncode in (0, 1):
+            return {"state": "not-running"}
+        return {
+            "state": "unknown",
+            "error": f"listener probe exited {listener.returncode}",
+        }
+
+    try:
+        pid = int(raw_pids[0])
+    except ValueError:
+        return {"state": "unknown", "error": f"invalid listener pid: {raw_pids[0]}"}
+
+    def capture(args: list[str]) -> str:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        return result.stdout.strip() if result.returncode == 0 else ""
+
+    try:
+        command = capture(["ps", "-p", str(pid), "-o", "command="])
+        cwd_output = capture(["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"])
+        started = capture(["ps", "-p", str(pid), "-o", "lstart="])
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {
+            "state": "running-unverifiable",
+            "pid": pid,
+            "error": f"process identity probe failed: {exc}",
+        }
+
+    cwd = next(
+        (line[1:] for line in cwd_output.splitlines() if line.startswith("n")),
+        "",
+    )
+    start_time: float | None = None
+    if started:
+        try:
+            import datetime
+
+            normalized = " ".join(started.split())
+            parsed = datetime.datetime.strptime(normalized, "%a %b %d %H:%M:%S %Y")
+            start_time = parsed.timestamp()
+        except ValueError:
+            start_time = None
+
+    if not command or not cwd or start_time is None:
+        return {
+            "state": "running-unverifiable",
+            "pid": pid,
+            "command": command,
+            "cwd": cwd,
+            "start_time": start_time,
+            "error": "listener exists but process identity is incomplete",
+        }
+
+    return {
+        "state": "running",
+        "pid": pid,
+        "command": command,
+        "cwd": cwd,
+        "start_time": start_time,
+    }
+
+
+def _is_gateway_process_command(command: str) -> bool:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False
+    if "gateway.app:app" not in tokens:
+        return False
+    target_index = tokens.index("gateway.app:app")
+    invocation = tokens[:target_index]
+    if not invocation:
+        return False
+    if Path(invocation[0]).name == "uvicorn":
+        return True
+    if len(invocation) >= 2 and Path(invocation[1]).name == "uvicorn":
+        return True
+    return any(
+        token == "-m" and index + 1 < len(invocation) and invocation[index + 1] == "uvicorn"
+        for index, token in enumerate(invocation)
+    )
+
+
+def _gateway_process_info(*, port: int = 8000) -> dict[str, object]:
+    """Return listener identity only when the process is the real Uvicorn gateway."""
+    info = _listener_process_info(port=port)
+    if info.get("state") != "running":
+        return info
+    if not _is_gateway_process_command(str(info.get("command") or "")):
+        return {
+            **info,
+            "state": "running-unverifiable",
+            "error": "listener command is not the Kitty gateway",
+        }
+    return info
+
+
 def _gateway_process_start_time() -> float | None:
-    """Return the gateway process start time as a Unix timestamp, or None if not found."""
-    import subprocess
+    """Compatibility wrapper around the authoritative listener probe."""
+    info = _gateway_process_info()
+    value = info.get("start_time") if info.get("state") == "running" else None
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def _gateway_source_mtime(cwd: str) -> float | None:
+    """Return newest recursive gateway Python source mtime for a process checkout."""
     try:
         result = subprocess.run(
-            ["pgrep", "-f", "gateway.main"],
-            capture_output=True, text=True, timeout=3,
+            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
         )
-        pids = result.stdout.strip().splitlines()
-        if not pids:
-            return None
-        pid = int(pids[0])
-        stat = pathlib.Path(f"/proc/{pid}/stat").read_text()
-        # field 22 (0-indexed 21) is process start time in jiffies since boot
-        fields = stat.split()
-        starttime_jiffies = int(fields[21])
-        hz = os.sysconf("SC_CLK_TCK")
-        uptime_s = float(pathlib.Path("/proc/uptime").read_text().split()[0])
-        import time
-        boot_time = time.time() - uptime_s
-        return boot_time + starttime_jiffies / hz
-    except Exception:  # noqa: BLE001
+    except (OSError, subprocess.SubprocessError):
         return None
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    gateway_dir = Path(result.stdout.strip()) / "gateway"
+    try:
+        mtimes = [path.stat().st_mtime for path in gateway_dir.rglob("*.py")]
+    except OSError:
+        return None
+    return max(mtimes, default=None)
+
+
+def _git_text(root: Path, *args: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def _ui_build_provenance(root: Path = ROOT) -> dict[str, str]:
+    """Classify the UI build from recorded source identity, never directory mtimes."""
+    ui_dir = root / "gateway" / "kitty-chat"
+    build_id = ui_dir / ".next" / "BUILD_ID"
+    source_stamp = ui_dir / ".next" / "KITTY_SOURCE_SHA"
+    source_sha = _git_text(root, "rev-parse", "HEAD") or "unknown"
+    status = _git_text(
+        root,
+        "status",
+        "--porcelain",
+        "--untracked-files=normal",
+        "--",
+        "gateway/kitty-chat",
+    )
+    source_state = "unknown" if status is None else ("dirty" if status else "clean")
+    build_id_value = (
+        build_id.read_text(encoding="utf-8").strip() if build_id.is_file() else "unknown"
+    )
+    build_source = (
+        source_stamp.read_text(encoding="utf-8").strip()
+        if source_stamp.is_file()
+        else "unknown"
+    )
+
+    if not build_id.is_file():
+        state = "no-build"
+    elif build_source == "unknown" or source_sha == "unknown" or source_state == "unknown":
+        state = "unknown"
+    elif build_source.startswith("dirty:"):
+        state = "dirty-built"
+    elif build_source != source_sha or source_state == "dirty":
+        state = "stale"
+    else:
+        state = "checkout-current"
+
+    return {
+        "state": state,
+        "build_id": build_id_value,
+        "build_source": build_source,
+        "source_sha": source_sha,
+        "source_state": source_state,
+    }
+
+
+def _is_ui_runtime_process(process: dict[str, object]) -> bool:
+    command = str(process.get("command") or "")
+    cwd = str(process.get("cwd") or "")
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False
+    if not tokens or Path(tokens[0]).name != "next-server":
+        return False
+    parts = Path(cwd).parts
+    return len(parts) >= 4 and parts[-4:] == ("gateway", "kitty-chat", ".next", "standalone")
+
+
+def _ui_runtime_provenance(*, port: int = 4000) -> dict[str, str]:
+    """Classify the build actually served by the UI listener's worktree."""
+    process = _listener_process_info(port=port)
+    process_state = str(process.get("state") or "unknown")
+    if process_state == "not-running":
+        return {
+            "state": "not-running",
+            "build_id": "unknown",
+            "build_source": "unknown",
+            "source_sha": "unknown",
+            "source_state": "unknown",
+            "runtime_root": "unknown",
+            "runtime_pid": "unknown",
+        }
+    if process_state != "running" or not _is_ui_runtime_process(process):
+        return {
+            "state": "unknown",
+            "build_id": "unknown",
+            "build_source": "unknown",
+            "source_sha": "unknown",
+            "source_state": "unknown",
+            "runtime_root": "unknown",
+            "runtime_pid": str(process.get("pid") or "unknown"),
+        }
+
+    cwd = str(process.get("cwd") or "")
+    runtime_root = _git_text(Path(cwd), "rev-parse", "--show-toplevel") if cwd else None
+    if not runtime_root:
+        return {
+            "state": "unknown",
+            "build_id": "unknown",
+            "build_source": "unknown",
+            "source_sha": "unknown",
+            "source_state": "unknown",
+            "runtime_root": "unknown",
+            "runtime_pid": str(process.get("pid") or "unknown"),
+        }
+
+    provenance = _ui_build_provenance(Path(runtime_root))
+    return {
+        **provenance,
+        "runtime_root": runtime_root,
+        "runtime_pid": str(process.get("pid") or "unknown"),
+    }
+
+
+def _check_ui_build_provenance() -> list[Check]:
+    provenance = _ui_runtime_provenance()
+    state = provenance["state"]
+    detail = (
+        f"{state}; build={provenance['build_source']} "
+        f"checkout={provenance['source_sha']} source={provenance['source_state']} "
+        f"runtime_root={provenance['runtime_root']} pid={provenance['runtime_pid']}"
+    )
+    level = "PASS" if state == "checkout-current" else "WARN"
+    return [Check(level, "runtime:ui_build_provenance", detail)]
 
 
 def _check_gateway_freshness(
     *,
-    process_start: float | None = None,
+    process_start: float | None | object = _PROCESS_START_UNSET,
     source_mtime: float | None = None,
 ) -> list[Check]:
-    """WARN when the running gateway process predates the newest gateway source file."""
-    if process_start is None:
-        process_start = _gateway_process_start_time()
-    if process_start is None:
-        # Gateway not running — services check already covers this.
-        return [Check("PASS", "runtime:gateway_freshness", "gateway not running — no freshness check")]
+    """Classify Gateway freshness using the listener's actual process checkout."""
+    process_info: dict[str, object] | None = None
+    if process_start is _PROCESS_START_UNSET:
+        process_info = _gateway_process_info()
+        state = process_info.get("state")
+        if state == "not-running":
+            return [
+                Check(
+                    "PASS",
+                    "runtime:gateway_freshness",
+                    "gateway listener is not running — no freshness check",
+                )
+            ]
+        if state != "running":
+            return [
+                Check(
+                    "WARN",
+                    "runtime:gateway_freshness",
+                    "gateway runtime identity is unverifiable: "
+                    + str(process_info.get("error") or state),
+                )
+            ]
+        process_start = process_info.get("start_time")
+        if source_mtime is None:
+            cwd = process_info.get("cwd")
+            source_mtime = _gateway_source_mtime(str(cwd)) if cwd else None
+    elif process_start is None:
+        return [
+            Check(
+                "PASS",
+                "runtime:gateway_freshness",
+                "gateway listener is confirmed not running — no freshness check",
+            )
+        ]
 
-    if source_mtime is None:
-        py_files = list((ROOT / "gateway").glob("*.py"))
-        source_mtime = max((f.stat().st_mtime for f in py_files), default=0.0)
+    if not isinstance(process_start, (int, float)) or source_mtime is None:
+        return [
+            Check(
+                "WARN",
+                "runtime:gateway_freshness",
+                "gateway runtime identity is unverifiable: missing start/source evidence",
+            )
+        ]
 
+    evidence = ""
+    if process_info:
+        evidence = (
+            f" pid={process_info.get('pid')} cwd={process_info.get('cwd')}"
+            f" command={process_info.get('command')}"
+        )
     if source_mtime > process_start:
         import datetime
+
         age = datetime.timedelta(seconds=int(source_mtime - process_start))
         return [
             Check(
                 "WARN",
                 "runtime:gateway_freshness",
-                f"gateway process is {age} older than newest source — restart with ./kitty up",
+                f"gateway process is {age} older than newest recursive source — restart with ./kitty up;{evidence}",
             )
         ]
-    return [Check("PASS", "runtime:gateway_freshness", "gateway process is newer than source")]
+    return [
+        Check(
+            "PASS",
+            "runtime:gateway_freshness",
+            f"gateway process is newer than recursive source;{evidence}",
+        )
+    ]
+
+
+def runtime_provenance_status_line() -> str:
+    """Compact shared probe consumed by the shell launcher status surface."""
+    ui = _ui_runtime_provenance()
+    gateway = _check_gateway_freshness()[0]
+    detail = gateway.detail.replace("|", "/").replace("\n", " ")
+    return "|".join(
+        [
+            ui["build_id"],
+            ui["state"],
+            ui["build_source"],
+            gateway.level,
+            detail,
+        ]
+    )
 
 
 def _check_deadlines() -> list[Check]:
@@ -553,6 +870,7 @@ def main() -> int:
         + _check_github_connector(env)
         + _check_push_channel(env)
         + _check_deadlines()
+        + _check_ui_build_provenance()
         + _check_gateway_freshness()
         + _check_codegraph()
         + _check_repository_continuity()

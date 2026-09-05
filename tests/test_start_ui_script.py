@@ -195,7 +195,7 @@ def test_missing_build_is_built_before_starting(tmp_path):
     assert calls[0].startswith("npm run build")
 
 
-def test_dirty_ui_source_warns_but_still_builds_and_stamps_head(tmp_path):
+def test_dirty_ui_source_warns_but_stamps_dirty_build(tmp_path):
     root = _fake_repo(tmp_path, build_id=False)
     (root / "gateway" / "kitty-chat" / "src" / "page.tsx").write_text(
         "export default function Page() { return null }\n", encoding="utf-8"
@@ -211,7 +211,7 @@ def test_dirty_ui_source_warns_but_still_builds_and_stamps_head(tmp_path):
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
     ).stdout.strip()
-    assert stamp.read_text(encoding="utf-8").strip() == head
+    assert stamp.read_text(encoding="utf-8").strip() == f"dirty:{head}"
 
 
 def test_dirty_newer_ui_source_warns_but_still_rebuilds(tmp_path):
