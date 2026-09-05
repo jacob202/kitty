@@ -626,6 +626,31 @@ def db_path(tmp_path: Path) -> Path:
     return p
 
 
+@pytest.fixture(autouse=True)
+def isolated_model_runner_kx(tmp_path: Path, monkeypatch) -> None:
+    from gateway import agent_coordination as ac
+
+    registry = tmp_path / "model-runner-kx-resources.yaml"
+    registry.write_text(
+        "resources:\n  test:all:\n    paths:\n      - '**'\n",
+        encoding="utf-8",
+    )
+    coordination_db = tmp_path / "model-runner-kx.db"
+    kitty_data_root = tmp_path / "kitty-data"
+    monkeypatch.setattr(ac, "DEFAULT_REGISTRY_PATH", registry)
+    monkeypatch.setattr(ac, "default_db_path", lambda: coordination_db)
+    monkeypatch.setattr(
+        ac.agent_workspace,
+        "WORKSPACE_DB_FILE",
+        kitty_data_root / "kitty" / "kitty.db",
+    )
+    monkeypatch.setenv("KITTY_DATA_ROOT", str(kitty_data_root))
+    monkeypatch.setenv("KITTY_COORDINATION_DB_PATH", str(coordination_db))
+    monkeypatch.setenv("KITTY_COORDINATION_REGISTRY_PATH", str(registry))
+
+
 def _queued_task(db_path: Path, **kwargs) -> dict:
     from gateway import builder_queue as bq
+    if "allowed_paths" not in kwargs:
+        kwargs["allowed_paths"] = ["."]
     return bq.create_task("runner test task", db_path=db_path, **kwargs)
