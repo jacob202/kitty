@@ -1522,3 +1522,169 @@ def test_mission_reconciliation_completed_does_not_make_delegation_retryable(tmp
             replacement_task={"id": "task-1", "worker_id": "worker-b"},
             delegate=lambda _task: {"ok": True}, db_path=db_path,
         )
+
+
+def test_mission_stale_reconciliation_cannot_overwrite_completed_effect(tmp_path, monkeypatch):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[{"source": "research", "locator": "lane", "digest": "v1"}],
+        decide=lambda _context: {
+            "outcome": "advance", "reason": "delegate",
+            "task": {"id": "task-1", "worker_id": "worker-a"},
+        },
+        delegate=lambda _task: (_ for _ in ()).throw(RuntimeError("unknown")),
+        db_path=db_path,
+    )
+
+    original_persist = context_mission._persist
+    interleaved = False
+
+    def race_persist(*args, **kwargs):
+        nonlocal interleaved
+        if not interleaved:
+            interleaved = True
+            context_mission.reconcile_delegation(
+                "life-2", supervisor_id="chad", supervisor_epoch=1,
+                outcome="completed", evidence_locator="receipt://completed", db_path=db_path,
+            )
+        return original_persist(*args, **kwargs)
+
+    monkeypatch.setattr(context_mission, "_persist", race_persist)
+    with pytest.raises(memory_mission.MissionError, match="delegation state changed"):
+        context_mission.reconcile_delegation(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            outcome="failed_no_effect", evidence_locator="receipt://stale-no-effect",
+            db_path=db_path,
+        )
+
+    current = memory_mission.get_mission("life-2", db_path=db_path)["last_cycle"]
+    assert current["delegation_state"] == "completed"
+    assert current["delegation_reconciliation"]["outcome"] == "completed"
+
+
+def test_mission_competing_replacement_workers_dispatch_only_one(tmp_path, monkeypatch):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[{"source": "research", "locator": "lane", "digest": "v1"}],
+        decide=lambda _context: {
+            "outcome": "advance", "reason": "delegate",
+            "task": {"id": "task-1", "worker_id": "worker-a"},
+        },
+        delegate=lambda _task: (_ for _ in ()).throw(RuntimeError("unknown")),
+        db_path=db_path,
+    )
+    context_mission.reconcile_delegation(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        outcome="failed_no_effect", evidence_locator="receipt://no-effect", db_path=db_path,
+    )
+    original_persist = context_mission._persist
+    interleaved = False
+    calls: list[tuple[str, str]] = []
+
+    def race_persist(*args, **kwargs):
+        nonlocal interleaved
+        if not interleaved:
+            interleaved = True
+            context_mission.replace_delegation_worker(
+                "life-2", supervisor_id="chad", supervisor_epoch=1,
+                replacement_task={"id": "task-1", "worker_id": "worker-c"},
+                delegate=lambda task: calls.append(("nested", task["worker_id"]))
+                or {"ok": True, "receipt": "worker-c:done"},
+                db_path=db_path,
+            )
+        return original_persist(*args, **kwargs)
+
+    monkeypatch.setattr(context_mission, "_persist", race_persist)
+    with pytest.raises(memory_mission.MissionError, match="delegation state changed"):
+        context_mission.replace_delegation_worker(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            replacement_task={"id": "task-1", "worker_id": "worker-b"},
+            delegate=lambda task: calls.append(("outer", task["worker_id"]))
+            or {"ok": True, "receipt": "worker-b:done"},
+            db_path=db_path,
+        )
+
+    assert calls == [("nested", "worker-c")]
+    current = memory_mission.get_mission("life-2", db_path=db_path)["last_cycle"]
+    assert current["delegation_state"] == "completed"
+    assert current["task"]["worker_id"] == "worker-c"
+
+def test_mission_delegate_result_cannot_overwrite_concurrent_reconciliation(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+
+    def delegate(_task):
+        context_mission.reconcile_delegation(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            outcome="completed", evidence_locator="receipt://completed-during-call",
+            db_path=db_path,
+        )
+        return {"ok": False, "error": "stale worker reply"}
+
+    with pytest.raises(memory_mission.MissionError, match="delegation state changed"):
+        context_mission.run_cycle(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            observations=[{"source": "research", "locator": "lane", "digest": "v1"}],
+            decide=lambda _context: {
+                "outcome": "advance", "reason": "delegate",
+                "task": {"id": "task-1", "worker_id": "worker-a"},
+            },
+            delegate=delegate, db_path=db_path,
+        )
+
+    current = memory_mission.get_mission("life-2", db_path=db_path)["last_cycle"]
+    assert current["delegation_state"] == "completed"
+    assert current["delegation_reconciliation"]["evidence_locator"] == (
+        "receipt://completed-during-call"
+    )
+
+def test_mission_replacement_result_cannot_overwrite_concurrent_reconciliation(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[{"source": "research", "locator": "lane", "digest": "v1"}],
+        decide=lambda _context: {
+            "outcome": "advance", "reason": "delegate",
+            "task": {"id": "task-1", "worker_id": "worker-a"},
+        },
+        delegate=lambda _task: (_ for _ in ()).throw(RuntimeError("unknown")),
+        db_path=db_path,
+    )
+    context_mission.reconcile_delegation(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        outcome="failed_no_effect", evidence_locator="receipt://no-effect", db_path=db_path,
+    )
+
+    def replacement_delegate(_task):
+        context_mission.reconcile_delegation(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            outcome="completed", evidence_locator="receipt://replacement-completed",
+            db_path=db_path,
+        )
+        return {"ok": False, "error": "stale replacement reply"}
+
+    with pytest.raises(memory_mission.MissionError, match="delegation state changed"):
+        context_mission.replace_delegation_worker(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            replacement_task={"id": "task-1", "worker_id": "worker-b"},
+            delegate=replacement_delegate, db_path=db_path,
+        )
+    current = memory_mission.get_mission("life-2", db_path=db_path)["last_cycle"]
+    assert current["delegation_state"] == "completed"
+    assert current["task"]["worker_id"] == "worker-b"
+    assert current["delegation_reconciliation"]["evidence_locator"] == (
+        "receipt://replacement-completed"
+    )

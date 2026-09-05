@@ -45,6 +45,7 @@ def _persist(
     mission_id: str, *, supervisor_id: str, supervisor_epoch: int,
     cursors: dict[str, str], cycle: dict[str, Any],
     pending_escalation: dict[str, Any] | None, db_path: Path,
+    expected_last_cycle: dict[str, Any] | None = None,
 ) -> None:
     memory_mission.record_cycle(
         mission_id,
@@ -53,6 +54,7 @@ def _persist(
         source_cursors=cursors,
         cycle=cycle,
         pending_escalation=pending_escalation,
+        expected_last_cycle=expected_last_cycle,
         db_path=db_path,
     )
 
@@ -117,6 +119,7 @@ def run_cycle(
 
     cycle = {**decision, "changed": changed}
     pending_escalation = mission["pending_escalation"]
+    expected_last_cycle_for_final: dict[str, Any] | None = None
     if decision["outcome"] == "advance":
         task = decision.get("task")
         if not isinstance(task, dict) or delegate is None:
@@ -132,6 +135,7 @@ def run_cycle(
                 supervisor_epoch=supervisor_epoch, cursors=cursors, cycle=cycle,
                 pending_escalation=pending_escalation, db_path=db_path,
             )
+            expected_last_cycle_for_final = dict(cycle)
             try:
                 delegation = delegate(task)
             except Exception as exc:
@@ -145,6 +149,7 @@ def run_cycle(
                     mission_id, supervisor_id=supervisor_id,
                     supervisor_epoch=supervisor_epoch, cursors=cursors, cycle=cycle,
                     pending_escalation=pending_escalation, db_path=db_path,
+                    expected_last_cycle=expected_last_cycle_for_final,
                 )
                 return cycle
             cycle["delegation"] = delegation
@@ -195,6 +200,7 @@ def run_cycle(
         mission_id, supervisor_id=supervisor_id,
         supervisor_epoch=supervisor_epoch, cursors=cursors, cycle=cycle,
         pending_escalation=pending_escalation, db_path=db_path,
+        expected_last_cycle=expected_last_cycle_for_final,
     )
     return cycle
 
@@ -256,6 +262,7 @@ def reconcile_delegation(
         mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
         cursors=dict(mission["source_cursors"]), cycle=cycle,
         pending_escalation=mission["pending_escalation"], db_path=db_path,
+        expected_last_cycle=previous,
     )
     return cycle
 
@@ -306,8 +313,9 @@ def replace_delegation_worker(
     _persist(
         mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
         cursors=cursors, cycle=cycle, pending_escalation=mission["pending_escalation"],
-        db_path=db_path,
+        db_path=db_path, expected_last_cycle=previous,
     )
+    pending_cycle = dict(cycle)
     try:
         delegation = delegate(dict(replacement_task))
     except Exception as exc:
@@ -319,6 +327,7 @@ def replace_delegation_worker(
             mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
             cursors=cursors, cycle=cycle,
             pending_escalation=mission["pending_escalation"], db_path=db_path,
+            expected_last_cycle=pending_cycle,
         )
         return cycle
     cycle["delegation"] = delegation
@@ -331,9 +340,10 @@ def replace_delegation_worker(
     _persist(
         mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
         cursors=cursors, cycle=cycle, pending_escalation=mission["pending_escalation"],
-        db_path=db_path,
+        db_path=db_path, expected_last_cycle=pending_cycle,
     )
     return cycle
+
 
 def observe_global_thread(message_id: str) -> dict[str, Any]:
     """Return a bounded change observation for one explicit GAR thread locator.

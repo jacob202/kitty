@@ -356,6 +356,7 @@ def record_cycle(
     mission_id: str, *, supervisor_id: str, supervisor_epoch: int,
     source_cursors: dict[str, str], cycle: dict[str, Any],
     pending_escalation: dict[str, Any] | None = None,
+    expected_last_cycle: dict[str, Any] | None = None,
     db_path: Path = MISSION_DB_FILE,
 ) -> dict[str, Any]:
     if not isinstance(source_cursors, dict) or not isinstance(cycle, dict):
@@ -364,20 +365,28 @@ def record_cycle(
     if mission["status"] != "EXECUTING":
         raise MissionError(f"Mission cycle requires EXECUTING state, got {mission['status']}")
     now = time.time()
+    where = (
+        "WHERE mission_id=? AND supervisor_id=? AND supervisor_epoch=? "
+        "AND status='EXECUTING'"
+    )
+    params: list[Any] = [
+        json.dumps(source_cursors, sort_keys=True),
+        json.dumps(cycle, sort_keys=True),
+        json.dumps(pending_escalation, sort_keys=True) if pending_escalation else None,
+        now, mission_id, supervisor_id, supervisor_epoch,
+    ]
+    if expected_last_cycle is not None:
+        where += " AND last_cycle_json=?"
+        params.append(json.dumps(expected_last_cycle, sort_keys=True))
     with kitty_db.connect(db_path) as conn:
         cursor = conn.execute(
             "UPDATE missions SET source_cursors_json=?, last_cycle_json=?, "
-            "pending_escalation_json=?, updated_at=? "
-            "WHERE mission_id=? AND supervisor_id=? AND supervisor_epoch=? "
-            "AND status='EXECUTING'",
-            (
-                json.dumps(source_cursors, sort_keys=True),
-                json.dumps(cycle, sort_keys=True),
-                json.dumps(pending_escalation, sort_keys=True) if pending_escalation else None,
-                now, mission_id, supervisor_id, supervisor_epoch,
-            ),
+            "pending_escalation_json=?, updated_at=? " + where,
+            tuple(params),
         )
         if cursor.rowcount != 1:
+            if expected_last_cycle is not None:
+                raise MissionError("delegation state changed before Mission cycle update")
             raise MissionError("stale supervisor identity or epoch")
         _append_event(
             conn, mission_id=mission_id, event_type="supervisor_cycle",
