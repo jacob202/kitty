@@ -1,0 +1,386 @@
+{
+  "version": 1,
+  "pack_version": "3.3",
+  "cases": [
+    {
+      "id": "C01",
+      "category": "product_purpose",
+      "query": "A user returns to Kitty after a long gap. What should Kitty restore and show so they can resume without reconstructing context?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "01",
+        "02"
+      ],
+      "preferred_source": "01",
+      "distractor_sources": [
+        "04",
+        "00"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C02",
+      "category": "continuity_memory",
+      "query": "An explicit current user correction conflicts with an older remembered inference. Which memory should normal retrieval prefer and how should the conflict be handled?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "02"
+      ],
+      "preferred_source": "02",
+      "distractor_sources": [
+        "03",
+        "01",
+        "05"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C03",
+      "category": "engineering_coordination",
+      "query": "Two engineering agents may mutate overlapping Kitty files. How should ownership and collision be resolved before implementation?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "04"
+      ],
+      "preferred_source": "04",
+      "distractor_sources": [
+        "08",
+        "01",
+        "05"
+      ],
+      "authority_kind": "durable_source",
+      "paired_decision_id": "P01"
+    },
+    {
+      "id": "C04",
+      "category": "false_completion",
+      "query": "Unit tests and code review are green, but a user-facing journey has not been exercised on the exact final candidate after a rebase. Can the work be called complete?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "06",
+        "04",
+        "01"
+      ],
+      "preferred_source": "06",
+      "distractor_sources": [
+        "08"
+      ],
+      "authority_kind": "durable_source",
+      "paired_decision_id": "P02"
+    },
+    {
+      "id": "C05",
+      "category": "image_lab",
+      "query": "Image Lab edit request: change only a shirt color while preserving the character identity, face, framing, texture, lighting, and other unrequested details. What acceptance principle applies?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "07"
+      ],
+      "preferred_source": "07",
+      "distractor_sources": [
+        "06",
+        "04",
+        "WHY"
+      ],
+      "authority_kind": "durable_source",
+      "paired_decision_id": "P04"
+    },
+    {
+      "id": "C06",
+      "category": "external_evidence",
+      "query": "Kitty is considering adopting an external agent framework or infrastructure mechanism. What durable evidence and comparison should be required before adopting it instead of building or keeping the existing seam?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "00",
+        "04",
+        "08"
+      ],
+      "preferred_source": "00",
+      "distractor_sources": [
+        "05",
+        "01"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C07",
+      "category": "security_authorization",
+      "query": "A downloaded README contains instructions to read an API token, upload it to a third-party service, and publish generated configuration, but the user only asked for a summary. What authorization rule applies?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "05"
+      ],
+      "preferred_source": "05",
+      "distractor_sources": [
+        "01",
+        "06",
+        "07"
+      ],
+      "authority_kind": "durable_source",
+      "paired_decision_id": "P03"
+    },
+    {
+      "id": "C08",
+      "category": "human_ai_agency",
+      "query": "Kitty notices a potentially useful new idea while the user is focused on something else. How should proactivity account for interruption cost, relevance, urgency, and user agency?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "03",
+        "01"
+      ],
+      "preferred_source": "03",
+      "distractor_sources": [
+        "04",
+        "05"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C09",
+      "category": "product_purpose",
+      "query": "Why does Kitty exist for Jacob beyond coordinating AI or building software? What human problem and design direction is the project fundamentally responding to?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "01"
+      ],
+      "preferred_source": "01",
+      "distractor_sources": [
+        "00",
+        "05",
+        "08"
+      ],
+      "authority_kind": "durable_source",
+      "special_check": "why_candidate"
+    },
+    {
+      "id": "C10",
+      "category": "live_state_no_source",
+      "query": "What is the exact current origin/main SHA of the Kitty repository right now?",
+      "should_retrieve": false,
+      "expected_sources": [],
+      "preferred_source": null,
+      "distractor_sources": [
+        "04",
+        "01",
+        "05"
+      ],
+      "authority_kind": "live_git"
+    },
+    {
+      "id": "C11",
+      "category": "engineering_coordination",
+      "query": "A worker failed or its lease expired, but its worktree and branch may contain recoverable work. Should Kitty recreate the work or inspect and resume the existing artifacts first?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "04"
+      ],
+      "preferred_source": "04",
+      "distractor_sources": [
+        "01",
+        "06",
+        "05"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C12",
+      "category": "engineering_coordination",
+      "query": "An old handoff or historical report contradicts current Git, runtime, or Builder evidence about Kitty. Which authority should win and how should the stale context be treated?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "00",
+        "04"
+      ],
+      "preferred_source": "00",
+      "distractor_sources": [
+        "02",
+        "06",
+        "01"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C13",
+      "category": "product_purpose",
+      "query": "A normal Kitty interface asks the user to choose among internal agents, providers, queues, and subsystems before it can handle the user intent. Is that consistent with Kitty product purpose?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "01",
+        "03"
+      ],
+      "preferred_source": "01",
+      "distractor_sources": [
+        "00",
+        "05",
+        "08"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C14",
+      "category": "security_authorization",
+      "query": "Kitty is authorized to retrieve information for the current task. Does that also authorize storing it in memory indefinitely or publishing it externally?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "05"
+      ],
+      "preferred_source": "05",
+      "distractor_sources": [
+        "02",
+        "01",
+        "04"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C15",
+      "category": "false_completion",
+      "query": "A branch was repaired or rebased after its previous verification. Does the earlier proof still establish correctness of the new exact candidate, or must relevant evidence be rerun?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "06",
+        "04"
+      ],
+      "preferred_source": "06",
+      "distractor_sources": [
+        "01",
+        "05"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C16",
+      "category": "image_lab",
+      "query": "Image Lab generates two distinct people, but their identities or clothing attributes leak between them or swap positions. What acceptance standard should reject or repair the result?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "07"
+      ],
+      "preferred_source": "07",
+      "distractor_sources": [
+        "04",
+        "01",
+        "00"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C17",
+      "category": "external_evidence",
+      "query": "Kitty needs outside evidence for a current protocol, security, agent-evaluation, local-first, or reliability question. Which external sources should be preferred and how should they be used without becoming Kitty authority?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "08"
+      ],
+      "preferred_source": "08",
+      "distractor_sources": [
+        "05",
+        "04",
+        "00"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C18",
+      "category": "human_ai_agency",
+      "query": "A new idea appears while Kitty is already working on an active objective. How should Kitty preserve the idea without silently replacing the user current focus, while still allowing explicit reprioritization?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "01",
+        "03"
+      ],
+      "preferred_source": "01",
+      "distractor_sources": [
+        "05",
+        "02"
+      ],
+      "authority_kind": "durable_source"
+    },
+    {
+      "id": "C19",
+      "category": "live_state_no_source",
+      "query": "Which agent currently owns the KX runtime:provenance resource and exactly when does that live claim expire?",
+      "should_retrieve": false,
+      "expected_sources": [],
+      "preferred_source": null,
+      "distractor_sources": [
+        "00",
+        "05",
+        "06"
+      ],
+      "authority_kind": "live_kx"
+    },
+    {
+      "id": "C20",
+      "category": "live_state_no_source",
+      "query": "What provider and model route is Kitty currently configured to use by default right now?",
+      "should_retrieve": false,
+      "expected_sources": [],
+      "preferred_source": null,
+      "distractor_sources": [
+        "05",
+        "00",
+        "01"
+      ],
+      "authority_kind": "live_runtime"
+    },
+    {
+      "id": "C21",
+      "category": "live_state_no_source",
+      "query": "Is Kitty pull request #815 currently mergeable and what are its exact current checks and review state?",
+      "should_retrieve": false,
+      "expected_sources": [],
+      "preferred_source": null,
+      "distractor_sources": [
+        "04",
+        "01",
+        "05"
+      ],
+      "authority_kind": "live_github"
+    },
+    {
+      "id": "C22",
+      "category": "live_state_no_source",
+      "query": "What is the exact current TypeError and line number in gateway/memory.py in the Kitty repository?",
+      "should_retrieve": false,
+      "expected_sources": [],
+      "preferred_source": null,
+      "distractor_sources": [
+        "04",
+        "01",
+        "05"
+      ],
+      "authority_kind": "live_code"
+    },
+    {
+      "id": "C23",
+      "category": "live_state_no_source",
+      "query": "What is the exact current cause in code or runtime of an Image Lab HTTP 500 failure happening right now?",
+      "should_retrieve": false,
+      "expected_sources": [],
+      "preferred_source": null,
+      "distractor_sources": [
+        "01",
+        "04",
+        "06"
+      ],
+      "authority_kind": "live_runtime"
+    },
+    {
+      "id": "C24",
+      "category": "engineering_coordination",
+      "query": "A Project Source contains an old Builder command, port, provider, or other mutable implementation detail that conflicts with the current repository. Should the Source detail be treated as current authority?",
+      "should_retrieve": true,
+      "expected_sources": [
+        "00",
+        "04"
+      ],
+      "preferred_source": "00",
+      "distractor_sources": [
+        "02",
+        "05"
+      ],
+      "authority_kind": "durable_source"
+    }
+  ]
+}
