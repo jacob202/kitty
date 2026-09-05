@@ -5,7 +5,7 @@
     "openai",
     "nvidia",
     "gemini",
-    "agentrouter"
+    "airforce"
   ],
   "disabled": [
     "agentrouter"

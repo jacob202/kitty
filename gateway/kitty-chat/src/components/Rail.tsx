@@ -3,6 +3,7 @@ import { CatMark } from './CrayonCat'
 
 const NAV_ITEMS: { label: string; view: string; d: string }[] = [
   { label: 'Home',      view: 'home',      d: 'M3 11 L12 3 L21 11 M6 9 V20 H18 V9' },
+  { label: 'Dashboard', view: 'dashboard', d: 'M4 4 H11 V11 H4 Z M13 4 H20 V8 H13 Z M13 10 H20 V20 H13 Z M4 13 H11 V20 H4 Z' },
   { label: 'Chat',      view: 'chat',      d: 'M4 5 H20 V15 H10 L5 19 V15 H4 Z' },
   { label: 'Work',      view: 'work',      d: 'M5 4 H19 V20 H5 Z M8 8 H10 M14 8 H16 M8 12 H16 M8 16 H12' },
   { label: 'Projects',  view: 'projects',  d: 'M3 7 H9 L11 9 H21 V19 H3 Z' },

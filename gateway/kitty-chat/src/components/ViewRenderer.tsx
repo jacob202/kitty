@@ -6,6 +6,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 // -- lazy-loaded view components ------------------------------------------------
 
 const HomeView = dynamic(() => import('./HomeView'))
+const DashboardView = dynamic(() => import('./DashboardView'))
 const ChatView = dynamic(() => import('./ChatView'))
 const BuilderView = dynamic(() => import('./BuilderView'))
 const SettingsShell = dynamic(() => import('./SettingsShell'))
@@ -91,6 +92,8 @@ export function ViewRenderer({
     switch (view) {
       case 'home':
         return <HomeView {...homeProps} compact={isMobile} />
+      case 'dashboard':
+        return <DashboardView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
       case 'chat':
         return <ChatView {...chatProps} compact={isMobile} />
       case 'work':

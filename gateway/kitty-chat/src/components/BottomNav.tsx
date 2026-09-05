@@ -12,6 +12,7 @@ const NAV_ITEMS = [
 ]
 
 const SECONDARY_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'projects', label: 'Projects' },
   { id: 'agents', label: 'Agents' },
   { id: 'research', label: 'Research' },

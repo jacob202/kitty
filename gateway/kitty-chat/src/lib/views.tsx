@@ -6,7 +6,7 @@ import { AgentWorkspacePanel } from '@/components/AgentWorkspacePanel'
 
 export type ViewId =
   | 'home' | 'chat' | 'builder' | 'builder-details' | 'settings'
-  | 'work' | 'studio' | 'library' | 'automations'
+  | 'work' | 'studio' | 'library' | 'automations' | 'dashboard'
   | 'tasks' | 'tools' | 'terminal' | 'projects' | 'docs' | 'providers' | 'agents' | 'agent-sessions' | 'images' | 'tutor' | 'journal' | 'research'
 
 export interface ViewEntry {
@@ -29,6 +29,7 @@ export const VIEWS: Record<ViewId, ViewEntry> = {
   'builder-details': { component: PlaceholderView, title: 'Builder details', icon: 'builder', railSlot: false },
   library:   { component: PlaceholderView, title: 'Library',  icon: 'library',  railSlot: true },
   automations:{ component: PlaceholderView, title: 'Automations', icon: 'work', railSlot: true },
+  dashboard: { component: PlaceholderView, title: 'Dashboard', icon: 'home',   railSlot: true },
   settings:  { component: PlaceholderView, title: 'Settings', icon: 'settings', railSlot: true },
   tasks:     { component: PlaceholderView, title: 'Tasks',    icon: 'work',     railSlot: false },
   tools:     { component: PlaceholderView, title: 'Tools',    icon: 'settings', railSlot: false },
