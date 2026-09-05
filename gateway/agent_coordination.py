@@ -219,11 +219,11 @@ def resolve_scopes_to_resources(
     normalized_scopes = sorted({_normalize_scope(scope) for scope in scopes})
     return sorted(
         resource_id
-        for resource_id, patterns in registry.items()
+        for resource_id, spec in registry.items()
         if any(
             _scope_overlaps_pattern(scope, pattern)
             for scope in normalized_scopes
-            for pattern in patterns
+            for pattern in spec["paths"]
         )
     )
 
