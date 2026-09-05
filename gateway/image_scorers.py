@@ -12,7 +12,7 @@ import base64
 import io
 import math
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Iterable, Sequence, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -50,7 +50,10 @@ def mechanics_scorer(image_path: str) -> ScorerResult:
             image.load()
             width, height = image.size
             rgb = image.convert("RGB")
-            extrema = rgb.getextrema()
+            extrema = cast(
+                tuple[tuple[int, int], tuple[int, int], tuple[int, int]],
+                rgb.getextrema(),
+            )
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise EvaluationUnavailable("mechanics scorer could not decode candidate image") from exc
 
