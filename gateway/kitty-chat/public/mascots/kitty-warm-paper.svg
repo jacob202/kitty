@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<style>
+  .chalk { fill: none; stroke: #F5F3EE; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+  .chalk2 { fill: none; stroke: #F5F3EE; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; opacity: .38; }
+  .dot { fill: #F5F3EE; stroke: none; }
+  .pink { fill: none; stroke: #F5A8BC; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+  .gold { fill: none; stroke: #EED88A; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+
+<path class="chalk" d="M183 224 C162 240 151 274 153 316 C156 361 181 392 227 400 C271 408 325 397 347 362 C366 333 365 285 350 248 C344 231 334 218 321 208"/>
+<path class="chalk" d="M179 227 L176 170 C176 155 183 145 193 154 L226 181 C244 171 270 169 290 177 L318 150 C329 141 337 150 338 165 L337 222 C337 252 315 274 282 279 C249 284 210 280 191 262 C182 254 178 242 179 227 Z"/>
+<path class="chalk2" d="M181 231 C200 225 220 226 238 230"/>
+<circle class="dot" cx="223" cy="229" r="6"/>
+<circle class="dot" cx="291" cy="229" r="6"/>
+<path class="chalk" style="stroke-width:5" d="M246 248 Q256 260 266 248 M256 258 Q256 268 267 268"/>
+<path class="chalk" d="M153 336 C124 334 106 322 105 307 C104 294 113 288 122 294 C132 300 133 316 122 323"/>
+<path class="chalk" d="M209 397 C198 417 213 423 227 405"/>
+<path class="chalk" d="M283 401 C290 423 309 419 310 396"/>
+
+<path class="chalk2" d="M177 184 C171 173 173 160 181 151"/>
+
+</svg>

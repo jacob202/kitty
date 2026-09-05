@@ -309,11 +309,15 @@ export default function DashboardView({
             <Tile>
               <TileLabel>mascot</TileLabel>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/kitty-mascot.svg" alt="kitty" style={{ width: 48, height: 48 }} />
+                <div style={{ background: WP.ink, borderRadius: 10, padding: 10, flex: 'none' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/mascots/kitty-warm-paper.svg" alt="kitty" style={{ width: 40, height: 40, display: 'block' }} />
+                </div>
                 <div style={{ ...mono, fontSize: 11.5, color: WP.inkDim }}>
-                  new mascot art from the design project isn't wired in yet — the accepted set
-                  needs a manual drop (see chat) before it can replace this placeholder.
+                  the neutral pose from the new mascot set — it's cream line art with no
+                  background, so it sits on a dark card. the "barbie"/"princess" costume
+                  poses use pink accents that clash with this palette; the rest are neutral
+                  or already brown/orange/green and would work fine here too.
                 </div>
               </div>
             </Tile>
