@@ -22,6 +22,7 @@ REQUIRED_RESOURCES = {
     "runtime:provenance",
     "ui:action-grammar",
     "docs:roadmap",
+    "evaluation:project-sources",
     "memory:continuity",
     "image-lab:generation",
 }

@@ -43,6 +43,10 @@ resources:
     - gateway/kitty-chat/README.md
     - tests/test_builder_paid_routing.py
     - tests/test_documentation_authority.py
+  evaluation:project-sources:
+    paths:
+    - evals/project_sources/**
+    - tests/test_project_source_eval.py
   image-lab:generation:
     paths:
     - gateway/image_*.py
