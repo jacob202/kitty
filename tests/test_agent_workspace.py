@@ -1010,3 +1010,46 @@ def test_stopped_mission_cannot_be_changed_back_to_paused(tmp_path):
     with pytest.raises(memory_mission.MissionError, match="stopped"):
         memory_mission.pause_mission("life-2", reason="pause", db_path=db_path)
     assert memory_mission.get_mission("life-2", db_path=db_path)["status"] == "STOPPED"
+
+
+def test_plan_reviewer_cannot_become_supervisor_and_then_execute_same_plan(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="reviewer-supervisor", objective="x",
+        definition_of_done=["independent plan gate"], supervisor_id="chad",
+        db_path=db_path,
+    )
+    digest = "7" * 64
+    memory_mission.set_plan(
+        "reviewer-supervisor", plan_ref="plan://one", plan_digest=digest,
+        db_path=db_path,
+    )
+    memory_mission.record_plan_review(
+        "reviewer-supervisor", reviewer_id="reviewer", plan_digest=digest,
+        verdict="approved", db_path=db_path,
+    )
+    memory_mission.replace_supervisor(
+        "reviewer-supervisor", new_supervisor_id="reviewer",
+        expected_supervisor_id="chad", expected_epoch=1, db_path=db_path,
+    )
+    with pytest.raises(memory_mission.MissionError, match="independent"):
+        memory_mission.begin_execution("reviewer-supervisor", db_path=db_path)
+    current = memory_mission.get_mission("reviewer-supervisor", db_path=db_path)
+    assert current["status"] == "PLAN_REVIEW"
+
+
+def test_plan_reviewer_cannot_become_supervisor_and_resume_same_plan(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    memory_mission.pause_mission("life-2", reason="pause", db_path=db_path)
+    memory_mission.replace_supervisor(
+        "life-2", new_supervisor_id="independent-plan-verifier",
+        expected_supervisor_id="chad", expected_epoch=1, db_path=db_path,
+    )
+    with pytest.raises(memory_mission.MissionError, match="independent"):
+        memory_mission.resume_mission("life-2", db_path=db_path)
+    assert memory_mission.get_mission("life-2", db_path=db_path)["status"] == "PAUSED"

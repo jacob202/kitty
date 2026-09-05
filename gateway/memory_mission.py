@@ -250,12 +250,15 @@ def begin_execution(mission_id: str, *, db_path: Path = MISSION_DB_FILE) -> dict
         raise MissionError("Mission can begin execution only from PLAN_REVIEW state")
     if mission["plan"]["review_state"] != "approved" or not mission["plan"]["digest"]:
         raise MissionError("Mission cannot execute without an approved plan review")
+    if mission["plan"]["reviewer_id"] == mission["supervisor"]["id"]:
+        raise MissionError("Mission cannot execute without an independent current plan review")
     now = time.time()
     with kitty_db.connect(db_path) as conn:
         cursor = conn.execute(
             "UPDATE missions SET status='EXECUTING', updated_at=? "
             "WHERE mission_id=? AND status='PLAN_REVIEW' AND plan_digest=? "
-            "AND plan_review_state='approved' AND supervisor_id=? AND supervisor_epoch=?",
+            "AND plan_review_state='approved' AND plan_reviewer_id<>supervisor_id "
+            "AND supervisor_id=? AND supervisor_epoch=?",
             (
                 now, mission_id, mission["plan"]["digest"],
                 mission["supervisor"]["id"], mission["supervisor"]["epoch"],
@@ -491,12 +494,14 @@ def resume_mission(
         raise MissionError(f"Mission is not paused: {mission['status']}")
     if mission["plan"]["review_state"] != "approved" or not mission["plan"]["digest"]:
         raise MissionError("Mission cannot resume without an approved plan review")
+    if mission["plan"]["reviewer_id"] == mission["supervisor"]["id"]:
+        raise MissionError("Mission cannot resume without an independent current plan review")
     now = time.time()
     with kitty_db.connect(db_path) as conn:
         cursor = conn.execute(
             "UPDATE missions SET status='EXECUTING', status_reason=NULL, updated_at=? "
             "WHERE mission_id=? AND status='PAUSED' AND plan_review_state='approved' "
-            "AND plan_digest=?",
+            "AND plan_reviewer_id<>supervisor_id AND plan_digest=?",
             (now, mission_id, mission["plan"]["digest"]),
         )
         if cursor.rowcount != 1:
