@@ -14,6 +14,7 @@ DelegateFn = Callable[[dict[str, Any]], dict[str, Any]]
 NotifyFn = Callable[[dict[str, Any]], Any]
 ObserveFn = Callable[[dict[str, Any]], list[dict[str, Any]]]
 _ALLOWED_OUTCOMES = {"advance", "needs_jacob", "blocked", "verify", "no_change"}
+_NO_EXPECTATION = object()
 
 
 def _observation_key(observation: dict[str, Any]) -> str:
@@ -45,8 +46,11 @@ def _persist(
     mission_id: str, *, supervisor_id: str, supervisor_epoch: int,
     cursors: dict[str, str], cycle: dict[str, Any],
     pending_escalation: dict[str, Any] | None, db_path: Path,
-    expected_last_cycle: dict[str, Any] | None = None,
+    expected_last_cycle: dict[str, Any] | None | object = _NO_EXPECTATION,
 ) -> None:
+    kwargs: dict[str, Any] = {}
+    if expected_last_cycle is not _NO_EXPECTATION:
+        kwargs["expected_last_cycle"] = expected_last_cycle
     memory_mission.record_cycle(
         mission_id,
         supervisor_id=supervisor_id,
@@ -54,8 +58,8 @@ def _persist(
         source_cursors=cursors,
         cycle=cycle,
         pending_escalation=pending_escalation,
-        expected_last_cycle=expected_last_cycle,
         db_path=db_path,
+        **kwargs,
     )
 
 
@@ -110,6 +114,7 @@ def run_cycle(
             mission_id, supervisor_id=supervisor_id,
             supervisor_epoch=supervisor_epoch, cursors=cursors, cycle=cycle,
             pending_escalation=mission["pending_escalation"], db_path=db_path,
+            expected_last_cycle=previous_cycle,
         )
         return cycle
 
@@ -119,7 +124,7 @@ def run_cycle(
 
     cycle = {**decision, "changed": changed}
     pending_escalation = mission["pending_escalation"]
-    expected_last_cycle_for_final: dict[str, Any] | None = None
+    expected_last_cycle_for_final: dict[str, Any] | None = previous_cycle
     if decision["outcome"] == "advance":
         task = decision.get("task")
         if not isinstance(task, dict) or delegate is None:
@@ -134,6 +139,7 @@ def run_cycle(
                 mission_id, supervisor_id=supervisor_id,
                 supervisor_epoch=supervisor_epoch, cursors=cursors, cycle=cycle,
                 pending_escalation=pending_escalation, db_path=db_path,
+                expected_last_cycle=previous_cycle,
             )
             expected_last_cycle_for_final = dict(cycle)
             try:
@@ -186,7 +192,9 @@ def run_cycle(
                 mission_id, supervisor_id=supervisor_id,
                 supervisor_epoch=supervisor_epoch, cursors=cursors, cycle=cycle,
                 pending_escalation=pending_escalation, db_path=db_path,
+                expected_last_cycle=previous_cycle,
             )
+            expected_last_cycle_for_final = dict(cycle)
             if notify is not None:
                 try:
                     notify(dict(pending_escalation))

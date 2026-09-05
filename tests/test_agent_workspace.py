@@ -1688,3 +1688,125 @@ def test_mission_replacement_result_cannot_overwrite_concurrent_reconciliation(t
     assert current["delegation_reconciliation"]["evidence_locator"] == (
         "receipt://replacement-completed"
     )
+
+
+def test_concurrent_identical_jacob_escalation_notifies_at_most_once(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    decision_barrier = Barrier(2)
+    notifications: list[str] = []
+
+    def invoke_cycle():
+        def decide(_context):
+            decision_barrier.wait(timeout=5)
+            return {
+                "outcome": "needs_jacob",
+                "reason": "authorization required",
+                "escalation_key": "authorize:outreach",
+            }
+
+        try:
+            return context_mission.run_cycle(
+                "life-2", supervisor_id="chad", supervisor_epoch=1,
+                observations=[
+                    {"source": "research", "locator": "lane", "digest": "v1"}
+                ],
+                decide=decide,
+                notify=lambda item: notifications.append(item["key"]),
+                db_path=db_path,
+            )
+        except memory_mission.MissionError as exc:
+            return {"conflict": str(exc)}
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = [future.result() for future in [pool.submit(invoke_cycle) for _ in range(2)]]
+
+    assert notifications == ["authorize:outreach"]
+    assert sum(bool(result.get("notified")) for result in results) <= 1
+    mission = memory_mission.get_mission("life-2", db_path=db_path)
+    assert mission["pending_escalation"]["key"] == "authorize:outreach"
+
+
+def test_concurrent_source_cursor_updates_cannot_be_silently_lost(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    decision_barrier = Barrier(2)
+    observations = [
+        {"source": "research", "locator": "lane", "digest": "r1"},
+        {"source": "resources", "locator": "lane", "digest": "o1"},
+    ]
+
+    def invoke_cycle(observation):
+        def decide(_context):
+            decision_barrier.wait(timeout=5)
+            return {"outcome": "blocked", "reason": "record changed lane only"}
+
+        try:
+            context_mission.run_cycle(
+                "life-2", supervisor_id="chad", supervisor_epoch=1,
+                observations=[observation], decide=decide, db_path=db_path,
+            )
+            return "ok"
+        except memory_mission.MissionError:
+            return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        statuses = list(pool.map(invoke_cycle, observations))
+
+    first = memory_mission.get_mission("life-2", db_path=db_path)
+    expected = {"research|lane": "r1", "resources|lane": "o1"}
+    if first["source_cursors"] != expected:
+        assert "conflict" in statuses, "a lost cursor must never be reported as successful"
+        missing = [
+            observation
+            for observation in observations
+            if first["source_cursors"].get(
+                f"{observation['source']}|{observation['locator']}"
+            ) != observation["digest"]
+        ]
+        for observation in missing:
+            context_mission.run_cycle(
+                "life-2", supervisor_id="chad", supervisor_epoch=1,
+                observations=[observation],
+                decide=lambda _context: {
+                    "outcome": "blocked", "reason": "retry conflicted lane"
+                },
+                db_path=db_path,
+            )
+
+    final = memory_mission.get_mission("life-2", db_path=db_path)
+    assert final["source_cursors"] == expected
+
+
+def test_concurrent_worker_reports_are_accumulated_without_loss(tmp_path, monkeypatch):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    read_barrier = Barrier(2)
+    original_assert_supervisor = memory_mission.assert_supervisor
+
+    def synchronized_assert(*args, **kwargs):
+        mission = original_assert_supervisor(*args, **kwargs)
+        read_barrier.wait(timeout=5)
+        return mission
+
+    monkeypatch.setattr(memory_mission, "assert_supervisor", synchronized_assert)
+
+    def record(worker_id):
+        return memory_mission.record_worker_report(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            worker_id=worker_id, report={"claim": f"{worker_id} complete"},
+            evidence_locator=f"worker://{worker_id}/result", db_path=db_path,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        [future.result() for future in [pool.submit(record, "worker-a"), pool.submit(record, "worker-b")]]
+
+    mission = memory_mission.get_mission("life-2", db_path=db_path)
+    reports = mission["checkpoint"]["worker_reports"]
+    assert sorted(report["worker_id"] for report in reports) == ["worker-a", "worker-b"]

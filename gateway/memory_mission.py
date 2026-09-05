@@ -27,6 +27,9 @@ class MissionNotFound(MissionError):
     """Raised when a Mission id has no durable row."""
 
 
+_UNSET = object()
+
+
 def init_db(*, db_path: Path = MISSION_DB_FILE) -> None:
     """Create additive Mission tables in Kitty's existing app database."""
     with kitty_db.connect(db_path) as conn:
@@ -356,7 +359,7 @@ def record_cycle(
     mission_id: str, *, supervisor_id: str, supervisor_epoch: int,
     source_cursors: dict[str, str], cycle: dict[str, Any],
     pending_escalation: dict[str, Any] | None = None,
-    expected_last_cycle: dict[str, Any] | None = None,
+    expected_last_cycle: dict[str, Any] | None | object = _UNSET,
     db_path: Path = MISSION_DB_FILE,
 ) -> dict[str, Any]:
     if not isinstance(source_cursors, dict) or not isinstance(cycle, dict):
@@ -375,9 +378,12 @@ def record_cycle(
         json.dumps(pending_escalation, sort_keys=True) if pending_escalation else None,
         now, mission_id, supervisor_id, supervisor_epoch,
     ]
-    if expected_last_cycle is not None:
-        where += " AND last_cycle_json=?"
-        params.append(json.dumps(expected_last_cycle, sort_keys=True))
+    if expected_last_cycle is not _UNSET:
+        if expected_last_cycle is None:
+            where += " AND last_cycle_json IS NULL"
+        else:
+            where += " AND last_cycle_json=?"
+            params.append(json.dumps(expected_last_cycle, sort_keys=True))
     with kitty_db.connect(db_path) as conn:
         cursor = conn.execute(
             "UPDATE missions SET source_cursors_json=?, last_cycle_json=?, "
@@ -385,8 +391,10 @@ def record_cycle(
             tuple(params),
         )
         if cursor.rowcount != 1:
-            if expected_last_cycle is not None:
-                raise MissionError("delegation state changed before Mission cycle update")
+            if expected_last_cycle is not _UNSET:
+                raise MissionError(
+                    "Mission cycle state or delegation state changed before update"
+                )
             raise MissionError("stale supervisor identity or epoch")
         _append_event(
             conn, mission_id=mission_id, event_type="supervisor_cycle",
@@ -573,42 +581,52 @@ def record_worker_report(
     evidence_locator = _required_text(evidence_locator, "evidence_locator")
     if not isinstance(report, dict):
         raise MissionError("worker report must be an object")
-    mission = assert_supervisor(
-        mission_id,
-        supervisor_id=supervisor_id,
-        supervisor_epoch=supervisor_epoch,
-        db_path=db_path,
-    )
-    checkpoint = dict(mission["checkpoint"])
-    worker_reports = list(checkpoint.get("worker_reports") or [])
-    worker_reports.append(
-        {
-            "worker_id": worker_id,
-            "report": report,
-            "evidence_locator": evidence_locator,
-        }
-    )
-    checkpoint["worker_reports"] = worker_reports
-    updated = update_checkpoint(
-        mission_id,
-        supervisor_id=supervisor_id,
-        supervisor_epoch=supervisor_epoch,
-        checkpoint=checkpoint,
-        db_path=db_path,
-    )
+    init_db(db_path=db_path)
     now = time.time()
+    entry = {
+        "worker_id": worker_id,
+        "report": report,
+        "evidence_locator": evidence_locator,
+    }
     with kitty_db.connect(db_path) as conn:
+        # Serialize the read/append/write sequence across processes. A plain
+        # read followed by update_checkpoint() can silently lose a concurrent
+        # report because both writers replace the same JSON checkpoint.
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT status, supervisor_id, supervisor_epoch, checkpoint_json "
+            "FROM missions WHERE mission_id=?",
+            (mission_id,),
+        ).fetchone()
+        if row is None:
+            raise MissionNotFound(f"no Mission with id {mission_id!r}")
+        if row["supervisor_id"] != supervisor_id or row["supervisor_epoch"] != supervisor_epoch:
+            raise MissionError("stale supervisor identity or epoch")
+        if row["status"] == "STOPPED":
+            raise MissionError("stopped Mission rejects checkpoint mutation")
+        if row["status"] == "DONE":
+            raise MissionError("completed Mission rejects checkpoint mutation")
+
+        checkpoint = json.loads(row["checkpoint_json"])
+        worker_reports = list(checkpoint.get("worker_reports") or [])
+        worker_reports.append(entry)
+        checkpoint["worker_reports"] = worker_reports
+        encoded = json.dumps(checkpoint, sort_keys=True)
+        cursor = conn.execute(
+            "UPDATE missions SET checkpoint_json=?, updated_at=? "
+            "WHERE mission_id=? AND supervisor_id=? AND supervisor_epoch=? "
+            "AND status NOT IN ('STOPPED','DONE')",
+            (encoded, now, mission_id, supervisor_id, supervisor_epoch),
+        )
+        if cursor.rowcount != 1:
+            raise MissionError("Mission state changed before worker report update")
         _append_event(
-            conn,
-            mission_id=mission_id,
-            event_type="worker_report_received",
-            supervisor_epoch=supervisor_epoch,
-            payload={
-                "worker_id": worker_id,
-                "evidence_locator": evidence_locator,
-                "report": report,
-            },
-            now=now,
+            conn, mission_id=mission_id, event_type="checkpoint_updated",
+            supervisor_epoch=supervisor_epoch, payload={"checkpoint": checkpoint}, now=now,
+        )
+        _append_event(
+            conn, mission_id=mission_id, event_type="worker_report_received",
+            supervisor_epoch=supervisor_epoch, payload=entry, now=now,
         )
         conn.commit()
-    return updated
+    return get_mission(mission_id, db_path=db_path)
