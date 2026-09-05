@@ -1767,6 +1767,35 @@ def test_run_worker_rejects_blank_allowed_path_before_launch(
     assert runs[0]["final_report"]["worker_started"] is False
 
 
+def test_run_worker_ignores_coordination_env_overrides_outside_test_mode(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+) -> None:
+    canonical_root = tmp_path / "canonical"
+    canonical_root.mkdir()
+    canonical_db, canonical_registry = _coordination_fixture(canonical_root)
+    rogue_db = tmp_path / "rogue" / "coordination.db"
+    rogue_registry = tmp_path / "rogue" / "resources.yaml"
+    monkeypatch.setattr(ac, "default_db_path", lambda: canonical_db)
+    monkeypatch.setattr(ac, "DEFAULT_REGISTRY_PATH", canonical_registry)
+    monkeypatch.setenv("KITTY_ENV", "development")
+    monkeypatch.setenv("KITTY_COORDINATION_DB_PATH", str(rogue_db))
+    monkeypatch.setenv("KITTY_COORDINATION_REGISTRY_PATH", str(rogue_registry))
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+
+    run = br.run_worker(
+        task["id"],
+        ["/usr/bin/true"],
+        repo_root=repo,
+        db_path=db_path,
+        heartbeat_seconds=1,
+        lease_seconds=5,
+    )
+
+    assert run["final_report"]["outcome"] == bq.RUN_EXITED
+    assert canonical_db.exists()
+    assert not rogue_db.exists()
+
+
 def test_run_worker_binds_resolved_kx_resources_and_releases_on_exit(
     repo: Path, db_path: Path, tmp_path: Path
 ) -> None:
@@ -2122,6 +2151,39 @@ def test_run_worker_unmapped_scope_fails_setup_without_kx_leak(
     runs = bq.list_runs(task_id=task["id"], db_path=db_path)
     assert len(runs) == 1 and runs[0]["state"] == bq.RUN_FAILED
     assert runs[0]["final_report"]["worker_started"] is False
+    assert ac.list_claims(db_path=coordination_db, active_only=True) == []
+
+
+
+def test_run_worker_post_acquisition_setup_failure_releases_kx(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    monkeypatch.setattr(
+        br,
+        "inject_worker_context",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("context boom")),
+    )
+
+    with pytest.raises(br.RunnerError, match="context boom"):
+        br.run_worker(
+            task["id"],
+            ["/usr/bin/true"],
+            repo_root=repo,
+            db_path=db_path,
+            coordination_db_path=coordination_db,
+            coordination_registry_path=registry,
+            heartbeat_seconds=1,
+            lease_seconds=5,
+            inject_context=True,
+        )
+
+    runs = bq.list_runs(task_id=task["id"], db_path=db_path)
+    assert len(runs) == 1
+    assert runs[0]["state"] == bq.RUN_FAILED
+    assert runs[0]["final_report"]["worker_started"] is False
+    assert "context boom" in runs[0]["final_report"]["error"]
     assert ac.list_claims(db_path=coordination_db, active_only=True) == []
 
 
