@@ -1093,3 +1093,152 @@ def test_stopped_mission_rejects_plan_candidate_checkpoint_and_cycle_mutations(t
     assert current["candidate"]["digest"] is None
     assert current["checkpoint"] == {}
     assert current["last_cycle"] is None
+
+
+@pytest.mark.asyncio
+async def test_mission_cycle_composes_with_existing_automation_action_runner(tmp_path, monkeypatch):
+    from gateway import (
+        action_grants,
+        automation_actions,
+        automation_runs,
+        context_mission,
+        memory_mission,
+    )
+
+    db_path = tmp_path / "kitty.db"
+    monkeypatch.setattr(automation_runs, "DB_FILE", db_path)
+    monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", db_path)
+    automation_actions.clear_registry()
+    _executing_life_mission(db_path)
+    decisions = []
+    delegations = []
+
+    def observe(_payload):
+        return [{"source": "research", "locator": "scout", "digest": "v1"}]
+
+    def decide(context):
+        decisions.append(context)
+        return {
+            "outcome": "advance",
+            "reason": "new research",
+            "task": {"owner": "existing-action", "id": "synthesize"},
+        }
+
+    def delegate(task):
+        delegations.append(task)
+        return {"ok": True, "receipt": "existing-action:1"}
+
+    action = context_mission.build_automation_action(
+        "life-2", observe=observe, decide=decide, delegate=delegate, db_path=db_path
+    )
+    automation_actions.register_action("mission.life2.cycle", action)
+
+    first = await automation_actions.run_action(
+        "mission.life2.cycle", trigger_kind="time",
+        automation_id="mission:life-2", schedule_id="life2-schedule",
+    )
+    second = await automation_actions.run_action(
+        "mission.life2.cycle", trigger_kind="time",
+        automation_id="mission:life-2", schedule_id="life2-schedule",
+    )
+
+    assert first["status"] == "completed"
+    assert first["result_pointer"] == "mission:life-2"
+    assert second["status"] == "condition_false"
+    assert len(decisions) == 1
+    assert len(delegations) == 1
+    mission = memory_mission.get_mission("life-2", db_path=db_path)
+    assert mission["source_cursors"]["research|scout"] == "v1"
+    automation_actions.clear_registry()
+
+
+@pytest.mark.asyncio
+async def test_mission_automation_action_resolves_current_supervisor_and_skips_paused_sources(
+    tmp_path, monkeypatch
+):
+    from gateway import (
+        action_grants,
+        automation_actions,
+        automation_runs,
+        context_mission,
+        memory_mission,
+    )
+
+    db_path = tmp_path / "kitty.db"
+    monkeypatch.setattr(automation_runs, "DB_FILE", db_path)
+    monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", db_path)
+    automation_actions.clear_registry()
+    _executing_life_mission(db_path)
+    observed = []
+
+    def observe(_payload):
+        observed.append("called")
+        return [{"source": "research", "locator": "lane", "digest": "v2"}]
+
+    action = context_mission.build_automation_action(
+        "life-2", observe=observe,
+        decide=lambda _context: {"outcome": "blocked", "reason": "proof"},
+        db_path=db_path,
+    )
+
+    memory_mission.replace_supervisor(
+        "life-2", new_supervisor_id="chad-2",
+        expected_supervisor_id="chad", expected_epoch=1, db_path=db_path,
+    )
+    automation_actions.register_action("mission.life2.cycle", action)
+    run = await automation_actions.run_action(
+        "mission.life2.cycle", trigger_kind="time", automation_id="mission:life-2",
+    )
+    assert run["status"] == "completed"
+    assert observed == ["called"]
+    current = memory_mission.get_mission("life-2", db_path=db_path)
+    assert current["supervisor"] == {"id": "chad-2", "epoch": 2}
+
+    memory_mission.pause_mission("life-2", reason="pause", db_path=db_path)
+    paused = await automation_actions.run_action(
+        "mission.life2.cycle", trigger_kind="time", automation_id="mission:life-2",
+    )
+    assert paused["status"] == "condition_false"
+    assert observed == ["called"]
+    automation_actions.clear_registry()
+
+
+@pytest.mark.asyncio
+async def test_mission_automation_action_preserves_source_unavailable_as_run_evidence(
+    tmp_path, monkeypatch
+):
+    from gateway import (
+        action_grants,
+        automation_actions,
+        automation_runs,
+        context_mission,
+        memory_mission,
+    )
+
+    db_path = tmp_path / "kitty.db"
+    monkeypatch.setattr(automation_runs, "DB_FILE", db_path)
+    monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", db_path)
+    automation_actions.clear_registry()
+    _executing_life_mission(db_path)
+
+    def observe(_payload):
+        raise automation_actions.SourceUnavailable("Life 2.0 source is offline")
+
+    action = context_mission.build_automation_action(
+        "life-2", observe=observe,
+        decide=lambda _context: {"outcome": "blocked", "reason": "unused"},
+        db_path=db_path,
+    )
+    automation_actions.register_action("mission.life2.cycle", action)
+    run = await automation_actions.run_action(
+        "mission.life2.cycle", trigger_kind="time", automation_id="mission:life-2",
+    )
+
+    assert run["status"] == "source_unavailable"
+    assert run["error"] == "Life 2.0 source is offline"
+    persisted = automation_runs.get_run(run["id"])
+    assert persisted is not None
+    assert persisted["status"] == "source_unavailable"
+    mission = memory_mission.get_mission("life-2", db_path=db_path)
+    assert mission["source_cursors"] == {}
+    automation_actions.clear_registry()

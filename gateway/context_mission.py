@@ -5,11 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from gateway import memory_mission
+from gateway import automation_actions, memory_mission
 
 DecisionFn = Callable[[dict[str, Any]], dict[str, Any]]
 DelegateFn = Callable[[dict[str, Any]], dict[str, Any]]
 NotifyFn = Callable[[dict[str, Any]], Any]
+ObserveFn = Callable[[dict[str, Any]], list[dict[str, Any]]]
 _ALLOWED_OUTCOMES = {"advance", "needs_jacob", "blocked", "verify", "no_change"}
 
 
@@ -194,3 +195,38 @@ def run_cycle(
         pending_escalation=pending_escalation, db_path=db_path,
     )
     return cycle
+
+
+def build_automation_action(
+    mission_id: str, *, observe: ObserveFn, decide: DecisionFn,
+    delegate: DelegateFn | None = None, notify: NotifyFn | None = None,
+    db_path: Path = memory_mission.MISSION_DB_FILE,
+) -> automation_actions.ActionCallable:
+    """Adapt one Mission cycle to Kitty's existing Automation action contract."""
+
+    async def action(payload: dict[str, Any]) -> automation_actions.ActionResult:
+        mission = memory_mission.get_mission(mission_id, db_path=db_path)
+        if mission["status"] != "EXECUTING":
+            return automation_actions.ActionResult(
+                status="condition_false",
+                result_pointer=f"mission:{mission_id}",
+                error=f"Mission is {mission['status']}",
+            )
+
+        observations = observe(payload)
+        cycle = run_cycle(
+            mission_id,
+            supervisor_id=mission["supervisor"]["id"],
+            supervisor_epoch=mission["supervisor"]["epoch"],
+            observations=observations,
+            decide=decide,
+            delegate=delegate,
+            notify=notify,
+            db_path=db_path,
+        )
+        status = "condition_false" if cycle["outcome"] == "no_change" else "completed"
+        return automation_actions.ActionResult(
+            status=status, result_pointer=f"mission:{mission_id}"
+        )
+
+    return action
