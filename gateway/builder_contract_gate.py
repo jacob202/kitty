@@ -7,24 +7,14 @@ must or must not exist, before reviewer inference is spent.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Any
+
+from gateway.run_workspace import RunWorkspaceError, snapshot_existing_worktree
 
 
 class ContractGateError(RuntimeError):
     """Raised when the deterministic gate itself cannot inspect the worktree."""
-
-
-def _git(worktree: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=worktree, capture_output=True, text=True,
-        timeout=20, check=False,
-    )
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "git command failed").strip()
-        raise ContractGateError(detail)
-    return result.stdout
 
 
 def _parts(path: str) -> tuple[str, ...]:
@@ -42,8 +32,13 @@ def _overlap(left: str, right: str) -> bool:
 
 
 def _changed_paths(worktree: Path, base_sha: str) -> list[str]:
-    output = _git(worktree, "diff", "--no-renames", "--name-only", f"{base_sha}..HEAD")
-    return [line.strip() for line in output.splitlines() if line.strip()]
+    try:
+        snapshot = snapshot_existing_worktree(
+            worktree, base_commit=base_sha, include_ignored=False
+        )
+    except RunWorkspaceError as exc:
+        raise ContractGateError(str(exc)) from exc
+    return list(snapshot.changed_paths)
 
 
 def _changed_text(worktree: Path, changed_paths: list[str]) -> str:

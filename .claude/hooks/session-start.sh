@@ -124,7 +124,8 @@ if [ -x "$ROOM_CLI" ]; then
       echo "[GAR] session receipt token: gar-session:$SAFE_SESSION_ID"
       echo "[GAR] When substantial assigned work finishes, run /session-end and include that token in the workspace_global handoff/result. Do not wait for Jacob to say session end."
     fi
-    echo "[GAR] ACK direct messages only after receipt. Builder executes work; #490 owns collisions."
+    echo "[GAR] After consuming a direct: reply in-thread (records receipt), or run: $ROOM_CLI room ack --as claude <message_id>"
+    echo "[GAR] Do not ACK unread work you did not consume. ACK means receipt, not task completion. Builder executes work; #490 owns collisions."
   else
     echo "[GAR] workspace_global unavailable at session start; do not treat this as an empty room."
     if [ "$RECENT_RC" -ne 0 ]; then

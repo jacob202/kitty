@@ -57,6 +57,7 @@ def test_server_registers_exact_room_tools_and_pins_identity(monkeypatch, room_d
     assert server.mcp is instance
     assert instance.name == "kitty-agent-room"
     assert server.CLIENT_IDENTITY == "claude"
+    assert "room_inbox(unread_only=True, direct_only=True)" in instance.kwargs["instructions"]
     assert set(instance.tools) == {
         "room_status", "room_recent", "room_inbox", "room_thread",
         "room_post", "room_reply", "room_ack",
@@ -86,6 +87,33 @@ def test_room_tools_share_domain_truth_without_sender_override(monkeypatch, room
 
     thread = server.room_thread(reply["id"] )
     assert [item["id"] for item in thread] == [root["id"], reply["id"]]
+
+
+def test_mcp_direct_inbox_filters_assignments_without_marking_broadcast_consumed(
+    monkeypatch, room_db
+):
+    broadcast = agent_workspace.post_global_message(
+        sender_id="chatgpt", recipient_id=None,
+        content="Shared status only.", message_kind="result",
+    )
+    direct = agent_workspace.post_global_message(
+        sender_id="chatgpt", recipient_id="dsh",
+        content="Please review this.", message_kind="handoff",
+    )
+    server = _load_server(monkeypatch, "dsh")
+
+    assignments = server.room_inbox(unread_only=True, direct_only=True)
+    assert [item["id"] for item in assignments] == [direct["id"]]
+    assert assignments[0]["receipt_state"] == "sent"
+
+    broad_inbox = server.room_inbox(unread_only=True)
+    assert {item["id"] for item in broad_inbox} == {broadcast["id"], direct["id"]}
+
+    server.room_reply(direct["id"], "Reviewed.", recipient_id="chatgpt", message_kind="review")
+    all_inbox = server.room_inbox()
+    by_id = {item["id"]: item for item in all_inbox}
+    assert by_id[direct["id"]]["receipt_state"] == "acknowledged"
+    assert by_id[broadcast["id"]]["receipt_state"] == "sent"
 
 
 def test_unknown_identity_fails_closed(monkeypatch: pytest.MonkeyPatch, room_db):

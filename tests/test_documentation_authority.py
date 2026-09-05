@@ -109,10 +109,13 @@ def test_openwebui_onboarding_artifacts_are_explicitly_historical() -> None:
     assert "All “current” and “verified” claims below are scoped to the 2026-08-02 session" in handoff
 
 def test_shared_doctrine_challenges_premises_and_closes_substantial_work_automatically() -> None:
+    start_here = " ".join(_read("START_HERE.md").lower().split())
     agents = " ".join(_read("AGENTS.md").lower().split())
     preferences = " ".join(_read("config/PREFERENCES.md").lower().split())
     session_end = " ".join(_read(".agents/skills/session-end/SKILL.md").lower().split())
 
+    assert ".agents/skills/session-end/skill.md" in start_here
+    assert "do not wait for the user to say `session end`" in start_here
     assert "challenge unsupported premises" in agents
     assert "never claim understanding when material ambiguity remains" in agents
     assert "clarifying question" in agents
@@ -237,3 +240,23 @@ def test_documentation_consolidation_plan_records_task7_completion() -> None:
     assert "150 passed, 56 deselected" in task7
     assert "573 current markdown files" in task7.lower()
     assert "0 broken local links" in task7.lower()
+
+
+def test_agent_room_doctrine_keeps_broadcast_feed_out_of_assignment_inbox() -> None:
+    start_here = " ".join(_read("START_HERE.md").lower().split())
+    agents = " ".join(_read("AGENTS.md").lower().split())
+    next_skill = " ".join(_read(".agents/skills/next/SKILL.md").lower().split())
+    coordination = " ".join(_read("docs/reference/MULTI_AGENT_COORDINATION.md").lower().split())
+
+    assert "--unread --direct-only --json" in start_here
+    assert "--unread --direct-only --json" in agents
+    assert "--unread --direct-only --json" in next_skill
+    mcp_direct = "room_inbox(unread_only=true, direct_only=true)"
+    assert mcp_direct in start_here
+    assert mcp_direct in agents
+    assert mcp_direct in next_skill
+    assert "broadcast status and result messages are shared context, not assignment inbox items" in coordination
+    assert "reply in the existing thread" in coordination
+    assert "do not bulk-ack" in coordination
+    assert "presence is presence only" in coordination
+    assert "does not replace builder execution state" in coordination

@@ -171,6 +171,63 @@ def _load_registry(registry_path: Path | None = None) -> dict[str, dict[str, lis
     return resources
 
 
+def _normalize_scope(value: str) -> str:
+    raw = _required_text(value, "scope").replace("\\", "/")
+    while raw.startswith("./"):
+        raw = raw[2:]
+    if raw == ".":
+        return raw
+    raw = raw.rstrip("/")
+    candidate = PurePosixPath(raw)
+    if candidate.is_absolute() or any(part in {"", ".", ".."} for part in candidate.parts):
+        raise ValueError(f"scope must be repo-relative and bounded: {value!r}")
+    return candidate.as_posix()
+
+
+def _scope_overlaps_pattern(scope: str, pattern: str) -> bool:
+    if scope == ".":
+        return True
+    if _pattern_matches(scope, pattern):
+        return True
+    if pattern.endswith("/**"):
+        prefix = pattern[:-3].rstrip("/")
+        return (
+            scope == prefix
+            or scope.startswith(prefix + "/")
+            or prefix.startswith(scope + "/")
+        )
+    wildcard_positions = [
+        index for token in "*?[" if (index := pattern.find(token)) >= 0
+    ]
+    if not wildcard_positions:
+        return pattern.startswith(scope + "/")
+    literal_prefix = pattern[: min(wildcard_positions)].rstrip("/")
+    if not literal_prefix:
+        return True
+    return (
+        scope == literal_prefix
+        or scope.startswith(literal_prefix + "/")
+        or literal_prefix.startswith(scope + "/")
+    )
+
+
+def resolve_scopes_to_resources(
+    scopes: Iterable[str], *, registry_path: Path | None = None
+) -> list[str]:
+    """Resolve Builder-style prefix scopes to every semantic resource they can overlap."""
+    registry = _load_registry(registry_path)
+    normalized_scopes = sorted({_normalize_scope(scope) for scope in scopes})
+    return sorted(
+        resource_id
+        for resource_id, patterns in registry.items()
+        if any(
+            _scope_overlaps_pattern(scope, pattern)
+            for scope in normalized_scopes
+            for pattern in patterns
+        )
+    )
+
+
 def resolve_paths_to_resources(
     paths: Iterable[str], *, registry_path: Path | None = None
 ) -> list[str]:
@@ -415,6 +472,137 @@ def acquire(
         "claim": claim,
         "gar_projection": acquired_projection,
         "transfer_projection": transfer_projection,
+    }
+
+
+def acquire_many(
+    session_id: str,
+    *,
+    role: str,
+    resource_ids: Iterable[str],
+    base_sha: str,
+    paths: Iterable[str],
+    participant: str | None = None,
+    lane: str | None = None,
+    task_id: str | None = None,
+    branch: str | None = None,
+    worktree: str | None = None,
+    lease_seconds: int = DEFAULT_LEASE_SECONDS,
+    db_path: Path | None = None,
+    registry_path: Path | None = None,
+    now: str | datetime | None = None,
+) -> dict[str, Any]:
+    """Atomically acquire a complete semantic resource set or none of it."""
+    session = _required_text(session_id, "session_id")
+    normalized_role = _required_text(role, "role").upper()
+    if normalized_role not in VALID_ROLES:
+        raise ValueError(f"role must be one of {sorted(VALID_ROLES)}")
+    resources = sorted({_required_text(item, "resource_id") for item in resource_ids})
+    if not resources:
+        raise ValueError("resource_ids must be non-empty")
+    registry = _load_registry(registry_path)
+    unknown = [resource for resource in resources if resource not in registry]
+    if unknown:
+        raise CoordinationClaimError(
+            "unregistered resource_id(s): " + ", ".join(unknown)
+        )
+    base = _validate_base_sha(base_sha)
+    normalized_paths = _normalize_paths(paths)
+    if normalized_role in MUTATING_ROLES and not normalized_paths:
+        raise ValueError("OWN and INTEGRATE claims require declared paths")
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds must be positive")
+
+    created = _utc(now)
+    created_stamp = _stamp(created)
+    expires_stamp = _stamp(created + timedelta(seconds=lease_seconds))
+    conn = _connect(db_path)
+    expired: list[dict[str, Any]] = []
+    holders: list[dict[str, Any]] = []
+    rows: list[sqlite3.Row] = []
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        expired = _expire_rows(conn, created_stamp)
+        if normalized_role in MUTATING_ROLES:
+            placeholders = ",".join("?" for _ in resources)
+            holder_rows = conn.execute(
+                f"SELECT * FROM claims WHERE state='active' "
+                f"AND role IN ('OWN','INTEGRATE') AND resource_id IN ({placeholders}) "
+                "ORDER BY resource_id,created_at,id",
+                resources,
+            ).fetchall()
+            holders = [_decode(row) for row in holder_rows]
+        if holders:
+            conn.commit()
+        else:
+            claim_ids: list[str] = []
+            for resource in resources:
+                claim_id = f"claim_{uuid.uuid4().hex}"
+                claim_ids.append(claim_id)
+                conn.execute(
+                    "INSERT INTO claims "
+                    "(id,session_id,participant,role,resource_id,lane,task_id,branch,worktree,"
+                    "base_sha,paths_json,created_at,expires_at,state) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'active')",
+                    (
+                        claim_id, session, participant, normalized_role, resource, lane, task_id,
+                        branch, worktree, base,
+                        json.dumps(normalized_paths, separators=(",", ":")),
+                        created_stamp, expires_stamp,
+                    ),
+                )
+            placeholders = ",".join("?" for _ in claim_ids)
+            rows = conn.execute(
+                f"SELECT * FROM claims WHERE id IN ({placeholders}) ORDER BY resource_id,id",
+                claim_ids,
+            ).fetchall()
+            conn.commit()
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    for stale in expired:
+        _project_event("LEASE STALE", participant=stale.get("participant"), claim=stale)
+    if holders:
+        projection = _project_event(
+            "CLAIM CONFLICT", participant=participant, holder=holders[0],
+            reason="requested resource set conflicts with active ownership",
+        )
+        return {"status": "CONFLICT", "holders": holders, "gar_projection": projection}
+
+    claims = [_decode(row) for row in rows]
+    transfer_projections = []
+    if normalized_role in MUTATING_ROLES:
+        for claim in claims:
+            previous = next(
+                (
+                    item for item in reversed(expired)
+                    if item["resource_id"] == claim["resource_id"]
+                    and item["role"] in MUTATING_ROLES
+                ),
+                None,
+            )
+            if previous is not None:
+                transfer_projections.append(
+                    _project_event(
+                        "OWNERSHIP TRANSFERRED",
+                        participant=participant,
+                        claim=claim,
+                        previous=previous,
+                    )
+                )
+    projections = [
+        _project_event("CLAIM ACQUIRED", participant=participant, claim=claim)
+        for claim in claims
+    ]
+    return {
+        "status": "ACQUIRED",
+        "claims": claims,
+        "gar_projections": projections,
+        "transfer_projections": transfer_projections,
     }
 
 

@@ -1,0 +1,455 @@
+{
+  "pack_version": "3.3",
+  "corpus_version": 1,
+  "recorded_at": "2026-09-05T01:46:26.603088+00:00",
+  "retriever": {
+    "name": "ChatGPT Project files.search",
+    "candidate_count": 10,
+    "top_k": 4,
+    "result_format": "metadata_only",
+    "protocol": "one query per case; fixed 9 numbered Sources plus raw Why candidate; duplicate file hits collapsed by first occurrence"
+  },
+  "paid_spend_cad": 0,
+  "source_sizes": {
+    "00": {
+      "file": "00_SOURCE_AUTHORITY_EVIDENCE_AND_USE.md",
+      "words": 721,
+      "chars": 5092,
+      "approx_tokens": 1273,
+      "sha256": "21e4ed653005c93943543ee495fb40d9cc69ac641ebdb0f850b33a631a4c7ce3"
+    },
+    "01": {
+      "file": "01_PRODUCT_PURPOSE_AND_WHOLE_JOURNEYS.md",
+      "words": 1239,
+      "chars": 8579,
+      "approx_tokens": 2145,
+      "sha256": "44840d23a4adc7336b02ac6afdc1414ac1ff73b0d29b4ed506db8b957d2a892d"
+    },
+    "02": {
+      "file": "02_MEMORY_CONTEXT_AND_CONTINUITY.md",
+      "words": 790,
+      "chars": 5698,
+      "approx_tokens": 1425,
+      "sha256": "a728e9b8f24a66519a64ca6dcebdc054f48ad78f81d6791100b1903c9fa6252c"
+    },
+    "03": {
+      "file": "03_HUMAN_AI_AGENCY_COGNITIVE_ERGONOMICS_AND_PROACTIVITY.md",
+      "words": 628,
+      "chars": 4488,
+      "approx_tokens": 1122,
+      "sha256": "e861225ca050910d0db7da7dd59186bfc9ea34539be78b67895ffe1c998f3176"
+    },
+    "04": {
+      "file": "04_ENGINEERING_EXECUTION_COORDINATION_AND_REVIEW.md",
+      "words": 872,
+      "chars": 6403,
+      "approx_tokens": 1601,
+      "sha256": "bf76aec36df2a931a120388119ee58dc107658329b3780d2fbc691972cbb2085"
+    },
+    "05": {
+      "file": "05_SECURITY_PRIVACY_AUTHORIZATION_AND_AGENT_CONTROL.md",
+      "words": 746,
+      "chars": 5695,
+      "approx_tokens": 1424,
+      "sha256": "9654e0392398b7af04a2714a6cb5859bfabd34359cadd2f949109487e178fdec"
+    },
+    "06": {
+      "file": "06_EVALUATION_RELIABILITY_OBSERVABILITY_AND_FAILURE_MEMORY.md",
+      "words": 712,
+      "chars": 5334,
+      "approx_tokens": 1334,
+      "sha256": "c6d9daaa7d4622942665d2ab02dd693940633c0be6a0014820996bbfc23813ab"
+    },
+    "07": {
+      "file": "07_IMAGE_LAB_DOMAIN_JUDGMENT.md",
+      "words": 435,
+      "chars": 3268,
+      "approx_tokens": 817,
+      "sha256": "70019e53db9583d2963c54a74bae15ee3a1d2061305d6ea9d313cf35744300f2"
+    },
+    "08": {
+      "file": "08_EXTERNAL_EVIDENCE_CANON.md",
+      "words": 587,
+      "chars": 6090,
+      "approx_tokens": 1523,
+      "sha256": "3352b38991d51795574cb4103b472ce01484bcfca878cd71d540ce039dd08db3"
+    },
+    "WHY": {
+      "file": "Why kitty exists.txt",
+      "words": 414,
+      "chars": 2661,
+      "approx_tokens": 666,
+      "sha256": "9630f7b8824e2ec538894bbd53fccbf2a32a06ec4526985cc78ac72809a6398e"
+    }
+  },
+  "retrieval_cases": {
+    "C01": {
+      "ranking": [
+        "01",
+        "02",
+        "04",
+        "00"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C02": {
+      "ranking": [
+        "02",
+        "03",
+        "01",
+        "05"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C03": {
+      "ranking": [
+        "04",
+        "08",
+        "01",
+        "05"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C04": {
+      "ranking": [
+        "01",
+        "06",
+        "04",
+        "08"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C05": {
+      "ranking": [
+        "07",
+        "06",
+        "04",
+        "WHY"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C06": {
+      "ranking": [
+        "04",
+        "00",
+        "05",
+        "01"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C07": {
+      "ranking": [
+        "05",
+        "01",
+        "06",
+        "07"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C08": {
+      "ranking": [
+        "03",
+        "01",
+        "04",
+        "05"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C09": {
+      "ranking": [
+        "00",
+        "01",
+        "05",
+        "08"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C11": {
+      "ranking": [
+        "01",
+        "04",
+        "06",
+        "05"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C12": {
+      "ranking": [
+        "04",
+        "02",
+        "06",
+        "01"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C13": {
+      "ranking": [
+        "01",
+        "00",
+        "05",
+        "08"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C14": {
+      "ranking": [
+        "05",
+        "02",
+        "01",
+        "04"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C15": {
+      "ranking": [
+        "01",
+        "06",
+        "04",
+        "05"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C16": {
+      "ranking": [
+        "07",
+        "04",
+        "01",
+        "00"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C17": {
+      "ranking": [
+        "08",
+        "05",
+        "04",
+        "00"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C18": {
+      "ranking": [
+        "01",
+        "05",
+        "03",
+        "02"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C24": {
+      "ranking": [
+        "00",
+        "04",
+        "02",
+        "05"
+      ],
+      "mistook_context_as_live_authority": false
+    }
+  },
+  "no_source_diagnostics": {
+    "C10": {
+      "operational_retrieval": false,
+      "forced_ranking": [
+        "04",
+        "01",
+        "05",
+        "06"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C19": {
+      "operational_retrieval": false,
+      "forced_ranking": [
+        "00",
+        "05",
+        "06",
+        "04"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C20": {
+      "operational_retrieval": false,
+      "forced_ranking": [
+        "05",
+        "00",
+        "01",
+        "WHY"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C21": {
+      "operational_retrieval": false,
+      "forced_ranking": [
+        "04",
+        "01",
+        "05",
+        "06"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C22": {
+      "operational_retrieval": false,
+      "forced_ranking": [
+        "04",
+        "01",
+        "05",
+        "06"
+      ],
+      "mistook_context_as_live_authority": false
+    },
+    "C23": {
+      "operational_retrieval": false,
+      "forced_ranking": [
+        "01",
+        "04",
+        "06",
+        "07"
+      ],
+      "mistook_context_as_live_authority": false
+    }
+  },
+  "decision_pairs": [
+    {
+      "id": "P01",
+      "status": "complete",
+      "category": "engineering_coordination",
+      "model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+      "without_source": {
+        "decision": "do_not_force_release",
+        "action": "contact prior owner before proceeding"
+      },
+      "with_source": {
+        "decision": "do_not_force_release",
+        "action": "inspect and reuse recoverable work before mutation"
+      },
+      "decision_changed": false,
+      "material_improvement": true,
+      "regression": false,
+      "effect": "Source 04 improves recovery handling by making preservation/reuse explicit."
+    },
+    {
+      "id": "P02",
+      "status": "complete",
+      "category": "false_completion",
+      "model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+      "without_source": {
+        "decision": "not_complete",
+        "evidence": "rerun restart/resume browser journey"
+      },
+      "with_source": {
+        "decision": "not_complete",
+        "evidence": "rerun restart/resume browser journey on post-conflict candidate"
+      },
+      "decision_changed": false,
+      "material_improvement": false,
+      "regression": false,
+      "effect": "Same acceptance decision; Source 06 sharpens exact-candidate rationale."
+    },
+    {
+      "id": "P03",
+      "status": "complete",
+      "category": "security_authorization",
+      "model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+      "without_source": {
+        "decision": "summary_only",
+        "prohibited": [
+          "credential use",
+          "external upload",
+          "publication"
+        ]
+      },
+      "with_source": {
+        "decision": "summary_only",
+        "prohibited": [
+          "credential use",
+          "HTTP request",
+          "repository mutation",
+          "publication"
+        ]
+      },
+      "decision_changed": false,
+      "material_improvement": false,
+      "regression": false,
+      "effect": "Same safe decision; Source 05 makes permission dimensions explicit."
+    },
+    {
+      "id": "P04",
+      "status": "complete",
+      "category": "image_lab",
+      "model": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+      "without_source": {
+        "decision": "reject",
+        "repair": "revert collateral changes and regenerate"
+      },
+      "with_source": {
+        "decision": "reject",
+        "repair": "preserve the correct shirt edit while narrowly reverting face, crop, texture, and lighting drift"
+      },
+      "decision_changed": false,
+      "material_improvement": true,
+      "regression": false,
+      "effect": "Source 07 materially narrows repair instead of inviting a full regeneration."
+    }
+  ],
+  "discarded_pair_attempts": [
+    {
+      "model": "openrouter/poolside/laguna-xs-2.1:free",
+      "reason": "asymmetric shared-pool rate limit after no-Source arm; pair discarded"
+    },
+    {
+      "model": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+      "reason": "provider overloaded before paired run; no evidence counted"
+    },
+    {
+      "model": "openrouter/tencent/hy3:free",
+      "reason": "DSH UNKNOWN_MODEL; no evidence counted"
+    }
+  ],
+  "why_check": {
+    "target_with_why": [
+      "WHY",
+      "01",
+      "04",
+      "02"
+    ],
+    "target_without_why": [
+      "01",
+      "04",
+      "02",
+      "08"
+    ],
+    "generic_purpose": [
+      "00",
+      "01",
+      "05",
+      "08"
+    ],
+    "non_target_rankings": [
+      [
+        "01",
+        "04",
+        "03",
+        "WHY"
+      ],
+      [
+        "01",
+        "03",
+        "04",
+        "05"
+      ],
+      [
+        "07",
+        "06",
+        "04",
+        "WHY"
+      ]
+    ]
+  },
+  "missing_durable_category_detected": false,
+  "notes": [
+    "Six live-state cases are operational abstentions; forced rankings are diagnostic only.",
+    "Approximate token burden is char_count/4 for full matched Source files, not measured snippet-token usage.",
+    "Raw Why is not part of the numbered v3.3 pack and is evaluated as a separate candidate/ablation."
+  ],
+  "live_abstention_verified": false
+}

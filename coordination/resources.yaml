@@ -1,4 +1,19 @@
 resources:
+  agent-runtime:containment:
+    paths:
+    - gateway/builder_contract_gate.py
+    - gateway/builder_identity.py
+    - gateway/builder_runner.py
+    - gateway/run_workspace.py
+    - integrations/discord_command_center/service.py
+    - integrations/discord_command_center/workspace.py
+    - tests/test_builder_contract_gate.py
+    - tests/test_builder_execution_boundary.py
+    - tests/test_builder_identity.py
+    - tests/test_builder_models.py
+    - tests/test_builder_runner.py
+    - tests/test_discord_command_center_phase0.py
+    - tests/test_run_workspace.py
   builder:initiative-lifecycle:
     paths:
     - gateway/builder_initiative.py
@@ -12,7 +27,9 @@ resources:
     - gateway/builder_supervisor.py
     - tests/test_builder_commands.py
     - tests/test_builder_loop.py
+    - tests/test_builder_publication_infrastructure.py
     - tests/test_builder_queue.py
+    - tests/test_builder_run.py
     - tests/test_builder_supervisor.py
   docs:planning-artifacts:
     paths:
@@ -33,6 +50,10 @@ resources:
     - gateway/kitty-chat/README.md
     - tests/test_builder_paid_routing.py
     - tests/test_documentation_authority.py
+  evaluation:project-sources:
+    paths:
+    - evals/project_sources/**
+    - tests/test_project_source_eval.py
   image-lab:generation:
     paths:
     - gateway/image_*.py
@@ -50,8 +71,12 @@ resources:
     - gateway/project_store.py
     - gateway/routes/agent_workspace.py
     - gateway/routes/session_context.py
+    - mcp/agent_room/**
+    - tests/test_agent_room_global.py
     - tests/test_agent_workspace.py
+    - tests/test_agent_workspace_routes.py
     - tests/test_check_continuity_state.py
+    - tests/test_mcp_agent_room_server.py
     - tests/test_project_store.py
     - tests/test_session_context_route.py
   runtime:provenance:
@@ -73,6 +98,9 @@ resources:
     - scripts/desktop/start_ui.sh
     - scripts/hooks/**
     - tests/test_agent_coordination_acceptance.py
+    - tests/test_agent_room_cli.py
+    - tests/test_agent_room_lifecycle_hooks.py
+    - tests/test_agent_room_lifecycle_review_regressions.py
     - tests/test_chat_errors.py
     - tests/test_doctor_freshness.py
     - tests/test_gate_provenance.py

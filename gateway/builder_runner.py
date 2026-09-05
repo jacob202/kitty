@@ -43,10 +43,12 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
 
+from gateway import agent_coordination as ac
 from gateway import agent_workspace as agent_workspace
 from gateway import builder_execution_boundary as beb
 from gateway import builder_queue as bq
 from gateway import builder_scope as bs
+from gateway import run_workspace as rw
 from gateway.builder_brief import default_branch_name, render_worker_brief
 from gateway.builder_context import build_context_manifest, write_run_manifest
 from gateway.models.builder import AgentPreset, AgentPresetConfig, WorkerContextBundle
@@ -68,6 +70,7 @@ _BLOCK_REASONS = {
     bq.RUN_FAILED: "worker_failed",
     bq.RUN_TIMEOUT: "run_timeout",
     bq.RUN_CANCELLED: "run_cancelled",
+    bq.RUN_LEASE_LOST: "run_lease_lost",
     bq.RUN_SCOPE_VIOLATION: "scope_violation",
 }
 
@@ -144,6 +147,34 @@ def preflight_worktree(
         **{f"git_{key.replace(' ', '_').replace('/', '_')}": value
            for key, value in metadata_paths.items()},
     }
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    """Persist one JSON record without exposing a partially-written file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temp_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    os.replace(temp_path, path)
+
+
+def _read_persisted_worktree_identity(
+    path: Path, *, expected_run_id: str
+) -> rw.WorktreeIdentity:
+    """Load the exact creation-time worktree identity stored for a run."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise rw.RunWorkspaceError(
+            f"cannot read persisted ownership identity from {path}: {exc}"
+        ) from exc
+    if not isinstance(payload, dict) or payload.get("run_id") != expected_run_id:
+        raise rw.RunWorkspaceError("persisted ownership identity names the wrong run")
+    identity_payload = payload.get("worktree_identity")
+    if not isinstance(identity_payload, dict):
+        raise rw.RunWorkspaceError("persisted ownership identity is missing worktree_identity")
+    return rw.WorktreeIdentity.from_payload(identity_payload)
 
 
 def _repo_root(repo_root: Path | None) -> Path:
@@ -583,6 +614,164 @@ def _scope_snapshot(
     return changed_paths, _scope_violations(changed_paths, allowed_paths)
 
 
+def _builder_declared_scopes(allowed_paths: list[str] | None) -> list[str]:
+    """Return explicit Builder mutation scopes; absent scope fails closed."""
+    if not allowed_paths:
+        raise RunnerError(
+            "allowed_paths must declare an explicit mutation scope before worker launch"
+        )
+    raw_scopes = allowed_paths
+    scopes: list[str] = []
+    for raw_path in raw_scopes:
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise RunnerError(
+                f"invalid allowed path {raw_path!r}: mutation scopes must be non-empty"
+            )
+        raw = raw_path.strip()
+        parsed = PurePosixPath(raw)
+        if parsed.is_absolute() or ".." in parsed.parts:
+            raise RunnerError(
+                f"invalid allowed path {raw_path!r}: use a repo-relative path "
+                "without '..'"
+            )
+        scopes.append(parsed.as_posix())
+    return sorted(set(scopes))
+
+
+def _kx_claim_paths(scopes: list[str]) -> list[str]:
+    """Translate Builder prefix semantics into KX path-fence patterns."""
+    if "." in scopes:
+        return ["**"]
+    patterns = {scope for scope in scopes}
+    patterns.update(f"{scope}/**" for scope in scopes)
+    return sorted(patterns)
+
+
+def _resolve_required_kx_resources(
+    scopes: list[str],
+    *,
+    allowed_paths: list[str] | None,
+    worktree_path: Path,
+    registry_path: Path,
+) -> list[str]:
+    """Resolve every declared Builder scope and reject any unmapped scope.
+
+    File-like scopes resolve exactly. Directory scopes may claim every semantic
+    resource reachable beneath the prefix. A trailing slash is an explicit
+    directory declaration even when the directory does not exist yet.
+    """
+    raw_directory_scopes = {
+        PurePosixPath(raw.strip()).as_posix()
+        for raw in (allowed_paths or [])
+        if isinstance(raw, str) and raw.strip().endswith("/")
+    }
+    required: set[str] = set()
+    for scope in scopes:
+        scope_path = worktree_path if scope == "." else worktree_path / scope
+        directory_scope = (
+            scope == "."
+            or scope in raw_directory_scopes
+            or scope_path.is_dir()
+        )
+        if directory_scope:
+            resolved = ac.resolve_scopes_to_resources([scope], registry_path=registry_path)
+        else:
+            resolved = ac.resolve_paths_to_resources([scope], registry_path=registry_path)
+        if not resolved:
+            raise RunnerError(
+                f"Builder scope {scope!r} resolves to no registered KX resource"
+            )
+        required.update(resolved)
+    return sorted(required)
+
+
+def _renew_complete_kx_set(
+    session_id: str,
+    required_resources: list[str],
+    *,
+    lease_seconds: int,
+    db_path: Path,
+) -> dict[str, Any]:
+    """Renew KX only if the run still owns its complete semantic set."""
+    result = ac.renew(
+        session_id, lease_seconds=lease_seconds, db_path=db_path
+    )
+    actual = sorted(
+        {
+            str(claim.get("resource_id"))
+            for claim in result.get("claims", [])
+            if isinstance(claim, dict) and claim.get("resource_id")
+        }
+    )
+    if actual != required_resources:
+        raise ac.CoordinationClaimError(
+            f"session {session_id} renewed incomplete KX set: "
+            f"expected {required_resources}, got {actual}"
+        )
+    return result
+
+
+def _release_terminal_builder_kx_conflicts(
+    holders: list[dict[str, Any]],
+    *,
+    task_id: str,
+    queue_db_path: Path | None,
+    coordination_db_path: Path,
+) -> list[str]:
+    """Release only KX residue proven to belong to terminal runs of this task."""
+    if not holders:
+        return []
+    sessions: set[str] = set()
+    for holder in holders:
+        if (
+            holder.get("task_id") != task_id
+            or holder.get("lane") != "builder-run"
+            or holder.get("participant") != "kitty"
+        ):
+            return []
+        session_id = str(holder.get("session_id") or "")
+        prefix = "builder-run:"
+        if not session_id.startswith(prefix):
+            return []
+        prior_run_id = session_id[len(prefix):]
+        prior_run = bq.get_run(prior_run_id, db_path=queue_db_path)
+        if (
+            prior_run is None
+            or prior_run.get("task_id") != task_id
+            or prior_run.get("state") not in bq.RUN_TERMINAL_STATES
+            or holder.get("branch") != prior_run.get("branch")
+            or holder.get("worktree") != prior_run.get("worktree_path")
+            or holder.get("base_sha") != prior_run.get("start_sha")
+        ):
+            return []
+        sessions.add(session_id)
+
+    active_claims = ac.list_claims(active_only=True, db_path=coordination_db_path)
+    for session_id in sorted(sessions):
+        prior_run_id = session_id.removeprefix("builder-run:")
+        prior_run = bq.get_run(prior_run_id, db_path=queue_db_path)
+        assert prior_run is not None
+        session_claims = [
+            claim for claim in active_claims if claim.get("session_id") == session_id
+        ]
+        if not session_claims or any(
+            claim.get("task_id") != task_id
+            or claim.get("lane") != "builder-run"
+            or claim.get("participant") != "kitty"
+            or claim.get("branch") != prior_run.get("branch")
+            or claim.get("worktree") != prior_run.get("worktree_path")
+            or claim.get("base_sha") != prior_run.get("start_sha")
+            for claim in session_claims
+        ):
+            return []
+
+    released: list[str] = []
+    for session_id in sorted(sessions):
+        ac.release(session_id, db_path=coordination_db_path)
+        released.append(session_id)
+    return released
+
+
 def _terminate_group(proc: subprocess.Popen[Any]) -> None:
     """SIGTERM the worker's process group, escalate to SIGKILL after grace."""
     try:
@@ -600,7 +789,7 @@ def _terminate_group(proc: subprocess.Popen[Any]) -> None:
 
 
 def _raise_worker_launch_error(
-    exc: OSError,
+    exc: Exception,
     *,
     run: dict[str, Any],
     task: dict[str, Any],
@@ -615,6 +804,7 @@ def _raise_worker_launch_error(
     model: str | None,
     provider: str | None,
     db_path: Path | None,
+    kx_cleanup_error: str | None = None,
 ) -> NoReturn:
     """Persist a failed launch, then raise the original failure with context."""
     run_id = str(run["id"])
@@ -657,6 +847,8 @@ def _raise_worker_launch_error(
     }
     if inspection_error is not None:
         report["inspection_error"] = inspection_error
+    if kx_cleanup_error is not None:
+        report["kx_cleanup_error"] = kx_cleanup_error
     try:
         bq.finalize_run(
             run_id,
@@ -1028,6 +1220,8 @@ def run_worker(
     heartbeat_seconds: int = DEFAULT_HEARTBEAT_SECONDS,
     repo_root: Path | None = None,
     db_path: Path | None = None,
+    coordination_db_path: Path | None = None,
+    coordination_registry_path: Path | None = None,
     extra_env: dict[str, str] | None = None,
     base_sha: str | None = None,
     inject_context: bool = False,
@@ -1077,6 +1271,38 @@ def run_worker(
     task = bq.claim_task(task_id, worker, lease_seconds=lease_seconds, db_path=db_path)
     lease_token = task["lease_token"]
     claim_version = task["claim_version"]
+    # Production ownership must stay on KX's canonical store. Environment
+    # overrides exist only for hermetic tests (including detached subprocesses);
+    # explicit internal arguments remain the dependency-injection seam.
+    test_mode = os.environ.get("KITTY_ENV") == "test"
+    coordination_db = (
+        Path(coordination_db_path)
+        if coordination_db_path is not None
+        else Path(os.environ["KITTY_COORDINATION_DB_PATH"])
+        if test_mode and os.environ.get("KITTY_COORDINATION_DB_PATH")
+        else ac.default_db_path()
+    )
+    coordination_registry = (
+        Path(coordination_registry_path)
+        if coordination_registry_path is not None
+        else Path(os.environ["KITTY_COORDINATION_REGISTRY_PATH"])
+        if test_mode and os.environ.get("KITTY_COORDINATION_REGISTRY_PATH")
+        else Path(ac.DEFAULT_REGISTRY_PATH)
+    )
+    kx_session_id: str | None = None
+    required_resources: list[str] = []
+    kx_active = threading.Event()
+
+    def _release_kx() -> str | None:
+        if kx_session_id is None:
+            return None
+        try:
+            ac.release(kx_session_id, db_path=coordination_db)
+        except Exception as exc:
+            return f"{type(exc).__name__}: {exc}"
+        finally:
+            kx_active.clear()
+        return None
 
     # Worktree creation and context preparation can legitimately take longer
     # than one lease interval. Keep ownership alive from the moment we claim
@@ -1094,6 +1320,13 @@ def run_worker(
                     lease_seconds=lease_seconds,
                     db_path=db_path,
                 )
+                if kx_active.is_set() and kx_session_id is not None:
+                    _renew_complete_kx_set(
+                        kx_session_id,
+                        required_resources,
+                        lease_seconds=lease_seconds,
+                        db_path=coordination_db,
+                    )
             except Exception as exc:
                 prelaunch_errors.append(exc)
                 return
@@ -1148,6 +1381,9 @@ def run_worker(
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
         start_sha = _git_output(["rev-parse", "HEAD"], cwd=wt_path).strip()
+        worktree_identity = rw.authenticate_existing_worktree(
+            root, wt_path, base_commit=start_sha
+        )
         run = bq.create_run(
             task_id,
             command,
@@ -1165,6 +1401,71 @@ def run_worker(
         run_id = str(run["id"])
         run_dir = log_dir / run_id
         run_dir.mkdir()
+        ownership_path = run_dir / "ownership.json"
+        declared_scopes = _builder_declared_scopes(task.get("allowed_paths"))
+        required_resources = _resolve_required_kx_resources(
+            declared_scopes,
+            allowed_paths=task.get("allowed_paths"),
+            worktree_path=wt_path,
+            registry_path=coordination_registry,
+        )
+        kx_session_id = f"builder-run:{run_id}"
+        _write_json_atomic(
+            ownership_path,
+            {
+                "version": 1,
+                "run_id": run_id,
+                "kx_session_id": kx_session_id,
+                "task_id": task_id,
+                "branch": branch,
+                "worktree": str(wt_path),
+                "declared_paths": declared_scopes,
+                "required_resources": required_resources,
+                "worktree_identity": worktree_identity.to_payload(),
+            },
+        )
+        def _acquire_run_kx() -> dict[str, Any]:
+            return ac.acquire_many(
+                session_id=kx_session_id,
+                role="OWN",
+                resource_ids=required_resources,
+                base_sha=start_sha,
+                paths=_kx_claim_paths(declared_scopes),
+                participant="kitty",
+                lane="builder-run",
+                task_id=task_id,
+                branch=branch,
+                worktree=str(wt_path),
+                lease_seconds=lease_seconds,
+                db_path=coordination_db,
+                registry_path=coordination_registry,
+            )
+
+        kx_result = _acquire_run_kx()
+        if kx_result.get("status") != "ACQUIRED":
+            holders = [
+                item for item in (kx_result.get("holders") or [])
+                if isinstance(item, dict)
+            ]
+            reclaimed = _release_terminal_builder_kx_conflicts(
+                holders,
+                task_id=task_id,
+                queue_db_path=db_path,
+                coordination_db_path=coordination_db,
+            )
+            if reclaimed:
+                kx_result = _acquire_run_kx()
+        if kx_result.get("status") != "ACQUIRED":
+            holders = kx_result.get("holders") or []
+            holder_summary = ", ".join(
+                f"{item.get('resource_id')}={item.get('session_id')}"
+                for item in holders
+                if isinstance(item, dict)
+            ) or "unknown holder"
+            raise RunnerError(
+                f"KX ownership conflict for run {run_id}: {holder_summary}"
+            )
+        kx_active.set()
         log_path = run_dir / "combined.log"
         brief_path = run_dir / "brief.md"
         gh_config_dir = run_dir / "gh-config"
@@ -1215,8 +1516,16 @@ def run_worker(
             lease_seconds=lease_seconds,
             db_path=db_path,
         )
+        assert kx_session_id is not None
+        _renew_complete_kx_set(
+            kx_session_id,
+            required_resources,
+            lease_seconds=lease_seconds,
+            db_path=coordination_db,
+        )
     except Exception as exc:
         _stop_prelaunch_heartbeat(check_error=False)
+        kx_cleanup_error = _release_kx()
         if run is None:
             try:
                 bq.worker_release_task(
@@ -1259,6 +1568,8 @@ def run_worker(
                 "scope_violations": [],
                 "worker_started": False,
             }
+            if kx_cleanup_error is not None:
+                report["kx_cleanup_error"] = kx_cleanup_error
             try:
                 bq.finalize_run(
                     failed_run_id,
@@ -1275,9 +1586,14 @@ def run_worker(
                     f"prelaunch setup failed for run {failed_run_id}: {exc}; "
                     f"durable failure recording also failed: {finalize_exc}"
                 ) from exc
+        cleanup_suffix = (
+            f"; KX cleanup also failed: {kx_cleanup_error}"
+            if kx_cleanup_error is not None
+            else ""
+        )
         raise RunnerError(
             f"prelaunch setup failed for task {task_id}: "
-            f"{type(exc).__name__}: {exc}"
+            f"{type(exc).__name__}: {exc}{cleanup_suffix}"
         ) from exc
 
     assert run is not None
@@ -1317,6 +1633,8 @@ def run_worker(
         KB_BRIEF_PATH=str(brief_path),
         KB_LEASE_TOKEN=str(lease_token),
         KB_CLAIM_VERSION=str(claim_version),
+        KB_KX_SESSION_ID=str(kx_session_id),
+        KB_OWNERSHIP_PATH=str(ownership_path),
     )
 
     outcome = bq.RUN_FAILED
@@ -1328,6 +1646,7 @@ def run_worker(
     try:
         log_fh = open(log_path, "wb")
     except OSError as exc:
+        kx_cleanup_error = _release_kx()
         _raise_worker_launch_error(
             exc,
             run=run,
@@ -1343,6 +1662,7 @@ def run_worker(
             model=model,
             provider=provider,
             db_path=db_path,
+            kx_cleanup_error=kx_cleanup_error,
         )
 
     with log_fh:
@@ -1364,6 +1684,12 @@ def run_worker(
                 extra_read_subpaths=validation_read_roots,
                 write_paths=boundary_write_paths,
             )
+            persisted_identity = _read_persisted_worktree_identity(
+                ownership_path, expected_run_id=run_id
+            )
+            rw.verify_worktree_identity(
+                persisted_identity, repo=root, worktree=wt_path
+            )
             proc = subprocess.Popen(
                 sandboxed_command,
                 cwd=wt_path,
@@ -1372,7 +1698,8 @@ def run_worker(
                 env=child_env,
                 start_new_session=True,  # own process group → clean termination
             )
-        except OSError as exc:
+        except (OSError, rw.RunWorkspaceError) as exc:
+            kx_cleanup_error = _release_kx()
             _raise_worker_launch_error(
                 exc,
                 run=run,
@@ -1388,6 +1715,7 @@ def run_worker(
                 model=model,
                 provider=provider,
                 db_path=db_path,
+                kx_cleanup_error=kx_cleanup_error,
             )
         lost_lease = False
         cancelled_before_start = False
@@ -1470,11 +1798,48 @@ def run_worker(
                             lease_seconds=lease_seconds,
                             db_path=db_path,
                         )
+                        assert kx_session_id is not None
+                        _renew_complete_kx_set(
+                            kx_session_id,
+                            required_resources,
+                            lease_seconds=lease_seconds,
+                            db_path=coordination_db,
+                        )
+                        rw.verify_worktree_identity(
+                            persisted_identity, repo=root, worktree=wt_path
+                        )
+                        changed_paths, scope_violations = _scope_snapshot(
+                            wt_path,
+                            start_sha,
+                            task.get("allowed_paths"),
+                        )
+                        if scope_violations:
+                            scope_violation_snapshot = (changed_paths, scope_violations)
+                            _terminate_group(proc)
+                            exit_code = proc.returncode
+                            outcome = bq.RUN_SCOPE_VIOLATION
+                            break
+                        mutation_paths = [
+                            path for path in changed_paths
+                            if not bs.is_expected_residue(path)
+                        ]
+                        preflight = ac.preflight_mutation(
+                            kx_session_id,
+                            mutation_paths,
+                            db_path=coordination_db,
+                            registry_path=coordination_registry,
+                            required_role="OWN",
+                        )
+                        if not preflight.get("ok"):
+                            raise RunnerError(
+                                f"KX mutation preflight failed for run {run_id}: "
+                                f"{preflight.get('reason') or 'unknown reason'}"
+                            )
                         bq.update_run(run_id, mark_heartbeat=True, db_path=db_path)
                         _presence_heartbeat(presence_session_id, presence_issues)
-                    except bq.LeaseConflictError:
-                        # We no longer own the task (operator released / another
-                        # worker). Stop the worker; do not touch task state.
+                    except (bq.LeaseConflictError, ac.CoordinationClaimError):
+                        # Queue lease or semantic ownership is gone. Stop the
+                        # worker and never record another successful heartbeat.
                         _terminate_group(proc)
                         exit_code = proc.returncode
                         lost_lease = True
@@ -1483,25 +1848,6 @@ def run_worker(
                         _terminate_group(proc)
                         exit_code = proc.returncode
                         control_error = exc
-                        break
-
-                    try:
-                        changed_paths, scope_violations = _scope_snapshot(
-                            wt_path,
-                            start_sha,
-                            task.get("allowed_paths"),
-                        )
-                    except Exception as exc:
-                        _terminate_group(proc)
-                        exit_code = proc.returncode
-                        control_error = exc
-                        break
-
-                    if scope_violations:
-                        scope_violation_snapshot = (changed_paths, scope_violations)
-                        _terminate_group(proc)
-                        exit_code = proc.returncode
-                        outcome = bq.RUN_SCOPE_VIOLATION
                         break
 
                     if time.monotonic() - started > timeout_seconds:
@@ -1526,7 +1872,42 @@ def run_worker(
                 lease_seconds=lease_seconds,
                 db_path=db_path,
             )
-        except bq.LeaseConflictError:
+            assert kx_session_id is not None
+            _renew_complete_kx_set(
+                kx_session_id,
+                required_resources,
+                lease_seconds=lease_seconds,
+                db_path=coordination_db,
+            )
+            rw.verify_worktree_identity(
+                persisted_identity, repo=root, worktree=wt_path
+            )
+            final_changed_paths, final_scope_violations = _scope_snapshot(
+                wt_path, start_sha, task.get("allowed_paths")
+            )
+            if final_scope_violations:
+                scope_violation_snapshot = (
+                    final_changed_paths, final_scope_violations
+                )
+                outcome = bq.RUN_SCOPE_VIOLATION
+            else:
+                final_mutation_paths = [
+                    path for path in final_changed_paths
+                    if not bs.is_expected_residue(path)
+                ]
+                final_preflight = ac.preflight_mutation(
+                    kx_session_id,
+                    final_mutation_paths,
+                    db_path=coordination_db,
+                    registry_path=coordination_registry,
+                    required_role="OWN",
+                )
+                if not final_preflight.get("ok"):
+                    raise RunnerError(
+                        f"final KX mutation preflight failed for run {run_id}: "
+                        f"{final_preflight.get('reason') or 'unknown reason'}"
+                    )
+        except (bq.LeaseConflictError, ac.CoordinationClaimError):
             lost_lease = True
         except Exception as exc:
             if control_error is None:
@@ -1634,6 +2015,9 @@ def run_worker(
     }
     if control_error is not None:
         report["error"] = f"{type(control_error).__name__}: {control_error}"
+    kx_cleanup_error = _release_kx()
+    if kx_cleanup_error is not None:
+        report["kx_cleanup_error"] = kx_cleanup_error
     final = bq.finalize_run(
         run_id,
         outcome,
@@ -1653,6 +2037,11 @@ def run_worker(
             f"runner monitoring failed for run {run_id}; durable state is "
             f"{final['state']}: {type(control_error).__name__}: {control_error}"
         ) from control_error
+    if kx_cleanup_error is not None:
+        raise RunnerError(
+            f"run {run_id} finalized as {final['state']}, but KX cleanup failed: "
+            f"{kx_cleanup_error}"
+        )
     return final
 
 
@@ -1970,6 +2359,8 @@ def _detached_spec_payload(
     heartbeat_seconds: int,
     repo_root: Path,
     db_path: Path | None,
+    coordination_db_path: Path | None,
+    coordination_registry_path: Path | None,
     extra_env: dict[str, str] | None,
     base_sha: str | None,
     inject_context: bool,
@@ -1987,6 +2378,14 @@ def _detached_spec_payload(
         "heartbeat_seconds": heartbeat_seconds,
         "repo_root": str(repo_root),
         "db_path": str(db_path) if db_path is not None else None,
+        "coordination_db_path": (
+            str(coordination_db_path) if coordination_db_path is not None else None
+        ),
+        "coordination_registry_path": (
+            str(coordination_registry_path)
+            if coordination_registry_path is not None
+            else None
+        ),
         "extra_env": dict(extra_env) if extra_env else None,
         "base_sha": base_sha,
         "inject_context": inject_context,
@@ -2032,6 +2431,16 @@ def _supervise_worker(spec_path: str | Path) -> int:
             heartbeat_seconds=spec.get("heartbeat_seconds", DEFAULT_HEARTBEAT_SECONDS),
             repo_root=Path(spec["repo_root"]) if spec.get("repo_root") else None,
             db_path=Path(spec["db_path"]) if spec.get("db_path") else None,
+            coordination_db_path=(
+                Path(spec["coordination_db_path"])
+                if spec.get("coordination_db_path")
+                else None
+            ),
+            coordination_registry_path=(
+                Path(spec["coordination_registry_path"])
+                if spec.get("coordination_registry_path")
+                else None
+            ),
             extra_env=spec.get("extra_env"),
             base_sha=spec.get("base_sha"),
             inject_context=bool(spec.get("inject_context")),
@@ -2071,6 +2480,8 @@ def run_worker_detached(
     heartbeat_seconds: int = DEFAULT_HEARTBEAT_SECONDS,
     repo_root: Path | None = None,
     db_path: Path | None = None,
+    coordination_db_path: Path | None = None,
+    coordination_registry_path: Path | None = None,
     extra_env: dict[str, str] | None = None,
     base_sha: str | None = None,
     inject_context: bool = False,
@@ -2136,6 +2547,8 @@ def run_worker_detached(
                 heartbeat_seconds=heartbeat_seconds,
                 repo_root=root,
                 db_path=db_path,
+                coordination_db_path=coordination_db_path,
+                coordination_registry_path=coordination_registry_path,
                 extra_env=extra_env,
                 base_sha=base_sha,
                 inject_context=inject_context,

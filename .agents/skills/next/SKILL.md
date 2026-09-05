@@ -43,15 +43,16 @@ Run the normal bootloader from `START_HERE.md`. Discover continuity first:
 
 ```bash
 git status --short --branch
-./kitty room inbox --as <identity> --unread --json
+./kitty room inbox --as <identity> --unread --direct-only --json
 # If the assignment or handoff gives a durable locator:
 ./kitty room thread <message_id> --json
 ```
 
-Prefer the Agent Room MCP equivalents when configured. An unread direct handoff
-or a known `room_thread` message id is a deterministic continuation locator.
-Use `room_recent` only for bounded shared situational context; the newest global
-window is not an assignment index.
+MCP clients use `room_inbox(unread_only=True, direct_only=True)` for the same
+assignment discovery. An unread direct handoff or a known `room_thread`
+message id is a deterministic continuation locator. Use `room_recent` only for
+bounded shared situational context; the newest global window is not an
+assignment index.
 
 Then choose exactly one receipt mode:
 
