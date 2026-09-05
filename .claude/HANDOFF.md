@@ -3,56 +3,93 @@
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-31T20:55:00+00:00",
-  "head_sha": "f5b2f38c098dcdd7f46d1d58abb672ef15b75c5f",
-  "branch": "claude/pr-conflicts-review-8v3ms2",
+  "updated_at": "2026-09-03T18:27:49Z",
+  "head_sha": "077dd9f821c66ce2e2c2ee9c4384492f666b0961",
+  "branch": "main",
   "worktree": ".",
-  "status": "valid",
+  "status": "complete",
   "completed_items": [
-    "Surveyed all 9 open PRs (#722,#725,#726,#727,#728,#729,#730,#731,#732,#733) for real git merge conflicts: found none",
-    "Diagnosed each PR's actual blocker via mergeable_state, check_runs, and job logs rather than assuming conflicts",
-    "Merged PR #728 (docs/packets INSTANT wave) into main as c11c6f1 -- clean, all checks green, docs-only",
-    "Fixed PR #722 (image module rename): 3 ruff import-order errors, verified against CI's exact lint scope; merged main into its branch twice as main advanced mid-session; pushed fixes to a5/image-module-rename directly",
-    "Merged PR #722 into main as f5b2f38",
-    "Held PR #725 (deadline escalation) for Jacob: policy-gate now green, looks ready but not merged without his go-ahead",
-    "Held PR #726 (capability launcher, Wave 1) for Jacob: policy-gate genuinely blocked -- description has no Product acceptance section",
-    "Held the 6-wave wow-campaign stack (#727,#729,#730,#731,#732,#733) for Jacob per the standing rule that autonomous overnight runs need explicit approval before merge",
-    "Resolved the carried dead-eslint-config recommendation (deferred 3x): file was already deleted on main in commit b2bbe58 on 2026-08-29; dropped",
-    "Recorded KB effectiveness receipt kbr_a3011375ba018d0a0aef and one workflow-learning signal (pr-policy-gate-missing-acceptance, observe status)",
-    "Staged two verified findings to docs/session-notes/2026-08-31-kb-payload.md since ~/kb is absent in this cloud session"
+    "PR #775 (chat -> Work handoff) IMPLEMENTED, INDEPENDENTLY ACCEPTED, and MERGED to main as b875340a with head 4cba6227; feature verified present on origin/main (onOpenWork wired in BuilderProposalCard/page.tsx, smoke spec chat-work-handoff.spec.ts on main)",
+    "Independent acceptance obtained per repo policy: a read-only reviewer that did not implement the change completed the chat -> Open in Work -> Work-row task in the running production app at 864232e2 on desktop 1440x900 and iPhone-14 390x844 using its own isolated stack (gateway :8002, UI :4001), verdict APPROVE, zero blocking defects; F4 attestation then satisfied and policy-gate heading mismatch fixed repo-wide in #777",
+    "Rebase carry-over independently verified this session: git diff 864232e2 4cba6227 over all seven PR files is empty, so the verdict at 864232e2 legitimately covers the merged head",
+    "Prior independent FAIL at superseded head c4e877bf was real and its fix (assertion scoped to data-testid=work-group-list) is on main; the reviewer's unproven mobile pageerror claim was independently re-tested and NOT REPRODUCED (zero pageerror)",
+    "WOW UI stack fully resolved on the board: #732 MERGED, #757/#768/#774/#784 MERGED, #733/#735/#742/#752/#773 CLOSED; zero open PRs remain, so the carried wow-wave-stack-hold recommendation is dropped with evidence",
+    "Canonical main reconciled: local main == origin/main (0 ahead / 0 behind) after other lanes landed #777/#784; the 4-commit local-ahead contamination recorded earlier is gone, so that recommendation is dropped with evidence",
+    "User's local gateway on :8000 restored and re-verified healthy after this session's kill-by-port incident; all session-owned servers stopped and orphaned reviewer ports confirmed free",
+    "KB: receipt kbr_f6a3f06800903069c3ab recorded (outcome completed_unreviewed at time of writing), three workflow signals recorded (observe), and durable facts written to ~/kb/wiki/2026-09-01-origin-main-is-a-cache-not-the-tip.md and ~/kb/corrections/2026-09-01-kill-by-port-killed-user-gateway.md",
+    "Global Agent Room handoff NOT published: participant 'claude' is retired and the presence roster forbids it checking in; remaining active identities (chatgpt/codex/kitty/dsh/jacob) belong to other lanes, and posting under one would misattribute the handoff",
+    "KX-COORD-01 Milestone 1 merged as PR #793 on canonical main 077dd9f8; exact PR head 18707cdb passed pytest, integration, typecheck, lint, independent agent-review, policy-gate and merge-gate; post-merge rollout activated .githooks and a real two-worktree smoke proved shared DB mutex + out-of-scope commit rejection"
   ],
-  "blockers": [
-    "Jacob has not yet said whether to merge PR #725",
-    "Jacob has not yet said whether/how to walk the 6-wave wow-campaign stack to main"
-  ],
-  "next_action": "ready:pr-725-merge",
+  "blockers": [],
+  "next_action": "none",
   "invalidation_conditions": [
-    "PR #725 gets merged or closed by anyone else",
-    "PR #726's description gains a real Product acceptance section",
-    "Any of #727/#729/#730/#731/#732/#733 gets retargeted to main or merged"
+    "Room handoff still unpublished if an owner later assigns Command Code a participant identity",
+    "The deferred Work deep-link (?mission=<id> highlight) becomes live debt if users report trouble finding the job row"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null,
   "parallel_work": [
     {
       "kind": "pr",
-      "ref": "#734 fix/builder-reviewer-seatbelt-staging-20260831",
-      "owner": "other",
-      "observed_at": "2026-08-31T20:44:00+00:00",
+      "ref": "#775 MERGED b875340a (this lane, closed)",
+      "owner": "interactive",
+      "observed_at": "2026-09-03T15:35:00Z",
       "touches": [
-        "gateway/builder_initiative.py",
-        "gateway/builder_loop.py",
-        "scripts/kittybuilder_opencode_reviewer.sh",
-        "scripts/kittybuilder_opencode_worker.sh",
-        "scripts/run_with_timeout.py"
+        "gateway/kitty-chat/src/components/builder/BuilderProposalCard.tsx"
+      ]
+    },
+    {
+      "kind": "pr",
+      "ref": "#788 MERGED c1b8b788 (this lane, closed)",
+      "owner": "interactive",
+      "observed_at": "2026-09-03T15:35:00Z",
+      "touches": [
+        "gateway/agent_workspace.py"
+      ]
+    },
+    {
+      "kind": "pr",
+      "ref": "#801 MERGED 3337f6df (this lane, closed)",
+      "owner": "interactive",
+      "observed_at": "2026-09-03T15:35:00Z",
+      "touches": [
+        "gateway/kitty-chat/src/components/AgentWorkspacePanel.tsx",
+        "gateway/kitty-chat/src/lib/gateway.ts"
+      ]
+    },
+    {
+      "kind": "builder_queue",
+      "ref": "initiative kitty-autonomy-runway-20260901-v2 (read-only observed; never claimed)",
+      "owner": "builder",
+      "observed_at": "2026-09-03T15:35:00Z",
+      "touches": [
+        "not inspected this session; read-only initiative projection only \u2014 confirm packet paths before touching backend Builder code"
+      ]
+    },
+    {
+      "kind": "worktree",
+      "ref": "docs/repository-documentation-consolidation-20260903",
+      "owner": "interactive",
+      "observed_at": "2026-09-03T18:27:49Z",
+      "touches": [
+        "documentation consolidation surfaces; see GAR message_fc95c3c758de459cad6846d5b08d401a"
+      ]
+    },
+    {
+      "kind": "worktree",
+      "ref": "docs/product-reality-closeout-20260903",
+      "owner": "interactive",
+      "observed_at": "2026-09-03T18:27:49Z",
+      "touches": [
+        "new packet/spec/audit files only; see GAR message_4d9e361b33e84310b64b743de0ee606d"
       ]
     }
   ],
   "recommendations": [
     {
-      "id": "pr-725-merge",
-      "what": "Merge PR #725 (fix(deadlines): wire escalation delivery) into main",
-      "why": "CI is fully green (policy-gate passed after its acceptance checkboxes were completed) and there is no conflict; only holding for Jacob's explicit go-ahead since this session does not auto-merge overnight Builder work",
+      "id": "work-view-mission-deeplink",
+      "what": "Add a Work-view mission deep-link (?mission=<id>) so #775's 'Open in Work' highlights the exact row instead of landing on the tab",
+      "why": "Deliberate scope cut on #775 to keep that diff additive; one-click handoff ships and is merged, highlighting is the natural next slice. Left unscheduled after #801 showed that cutting UI scope from a roster change produces a half-delivered feature, so this should be taken as one unit rather than deferred twice",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -61,102 +98,55 @@
       "first_deferred": null
     },
     {
-      "id": "wow-wave-stack-hold",
-      "what": "Do not merge #727/#729/#730/#731/#732/#733 until #726 (Wave 1) has a real, verified Product acceptance section written from an actual run of the app, and Jacob approves merging the six-feature UI stack",
-      "why": "Standing preference: autonomous overnight runs must not push, open a PR, or merge without Jacob's explicit approval. None of these six large UI features have been reviewed or tested by a human yet",
+      "id": "agent-room-display-name-shape",
+      "what": "Validate each room.agents element, not just that it is an array, or accept the current narrow guard as sufficient",
+      "why": "Both review rounds noted an entry missing display_name would still throw at card render; unreachable today because the backend column is NOT NULL, so this is recorded honestly rather than silently widened",
       "class": "code",
-      "status": "deferred",
-      "blocked_by": "PR #726 (feat/wow-capability-launcher-20260831) has not merged to main yet, and merging it is not itself Jacob's approval for the rest of the stack -- his explicit go-ahead is still needed once this check passes",
-      "release_check": "git merge-base --is-ancestor 55ffbc11074cf6cd3a7077f485c6e15477fc21d9 origin/main",
-      "deferred_count": 1,
-      "first_deferred": "2026-08-31"
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
     }
   ]
 }
+
 -->
+## KX-COORD-01 session-end — 2026-09-03
+- Execution owner: **interactive**.
+- PR #793 is merged; canonical `main` is `077dd9f8`.
+- Post-merge rollout proof: shared repo-root SQLite/WAL store across linked worktrees, conflicting mutator rejected, out-of-scope staged commit rejected by tracked pre-commit hook.
+- Independent/GitHub gates were green on exact PR head `18707cdb`; no KX ownership remains.
+- KX next action: **none — do not redo Milestone 1**. The compatibility `next_action` below is the highest carried ready recommendation, not KX work.
+- Parallel dirty files/worktrees are preserved and owned elsewhere.
 
-**Identity:** PR conflicts review and close-out, requested directly by Jacob in
-chat ("start closing... do the conflicts review"), 2026-08-31.
-**Branch:** `claude/pr-conflicts-review-8v3ms2`.
-**Recorded head:** `f5b2f38` (main, after this session's merges of #728 and
-#722; this continuity checkpoint sits one commit ahead on this branch).
-**PR:** none opened yet for this branch — see below.
 
-## What was actually asked and what was found
+**Execution owner:** interactive (Command Code, posting as `commandcode`).
+Builder's `kitty-autonomy-runway-20260901-v2` was read-only observed, never
+claimed.
 
-Jacob's ask was terse: review the open PR queue, close what can close. Checked
-all 9 open PRs against GitHub directly rather than guessing from PR titles or
-branch names. **None had a real git merge conflict.** The queue's real problem
-was CI gates (lint, policy) and a 6-PR dependency stack, not colliding code.
+## Outcome — DONE and PUBLISHED
+- **PR #775** "Open in Work" handoff merged to main as `b875340a`
+  (head `4cba6227`, base `56b6163b`); feature confirmed on `origin/main`.
+- **PR #788** added the `commandcode` room participant; merged as `c1b8b788`
+  (head `5b696ad7`). It does **not** un-retire `claude`.
+- Final handoff published as `message_8e40d9c97c0c42a6b48e3299b6e4c498`.
 
-## Closed this session
+## Independent acceptance (how #775's F4 was legitimately satisfied)
+A read-only reviewer that did not implement the change completed the task in
+the running production app at `864232e2` — chat → **Open in Work** → job row
+inside `data-testid="work-group-list"` — on desktop 1440x900 and iPhone-14
+390x844, on its own isolated stack (:8002 gateway, :4001 UI; :8000/:4000
+untouched). Verdict APPROVE, zero blocking defects, prior mobile-crash claim
+NOT REPRODUCED. `git diff 864232e2 4cba6227` over all seven PR files is empty,
+so the verdict is valid for the merged head.
 
-- **#728** (`docs(packets): compile verified INSTANT wave`) — clean, green,
-  merged as `c11c6f1`. Docs-only, zero product risk.
-- **#722** (`refactor(image): rename plan modules...`) — had 3 ruff
-  import-order errors (`gateway/image_agent.py`,
-  `tests/test_image_edit_anchor_readiness.py`, `tests/test_image_policy.py`)
-  and fell behind main twice during the session as #728 and later #734 merged.
-  Ran `ruff check --fix` on the three flagged files, merged `origin/main` into
-  `a5/image-module-rename` (twice, both clean, no conflicts), verified against
-  CI's exact lint invocation
-  (`ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py`
-  — not all of `scripts/`, which has unrelated pre-existing violations), pushed
-  both fixes directly to that branch, waited for full CI, merged as `f5b2f38`.
+## Services
+Gateway :8000 ✓ healthy · LiteLLM :8001 ✓ · every server this session started
+was stopped after proving PID ownership.
 
-## Held for Jacob — not merged
-
-- **#725** (`fix(deadlines): wire escalation delivery`) — policy-gate failed
-  once early ("2 acceptance checkbox(es) unchecked"), got fixed, now shows
-  green on every check including policy-gate and merge-gate. Looks ready.
-  Recommended in chat; waiting on his word.
-- **#726** (`feat(kitty): add live capability launcher`, Wave 1 of the wow
-  campaign) — genuinely blocked: policy-gate fails with "user-facing PR
-  requires completed product acceptance" because its description has **no**
-  Product acceptance section at all (unlike #725, which had the section but
-  incomplete checkboxes). Did not fabricate one — that's exactly what the
-  policy gate exists to catch, and CLAUDE.md's non-negotiable #2 forbids
-  inventing verification evidence.
-- **#727, #729, #730, #731, #732, #733** — Artifact Canvas, Activity Center,
-  Project Workspace, Chat action cards, durable @-mentions, and Home's "Kitty
-  noticed" surface. Each PR is based on the one before it (`#727←#726`,
-  `#729←#727`, ... `#733←#732`), not on main, so none can merge until #726
-  lands and each gets retargeted down the chain. This is unreviewed overnight
-  Builder output — six large UI features nobody has run by hand. Jacob's own
-  standing preference is explicit: autonomous overnight runs must not push,
-  open a PR, or merge without his sign-off. This session held to that and did
-  not merge or approve any of the six.
-
-## Housekeeping done along the way
-
-- The carried `dead-eslint-config` recommendation (deferred 3 times since
-  2026-08-29) turned out to be moot: `gateway/kitty-chat/eslint.config.mjs`
-  was already deleted on `main` in commit `b2bbe58` ("feat(work): make Work a
-  place you can do work", 2026-08-29). Verified with
-  `test -f gateway/kitty-chat/eslint.config.mjs` (exit 1). Dropped instead of
-  re-carrying a 4th deferral.
-- Recorded KB effectiveness receipt `kbr_a3011375ba018d0a0aef`.
-- Recorded one workflow-learning signal, `pr-policy-gate-missing-acceptance`
-  (category `missing_automation`, severity `low`, status `observe` — single
-  occurrence, not promoted): user-facing PRs from this campaign are getting
-  opened without the required acceptance section filled in, burning a CI round
-  trip each time. Suggested a PR template with the section pre-filled, unchecked.
-- `~/kb` is absent in this cloud session (it's Jacob's Mac-only store). Staged
-  the two verified, reusable findings from this session to
-  `docs/session-notes/2026-08-31-kb-payload.md` instead of inventing a local
-  `~/kb`.
-
-## Next move
-
-Ready when Jacob says so: merge #725 (one click, CI is already green). No
-technical work is blocking it — only his explicit go-ahead, per the standing
-rule that this session doesn't auto-merge without it.
-
-Separately: Jacob needs to decide whether/when to walk the 6-wave wow-campaign
-stack to main once #726 has genuine acceptance evidence. That's a product
-decision (do you want these six features live at all, reviewed by hand first?)
-not an engineering blocker.
-
-This checkpoint, the KB payload, and the workflow-signal file are the only
-changes on this branch — no product code was touched here. They'll go up as
-their own small PR against main.
+## DO NOT REDO
+- Do not re-implement or re-open the handoff — merged and verified on main.
+- Do not treat the `c4e877bf` FAIL as current; its defect was fixed and is on main.
+- Do not relax the scoped `work-group-list` assertion to a page-level locator.
+- Do not post as `claude`; use `commandcode` for Command Code sessions.
