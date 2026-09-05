@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 
 import { useKitty } from '@/state/KittyContext'
 import { useGatewayWeather } from '@/lib/queries'
@@ -11,9 +11,11 @@ import { TodoPanel } from './TodoPanel'
 import { JournalPanel } from './JournalPanel'
 
 // Warm-paper palette — Jacob's "Anthropic-ish: green, orange, brown, cream"
-// direction from the Claude Design mockups. Scoped to this view only via
-// inline styles so it never touches the app's cosmic/day/night theme tokens.
-const WP = {
+// direction from the Claude Design mockups (Palette A/B there). Two variants,
+// not one fixed look: day/cosmic gets the light "warm paper" card, night gets
+// its "dark ink" twin, so the app's theme toggle still does something here
+// instead of this view silently ignoring it.
+const WP_DAY = {
   cream: '#F2EBDE',
   creamSoft: '#EBE1CE',
   ink: '#241D17',
@@ -21,11 +23,28 @@ const WP = {
   inkFaint: '#8B7F70',
   brown: '#3A2F26',
   orange: '#C1602E',
-  orangeDeep: '#9C4C24',
   green: '#7C9070',
   line: '#D9CDB6',
   danger: '#B4483A',
 }
+
+const WP_NIGHT = {
+  cream: '#241D17',
+  creamSoft: '#1B1611',
+  ink: '#F2EBDE',
+  inkDim: '#C9BDA9',
+  inkFaint: '#9C8F7D',
+  brown: '#332A22',
+  orange: '#E88A4C',
+  green: '#8FB08A',
+  line: '#4A4038',
+  danger: '#E88A78',
+}
+
+type Palette = typeof WP_DAY
+
+const PaletteContext = createContext<Palette>(WP_DAY)
+const usePalette = () => useContext(PaletteContext)
 
 const TABS = [
   { id: 'overview', label: 'overview' },
@@ -42,6 +61,7 @@ const serif: React.CSSProperties = { fontFamily: 'Georgia, "Source Serif 4", ser
 const mono: React.CSSProperties = { fontFamily: 'ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace' }
 
 function Tile({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  const WP = usePalette()
   return (
     <div
       style={{
@@ -62,6 +82,7 @@ function Tile({ children, style }: { children: React.ReactNode; style?: React.CS
 }
 
 function TileLabel({ children, tone }: { children: React.ReactNode; tone?: 'danger' }) {
+  const WP = usePalette()
   return (
     <div
       style={{
@@ -79,6 +100,7 @@ function TileLabel({ children, tone }: { children: React.ReactNode; tone?: 'dang
 }
 
 function WeatherTile() {
+  const WP = usePalette()
   const weather = useGatewayWeather()
   const w = weather.data?.weather
   const err = weather.data?.error
@@ -103,6 +125,7 @@ function WeatherTile() {
 }
 
 function CalendarTodayTile() {
+  const WP = usePalette()
   const today = useGatewayCalendarToday()
   const cal = today.data?.calendar
   if (today.isLoading) {
@@ -153,6 +176,7 @@ function CalendarTodayTile() {
 }
 
 function ProjectsTile({ projects, onNavigate }: { projects: any[]; onNavigate?: (v: string) => void }) {
+  const WP = usePalette()
   return (
     <Tile>
       <TileLabel>projects</TileLabel>
@@ -174,6 +198,7 @@ function ProjectsTile({ projects, onNavigate }: { projects: any[]; onNavigate?: 
 }
 
 function TabStrip({ active, onSelect }: { active: TabId; onSelect: (t: TabId) => void }) {
+  const WP = usePalette()
   return (
     <div style={{ display: 'flex', gap: 4, padding: '0 4px', overflowX: 'auto' }}>
       {TABS.map((t) => {
@@ -204,6 +229,7 @@ function TabStrip({ active, onSelect }: { active: TabId; onSelect: (t: TabId) =>
 }
 
 function CalendarTab() {
+  const WP = usePalette()
   const upcoming = useGatewayCalendarUpcoming(14)
   const cal = upcoming.data?.calendar
   return (
@@ -237,6 +263,7 @@ function CalendarTab() {
 }
 
 function AssistantTab({ onNavigate }: { onNavigate?: (v: string) => void }) {
+  const WP = usePalette()
   return (
     <div style={{ padding: '24px 4px', display: 'flex', justifyContent: 'center' }}>
       <Tile style={{ maxWidth: 420, alignItems: 'center', textAlign: 'center', gap: 12, padding: '28px 24px' }}>
@@ -258,18 +285,38 @@ function AssistantTab({ onNavigate }: { onNavigate?: (v: string) => void }) {
   )
 }
 
-export default function DashboardView({
-  isMobile: isMobileProp,
+function MascotTile() {
+  const WP = usePalette()
+  return (
+    <Tile>
+      <TileLabel>mascot</TileLabel>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ background: WP.ink, borderRadius: 10, padding: 10, flex: 'none' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/mascots/kitty-warm-paper.svg" alt="kitty" style={{ width: 40, height: 40, display: 'block' }} />
+        </div>
+        <div style={{ ...mono, fontSize: 11.5, color: WP.inkDim }}>
+          the neutral pose from the new mascot set — it's cream line art with no
+          background, so it sits on a dark card. the "barbie"/"princess" costume
+          poses use pink accents that clash with this palette; the rest are neutral
+          or already brown/orange/green and would work fine here too.
+        </div>
+      </div>
+    </Tile>
+  )
+}
+
+function DashboardBody({
+  isMobile,
   onNavigate,
+  projects,
 }: {
-  isMobile?: boolean
-  onNavigate?: (view: string) => void
+  isMobile: boolean
+  onNavigate: (v: string) => void
+  projects: any[]
 }) {
-  const k = useKitty()
-  const isMobile = isMobileProp ?? k.isMobile
+  const WP = usePalette()
   const [tab, setTab] = useState<TabId>('overview')
-  const navigate = onNavigate ?? k.setActiveView
-  const projects: any[] = k.projects ?? []
 
   return (
     <div
@@ -305,22 +352,8 @@ export default function DashboardView({
             }}
           >
             <WeatherTile />
-            <ProjectsTile projects={projects} onNavigate={navigate} />
-            <Tile>
-              <TileLabel>mascot</TileLabel>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ background: WP.ink, borderRadius: 10, padding: 10, flex: 'none' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/mascots/kitty-warm-paper.svg" alt="kitty" style={{ width: 40, height: 40, display: 'block' }} />
-                </div>
-                <div style={{ ...mono, fontSize: 11.5, color: WP.inkDim }}>
-                  the neutral pose from the new mascot set — it's cream line art with no
-                  background, so it sits on a dark card. the "barbie"/"princess" costume
-                  poses use pink accents that clash with this palette; the rest are neutral
-                  or already brown/orange/green and would work fine here too.
-                </div>
-              </div>
-            </Tile>
+            <ProjectsTile projects={projects} onNavigate={onNavigate} />
+            <MascotTile />
             <CalendarTodayTile />
           </div>
         )}
@@ -328,8 +361,28 @@ export default function DashboardView({
         {tab === 'tasks' && <TodoPanel />}
         {tab === 'notes' && <JournalPanel />}
         {tab === 'calendar' && <CalendarTab />}
-        {tab === 'assistant' && <AssistantTab onNavigate={navigate} />}
+        {tab === 'assistant' && <AssistantTab onNavigate={onNavigate} />}
       </div>
     </div>
+  )
+}
+
+export default function DashboardView({
+  isMobile: isMobileProp,
+  onNavigate,
+}: {
+  isMobile?: boolean
+  onNavigate?: (view: string) => void
+}) {
+  const k = useKitty()
+  const isMobile = isMobileProp ?? k.isMobile
+  const navigate = onNavigate ?? k.setActiveView
+  const projects: any[] = k.projects ?? []
+  const palette = k.theme === 'night' ? WP_NIGHT : WP_DAY
+
+  return (
+    <PaletteContext.Provider value={palette}>
+      <DashboardBody isMobile={isMobile} onNavigate={navigate} projects={projects} />
+    </PaletteContext.Provider>
   )
 }
