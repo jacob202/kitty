@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from gateway import agent_coordination as ac
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway import builder_run as br
@@ -57,6 +58,27 @@ def db_path(tmp_path: Path) -> Path:
     p = tmp_path / "kittybuilder" / "builder_queue.db"
     bq.init_db(p)
     return p
+
+
+@pytest.fixture(autouse=True)
+def isolated_run_kx(tmp_path: Path, monkeypatch) -> None:
+    registry = tmp_path / "builder-run-kx-resources.yaml"
+    registry.write_text(
+        "resources:\n  test:all:\n    paths:\n      - '**'\n",
+        encoding="utf-8",
+    )
+    coordination_db = tmp_path / "builder-run-kx.db"
+    kitty_data_root = tmp_path / "kitty-data"
+    monkeypatch.setattr(ac, "DEFAULT_REGISTRY_PATH", registry)
+    monkeypatch.setattr(ac, "default_db_path", lambda: coordination_db)
+    monkeypatch.setattr(
+        ac.agent_workspace,
+        "WORKSPACE_DB_FILE",
+        kitty_data_root / "kitty" / "kitty.db",
+    )
+    monkeypatch.setenv("KITTY_DATA_ROOT", str(kitty_data_root))
+    monkeypatch.setenv("KITTY_COORDINATION_DB_PATH", str(coordination_db))
+    monkeypatch.setenv("KITTY_COORDINATION_REGISTRY_PATH", str(registry))
 
 
 def _worker(tmp_path: Path) -> list[str]:

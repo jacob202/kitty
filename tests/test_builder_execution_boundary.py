@@ -204,8 +204,23 @@ pathlib.Path(os.environ['TEST_RESULT']).write_text(json.dumps({
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
 def test_run_worker_enforces_real_child_boundary(tmp_path: Path, monkeypatch) -> None:
+    from gateway import agent_coordination as ac
     from gateway import builder_queue as bq
     from gateway import builder_runner as br
+
+    coordination_registry = tmp_path / "coordination-resources.yaml"
+    coordination_registry.write_text(
+        "resources:\n  test:all:\n    paths:\n      - '**'\n",
+        encoding="utf-8",
+    )
+    coordination_db = tmp_path / "coordination.db"
+    kitty_data_root = tmp_path / "kitty-data"
+    monkeypatch.setattr(
+        ac.agent_workspace,
+        "WORKSPACE_DB_FILE",
+        kitty_data_root / "kitty" / "kitty.db",
+    )
+    monkeypatch.setenv("KITTY_DATA_ROOT", str(kitty_data_root))
 
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -260,6 +275,8 @@ pathlib.Path('boundary.json').write_text(json.dumps({
         [str(Path(sys.executable).resolve()), "-c", script],
         repo_root=repo,
         db_path=db_path,
+        coordination_db_path=coordination_db,
+        coordination_registry_path=coordination_registry,
         extra_env={"TEST_OUTSIDE": str(outside), "TEST_PORT": str(port)},
     )
     listener.close()
