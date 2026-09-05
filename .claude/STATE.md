@@ -184,3 +184,52 @@ worth a separate tidy, not a silent scope expansion.
 **None** for this lane — status `complete`, `next_action: none`. The one
 remaining recommendation (`work-view-mission-deeplink`) is deferred pending
 Jacob scheduling it, so no lane collides on it.
+
+---
+
+## Claude interactive session — 2026-09-05
+
+### Execution ownership
+- this session: interactive
+- Builder parallel state: not inspected this session (no Builder work involved)
+
+### What shipped
+New "Dashboard" view (rail tab, warm-paper palette, 6 sub-tabs wired to real
+weather/calendar/projects/tasks/notes data), the accepted mascot art, and a
+day/night theme-toggle fix Jacob caught by hand. 6 commits, last one this
+session `982a67ff` on `main`. Full detail and exact commit list in
+`.claude/HANDOFF.md`'s "Claude interactive session-end — 2026-09-05" section
+— not duplicated here.
+
+### KB effectiveness
+- receipt `kbr_b7eabd4e6a877895eb7a` — `completed_unreviewed` (no independent
+  reviewer ran against these SHAs).
+- signals: none recorded this session (token budget prioritized shipping the
+  feature and the fix over signal extraction — see gaps below).
+
+### Evidence gaps (explicit, not silently skipped)
+- No live browser click-through (no Chrome connector available this
+  session) — verification is `tsc --noEmit` + full `next build`, not visual.
+- No independent reviewer ran.
+- Two commits from this session queued behind other agents' coordination
+  locks got flushed by session-end; one small `coordination/resources.yaml`
+  line is still blocked — see HANDOFF.md release check.
+- Full `scripts/session_end_survey.sh` field survey was skipped under
+  explicit user time/token pressure ("wrap up, won't be around for 3
+  hours"); this session already had direct, current knowledge of its own
+  field from having just worked in it.
+
+### Known remaining imperfection (new)
+`gateway/calendar_integration.py`, `page.tsx`, `DashboardView.tsx`, and
+`dashboard-calendar.ts` have live *uncommitted* edits from a different,
+concurrently active session as of this write — not this session's work, not
+reverted, not claimed. See HANDOFF.md for detail. Do not commit those files
+as part of continuing this lane without confirming with whoever is mid-edit.
+
+## Next interactive move (2026-09-05)
+**None required** — Dashboard feature is shipped and verified by build/type
+checks; the day/night bug Jacob reported is fixed. If resumed: (1) confirm
+the concurrent calendar-parsing edit lands cleanly, (2) decide whether
+Dashboard becomes the default landing view instead of Home, (3) decide
+which worktree should own UI port `:4000` (this checkout currently serves
+`:4010` instead, to avoid clobbering PC-BUILDER's instance).

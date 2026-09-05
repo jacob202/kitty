@@ -150,3 +150,76 @@ was stopped after proving PID ownership.
 - Do not treat the `c4e877bf` FAIL as current; its defect was fixed and is on main.
 - Do not relax the scoped `work-group-list` assertion to a page-level locator.
 - Do not post as `claude`; use `commandcode` for Command Code sessions.
+
+## Claude interactive session-end — 2026-09-05
+**Execution owner:** interactive.
+Picked up a crashed prior session's pending ask: import Jacob's Claude Design
+project ("Anthropic design language discussion") and implement a new
+"Dashboard" view. Landed in 6 commits on `main` (HEAD `982a67ff` at this
+session's last commit; do not treat this as current HEAD — 47 commits from
+other agents landed upstream during this session and were never pulled in):
+- `4164f44d` / `cb2f67cc` / `ce1b2aa6` — new Dashboard view (rail tab, 6
+  sub-tabs: overview/projects/tasks/notes/calendar/assistant) in a
+  "warm-paper" palette (cream/clay-orange/sage-green/ink-brown), wired to
+  real data: existing weather feed, real macOS Calendar (`/calendar/today`,
+  `/calendar/upcoming`, honest "not connected" state), real project list,
+  and the existing Tasks/Journal panels embedded as-is. Assistant tab hands
+  off to real chat rather than duplicating chat state. Coordination registry
+  gained `runtime:provider-routing` and `ui:dashboard-shell` resources
+  (previously-unclaimable new file paths).
+- `1c2f8fe0` — wired the accepted mascot art (Jacob sent it after the
+  Claude Design connector's `get_file` proved unable to pull full-res
+  images — every pull truncated at a 256 KiB cap). Verified by eye:
+  "barbie"/"princess" poses use pink accents that clash with the warm-paper
+  palette; "default" and the "silly" pack (leaf-hat/scarf/blep/party-hat)
+  are neutral or already brown/orange/green and fit fine. Used the neutral
+  "default" pose.
+- `f314d7b9` — real bug fix: Jacob caught that the day/night theme toggle
+  looked dead on the new Dashboard. Root cause: the palette was a fixed
+  module constant, ignoring `k.theme`. Split into `WP_DAY`/`WP_NIGHT`
+  (Palette B "dark ink" from the same design project) behind a React
+  context so every tile re-themes.
+- `982a67ff` — unrelated hygiene carried from a prior uncommitted session:
+  published the stale KX-COORD-01 checkpoint, fixed `config/providers.json`
+  still listing disabled `agentrouter` instead of `airforce`, filed the raw
+  2026-09-02 swarm findings into `docs/audit/` next to the reconciliation
+  that supersedes them.
+
+**Verification:** `tsc --noEmit` clean after every change; full `next build`
+(Turbopack) succeeded with the dashboard commits. No independent reviewer ran
+against any of these SHAs — outcome is `completed_unreviewed`, not accepted.
+Could not click through in a real browser (no Chrome connector this session).
+
+**Live-serving discovery:** the UI Jacob had been checking at `:4000` was not
+this checkout — it was PC-BUILDER's worktree (`/private/tmp/kitty-pc-builder-primary-20260903`),
+a separate running `next-server` process. Left it untouched (not owned by
+this checkout) and started this checkout's own UI on `:4010` instead
+(`./kitty ui` with `UI_PORT=4010`). Jacob still needs to decide which
+worktree should own `:4000` going forward — flagged, not decided here.
+
+**Concurrent edit in progress — do not clobber:** at session-end time, this
+worktree has *uncommitted* changes to `gateway/calendar_integration.py`,
+`gateway/kitty-chat/src/app/page.tsx`, `gateway/kitty-chat/src/components/DashboardView.tsx`,
+and `gateway/kitty-chat/src/lib/dashboard-calendar.ts` that this session did
+**not** make — another active session is live-editing the same checkout,
+improving calendar date parsing/timeout and fixing a `CatCorner` mascot
+overlap on the Dashboard. Left entirely alone. Whoever owns that edit should
+finish and commit it themselves; do not commit it as this session's work and
+do not revert it.
+
+**Deferred, not done:** `coordination/resources.yaml` has one further
+uncommitted line (registers the mascot SVG's asset path under
+`ui:dashboard-shell`) blocked on a `runtime:provenance` lock another agent
+held at session-end. Release check: `./kitty agent claim --resource
+runtime:provenance --role INTEGRATE --paths coordination/resources.yaml
+--json` succeeds, then `git add coordination/resources.yaml && git commit`.
+
+## DO NOT REDO (this session)
+- Do not re-import or re-ask about the Claude Design project — Jacob already
+  answered the scope question ("whole new app, all tabs") and the palette
+  question (warm-paper/Anthropic-ish); both are implemented.
+- Do not re-guess mascot colors from filenames — the actual files were
+  pulled and checked visually; the barbie/princess-pink finding is verified,
+  not a guess.
+- Do not stop/restart the PC-BUILDER worktree's UI on `:4000` — not owned by
+  this checkout.
