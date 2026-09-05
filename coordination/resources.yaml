@@ -8,6 +8,7 @@ resources:
     - integrations/discord_command_center/service.py
     - integrations/discord_command_center/workspace.py
     - tests/test_builder_contract_gate.py
+    - tests/test_builder_execution_boundary.py
     - tests/test_builder_identity.py
     - tests/test_builder_runner.py
     - tests/test_discord_command_center_phase0.py
