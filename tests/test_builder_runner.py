@@ -2211,11 +2211,15 @@ def test_run_worker_stops_when_kx_renewal_returns_partial_resource_set(
     coordination_db, registry = _coordination_fixture(tmp_path)
     task = _queued_task(db_path, allowed_paths=["README.md", "gateway/"])
     real_renew = ac.renew
+    heartbeat_at_authority_loss: str | None = None
 
     def partial_when_worker_running(session_id, **kwargs):
+        nonlocal heartbeat_at_authority_loss
         result = real_renew(session_id, **kwargs)
         runs = bq.list_runs(task_id=task["id"], db_path=db_path)
-        if any(run["state"] == bq.RUN_RUNNING for run in runs):
+        running = next((run for run in runs if run["state"] == bq.RUN_RUNNING), None)
+        if running is not None:
+            heartbeat_at_authority_loss = running["last_heartbeat_at"]
             result["claims"] = result["claims"][:1]
             result["renewed"] = 1
         return result
@@ -2239,6 +2243,10 @@ def test_run_worker_stops_when_kx_renewal_returns_partial_resource_set(
     task_after = bq.get_task(task["id"], db_path=db_path)
     assert task_after is not None
     assert task_after["blocked_reason"] == "run_lease_lost"
+    final_run = bq.get_run(str(run["id"]), db_path=db_path)
+    assert final_run is not None
+    assert heartbeat_at_authority_loss is not None
+    assert final_run["last_heartbeat_at"] == heartbeat_at_authority_loss
     assert ac.list_claims(db_path=coordination_db, active_only=True) == []
 
 
