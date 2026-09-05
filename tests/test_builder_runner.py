@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+from gateway import agent_coordination as ac
 from gateway import builder_queue as bq
 from gateway import builder_runner as br
 
@@ -47,7 +48,28 @@ def db_path(tmp_path: Path) -> Path:
     return p
 
 
+@pytest.fixture(autouse=True)
+def isolated_runner_kx(tmp_path: Path, monkeypatch) -> None:
+    registry = tmp_path / "runner-kx-resources.yaml"
+    registry.write_text(
+        "resources:\n  test:all:\n    paths:\n      - '**'\n",
+        encoding="utf-8",
+    )
+    coordination_db = tmp_path / "runner-kx.db"
+    kitty_data_root = tmp_path / "kitty-data"
+    workspace_db = kitty_data_root / "kitty" / "kitty.db"
+    monkeypatch.setattr(ac, "DEFAULT_REGISTRY_PATH", registry)
+    monkeypatch.setattr(ac, "default_db_path", lambda: coordination_db)
+    monkeypatch.setattr(ac.agent_workspace, "WORKSPACE_DB_FILE", workspace_db)
+    monkeypatch.setenv("KITTY_DATA_ROOT", str(kitty_data_root))
+    monkeypatch.setenv("KITTY_COORDINATION_DB_PATH", str(coordination_db))
+    monkeypatch.setenv("KITTY_COORDINATION_REGISTRY_PATH", str(registry))
+
+
+
 def _queued_task(db_path: Path, **kwargs) -> dict:
+    if "allowed_paths" not in kwargs:
+        kwargs["allowed_paths"] = ["."]
     return bq.create_task("runner test task", db_path=db_path, **kwargs)
 
 
@@ -1537,6 +1559,72 @@ class TestDetachedExecution:
         assert refreshed is not None and refreshed["state"] == bq.QUEUED
 
 
+def test_run_worker_detached_serializes_coordination_locations(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+) -> None:
+    task = _queued_task(db_path)
+    coordination_db = tmp_path / "coordination.db"
+    registry = tmp_path / "resources.yaml"
+
+    class FakeProcess:
+        pid = 424242
+
+    monkeypatch.setattr(br.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+
+    dispatch = br.run_worker_detached(
+        task["id"],
+        ["/usr/bin/true"],
+        repo_root=repo,
+        db_path=db_path,
+        coordination_db_path=coordination_db,
+        coordination_registry_path=registry,
+        spec_dir=tmp_path / "detached",
+    )
+
+    payload = json.loads(Path(dispatch["spec_path"]).read_text(encoding="utf-8"))
+    assert payload["coordination_db_path"] == str(coordination_db)
+    assert payload["coordination_registry_path"] == str(registry)
+
+
+def test_detached_supervisor_forwards_coordination_locations(tmp_path: Path, monkeypatch) -> None:
+    coordination_db = tmp_path / "coordination.db"
+    registry = tmp_path / "resources.yaml"
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    queue_db = tmp_path / "queue.db"
+    spec = br._detached_spec_payload(
+        "task-1",
+        ["/usr/bin/true"],
+        worker="worker",
+        model=None,
+        provider=None,
+        timeout_seconds=30,
+        lease_seconds=5,
+        heartbeat_seconds=1,
+        repo_root=repo,
+        db_path=queue_db,
+        coordination_db_path=coordination_db,
+        coordination_registry_path=registry,
+        extra_env=None,
+        base_sha=None,
+        inject_context=False,
+        reuse_dirty_worktree=False,
+    )
+    spec_path = tmp_path / "detached.spec.json"
+    spec_path.write_text(json.dumps(spec), encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    def fake_run_worker(task_id, command, **kwargs):
+        captured.update({"task_id": task_id, "command": command, **kwargs})
+        return {"id": "run-1", "state": bq.RUN_EXITED, "final_report": {"outcome": bq.RUN_EXITED}}
+
+    monkeypatch.setattr(br, "run_worker", fake_run_worker)
+
+    assert br._supervise_worker(spec_path) == 0
+    assert captured["coordination_db_path"] == coordination_db
+    assert captured["coordination_registry_path"] == registry
+
+
 def test_repo_root_honors_builder_runtime_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     canonical = tmp_path / "canonical"
     canonical.mkdir()
@@ -1619,6 +1707,539 @@ def test_run_worker_rejects_worktree_registration_tamper_before_launch(
 
     assert launched is False
 
+
+
+def _coordination_fixture(tmp_path: Path) -> tuple[Path, Path]:
+    registry = tmp_path / "coordination-resources.yaml"
+    registry.write_text(
+        """resources:
+  docs:roadmap:
+    paths:
+      - README.md
+  runtime:provenance:
+    paths:
+      - gateway/**
+""",
+        encoding="utf-8",
+    )
+    return tmp_path / "coordination.db", registry
+
+
+def test_run_worker_rejects_missing_allowed_paths_before_launch(
+    repo: Path, db_path: Path
+) -> None:
+    task = _queued_task(db_path, allowed_paths=None)
+
+    with pytest.raises(br.RunnerError, match="allowed_paths|mutation scope|scope"):
+        br.run_worker(
+            task["id"],
+            ["/usr/bin/true"],
+            repo_root=repo,
+            db_path=db_path,
+            heartbeat_seconds=1,
+            lease_seconds=5,
+        )
+
+    runs = bq.list_runs(task_id=task["id"], db_path=db_path)
+    assert len(runs) == 1
+    assert runs[0]["state"] == bq.RUN_FAILED
+    assert runs[0]["final_report"]["worker_started"] is False
+
+
+def test_run_worker_rejects_blank_allowed_path_before_launch(
+    repo: Path, db_path: Path
+) -> None:
+    task = _queued_task(db_path, allowed_paths=["   "])
+
+    with pytest.raises(br.RunnerError, match="allowed path|scope"):
+        br.run_worker(
+            task["id"],
+            ["/usr/bin/true"],
+            repo_root=repo,
+            db_path=db_path,
+            heartbeat_seconds=1,
+            lease_seconds=5,
+        )
+
+    runs = bq.list_runs(task_id=task["id"], db_path=db_path)
+    assert len(runs) == 1
+    assert runs[0]["state"] == bq.RUN_FAILED
+    assert runs[0]["final_report"]["worker_started"] is False
+
+
+def test_run_worker_binds_resolved_kx_resources_and_releases_on_exit(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+
+    run = br.run_worker(
+        task["id"],
+        ["/usr/bin/true"],
+        repo_root=repo,
+        db_path=db_path,
+        coordination_db_path=coordination_db,
+        coordination_registry_path=registry,
+        heartbeat_seconds=1,
+        lease_seconds=5,
+    )
+
+    ownership_path = db_path.parent / "runs" / run["id"] / "ownership.json"
+    payload = json.loads(ownership_path.read_text(encoding="utf-8"))
+    assert payload["required_resources"] == ["docs:roadmap"]
+    assert ac.list_claims(db_path=coordination_db, active_only=True) == []
+
+
+def test_run_worker_kx_conflict_prevents_worker_launch(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    base = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    owner = ac.acquire(
+        session_id="other-owner",
+        role="OWN",
+        resource_id="docs:roadmap",
+        base_sha=base,
+        paths=["README.md"],
+        db_path=coordination_db,
+        registry_path=registry,
+        lease_seconds=60,
+    )
+    assert owner["status"] == "ACQUIRED"
+    launched = False
+    real_popen = br.subprocess.Popen
+
+    def guard_worker(*args, **kwargs):
+        nonlocal launched
+        command = args[0] if args else kwargs.get("args")
+        executable = command[0] if isinstance(command, (list, tuple)) and command else command
+        if isinstance(executable, str) and Path(executable).name == "git":
+            return real_popen(*args, **kwargs)
+        launched = True
+        raise AssertionError("worker must not launch without KX ownership")
+
+    with patch.object(br.subprocess, "Popen", side_effect=guard_worker):
+        with pytest.raises(br.RunnerError, match="KX|coordination|claim|ownership"):
+            br.run_worker(
+                task["id"],
+                ["/usr/bin/true"],
+                repo_root=repo,
+                db_path=db_path,
+                coordination_db_path=coordination_db,
+                coordination_registry_path=registry,
+                heartbeat_seconds=1,
+                lease_seconds=5,
+            )
+    assert launched is False
+    active = ac.list_claims(db_path=coordination_db, active_only=True)
+    assert [claim["session_id"] for claim in active] == ["other-owner"]
+
+
+
+def test_run_worker_reclaims_kx_from_interrupted_prior_run_of_same_task(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    base = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    claimed = bq.claim_task(task["id"], "crashed-runner", db_path=db_path)
+    prior = bq.create_run(
+        task["id"], ["worker"], lease_token=claimed["lease_token"],
+        claim_version=claimed["claim_version"], branch="prior",
+        worktree_path=str(repo), start_sha=base, db_path=db_path,
+    )
+    bq.worker_transition_task(
+        task["id"], bq.RUNNING, claimed["lease_token"],
+        claimed["claim_version"], db_path=db_path,
+    )
+    bq.update_run(
+        prior["id"], state=bq.RUN_RUNNING, pid=os.getpid(),
+        process_identity="different-process-identity", mark_started=True,
+        expected_states=frozenset({bq.RUN_STARTING}), db_path=db_path,
+    )
+    prior_kx = ac.acquire_many(
+        f"builder-run:{prior['id']}", role="OWN",
+        resource_ids=["docs:roadmap"], base_sha=base, paths=["README.md"],
+        participant="kitty", lane="builder-run", task_id=task["id"],
+        branch="prior", worktree=str(repo), lease_seconds=60,
+        db_path=coordination_db, registry_path=registry,
+    )
+    assert prior_kx["status"] == "ACQUIRED"
+    recovered = bq.recover_interrupted_runs(db_path=db_path)
+    assert prior["id"] in recovered["run_ids"]
+    assert bq.get_run(prior["id"], db_path=db_path)["state"] == bq.RUN_INTERRUPTED
+    bq.operator_release_task(task["id"], reason="retry interrupted run", db_path=db_path)
+
+    run = br.run_worker(
+        task["id"], ["/usr/bin/true"], repo_root=repo, db_path=db_path,
+        coordination_db_path=coordination_db,
+        coordination_registry_path=registry, heartbeat_seconds=1, lease_seconds=5,
+    )
+    assert run["final_report"]["outcome"] == bq.RUN_EXITED
+    assert ac.list_claims(db_path=coordination_db, active_only=True) == []
+
+
+def test_terminal_builder_kx_reclaim_refuses_other_task(
+    db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    current_task = _queued_task(db_path, allowed_paths=["README.md"])
+    holder_task = _queued_task(db_path, allowed_paths=["README.md"])
+    claimed = bq.claim_task(holder_task["id"], "holder", db_path=db_path)
+    prior = bq.create_run(
+        holder_task["id"], ["worker"], lease_token=claimed["lease_token"],
+        claim_version=claimed["claim_version"], branch="holder",
+        worktree_path="/tmp/holder", start_sha="a" * 40, db_path=db_path,
+    )
+    bq.update_run(
+        prior["id"], state=bq.RUN_FAILED, mark_ended=True,
+        expected_states=frozenset({bq.RUN_STARTING}), db_path=db_path,
+    )
+    acquired = ac.acquire_many(
+        f"builder-run:{prior['id']}", role="OWN",
+        resource_ids=["docs:roadmap"], base_sha="a" * 40, paths=["README.md"],
+        participant="kitty", lane="builder-run", task_id=holder_task["id"],
+        branch="holder", worktree="/tmp/holder", lease_seconds=60,
+        db_path=coordination_db, registry_path=registry,
+    )
+    assert acquired["status"] == "ACQUIRED"
+    holders = ac.list_claims(active_only=True, db_path=coordination_db)
+
+    assert br._release_terminal_builder_kx_conflicts(
+        holders, task_id=current_task["id"], queue_db_path=db_path,
+        coordination_db_path=coordination_db,
+    ) == []
+    assert [row["session_id"] for row in ac.list_claims(
+        active_only=True, db_path=coordination_db
+    )] == [f"builder-run:{prior['id']}"]
+
+
+def test_terminal_builder_kx_reclaim_refuses_nonterminal_same_task(
+    db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    claimed = bq.claim_task(task["id"], "holder", db_path=db_path)
+    prior = bq.create_run(
+        task["id"], ["worker"], lease_token=claimed["lease_token"],
+        claim_version=claimed["claim_version"], branch="holder",
+        worktree_path="/tmp/holder", start_sha="a" * 40, db_path=db_path,
+    )
+    acquired = ac.acquire_many(
+        f"builder-run:{prior['id']}", role="OWN",
+        resource_ids=["docs:roadmap"], base_sha="a" * 40, paths=["README.md"],
+        participant="kitty", lane="builder-run", task_id=task["id"],
+        branch="holder", worktree="/tmp/holder", lease_seconds=60,
+        db_path=coordination_db, registry_path=registry,
+    )
+    assert acquired["status"] == "ACQUIRED"
+    holders = ac.list_claims(active_only=True, db_path=coordination_db)
+
+    assert br._release_terminal_builder_kx_conflicts(
+        holders, task_id=task["id"], queue_db_path=db_path,
+        coordination_db_path=coordination_db,
+    ) == []
+    assert [row["session_id"] for row in ac.list_claims(
+        active_only=True, db_path=coordination_db
+    )] == [f"builder-run:{prior['id']}"]
+
+
+def test_terminal_builder_kx_reclaim_refuses_identity_mismatch(
+    db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    claimed = bq.claim_task(task["id"], "holder", db_path=db_path)
+    prior = bq.create_run(
+        task["id"], ["worker"], lease_token=claimed["lease_token"],
+        claim_version=claimed["claim_version"], branch="expected",
+        worktree_path="/tmp/expected", start_sha="a" * 40, db_path=db_path,
+    )
+    bq.update_run(
+        prior["id"], state=bq.RUN_FAILED, mark_ended=True,
+        expected_states=frozenset({bq.RUN_STARTING}), db_path=db_path,
+    )
+    acquired = ac.acquire_many(
+        f"builder-run:{prior['id']}", role="OWN",
+        resource_ids=["docs:roadmap"], base_sha="a" * 40, paths=["README.md"],
+        participant="kitty", lane="builder-run", task_id=task["id"],
+        branch="spoofed", worktree="/tmp/expected", lease_seconds=60,
+        db_path=coordination_db, registry_path=registry,
+    )
+    assert acquired["status"] == "ACQUIRED"
+    holders = ac.list_claims(active_only=True, db_path=coordination_db)
+
+    assert br._release_terminal_builder_kx_conflicts(
+        holders, task_id=task["id"], queue_db_path=db_path,
+        coordination_db_path=coordination_db,
+    ) == []
+    assert [row["session_id"] for row in ac.list_claims(
+        active_only=True, db_path=coordination_db
+    )] == [f"builder-run:{prior['id']}"]
+
+
+def test_terminal_builder_kx_reclaim_refuses_session_with_extra_mismatched_claim(
+    db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    claimed = bq.claim_task(task["id"], "holder", db_path=db_path)
+    prior = bq.create_run(
+        task["id"], ["worker"], lease_token=claimed["lease_token"],
+        claim_version=claimed["claim_version"], branch="expected",
+        worktree_path="/tmp/expected", start_sha="a" * 40, db_path=db_path,
+    )
+    bq.update_run(
+        prior["id"], state=bq.RUN_FAILED, mark_ended=True,
+        expected_states=frozenset({bq.RUN_STARTING}), db_path=db_path,
+    )
+    session_id = f"builder-run:{prior['id']}"
+    first = ac.acquire(
+        session_id=session_id, role="OWN", resource_id="docs:roadmap",
+        base_sha="a" * 40, paths=["README.md"], participant="kitty",
+        lane="builder-run", task_id=task["id"], branch="expected",
+        worktree="/tmp/expected", lease_seconds=60, db_path=coordination_db,
+        registry_path=registry,
+    )
+    assert first["status"] == "ACQUIRED"
+    second = ac.acquire(
+        session_id=session_id, role="OWN", resource_id="runtime:provenance",
+        base_sha="a" * 40, paths=["gateway/**"], participant="kitty",
+        lane="builder-run", task_id=task["id"], branch="spoofed",
+        worktree="/tmp/expected", lease_seconds=60, db_path=coordination_db,
+        registry_path=registry,
+    )
+    assert second["status"] == "ACQUIRED"
+    active = ac.list_claims(active_only=True, db_path=coordination_db)
+    holders = [row for row in active if row["resource_id"] == "docs:roadmap"]
+
+    assert br._release_terminal_builder_kx_conflicts(
+        holders, task_id=task["id"], queue_db_path=db_path,
+        coordination_db_path=coordination_db,
+    ) == []
+    assert sorted(row["resource_id"] for row in ac.list_claims(
+        active_only=True, db_path=coordination_db
+    )) == ["docs:roadmap", "runtime:provenance"]
+
+
+def test_run_worker_rejects_file_scope_only_overlapped_by_unrelated_wildcard(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    registry = tmp_path / "wildcard-resources.yaml"
+    registry.write_text(
+        "resources:\n  docs:roadmap:\n    paths:\n      - '*.md'\n",
+        encoding="utf-8",
+    )
+    task = _queued_task(db_path, allowed_paths=["gateway/new_feature.py"])
+
+    with pytest.raises(br.RunnerError, match="no registered KX resource"):
+        br.run_worker(
+            task["id"], ["/usr/bin/true"], repo_root=repo, db_path=db_path,
+            coordination_db_path=tmp_path / "coordination.db",
+            coordination_registry_path=registry, heartbeat_seconds=1, lease_seconds=5,
+        )
+
+    runs = bq.list_runs(task_id=task["id"], db_path=db_path)
+    assert len(runs) == 1
+    assert runs[0]["final_report"]["worker_started"] is False
+
+
+def test_run_worker_explicit_future_directory_scope_resolves_by_prefix(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    registry = tmp_path / "future-directory-resources.yaml"
+    registry.write_text(
+        "resources:\n  future:feature:\n    paths:\n      - future/**\n",
+        encoding="utf-8",
+    )
+    assert not (repo / "future").exists()
+    task = _queued_task(db_path, allowed_paths=["future/"])
+
+    run = br.run_worker(
+        task["id"], ["/usr/bin/true"], repo_root=repo, db_path=db_path,
+        coordination_db_path=tmp_path / "coordination.db",
+        coordination_registry_path=registry, heartbeat_seconds=1, lease_seconds=5,
+    )
+    ownership = json.loads(
+        (db_path.parent / "runs" / run["id"] / "ownership.json").read_text()
+    )
+    assert ownership["required_resources"] == ["future:feature"]
+
+
+def test_run_worker_directory_scope_claims_all_nested_semantic_resources(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    (repo / "gateway").mkdir()
+    registry = tmp_path / "directory-resources.yaml"
+    registry.write_text(
+        """resources:
+  runtime:provenance:
+    paths:
+      - gateway/**
+  ui:action-grammar:
+    paths:
+      - gateway/ui/**
+""",
+        encoding="utf-8",
+    )
+    task = _queued_task(db_path, allowed_paths=["gateway/"])
+
+    run = br.run_worker(
+        task["id"], ["/usr/bin/true"], repo_root=repo, db_path=db_path,
+        coordination_db_path=tmp_path / "coordination.db",
+        coordination_registry_path=registry, heartbeat_seconds=1, lease_seconds=5,
+    )
+    ownership = json.loads(
+        (db_path.parent / "runs" / run["id"] / "ownership.json").read_text()
+    )
+    assert ownership["required_resources"] == [
+        "runtime:provenance", "ui:action-grammar"
+    ]
+
+
+def test_run_worker_unmapped_scope_fails_setup_without_kx_leak(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["unmapped/"])
+
+    with pytest.raises(br.RunnerError, match="no registered KX resource"):
+        br.run_worker(
+            task["id"], ["/usr/bin/true"], repo_root=repo, db_path=db_path,
+            coordination_db_path=coordination_db,
+            coordination_registry_path=registry, heartbeat_seconds=1, lease_seconds=5,
+        )
+
+    runs = bq.list_runs(task_id=task["id"], db_path=db_path)
+    assert len(runs) == 1 and runs[0]["state"] == bq.RUN_FAILED
+    assert runs[0]["final_report"]["worker_started"] is False
+    assert ac.list_claims(db_path=coordination_db, active_only=True) == []
+
+
+def test_run_worker_launch_failure_releases_kx(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    monkeypatch.setattr(br.beb, "wrap_command", lambda *a, **k: (_ for _ in ()).throw(OSError("boundary boom")))
+
+    with pytest.raises(br.RunnerError, match="boundary boom"):
+        br.run_worker(
+            task["id"], ["/usr/bin/true"], repo_root=repo, db_path=db_path,
+            coordination_db_path=coordination_db,
+            coordination_registry_path=registry, heartbeat_seconds=1, lease_seconds=5,
+        )
+
+    assert ac.list_claims(db_path=coordination_db, active_only=True) == []
+
+
+def test_run_worker_failure_and_timeout_release_kx(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    failed_task = _queued_task(db_path, allowed_paths=["README.md"])
+    failed = br.run_worker(
+        failed_task["id"], ["/usr/bin/false"], repo_root=repo, db_path=db_path,
+        coordination_db_path=coordination_db, coordination_registry_path=registry,
+        heartbeat_seconds=0.1, lease_seconds=2, timeout_seconds=5,
+    )
+    assert failed["final_report"]["outcome"] == bq.RUN_FAILED
+    assert ac.list_claims(db_path=coordination_db, active_only=True) == []
+
+    timeout_task = _queued_task(db_path, allowed_paths=["README.md"])
+    timed_out = br.run_worker(
+        timeout_task["id"], ["/bin/sleep", "2"], repo_root=repo, db_path=db_path,
+        coordination_db_path=coordination_db, coordination_registry_path=registry,
+        heartbeat_seconds=0.1, lease_seconds=2, timeout_seconds=0.25,
+    )
+    assert timed_out["final_report"]["outcome"] == bq.RUN_TIMEOUT
+    assert ac.list_claims(db_path=coordination_db, active_only=True) == []
+
+
+def test_run_worker_cancellation_releases_kx(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md"])
+    result: dict[str, object] = {}
+
+    def run() -> None:
+        try:
+            result["run"] = br.run_worker(
+                task["id"], ["/bin/sleep", "5"], repo_root=repo, db_path=db_path,
+                coordination_db_path=coordination_db,
+                coordination_registry_path=registry,
+                heartbeat_seconds=0.1, lease_seconds=2, timeout_seconds=10,
+            )
+        except Exception as exc:
+            result["error"] = exc
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    run_row = None
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        runs = bq.list_runs(task_id=task["id"], db_path=db_path)
+        if runs and runs[-1]["state"] == bq.RUN_RUNNING:
+            run_row = runs[-1]
+            break
+        time.sleep(0.02)
+    assert run_row is not None
+
+    br.request_cancel(str(run_row["id"]), db_path=db_path)
+    thread.join(timeout=3)
+    assert not thread.is_alive()
+    assert "error" not in result
+    final = result["run"]
+    assert isinstance(final, dict)
+    assert final["final_report"]["outcome"] == bq.RUN_CANCELLED
+    assert ac.list_claims(db_path=coordination_db, active_only=True) == []
+
+
+def test_run_worker_stops_when_kx_renewal_returns_partial_resource_set(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+) -> None:
+    coordination_db, registry = _coordination_fixture(tmp_path)
+    task = _queued_task(db_path, allowed_paths=["README.md", "gateway/"])
+    real_renew = ac.renew
+
+    def partial_when_worker_running(session_id, **kwargs):
+        result = real_renew(session_id, **kwargs)
+        runs = bq.list_runs(task_id=task["id"], db_path=db_path)
+        if any(run["state"] == bq.RUN_RUNNING for run in runs):
+            result["claims"] = result["claims"][:1]
+            result["renewed"] = 1
+        return result
+
+    monkeypatch.setattr(ac, "renew", partial_when_worker_running)
+    started = time.monotonic()
+    run = br.run_worker(
+        task["id"],
+        ["/bin/sleep", "2"],
+        repo_root=repo,
+        db_path=db_path,
+        coordination_db_path=coordination_db,
+        coordination_registry_path=registry,
+        heartbeat_seconds=0.1,
+        lease_seconds=2,
+        timeout_seconds=5,
+    )
+
+    assert time.monotonic() - started < 1.5
+    assert run["final_report"]["outcome"] == bq.RUN_LEASE_LOST
+    task_after = bq.get_task(task["id"], db_path=db_path)
+    assert task_after is not None
+    assert task_after["blocked_reason"] == "run_lease_lost"
+    assert ac.list_claims(db_path=coordination_db, active_only=True) == []
 
 
 def test_run_worker_stops_when_persisted_worktree_identity_changes_live(
