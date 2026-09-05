@@ -201,8 +201,16 @@ def run_cycle(
                 except Exception as exc:
                     cycle["notification_error"] = f"{type(exc).__name__}: {exc}"
                 else:
-                    pending_escalation["notification_state"] = "delivered"
                     cycle["notified"] = True
+                    memory_mission.record_notification_delivery(
+                        mission_id,
+                        escalation_key=key,
+                        expected_pending_escalation=pending_escalation,
+                        expected_last_cycle=expected_last_cycle_for_final,
+                        delivered_cycle=cycle,
+                        db_path=db_path,
+                    )
+                    return cycle
 
     _persist(
         mission_id, supervisor_id=supervisor_id,

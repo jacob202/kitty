@@ -1782,6 +1782,164 @@ def test_concurrent_source_cursor_updates_cannot_be_silently_lost(tmp_path):
     assert final["source_cursors"] == expected
 
 
+
+def test_mission_notification_delivery_preserves_newer_committed_cycle(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+
+    def notify(_item):
+        nested = context_mission.run_cycle(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            observations=[{"source": "research", "locator": "lane", "digest": "v1"}],
+            decide=lambda _context: (_ for _ in ()).throw(
+                AssertionError("unchanged source must not re-decide")
+            ),
+            db_path=db_path,
+        )
+        assert nested["outcome"] == "no_change"
+
+    result = context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[{"source": "research", "locator": "lane", "digest": "v1"}],
+        decide=lambda _context: {
+            "outcome": "needs_jacob", "reason": "authorization required",
+            "escalation_key": "authorize:outreach",
+        },
+        notify=notify, db_path=db_path,
+    )
+
+    assert result["notified"] is True
+    current = memory_mission.get_mission("life-2", db_path=db_path)
+    assert current["last_cycle"]["outcome"] == "no_change"
+    assert current["pending_escalation"]["notification_state"] == "delivered"
+
+
+def test_mission_notification_delivery_fences_reverse_stale_writer(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[{"source": "research", "locator": "lane", "digest": "v1"}],
+        decide=lambda _context: {
+            "outcome": "needs_jacob", "reason": "authorization required",
+            "escalation_key": "authorize:outreach",
+        },
+        db_path=db_path,
+    )
+    stale = memory_mission.get_mission("life-2", db_path=db_path)
+    delivered_cycle = dict(stale["last_cycle"])
+    delivered_cycle["notified"] = True
+
+    memory_mission.record_notification_delivery(
+        "life-2",
+        escalation_key="authorize:outreach",
+        expected_pending_escalation=stale["pending_escalation"],
+        expected_last_cycle=stale["last_cycle"],
+        delivered_cycle=delivered_cycle,
+        db_path=db_path,
+    )
+
+    with pytest.raises(memory_mission.MissionError, match="cycle state"):
+        memory_mission.record_cycle(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            source_cursors=stale["source_cursors"],
+            cycle={"outcome": "no_change", "reason": "stale", "changed": []},
+            pending_escalation=stale["pending_escalation"],
+            expected_last_cycle=stale["last_cycle"], db_path=db_path,
+        )
+    current = memory_mission.get_mission("life-2", db_path=db_path)
+    assert current["pending_escalation"]["notification_state"] == "delivered"
+
+
+@pytest.mark.parametrize("control", ["pause", "stop", "replace"])
+def test_mission_notification_receipt_survives_control_state_change(tmp_path, control):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+
+    def notify(_item):
+        if control == "pause":
+            memory_mission.pause_mission("life-2", reason="pause during delivery", db_path=db_path)
+        elif control == "stop":
+            memory_mission.stop_mission("life-2", reason="stop during delivery", db_path=db_path)
+        else:
+            memory_mission.replace_supervisor(
+                "life-2", new_supervisor_id="replacement-supervisor",
+                expected_supervisor_id="chad", expected_epoch=1, db_path=db_path,
+            )
+
+    result = context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[{"source": "research", "locator": "lane", "digest": "v1"}],
+        decide=lambda _context: {
+            "outcome": "needs_jacob", "reason": "authorization required",
+            "escalation_key": "authorize:outreach",
+        },
+        notify=notify, db_path=db_path,
+    )
+    assert result["notified"] is True
+    current = memory_mission.get_mission("life-2", db_path=db_path)
+    assert current["pending_escalation"]["notification_state"] == "delivered"
+    if control == "pause":
+        assert current["status"] == "PAUSED"
+        assert current["supervisor"] == {"id": "chad", "epoch": 1}
+    elif control == "stop":
+        assert current["status"] == "STOPPED"
+        assert current["supervisor"] == {"id": "chad", "epoch": 1}
+    else:
+        assert current["status"] == "EXECUTING"
+        assert current["supervisor"] == {"id": "replacement-supervisor", "epoch": 2}
+
+
+def test_mission_verifying_pause_resume_returns_to_verifying(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    digest = "a" * 64
+    memory_mission.record_candidate(
+        "life-2", candidate_ref="candidate://life-2/final",
+        candidate_digest=digest, db_path=db_path,
+    )
+    paused = memory_mission.pause_mission(
+        "life-2", reason="pause while verifying", db_path=db_path
+    )
+    assert paused["status"] == "PAUSED"
+
+    resumed = memory_mission.resume_mission("life-2", db_path=db_path)
+    assert resumed["status"] == "VERIFYING"
+    assert resumed["acceptance"]["state"] == "unreviewed"
+    with pytest.raises(memory_mission.MissionError, match="EXECUTING"):
+        memory_mission.record_cycle(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            source_cursors={}, cycle={"outcome": "no_change"}, db_path=db_path,
+        )
+    accepted = memory_mission.record_acceptance(
+        "life-2", reviewer_id="acceptance-verifier", candidate_digest=digest,
+        verdict="accepted", db_path=db_path,
+    )
+    assert accepted["status"] == "DONE"
+
+
+def test_mission_active_plan_reviewer_cannot_replace_executing_supervisor(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    with pytest.raises(memory_mission.MissionError, match="independent"):
+        memory_mission.replace_supervisor(
+            "life-2", new_supervisor_id="independent-plan-verifier",
+            expected_supervisor_id="chad", expected_epoch=1, db_path=db_path,
+        )
+    current = memory_mission.get_mission("life-2", db_path=db_path)
+    assert current["status"] == "EXECUTING"
+    assert current["supervisor"] == {"id": "chad", "epoch": 1}
+
 def test_concurrent_worker_reports_are_accumulated_without_loss(tmp_path, monkeypatch):
     from gateway import memory_mission
 
