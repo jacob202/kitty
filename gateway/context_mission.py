@@ -200,6 +200,141 @@ def run_cycle(
 
 
 
+
+def reconcile_delegation(
+    mission_id: str, *, supervisor_id: str, supervisor_epoch: int,
+    outcome: str, evidence_locator: str,
+    db_path: Path = memory_mission.MISSION_DB_FILE,
+) -> dict[str, Any]:
+    """Resolve one pending/unknown delegation from external evidence.
+
+    This does not execute work. It records whether the prior effect is now
+    proven complete or proven not to have happened, so recovery can continue
+    without guessing or changing task identity.
+    """
+    mission = memory_mission.assert_supervisor(
+        mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
+        db_path=db_path,
+    )
+    if mission["status"] != "EXECUTING":
+        raise memory_mission.MissionError("delegation reconciliation requires EXECUTING state")
+    previous = mission.get("last_cycle")
+    if not isinstance(previous, dict) or previous.get("delegation_state") not in {
+        "pending", "unknown",
+    }:
+        raise memory_mission.MissionError("Mission has no unresolved delegation to reconcile")
+    if outcome not in {"completed", "failed_no_effect"}:
+        raise memory_mission.MissionError(
+            "delegation reconciliation outcome must be completed or failed_no_effect"
+        )
+    if not isinstance(evidence_locator, str) or not evidence_locator.strip():
+        raise memory_mission.MissionError("delegation reconciliation requires evidence_locator")
+    task = previous.get("task")
+    if not isinstance(task, dict) or not isinstance(task.get("id"), str) or not task["id"].strip():
+        raise memory_mission.MissionError("unresolved delegation has no stable task identity")
+
+    cycle = dict(previous)
+    prior_error = cycle.pop("delegation_error", None)
+    cycle.pop("delegation", None)
+    cycle["delegation_reconciliation"] = {
+        "outcome": outcome,
+        "evidence_locator": evidence_locator.strip(),
+        "prior_error": prior_error,
+    }
+    if outcome == "completed":
+        cycle["outcome"] = "advance"
+        cycle["delegation_state"] = "completed"
+        cycle["reason"] = "delegation effect was independently reconciled as completed"
+    else:
+        cycle["outcome"] = "blocked"
+        cycle["delegation_state"] = "retryable"
+        cycle["reason"] = (
+            "delegation was independently reconciled as no effect; "
+            "a replacement worker may continue the same task"
+        )
+    _persist(
+        mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
+        cursors=dict(mission["source_cursors"]), cycle=cycle,
+        pending_escalation=mission["pending_escalation"], db_path=db_path,
+    )
+    return cycle
+
+
+def replace_delegation_worker(
+    mission_id: str, *, supervisor_id: str, supervisor_epoch: int,
+    replacement_task: dict[str, Any], delegate: DelegateFn,
+    db_path: Path = memory_mission.MISSION_DB_FILE,
+) -> dict[str, Any]:
+    """Retry a proven-no-effect delegation with a replacement worker only."""
+    mission = memory_mission.assert_supervisor(
+        mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
+        db_path=db_path,
+    )
+    if mission["status"] != "EXECUTING":
+        raise memory_mission.MissionError("worker replacement requires EXECUTING state")
+    previous = mission.get("last_cycle")
+    if not isinstance(previous, dict) or previous.get("delegation_state") != "retryable":
+        raise memory_mission.MissionError("Mission delegation is not retryable")
+    prior_task = previous.get("task")
+    if not isinstance(prior_task, dict):
+        raise memory_mission.MissionError("retryable delegation has no task")
+    prior_task_id = prior_task.get("id")
+    replacement_task_id = replacement_task.get("id") if isinstance(replacement_task, dict) else None
+    if not isinstance(prior_task_id, str) or not prior_task_id.strip():
+        raise memory_mission.MissionError("retryable delegation has no stable task identity")
+    if replacement_task_id != prior_task_id:
+        raise memory_mission.MissionError("replacement worker must preserve task identity")
+    worker_id = replacement_task.get("worker_id")
+    if not isinstance(worker_id, str) or not worker_id.strip():
+        raise memory_mission.MissionError("replacement task requires worker_id")
+    if worker_id == prior_task.get("worker_id"):
+        raise memory_mission.MissionError("replacement worker must differ from the failed worker")
+
+    cycle = dict(previous)
+    cycle.pop("delegation", None)
+    cycle.pop("delegation_error", None)
+    cycle["outcome"] = "advance"
+    cycle["reason"] = "replacement worker continuing verified task identity"
+    cycle["task"] = dict(replacement_task)
+    cycle["delegation_state"] = "pending"
+    cycle["replacement_of"] = {
+        "task_id": prior_task_id,
+        "worker_id": prior_task.get("worker_id"),
+        "reconciliation": previous.get("delegation_reconciliation"),
+    }
+    cursors = dict(mission["source_cursors"] )
+    _persist(
+        mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
+        cursors=cursors, cycle=cycle, pending_escalation=mission["pending_escalation"],
+        db_path=db_path,
+    )
+    try:
+        delegation = delegate(dict(replacement_task))
+    except Exception as exc:
+        cycle["outcome"] = "blocked"
+        cycle["reason"] = "replacement delegation outcome is unknown; reconcile before retrying"
+        cycle["delegation_state"] = "unknown"
+        cycle["delegation_error"] = f"{type(exc).__name__}: {exc}"
+        _persist(
+            mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
+            cursors=cursors, cycle=cycle,
+            pending_escalation=mission["pending_escalation"], db_path=db_path,
+        )
+        return cycle
+    cycle["delegation"] = delegation
+    if not isinstance(delegation, dict) or not delegation.get("ok"):
+        cycle["outcome"] = "blocked"
+        cycle["reason"] = "replacement delegation did not produce a successful receipt"
+        cycle["delegation_state"] = "unknown"
+    else:
+        cycle["delegation_state"] = "completed"
+    _persist(
+        mission_id, supervisor_id=supervisor_id, supervisor_epoch=supervisor_epoch,
+        cursors=cursors, cycle=cycle, pending_escalation=mission["pending_escalation"],
+        db_path=db_path,
+    )
+    return cycle
+
 def observe_global_thread(message_id: str) -> dict[str, Any]:
     """Return a bounded change observation for one explicit GAR thread locator.
 
@@ -276,9 +411,19 @@ def build_automation_action(
             notify=notify,
             db_path=db_path,
         )
-        status = "condition_false" if cycle["outcome"] == "no_change" else "completed"
+        cycle_outcome = cycle["outcome"]
+        if cycle_outcome in {"no_change", "paused", "stopped"}:
+            return automation_actions.ActionResult(
+                status="condition_false",
+                result_pointer=f"mission:{mission_id}",
+                error=(
+                    str(cycle.get("reason"))
+                    if cycle_outcome in {"paused", "stopped"}
+                    else None
+                ),
+            )
         return automation_actions.ActionResult(
-            status=status, result_pointer=f"mission:{mission_id}"
+            status="completed", result_pointer=f"mission:{mission_id}"
         )
 
     return action
