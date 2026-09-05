@@ -138,3 +138,28 @@ def test_verify_worktree_identity_rejects_changed_live_registration(tmp_path: Pa
         assert "identity" in str(exc).lower() or "git" in str(exc).lower()
     else:
         raise AssertionError("changed live worktree registration must fail closed")
+
+
+def test_verify_worktree_identity_rejects_directory_replacement_at_same_path(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    base = _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, base_ref="HEAD", run_root=tmp_path / "runs")
+    worktree = manager.create("identity-replacement")
+    identity = authenticate_existing_worktree(repo, worktree, base_commit=base)
+    gitfile = (worktree / ".git").read_text(encoding="utf-8")
+
+    displaced = tmp_path / "displaced-worktree"
+    worktree.rename(displaced)
+    worktree.mkdir()
+    (worktree / ".git").write_text(gitfile, encoding="utf-8")
+
+    from gateway.run_workspace import RunWorkspaceError
+
+    try:
+        verify_worktree_identity(identity, repo=repo, worktree=worktree)
+    except RunWorkspaceError as exc:
+        assert "identity" in str(exc).lower() or "replaced" in str(exc).lower()
+    else:
+        raise AssertionError("replacing the worktree directory at the same path must fail closed")

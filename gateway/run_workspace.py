@@ -26,13 +26,17 @@ class WorktreeIdentity:
     repo_git_dir: Path
     repo_common_dir: Path
     worktree_git_dir: Path
+    worktree_device: int
+    worktree_inode: int
     base_commit: str
 
-    def to_payload(self) -> dict[str, str]:
+    def to_payload(self) -> dict[str, str | int]:
         return {
             "repo_git_dir": str(self.repo_git_dir),
             "repo_common_dir": str(self.repo_common_dir),
             "worktree_git_dir": str(self.worktree_git_dir),
+            "worktree_device": self.worktree_device,
+            "worktree_inode": self.worktree_inode,
             "base_commit": self.base_commit,
         }
 
@@ -42,6 +46,8 @@ class WorktreeIdentity:
             "repo_git_dir",
             "repo_common_dir",
             "worktree_git_dir",
+            "worktree_device",
+            "worktree_inode",
             "base_commit",
         }
         if set(payload) != expected:
@@ -55,6 +61,12 @@ class WorktreeIdentity:
             if not path.is_absolute():
                 raise RunWorkspaceError(f"persisted worktree identity {key} is not absolute")
             paths[key] = path
+        worktree_device = payload["worktree_device"]
+        worktree_inode = payload["worktree_inode"]
+        if not isinstance(worktree_device, int) or isinstance(worktree_device, bool) or worktree_device < 0:
+            raise RunWorkspaceError("persisted worktree identity worktree_device is invalid")
+        if not isinstance(worktree_inode, int) or isinstance(worktree_inode, bool) or worktree_inode <= 0:
+            raise RunWorkspaceError("persisted worktree identity worktree_inode is invalid")
         base_commit = payload["base_commit"]
         if not isinstance(base_commit, str) or not base_commit:
             raise RunWorkspaceError("persisted worktree identity base_commit is invalid")
@@ -62,6 +74,8 @@ class WorktreeIdentity:
             repo_git_dir=paths["repo_git_dir"],
             repo_common_dir=paths["repo_common_dir"],
             worktree_git_dir=paths["worktree_git_dir"],
+            worktree_device=worktree_device,
+            worktree_inode=worktree_inode,
             base_commit=base_commit,
         )
 
@@ -250,10 +264,13 @@ def authenticate_existing_worktree(
         raise RunWorkspaceError(
             "worktree common gitdir does not match controlling repository identity"
         )
+    worktree_stat = worktree.stat()
     identity = WorktreeIdentity(
         repo_git_dir=repo_git_dir,
         repo_common_dir=repo_common_dir,
         worktree_git_dir=worktree_git_dir,
+        worktree_device=worktree_stat.st_dev,
+        worktree_inode=worktree_stat.st_ino,
         base_commit=base_commit,
     )
     _verify_base(identity, worktree)
@@ -280,6 +297,12 @@ def verify_worktree_identity(
         raise RunWorkspaceError("worktree gitdir identity changed")
     if live["worktree_common_dir"] != identity.repo_common_dir:
         raise RunWorkspaceError("worktree common gitdir identity changed")
+    worktree_stat = worktree.stat()
+    if (worktree_stat.st_dev, worktree_stat.st_ino) != (
+        identity.worktree_device,
+        identity.worktree_inode,
+    ):
+        raise RunWorkspaceError("worktree directory identity changed or was replaced")
     _verify_base(identity, worktree)
 
 
@@ -294,10 +317,13 @@ def snapshot_existing_worktree(
     worktree = worktree.resolve()
     git_dir = _git_path_from_cwd(worktree, "rev-parse", "--git-dir")
     common_dir = _git_path_from_cwd(worktree, "rev-parse", "--git-common-dir")
+    worktree_stat = worktree.stat()
     identity = WorktreeIdentity(
         repo_git_dir=git_dir,
         repo_common_dir=common_dir,
         worktree_git_dir=git_dir,
+        worktree_device=worktree_stat.st_dev,
+        worktree_inode=worktree_stat.st_ino,
         base_commit=base_commit,
     )
     return _snapshot(identity, worktree, include_ignored=include_ignored)
@@ -339,10 +365,13 @@ class GitWorktreeManager:
         except Exception as primary_error:
             self._remove_created_worktree(path, primary_error)
             raise
+        worktree_stat = path.stat()
         self._authenticated[path.resolve()] = WorktreeIdentity(
             repo_git_dir=repo_git_dir,
             repo_common_dir=repo_common_dir,
             worktree_git_dir=worktree_git_dir,
+            worktree_device=worktree_stat.st_dev,
+            worktree_inode=worktree_stat.st_ino,
             base_commit=base_commit,
         )
         return path
@@ -365,6 +394,12 @@ class GitWorktreeManager:
             raise RunWorkspaceError("controlling repository gitdir changed")
         if self._git_path("rev-parse", "--git-common-dir", cwd=self.repo) != identity.repo_common_dir:
             raise RunWorkspaceError("controlling repository common gitdir changed")
+        worktree_stat = path.stat()
+        if (worktree_stat.st_dev, worktree_stat.st_ino) != (
+            identity.worktree_device,
+            identity.worktree_inode,
+        ):
+            raise RunWorkspaceError("worktree directory identity changed or was replaced")
         _verify_base(identity, path)
 
     def _remove_created_worktree(self, path: Path, primary_error: Exception) -> None:

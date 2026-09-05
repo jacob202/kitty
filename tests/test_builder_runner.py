@@ -1656,6 +1656,8 @@ def test_run_worker_persists_creation_time_ownership_manifest(
     assert payload["kx_session_id"] == f"builder-run:{run['id']}"
     assert payload["declared_paths"] == ["README.md"]
     assert payload["worktree_identity"]["base_commit"] == run["start_sha"]
+    assert payload["worktree_identity"]["worktree_device"] >= 0
+    assert payload["worktree_identity"]["worktree_inode"] > 0
 
 
 def test_run_worker_rejects_worktree_registration_tamper_before_launch(
