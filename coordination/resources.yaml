@@ -14,7 +14,14 @@ resources:
     - tests/test_builder_loop.py
     - tests/test_builder_queue.py
     - tests/test_builder_supervisor.py
+  docs:planning-artifacts:
+    paths:
+    - docs/superpowers/plans/**
+    - docs/superpowers/specs/**
   docs:roadmap:
+    exclude_paths:
+    - docs/superpowers/plans/**
+    - docs/superpowers/specs/**
     paths:
     - '*.md'
     - .agents/skills/**/*.md

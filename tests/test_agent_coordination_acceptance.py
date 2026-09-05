@@ -20,6 +20,7 @@ REQUIRED_RESOURCES = {
     "builder:queue-reconciliation",
     "runtime:provenance",
     "ui:action-grammar",
+    "docs:planning-artifacts",
     "docs:roadmap",
     "memory:continuity",
     "image-lab:generation",
@@ -310,6 +311,77 @@ def test_store_is_wal_and_mutex_is_a_partial_unique_index(store: tuple[Path, Pat
     assert "resource_id" in normalized
     assert "where state = 'active'" in normalized
     assert "role in ('own','integrate')" in normalized.replace(" ", "") or "rolein('own','integrate')" in normalized.replace(" ", "")
+
+
+def test_registry_excludes_planning_artifacts_from_broad_docs_resource(tmp_path: Path) -> None:
+    registry_path = tmp_path / "resources.yaml"
+    registry_path.write_text(
+        """resources:
+  docs:planning-artifacts:
+    paths:
+      - docs/superpowers/plans/**
+      - docs/superpowers/specs/**
+  docs:roadmap:
+    paths:
+      - docs/**
+    exclude_paths:
+      - docs/superpowers/plans/**
+      - docs/superpowers/specs/**
+""",
+        encoding="utf-8",
+    )
+
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/superpowers/plans/2026-09-04-conv-proof.md"], registry_path=registry_path
+    ) == ["docs:planning-artifacts"]
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/superpowers/specs/2026-09-04-conv-proof-design.md"], registry_path=registry_path
+    ) == ["docs:planning-artifacts"]
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/reference/MULTI_AGENT_COORDINATION.md"], registry_path=registry_path
+    ) == ["docs:roadmap"]
+
+
+def test_registry_exclusion_is_path_local_for_multi_path_resolution(tmp_path: Path) -> None:
+    registry_path = tmp_path / "resources.yaml"
+    registry_path.write_text(
+        """resources:
+  docs:planning-artifacts:
+    paths:
+      - docs/superpowers/plans/**
+      - docs/superpowers/specs/**
+  docs:roadmap:
+    paths:
+      - docs/**
+    exclude_paths:
+      - docs/superpowers/plans/**
+      - docs/superpowers/specs/**
+""",
+        encoding="utf-8",
+    )
+
+    assert agent_coordination.resolve_paths_to_resources(
+        [
+            "docs/ROADMAP.md",
+            "docs/superpowers/plans/2026-09-04-conv-proof.md",
+        ],
+        registry_path=registry_path,
+    ) == ["docs:planning-artifacts", "docs:roadmap"]
+
+
+def test_tracked_registry_splits_planning_artifacts_from_roadmap() -> None:
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/superpowers/plans/2026-09-04-conv-proof.md"],
+        registry_path=TRACKED_REGISTRY,
+    ) == ["docs:planning-artifacts"]
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/superpowers/specs/2026-09-04-conv-proof-design.md"],
+        registry_path=TRACKED_REGISTRY,
+    ) == ["docs:planning-artifacts"]
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/reference/MULTI_AGENT_COORDINATION.md"],
+        registry_path=TRACKED_REGISTRY,
+    ) == ["docs:roadmap"]
 
 
 def test_registry_seed_is_exact_deterministic_and_points_at_real_tree() -> None:

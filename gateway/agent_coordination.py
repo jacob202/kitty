@@ -113,7 +113,7 @@ def _pattern_matches(path: str, pattern: str) -> bool:
     return fnmatch.fnmatchcase(path, pattern)
 
 
-def _load_registry(registry_path: Path | None = None) -> dict[str, list[str]]:
+def _load_registry(registry_path: Path | None = None) -> dict[str, dict[str, list[str]]]:
     path = Path(registry_path or DEFAULT_REGISTRY_PATH)
     try:
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -127,12 +127,18 @@ def _load_registry(registry_path: Path | None = None) -> dict[str, list[str]]:
     if not isinstance(raw_resources, dict) or not raw_resources:
         raise CoordinationClaimError("coordination registry resources must be a non-empty mapping")
 
-    resources: dict[str, list[str]] = {}
+    resources: dict[str, dict[str, list[str]]] = {}
     for resource_id, spec in raw_resources.items():
         if not isinstance(resource_id, str) or not resource_id.strip():
             raise CoordinationClaimError("coordination resource IDs must be non-empty strings")
-        if not isinstance(spec, dict) or set(spec) != {"paths"}:
-            raise CoordinationClaimError(f"resource {resource_id} must contain only paths")
+        if (
+            not isinstance(spec, dict)
+            or "paths" not in spec
+            or not set(spec).issubset({"paths", "exclude_paths"})
+        ):
+            raise CoordinationClaimError(
+                f"resource {resource_id} must contain paths and optional exclude_paths"
+            )
         raw_paths = spec["paths"]
         if not isinstance(raw_paths, list) or not raw_paths:
             raise CoordinationClaimError(f"resource {resource_id} paths must be a non-empty list")
@@ -143,7 +149,25 @@ def _load_registry(registry_path: Path | None = None) -> dict[str, list[str]]:
             raise CoordinationClaimError(
                 f"resource {resource_id} paths must be sorted and contain no duplicates"
             )
-        resources[resource_id] = normalized
+
+        raw_exclude_paths = spec.get("exclude_paths", [])
+        if not isinstance(raw_exclude_paths, list):
+            raise CoordinationClaimError(
+                f"resource {resource_id} exclude_paths must be a list"
+            )
+        if not all(isinstance(item, str) for item in raw_exclude_paths):
+            raise CoordinationClaimError(
+                f"resource {resource_id} exclude_paths must contain strings"
+            )
+        normalized_exclude_paths = _normalize_paths(raw_exclude_paths)
+        if normalized_exclude_paths != raw_exclude_paths:
+            raise CoordinationClaimError(
+                f"resource {resource_id} exclude_paths must be sorted and contain no duplicates"
+            )
+        resources[resource_id] = {
+            "paths": normalized,
+            "exclude_paths": normalized_exclude_paths,
+        }
     return resources
 
 
@@ -155,11 +179,13 @@ def resolve_paths_to_resources(
     normalized_paths = sorted({_normalize_repo_path(path) for path in paths})
     resolved = {
         resource_id
-        for resource_id, patterns in registry.items()
+        for resource_id, spec in registry.items()
         if any(
-            _pattern_matches(path, pattern)
+            any(_pattern_matches(path, pattern) for pattern in spec["paths"])
+            and not any(
+                _pattern_matches(path, pattern) for pattern in spec["exclude_paths"]
+            )
             for path in normalized_paths
-            for pattern in patterns
         )
     }
     return sorted(resolved)
