@@ -218,14 +218,26 @@ def record_plan_review(
     now = time.time()
     status = "PLAN_REVIEW" if verdict == "approved" else "PLANNING"
     with kitty_db.connect(db_path) as conn:
-        conn.execute(
+        cursor = conn.execute(
             "UPDATE missions SET plan_review_state=?, plan_reviewer_id=?, "
-            "plan_review_evidence_json=?, status=?, updated_at=? WHERE mission_id=?",
-            (verdict, reviewer_id, json.dumps(evidence or {}, sort_keys=True), status, now, mission_id),
+            "plan_review_evidence_json=?, status=?, updated_at=? "
+            "WHERE mission_id=? AND plan_digest=? AND status='PLAN_REVIEW' "
+            "AND supervisor_id<>?",
+            (
+                verdict, reviewer_id, json.dumps(evidence or {}, sort_keys=True),
+                status, now, mission_id, plan_digest, reviewer_id,
+            ),
         )
+        if cursor.rowcount != 1:
+            raise MissionError(
+                "plan review no longer matches the current plan or independent supervisor"
+            )
+        epoch_row = conn.execute(
+            "SELECT supervisor_epoch FROM missions WHERE mission_id=?", (mission_id,)
+        ).fetchone()
         _append_event(
             conn, mission_id=mission_id, event_type="plan_reviewed",
-            supervisor_epoch=mission["supervisor"]["epoch"],
+            supervisor_epoch=int(epoch_row[0]),
             payload={"plan_digest": plan_digest, "reviewer_id": reviewer_id, "verdict": verdict}, now=now,
         )
         conn.commit()
@@ -234,14 +246,23 @@ def record_plan_review(
 
 def begin_execution(mission_id: str, *, db_path: Path = MISSION_DB_FILE) -> dict[str, Any]:
     mission = get_mission(mission_id, db_path=db_path)
+    if mission["status"] != "PLAN_REVIEW":
+        raise MissionError("Mission can begin execution only from PLAN_REVIEW state")
     if mission["plan"]["review_state"] != "approved" or not mission["plan"]["digest"]:
         raise MissionError("Mission cannot execute without an approved plan review")
     now = time.time()
     with kitty_db.connect(db_path) as conn:
-        conn.execute(
-            "UPDATE missions SET status='EXECUTING', updated_at=? WHERE mission_id=?",
-            (now, mission_id),
+        cursor = conn.execute(
+            "UPDATE missions SET status='EXECUTING', updated_at=? "
+            "WHERE mission_id=? AND status='PLAN_REVIEW' AND plan_digest=? "
+            "AND plan_review_state='approved' AND supervisor_id=? AND supervisor_epoch=?",
+            (
+                now, mission_id, mission["plan"]["digest"],
+                mission["supervisor"]["id"], mission["supervisor"]["epoch"],
+            ),
         )
+        if cursor.rowcount != 1:
+            raise MissionError("Mission plan approval changed before execution")
         _append_event(
             conn, mission_id=mission_id, event_type="execution_started",
             supervisor_epoch=mission["supervisor"]["epoch"],
@@ -383,14 +404,26 @@ def record_acceptance(
     now = time.time()
     status = "DONE" if verdict == "accepted" else "REPAIRING"
     with kitty_db.connect(db_path) as conn:
-        conn.execute(
+        cursor = conn.execute(
             "UPDATE missions SET acceptance_state=?, acceptance_reviewer_id=?, "
-            "acceptance_evidence_json=?, status=?, updated_at=? WHERE mission_id=?",
-            (verdict, reviewer_id, json.dumps(evidence or {}, sort_keys=True), status, now, mission_id),
+            "acceptance_evidence_json=?, status=?, updated_at=? "
+            "WHERE mission_id=? AND candidate_digest=? AND status='VERIFYING' "
+            "AND supervisor_id<>?",
+            (
+                verdict, reviewer_id, json.dumps(evidence or {}, sort_keys=True),
+                status, now, mission_id, candidate_digest, reviewer_id,
+            ),
         )
+        if cursor.rowcount != 1:
+            raise MissionError(
+                "acceptance no longer matches the current candidate or independent supervisor"
+            )
+        epoch_row = conn.execute(
+            "SELECT supervisor_epoch FROM missions WHERE mission_id=?", (mission_id,)
+        ).fetchone()
         _append_event(
             conn, mission_id=mission_id, event_type="acceptance_reviewed",
-            supervisor_epoch=mission["supervisor"]["epoch"],
+            supervisor_epoch=int(epoch_row[0]),
             payload={"candidate_digest": candidate_digest, "reviewer_id": reviewer_id, "verdict": verdict},
             now=now,
         )
@@ -421,10 +454,31 @@ def _set_status(
 def pause_mission(
     mission_id: str, *, reason: str, db_path: Path = MISSION_DB_FILE
 ) -> dict[str, Any]:
-    return _set_status(
-        mission_id, status="PAUSED", reason=_required_text(reason, "reason"),
-        event_type="mission_paused", db_path=db_path,
-    )
+    reason = _required_text(reason, "reason")
+    mission = get_mission(mission_id, db_path=db_path)
+    if mission["status"] == "STOPPED":
+        raise MissionError("stopped Mission cannot be paused")
+    if mission["status"] == "DONE":
+        raise MissionError("completed Mission cannot be paused")
+    now = time.time()
+    with kitty_db.connect(db_path) as conn:
+        cursor = conn.execute(
+            "UPDATE missions SET status='PAUSED', status_reason=?, updated_at=? "
+            "WHERE mission_id=? AND status NOT IN ('STOPPED','DONE')",
+            (reason, now, mission_id),
+        )
+        if cursor.rowcount != 1:
+            raise MissionError("Mission became stopped or completed before pause")
+        epoch_row = conn.execute(
+            "SELECT supervisor_epoch FROM missions WHERE mission_id=?", (mission_id,)
+        ).fetchone()
+        _append_event(
+            conn, mission_id=mission_id, event_type="mission_paused",
+            supervisor_epoch=int(epoch_row[0]), payload={"status": "PAUSED", "reason": reason},
+            now=now,
+        )
+        conn.commit()
+    return get_mission(mission_id, db_path=db_path)
 
 
 def resume_mission(
@@ -435,12 +489,28 @@ def resume_mission(
         raise MissionError("stopped Mission cannot be resumed")
     if mission["status"] != "PAUSED":
         raise MissionError(f"Mission is not paused: {mission['status']}")
-    if mission["plan"]["review_state"] != "approved":
+    if mission["plan"]["review_state"] != "approved" or not mission["plan"]["digest"]:
         raise MissionError("Mission cannot resume without an approved plan review")
-    return _set_status(
-        mission_id, status="EXECUTING", reason=None,
-        event_type="mission_resumed", db_path=db_path,
-    )
+    now = time.time()
+    with kitty_db.connect(db_path) as conn:
+        cursor = conn.execute(
+            "UPDATE missions SET status='EXECUTING', status_reason=NULL, updated_at=? "
+            "WHERE mission_id=? AND status='PAUSED' AND plan_review_state='approved' "
+            "AND plan_digest=?",
+            (now, mission_id, mission["plan"]["digest"]),
+        )
+        if cursor.rowcount != 1:
+            raise MissionError("Mission state or approved plan changed before resume")
+        epoch_row = conn.execute(
+            "SELECT supervisor_epoch FROM missions WHERE mission_id=?", (mission_id,)
+        ).fetchone()
+        _append_event(
+            conn, mission_id=mission_id, event_type="mission_resumed",
+            supervisor_epoch=int(epoch_row[0]), payload={"status": "EXECUTING", "reason": None},
+            now=now,
+        )
+        conn.commit()
+    return get_mission(mission_id, db_path=db_path)
 
 
 def stop_mission(

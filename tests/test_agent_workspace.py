@@ -863,3 +863,150 @@ def test_mission_cycle_persists_delegation_before_adapter_and_does_not_repeat_un
     assert second["outcome"] == "blocked"
     assert "reconcile" in second["reason"].lower()
     assert calls == ["called"]
+
+
+def test_plan_review_cannot_approve_a_plan_that_changed_after_read(tmp_path, monkeypatch):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="race-plan", objective="x", definition_of_done=["x"],
+        supervisor_id="chad", db_path=db_path,
+    )
+    old_digest, new_digest = "a" * 64, "b" * 64
+    memory_mission.set_plan(
+        "race-plan", plan_ref="plan://old", plan_digest=old_digest, db_path=db_path
+    )
+    original_get = memory_mission.get_mission
+
+    def interleaved_get(mission_id, *, db_path=memory_mission.MISSION_DB_FILE):
+        snapshot = original_get(mission_id, db_path=db_path)
+        monkeypatch.setattr(memory_mission, "get_mission", original_get)
+        memory_mission.set_plan(
+            mission_id, plan_ref="plan://new", plan_digest=new_digest, db_path=db_path
+        )
+        return snapshot
+    monkeypatch.setattr(memory_mission, "get_mission", interleaved_get)
+    with pytest.raises(memory_mission.MissionError, match="current plan"):
+        memory_mission.record_plan_review(
+            "race-plan", reviewer_id="reviewer", plan_digest=old_digest,
+            verdict="approved", db_path=db_path,
+        )
+    current = original_get("race-plan", db_path=db_path)
+    assert current["plan"]["digest"] == new_digest
+    assert current["plan"]["review_state"] == "unreviewed"
+
+
+def test_acceptance_cannot_accept_a_candidate_that_changed_after_read(tmp_path, monkeypatch):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="race-candidate", objective="x", definition_of_done=["x"],
+        supervisor_id="chad", db_path=db_path,
+    )
+    old_digest, new_digest = "c" * 64, "d" * 64
+    memory_mission.record_candidate(
+        "race-candidate", candidate_ref="candidate://old",
+        candidate_digest=old_digest, db_path=db_path,
+    )
+    original_get = memory_mission.get_mission
+
+    def interleaved_get(mission_id, *, db_path=memory_mission.MISSION_DB_FILE):
+        snapshot = original_get(mission_id, db_path=db_path)
+        monkeypatch.setattr(memory_mission, "get_mission", original_get)
+        memory_mission.record_candidate(
+            mission_id, candidate_ref="candidate://new",
+            candidate_digest=new_digest, db_path=db_path,
+        )
+        return snapshot
+    monkeypatch.setattr(memory_mission, "get_mission", interleaved_get)
+    with pytest.raises(memory_mission.MissionError, match="current candidate"):
+        memory_mission.record_acceptance(
+            "race-candidate", reviewer_id="reviewer",
+            candidate_digest=old_digest, verdict="accepted", db_path=db_path,
+        )
+    current = original_get("race-candidate", db_path=db_path)
+    assert current["candidate"]["digest"] == new_digest
+    assert current["acceptance"]["state"] == "unreviewed"
+    assert current["status"] == "VERIFYING"
+
+
+def test_begin_execution_fails_if_plan_changes_after_gate_read(tmp_path, monkeypatch):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="race-exec", objective="x", definition_of_done=["x"],
+        supervisor_id="chad", db_path=db_path,
+    )
+    old_digest, new_digest = "e" * 64, "f" * 64
+    memory_mission.set_plan(
+        "race-exec", plan_ref="plan://old", plan_digest=old_digest, db_path=db_path
+    )
+    memory_mission.record_plan_review(
+        "race-exec", reviewer_id="reviewer", plan_digest=old_digest,
+        verdict="approved", db_path=db_path,
+    )
+    original_get = memory_mission.get_mission
+
+    def interleaved_get(mission_id, *, db_path=memory_mission.MISSION_DB_FILE):
+        snapshot = original_get(mission_id, db_path=db_path)
+        monkeypatch.setattr(memory_mission, "get_mission", original_get)
+        memory_mission.set_plan(
+            mission_id, plan_ref="plan://new", plan_digest=new_digest, db_path=db_path
+        )
+        return snapshot
+    monkeypatch.setattr(memory_mission, "get_mission", interleaved_get)
+    with pytest.raises(memory_mission.MissionError, match="approval changed"):
+        memory_mission.begin_execution("race-exec", db_path=db_path)
+    current = original_get("race-exec", db_path=db_path)
+    assert current["plan"]["digest"] == new_digest
+    assert current["plan"]["review_state"] == "unreviewed"
+    assert current["status"] == "PLAN_REVIEW"
+
+
+def test_stopped_mission_cannot_reenter_execution_via_begin_execution(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    memory_mission.stop_mission("life-2", reason="stop", db_path=db_path)
+    with pytest.raises(memory_mission.MissionError, match="PLAN_REVIEW"):
+        memory_mission.begin_execution("life-2", db_path=db_path)
+    assert memory_mission.get_mission("life-2", db_path=db_path)["status"] == "STOPPED"
+
+
+def test_resume_fails_if_approved_plan_changes_after_pause_read(tmp_path, monkeypatch):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    memory_mission.pause_mission("life-2", reason="pause", db_path=db_path)
+    original_get = memory_mission.get_mission
+
+    def interleaved_get(mission_id, *, db_path=memory_mission.MISSION_DB_FILE):
+        snapshot = original_get(mission_id, db_path=db_path)
+        monkeypatch.setattr(memory_mission, "get_mission", original_get)
+        memory_mission.set_plan(
+            mission_id, plan_ref="plan://replacement", plan_digest="9" * 64,
+            db_path=db_path,
+        )
+        return snapshot
+    monkeypatch.setattr(memory_mission, "get_mission", interleaved_get)
+    with pytest.raises(memory_mission.MissionError, match="changed before resume"):
+        memory_mission.resume_mission("life-2", db_path=db_path)
+    current = original_get("life-2", db_path=db_path)
+    assert current["status"] == "PLAN_REVIEW"
+    assert current["plan"]["review_state"] == "unreviewed"
+
+
+def test_stopped_mission_cannot_be_changed_back_to_paused(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    memory_mission.stop_mission("life-2", reason="stop", db_path=db_path)
+    with pytest.raises(memory_mission.MissionError, match="stopped"):
+        memory_mission.pause_mission("life-2", reason="pause", db_path=db_path)
+    assert memory_mission.get_mission("life-2", db_path=db_path)["status"] == "STOPPED"
