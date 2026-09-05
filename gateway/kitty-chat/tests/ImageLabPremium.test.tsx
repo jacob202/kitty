@@ -251,4 +251,51 @@ describe('Image Lab premium workspace', () => {
     expect(screen.getByRole('combobox', { name: 'identity' })).toHaveValue('balanced')
   })
 
+
+  it('keeps character profile edits recoverable when the first save fails', async () => {
+    window.localStorage.clear()
+    const character = {
+      character_id: 'char_retry', name: 'Retry Mia', description: 'Original profile.',
+      preferred_recipe: null, identity_preset: 'balanced', references: [],
+    }
+    let patchAttempts = 0
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      const method = init?.method ?? 'GET'
+      if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [] }) }
+      if (target === '/proxy/studio/characters' && method === 'GET') {
+        return { ok: true, status: 200, json: async () => ({ characters: [character] }) }
+      }
+      if (target === '/proxy/studio/characters/char_retry' && method === 'PATCH') {
+        patchAttempts += 1
+        if (patchAttempts === 1) return { ok: false, status: 503, text: async () => 'profile save temporarily unavailable' }
+        const body = JSON.parse(String(init?.body ?? '{}'))
+        return { ok: true, status: 200, json: async () => ({ ...character, ...body }) }
+      }
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+    fireEvent.click(await screen.findByTestId('image-lab-character-picker'))
+    fireEvent.click(await screen.findByText('Retry Mia'))
+    fireEvent.click(screen.getByRole('button', { name: /edit character profile/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Character profile name' }), { target: { value: 'Retry Mia Saved' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Character profile description' }), { target: { value: 'Recovered without losing the edit.' } })
+    fireEvent.click(screen.getByRole('button', { name: /save character profile/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('profile save temporarily unavailable')
+    expect(screen.getByRole('textbox', { name: 'Character profile name' })).toHaveValue('Retry Mia Saved')
+    expect(screen.getByRole('textbox', { name: 'Character profile description' })).toHaveValue('Recovered without losing the edit.')
+
+    fireEvent.click(screen.getByRole('button', { name: /save character profile/i }))
+    await screen.findByRole('button', { name: /edit character profile/i })
+    const profile = screen.getByTestId('image-lab-character-profile')
+    expect(profile).toHaveTextContent('Retry Mia Saved')
+    expect(profile).toHaveTextContent('Recovered without losing the edit.')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(patchAttempts).toBe(2)
+  })
+
 })
