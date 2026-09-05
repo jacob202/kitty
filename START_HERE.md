@@ -14,14 +14,17 @@ live evidence; it does not duplicate current state.
    `docs/reference/MULTI_AGENT_COORDINATION.md`, check its live coordination
    issue, and inspect the relevant Builder/local ownership state before
    claiming an implementation lane.
-3. Prove `workspace_global` access. Discover new handoffs through this agent's
-   unread inbox first (`room_inbox` or `./kitty room inbox --as <identity>
-   --unread --json`). If the assignment supplies a durable locator, load that
-   exact conversation with `room_thread` or `./kitty room thread <message_id>
-   --json`. Use recent messages only for bounded shared situational context;
-   the newest global window is not an assignment index. Acknowledge messages
-   actually received. If the room itself is unavailable, report that rather
-   than fabricating room state.
+3. Prove `workspace_global` access. Discover explicit assignments, handoffs,
+   and review asks through this agent's unread **direct** inbox first:
+   `./kitty room inbox --as <identity> --unread --direct-only --json`. MCP
+   clients use `room_inbox(unread_only=True, direct_only=True)` for the same
+   assignment discovery; do not treat the broadcast feed as an assignment
+   queue. If the assignment
+   supplies a durable locator, load that exact conversation with `room_thread`
+   or `./kitty room thread <message_id> --json`. Use recent messages only for
+   bounded shared situational context; the newest global window is not an
+   assignment index. Acknowledge messages actually received. If the room itself
+   is unavailable, report that rather than fabricating room state.
 4. Choose the receipt mode from the continuation source:
    - GAR available **and** an unread handoff/known durable thread identifies the
      assignment: code work uses `./kitty context --agent
@@ -89,7 +92,7 @@ not duplicate the staged-load procedure.
 
 ```bash
 git status --short --branch
-./kitty room inbox --as <identity> --unread --json
+./kitty room inbox --as <identity> --unread --direct-only --json
 # Known GAR handoff/thread:
 ./kitty context --agent --compact --skip-builder --skip-legacy-continuity
 # No GAR locator yet, or GAR unavailable and legacy fallback is required:

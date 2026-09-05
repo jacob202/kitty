@@ -75,9 +75,13 @@ def test_session_start_injects_recent_and_direct_unread_room_context(tmp_path: P
     assert "[GAR] unread direct for claude" in result.stdout
     assert "please verify PR #999" in result.stdout
     assert "gar-session:sess-start" in result.stdout
+    assert "reply in-thread" in result.stdout
+    assert "room ack --as claude <message_id>" in result.stdout
+    assert "Do not ACK unread work you did not consume" in result.stdout
     log = (tmp_path / "room.log").read_text(encoding="utf-8")
     assert "room recent --limit 8" in log
     assert "room inbox --as claude --unread --direct-only --limit 8" in log
+    assert "room ack --as claude" not in log
 
 
 def test_session_start_reports_room_failure_with_bounded_diagnostics(tmp_path: Path) -> None:

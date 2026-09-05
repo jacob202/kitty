@@ -41,8 +41,12 @@ resources:
     - gateway/explicit_memory.py
     - gateway/memory*.py
     - gateway/routes/agent_workspace.py
+    - mcp/agent_room/**
+    - tests/test_agent_room_global.py
     - tests/test_agent_workspace.py
+    - tests/test_agent_workspace_routes.py
     - tests/test_check_continuity_state.py
+    - tests/test_mcp_agent_room_server.py
   runtime:provenance:
     paths:
     - .claude/hooks/**
@@ -58,6 +62,9 @@ resources:
     - scripts/desktop/start_ui.sh
     - scripts/hooks/**
     - tests/test_agent_coordination_acceptance.py
+    - tests/test_agent_room_cli.py
+    - tests/test_agent_room_lifecycle_hooks.py
+    - tests/test_agent_room_lifecycle_review_regressions.py
     - tests/test_doctor_freshness.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py

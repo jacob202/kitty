@@ -414,3 +414,27 @@ def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
         assert "ui:action-grammar" in agent_coordination.resolve_paths_to_resources(
             [path], registry_path=TRACKED_REGISTRY
         ), path
+
+
+def test_registry_covers_agent_room_interfaces() -> None:
+    runtime_paths = [
+        "gateway/agent_room_cli.py",
+        ".claude/hooks/session-start.sh",
+        "tests/test_agent_room_cli.py",
+        "tests/test_agent_room_lifecycle_hooks.py",
+        "tests/test_agent_room_lifecycle_review_regressions.py",
+    ]
+    memory_paths = [
+        "mcp/agent_room/server.py",
+        "tests/test_mcp_agent_room_server.py",
+        "tests/test_agent_room_global.py",
+        "tests/test_agent_workspace_routes.py",
+    ]
+    for path in runtime_paths:
+        assert agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ) == ["runtime:provenance"], path
+    for path in memory_paths:
+        assert agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ) == ["memory:continuity"], path

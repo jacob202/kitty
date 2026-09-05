@@ -8,7 +8,6 @@ import sys
 from typing import Any
 
 from gateway import agent_coordination, agent_workspace
-from gateway import db as kitty_db
 
 _MESSAGE_KINDS = ("prompt", "plan", "handoff", "review", "result", "status")
 
@@ -120,72 +119,6 @@ def _status() -> dict[str, Any]:
     }
 
 
-def _with_receipt_state(row: Any) -> dict[str, Any]:
-    result = dict(row)
-    if result.get("acknowledged_at") is not None:
-        result["receipt_state"] = "acknowledged"
-    elif result.get("seen_at") is not None:
-        result["receipt_state"] = "seen"
-    else:
-        result["receipt_state"] = "sent"
-    return result
-
-
-def _direct_inbox(
-    participant_id: str, *, unread_only: bool = False, limit: int = 100
-) -> list[dict[str, Any]]:
-    """Return only messages explicitly addressed to one global participant."""
-    participant_id = agent_workspace.validate_global_participant(participant_id)
-    if not isinstance(unread_only, bool):
-        raise agent_workspace.AgentWorkspaceError("unread_only must be a boolean")
-    if isinstance(limit, bool) or limit <= 0 or limit > 500:
-        raise agent_workspace.AgentWorkspaceError("limit must be between 1 and 500")
-    agent_workspace.ensure_global_workspace()
-    with kitty_db.connect(agent_workspace.WORKSPACE_DB_FILE) as conn:
-        if participant_id == "jacob":
-            joined = conn.execute(
-                "SELECT created_at FROM agent_workspaces WHERE id = ?",
-                (agent_workspace.GLOBAL_WORKSPACE_ID,),
-            ).fetchone()
-        else:
-            joined = conn.execute(
-                """
-                SELECT created_at FROM agent_workspace_agents
-                WHERE workspace_id = ? AND agent_id = ?
-                """,
-                (agent_workspace.GLOBAL_WORKSPACE_ID, participant_id),
-            ).fetchone()
-        if joined is None:
-            raise agent_workspace.AgentWorkspaceError(
-                f"unknown global participant {participant_id}"
-            )
-        rows = conn.execute(
-            """
-            SELECT m.*, r.seen_at, r.acknowledged_at
-            FROM agent_workspace_messages AS m
-            LEFT JOIN agent_workspace_message_receipts AS r
-              ON r.message_id = m.id AND r.participant_id = ?
-            WHERE m.workspace_id = ?
-              AND m.sender_id <> ?
-              AND m.created_at >= ?
-              AND m.recipient_id = ?
-              AND (? = 0 OR r.seen_at IS NULL)
-            ORDER BY m.created_at DESC, m.id DESC
-            LIMIT ?
-            """,
-            (
-                participant_id,
-                agent_workspace.GLOBAL_WORKSPACE_ID,
-                participant_id,
-                float(joined["created_at"]),
-                participant_id,
-                1 if unread_only else 0,
-                limit,
-            ),
-        ).fetchall()
-    return [_with_receipt_state(row) for row in reversed(rows)]
-
-
 def _renew_coordination_claim_if_active(session_id: str) -> None:
     db_path = agent_coordination.default_db_path()
     if not db_path.exists():
@@ -208,12 +141,11 @@ def _dispatch(args: argparse.Namespace) -> Any:
         agent_workspace.ensure_global_workspace()
         return agent_workspace.list_messages(agent_workspace.GLOBAL_WORKSPACE_ID, limit=args.limit)
     if args.command == "inbox":
-        if args.direct_only:
-            return _direct_inbox(
-                args.participant_id, unread_only=args.unread, limit=args.limit
-            )
         return agent_workspace.list_inbox(
-            args.participant_id, unread_only=args.unread, limit=args.limit
+            args.participant_id,
+            unread_only=args.unread,
+            direct_only=args.direct_only,
+            limit=args.limit,
         )
     if args.command == "thread":
         return agent_workspace.list_thread(args.message_id, limit=args.limit)

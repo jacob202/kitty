@@ -137,12 +137,16 @@ def post_global_message(request: GlobalMessageRequest) -> dict:
 def get_global_inbox(
     participant_id: str,
     unread_only: bool = Query(default=False),
+    direct_only: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> dict:
     try:
         return {
             "messages": agent_workspace.list_inbox(
-                participant_id, unread_only=unread_only, limit=limit
+                participant_id,
+                unread_only=unread_only,
+                direct_only=direct_only,
+                limit=limit,
             )
         }
     except agent_workspace.AgentWorkspaceError as exc:

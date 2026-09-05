@@ -121,3 +121,21 @@ def test_room_launcher_uses_canonical_data_root_from_linked_worktree(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "/tmp/canonical-kitty/data"
+
+
+def test_cli_direct_only_uses_canonical_inbox_filter(monkeypatch, room_db, capsys):
+    calls = []
+
+    def fake_list_inbox(participant_id, *, unread_only=False, direct_only=False, limit=100):
+        calls.append((participant_id, unread_only, direct_only, limit))
+        return []
+
+    monkeypatch.setattr(agent_workspace, "list_inbox", fake_list_inbox)
+    code, captured = _run(
+        ["inbox", "--as", "codex", "--unread", "--direct-only", "--limit", "7", "--json"],
+        capsys,
+    )
+
+    assert code == 0
+    assert json.loads(captured.out) == []
+    assert calls == [("codex", True, True, 7)]
