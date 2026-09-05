@@ -81,6 +81,18 @@ def run_cycle(
             f"Mission cycle requires EXECUTING state, got {mission['status']}"
         )
 
+    previous_cycle = mission.get("last_cycle")
+    if isinstance(previous_cycle, dict) and previous_cycle.get("delegation_state") in {
+        "pending",
+        "unknown",
+    }:
+        return {
+            "outcome": "blocked",
+            "reason": "previous delegation outcome is unresolved; reconcile its receipt before retrying",
+            "delegation_state": previous_cycle["delegation_state"],
+            "task": previous_cycle.get("task"),
+        }
+
     cursors, changed = _changed_observations(mission, observations)
     cycle: dict[str, Any]
     if not changed:
@@ -111,13 +123,36 @@ def run_cycle(
                 "changed": changed,
             }
         else:
-            delegation = delegate(task)
+            cycle["delegation_state"] = "pending"
+            _persist(
+                mission_id, supervisor_id=supervisor_id,
+                supervisor_epoch=supervisor_epoch, cursors=cursors, cycle=cycle,
+                pending_escalation=pending_escalation, db_path=db_path,
+            )
+            try:
+                delegation = delegate(task)
+            except Exception as exc:
+                cycle["outcome"] = "blocked"
+                cycle["reason"] = (
+                    "delegation outcome is unknown; reconcile its receipt before retrying"
+                )
+                cycle["delegation_state"] = "unknown"
+                cycle["delegation_error"] = f"{type(exc).__name__}: {exc}"
+                _persist(
+                    mission_id, supervisor_id=supervisor_id,
+                    supervisor_epoch=supervisor_epoch, cursors=cursors, cycle=cycle,
+                    pending_escalation=pending_escalation, db_path=db_path,
+                )
+                return cycle
             cycle["delegation"] = delegation
             if not isinstance(delegation, dict) or not delegation.get("ok"):
                 cycle["outcome"] = "blocked"
                 cycle["reason"] = (
-                    "delegation did not produce a successful execution receipt"
+                    "delegation did not produce a successful execution receipt; reconcile before retrying"
                 )
+                cycle["delegation_state"] = "unknown"
+            else:
+                cycle["delegation_state"] = "completed"
 
     if decision["outcome"] == "needs_jacob":
         key = decision.get("escalation_key")

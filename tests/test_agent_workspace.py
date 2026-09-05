@@ -814,3 +814,52 @@ def test_worker_report_is_preserved_without_becoming_verified_state(tmp_path):
             "evidence_locator": "worker://scout-2/result-7",
         }
     ]
+
+
+def test_mission_cycle_persists_delegation_before_adapter_and_does_not_repeat_unknown_effect(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    calls = []
+    observation = {
+        "source": "research",
+        "locator": "resource-scout",
+        "digest": "result-v2",
+    }
+
+    def delegate(_task):
+        calls.append("called")
+        persisted = memory_mission.get_mission("life-2", db_path=db_path)
+        assert persisted["source_cursors"]["research|resource-scout"] == "result-v2"
+        assert persisted["last_cycle"]["delegation_state"] == "pending"
+        raise RuntimeError("adapter lost its reply after the effect may have happened")
+    first = context_mission.run_cycle(
+        "life-2",
+        supervisor_id="chad",
+        supervisor_epoch=1,
+        observations=[observation],
+        decide=lambda _context: {
+            "outcome": "advance",
+            "reason": "advance changed research",
+            "task": {"owner": "existing-action", "id": "synthesize-resources"},
+        },
+        delegate=delegate,
+        db_path=db_path,
+    )
+    assert first["outcome"] == "blocked"
+    assert first["delegation_state"] == "unknown"
+    assert len(calls) == 1
+
+    second = context_mission.run_cycle(
+        "life-2",
+        supervisor_id="chad",
+        supervisor_epoch=1,
+        observations=[observation],
+        decide=lambda _context: (_ for _ in ()).throw(AssertionError("decision repeated")),
+        delegate=lambda _task: calls.append("duplicate") or {"ok": True},
+        db_path=db_path,
+    )
+    assert second["outcome"] == "blocked"
+    assert "reconcile" in second["reason"].lower()
+    assert calls == ["called"]
