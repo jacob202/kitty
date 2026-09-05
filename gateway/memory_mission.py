@@ -186,14 +186,20 @@ def set_plan(
     plan_ref = _required_text(plan_ref, "plan_ref")
     plan_digest = _required_text(plan_digest, "plan_digest")
     mission = get_mission(mission_id, db_path=db_path)
+    if mission["status"] == "STOPPED":
+        raise MissionError("stopped Mission cannot receive a new plan")
+    if mission["status"] == "DONE":
+        raise MissionError("completed Mission cannot receive a new plan")
     now = time.time()
     with kitty_db.connect(db_path) as conn:
-        conn.execute(
+        cursor = conn.execute(
             "UPDATE missions SET plan_ref=?, plan_digest=?, plan_review_state='unreviewed', "
             "plan_reviewer_id=NULL, plan_review_evidence_json=NULL, status='PLAN_REVIEW', updated_at=? "
-            "WHERE mission_id=?",
+            "WHERE mission_id=? AND status NOT IN ('STOPPED','DONE')",
             (plan_ref, plan_digest, now, mission_id),
         )
+        if cursor.rowcount != 1:
+            raise MissionError("Mission became stopped or completed before plan update")
         _append_event(
             conn, mission_id=mission_id, event_type="plan_set",
             supervisor_epoch=mission["supervisor"]["epoch"],
@@ -305,16 +311,27 @@ def update_checkpoint(
 ) -> dict[str, Any]:
     if not isinstance(checkpoint, dict):
         raise MissionError("checkpoint must be an object")
+    mission = get_mission(mission_id, db_path=db_path)
+    if mission["status"] == "STOPPED":
+        raise MissionError("stopped Mission rejects checkpoint mutation")
+    if mission["status"] == "DONE":
+        raise MissionError("completed Mission rejects checkpoint mutation")
     init_db(db_path=db_path)
     now = time.time()
     encoded = json.dumps(checkpoint, sort_keys=True)
     with kitty_db.connect(db_path) as conn:
         cursor = conn.execute(
             "UPDATE missions SET checkpoint_json=?, updated_at=? "
-            "WHERE mission_id=? AND supervisor_id=? AND supervisor_epoch=?",
+            "WHERE mission_id=? AND supervisor_id=? AND supervisor_epoch=? "
+            "AND status NOT IN ('STOPPED','DONE')",
             (encoded, now, mission_id, supervisor_id, supervisor_epoch),
         )
         if cursor.rowcount != 1:
+            current = get_mission(mission_id, db_path=db_path)
+            if current["status"] == "STOPPED":
+                raise MissionError("stopped Mission rejects checkpoint mutation")
+            if current["status"] == "DONE":
+                raise MissionError("completed Mission rejects checkpoint mutation")
             raise MissionError("stale supervisor identity or epoch")
         _append_event(
             conn, mission_id=mission_id, event_type="checkpoint_updated",
@@ -343,12 +360,16 @@ def record_cycle(
 ) -> dict[str, Any]:
     if not isinstance(source_cursors, dict) or not isinstance(cycle, dict):
         raise MissionError("cycle state must be structured objects")
+    mission = get_mission(mission_id, db_path=db_path)
+    if mission["status"] != "EXECUTING":
+        raise MissionError(f"Mission cycle requires EXECUTING state, got {mission['status']}")
     now = time.time()
     with kitty_db.connect(db_path) as conn:
         cursor = conn.execute(
             "UPDATE missions SET source_cursors_json=?, last_cycle_json=?, "
             "pending_escalation_json=?, updated_at=? "
-            "WHERE mission_id=? AND supervisor_id=? AND supervisor_epoch=?",
+            "WHERE mission_id=? AND supervisor_id=? AND supervisor_epoch=? "
+            "AND status='EXECUTING'",
             (
                 json.dumps(source_cursors, sort_keys=True),
                 json.dumps(cycle, sort_keys=True),
@@ -373,15 +394,21 @@ def record_candidate(
     candidate_ref = _required_text(candidate_ref, "candidate_ref")
     candidate_digest = _required_text(candidate_digest, "candidate_digest")
     mission = get_mission(mission_id, db_path=db_path)
+    if mission["status"] == "STOPPED":
+        raise MissionError("stopped Mission cannot receive a candidate")
+    if mission["status"] == "DONE":
+        raise MissionError("completed Mission cannot receive a candidate")
     now = time.time()
     with kitty_db.connect(db_path) as conn:
-        conn.execute(
+        cursor = conn.execute(
             "UPDATE missions SET candidate_ref=?, candidate_digest=?, "
             "acceptance_state='unreviewed', acceptance_reviewer_id=NULL, "
             "acceptance_evidence_json=NULL, status='VERIFYING', updated_at=? "
-            "WHERE mission_id=?",
+            "WHERE mission_id=? AND status NOT IN ('STOPPED','DONE')",
             (candidate_ref, candidate_digest, now, mission_id),
         )
+        if cursor.rowcount != 1:
+            raise MissionError("Mission became stopped or completed before candidate update")
         _append_event(
             conn, mission_id=mission_id, event_type="candidate_recorded",
             supervisor_epoch=mission["supervisor"]["epoch"],

@@ -1053,3 +1053,43 @@ def test_plan_reviewer_cannot_become_supervisor_and_resume_same_plan(tmp_path):
     with pytest.raises(memory_mission.MissionError, match="independent"):
         memory_mission.resume_mission("life-2", db_path=db_path)
     assert memory_mission.get_mission("life-2", db_path=db_path)["status"] == "PAUSED"
+
+
+def test_stopped_mission_rejects_plan_candidate_checkpoint_and_cycle_mutations(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="stopped-boundary", objective="x", definition_of_done=["x"],
+        supervisor_id="chad", db_path=db_path,
+    )
+    memory_mission.stop_mission("stopped-boundary", reason="stop", db_path=db_path)
+
+    with pytest.raises(memory_mission.MissionError, match="stopped"):
+        memory_mission.set_plan(
+            "stopped-boundary", plan_ref="plan://later", plan_digest="1" * 64,
+            db_path=db_path,
+        )
+    with pytest.raises(memory_mission.MissionError, match="stopped"):
+        memory_mission.record_candidate(
+            "stopped-boundary", candidate_ref="candidate://later",
+            candidate_digest="2" * 64, db_path=db_path,
+        )
+    with pytest.raises(memory_mission.MissionError, match="stopped"):
+        memory_mission.update_checkpoint(
+            "stopped-boundary", supervisor_id="chad", supervisor_epoch=1,
+            checkpoint={"late": True}, db_path=db_path,
+        )
+    with pytest.raises(memory_mission.MissionError, match="EXECUTING"):
+        memory_mission.record_cycle(
+            "stopped-boundary", supervisor_id="chad", supervisor_epoch=1,
+            source_cursors={"source|locator": "digest"},
+            cycle={"outcome": "no_change"}, db_path=db_path,
+        )
+
+    current = memory_mission.get_mission("stopped-boundary", db_path=db_path)
+    assert current["status"] == "STOPPED"
+    assert current["plan"]["digest"] is None
+    assert current["candidate"]["digest"] is None
+    assert current["checkpoint"] == {}
+    assert current["last_cycle"] is None
