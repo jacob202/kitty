@@ -62,6 +62,20 @@ def test_status_reports_authority_build_and_ownership_truth() -> None:
     assert "external" in SCRIPT
 
 
+def test_status_consumes_the_doctor_runtime_provenance_probe() -> None:
+    block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
+    assert "runtime_provenance_status_line" in block
+    assert "check_ui_freshness" not in block
+    assert 'gateway/kitty-chat/.next/BUILD_ID' not in block
+
+
+def test_status_runtime_probe_falls_back_when_worktree_venv_is_missing() -> None:
+    block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
+    assert 'runtime_python="$PYTHON_BIN"' in block
+    assert "command -v python3" in block
+    assert '"$runtime_python" -c' in block
+
+
 def test_status_reports_machine_supervisor_mode() -> None:
     block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
     assert "supervisor" in block
@@ -80,7 +94,7 @@ def test_ui_paths_share_the_canonical_start_ui_bootstrap() -> None:
 
 
 def test_startup_identity_uses_exact_source_sha() -> None:
-    block = SCRIPT.split("startup_identity() {", 1)[1].split("\n}\n\ncheck_ui_freshness", 1)[0]
+    block = SCRIPT.split("startup_identity() {", 1)[1].split("\n}\n\ncmd_up", 1)[0]
     assert "rev-parse HEAD" in block
     assert "--short HEAD" not in block
 

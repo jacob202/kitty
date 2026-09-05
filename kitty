@@ -285,24 +285,6 @@ startup_identity() {
     "$label" "$pid" "$port" "$KITTY_ROOT" "$sha" "${build_id:-none}"
 }
 
-check_ui_freshness() {
-  local ui_dir="$KITTY_ROOT/gateway/kitty-chat"
-  local stamp="$ui_dir/.next/BUILD_ID"
-  if [[ ! -f "$stamp" ]]; then
-    return 1  # no build exists
-  fi
-  local input
-  for input in src public package.json package-lock.json tsconfig.json next.config.js next.config.mjs next.config.ts; do
-    if [[ -e "$ui_dir/$input" ]]; then
-      if [[ "$ui_dir/$input" -nt "$stamp" ]]; then
-        echo "  UI        WARNING: $input is newer than last build ($stamp)" >&2
-        return 1
-      fi
-    fi
-  done
-  return 0
-}
-
 cmd_up() {
   local success=0
   echo ""
@@ -513,6 +495,7 @@ cmd_status() {
     return $?
   fi
   local sha authority_sha authority_relation dirty_state branch build_id build_source supervisor_mode svc_probe
+  local runtime_probe runtime_python ui_build_state gateway_probe_level gateway_probe_detail
   sha="$(git -C "$KITTY_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")"
   branch="$(git -C "$KITTY_ROOT" branch --show-current 2>/dev/null || true)"
   authority_sha="$(git -C "$KITTY_ROOT" rev-parse refs/remotes/origin/main 2>/dev/null || echo "unknown")"
@@ -530,10 +513,22 @@ cmd_status() {
   fi
   dirty_state="clean"
   [[ -n "$(git -C "$KITTY_ROOT" status --porcelain 2>/dev/null)" ]] && dirty_state="dirty"
-  build_id=""
-  build_source=""
-  [[ -f "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID" ]] && build_id="$(cat "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID")"
-  [[ -f "$KITTY_ROOT/gateway/kitty-chat/.next/KITTY_SOURCE_SHA" ]] && build_source="$(cat "$KITTY_ROOT/gateway/kitty-chat/.next/KITTY_SOURCE_SHA")"
+  build_id="unknown"
+  build_source="unknown"
+  runtime_python="$PYTHON_BIN"
+  if [[ ! -x "$runtime_python" ]]; then
+    runtime_python="$(command -v python3 || true)"
+  fi
+  runtime_probe="$(
+    "$runtime_python" -c 'from gateway.doctor import runtime_provenance_status_line; print(runtime_provenance_status_line())' \
+      2>/dev/null || true
+  )"
+  ui_build_state="unknown"
+  gateway_probe_level="WARN"
+  gateway_probe_detail="runtime provenance probe unavailable"
+  if [[ -n "$runtime_probe" ]]; then
+    IFS='|' read -r build_id ui_build_state build_source gateway_probe_level gateway_probe_detail <<< "$runtime_probe"
+  fi
   supervisor_mode="manual"
   if launchd_configured; then
     supervisor_mode="launchd-configured-stopped"
@@ -555,7 +550,8 @@ cmd_status() {
   echo "  supervisor   $supervisor_mode (com.kitty.desktop.*)"
   echo "  build id     ${build_id:-none}"
   echo "  build source ${build_source:-unknown}"
-  check_ui_freshness 2>/dev/null && echo "  build freshness checkout-current" || echo "  build freshness stale"
+  echo "  build freshness ${ui_build_state:-unknown}"
+  echo "  gateway truth ${gateway_probe_level:-WARN}: ${gateway_probe_detail:-runtime provenance probe unavailable}"
 
   echo
   local svc pidfile pid launch_pid port found_pid cwd role
