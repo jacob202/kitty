@@ -20,10 +20,16 @@ remains the single authority.
 
 from __future__ import annotations
 
+import json
 import re
+import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Iterator
 
+from gateway import agent_coordination, llm_client
+from gateway.builder_scope import normalize_allowed_paths
+from gateway.prompts import BUILDER_PROPOSAL_PROMPT
 from mcp.builder import commands as _commands
 from mcp.builder import context as _context
 from mcp.builder import repo_tools
@@ -34,6 +40,108 @@ _DEFAULT_PACKET_ID = "packet-1"
 _DEFAULT_ACCEPTANCE_CRITERIA = (
     "Implementation matches the approved objective and instructions.",
 )
+
+_PROPOSAL_MODEL = "kitty-small"
+_PROPOSAL_SYSTEM_PROMPT = BUILDER_PROPOSAL_PROMPT + """
+
+Compiler endpoint rules:
+- Return ONLY the JSON object described above, without the offer sentence or markdown fence.
+- Do not execute anything or claim work is queued, running, or complete.
+- Keep allowed_paths as narrow repo-relative paths; unsafe scope is rejected server-side.
+"""
+
+
+def _proposal_json(text: str) -> dict[str, Any]:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        first_newline = stripped.find("\n")
+        last_fence = stripped.rfind("```")
+        if first_newline >= 0 and last_fence > first_newline:
+            stripped = stripped[first_newline + 1:last_fence].strip()
+    if not stripped.startswith("{"):
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start >= 0 and end > start:
+            stripped = stripped[start:end + 1]
+    payload = json.loads(stripped)
+    if not isinstance(payload, dict):
+        raise ValueError("proposal compiler did not return a JSON object")
+    return payload
+
+
+def compile_request(request: str, *, allow_provider_fallback: bool = False) -> dict[str, Any]:
+    """Compile plain language into a bounded Builder task without chat context.
+
+    This intentionally bypasses the personal chat context assembler. It uses the
+    existing LLM provider hub only for task shaping; no planning artifact, queue
+    row, approval, or worker is created here.
+    """
+    if not isinstance(request, str) or not request.strip():
+        return {
+            "ok": False,
+            "error_code": "request_required",
+            "error": "Describe the result you want Builder to produce.",
+        }
+
+    messages = [
+        {"role": "system", "content": _PROPOSAL_SYSTEM_PROMPT},
+        {"role": "user", "content": request.strip()},
+    ]
+    try:
+        text = llm_client.call_llm(
+            messages,
+            model=_PROPOSAL_MODEL,
+            max_tokens=900,
+            temperature=0,
+            timeout=60,
+            operation="builder.proposal.compile",
+            metadata={"route": "builder_proposal_compile", "request_scoped_provider_fallback": allow_provider_fallback},
+            allow_provider_fallback=allow_provider_fallback,
+        )
+        raw = _proposal_json(text)
+    except Exception:
+        return {
+            "ok": False,
+            "error_code": "proposal_compile_failed",
+            "error": "Kitty could not prepare the proposal right now — no model provider is available. Try again in a moment.",
+        }
+
+    objective = raw.get("objective")
+    if not isinstance(objective, str) or not objective.strip():
+        return {"ok": False, "error_code": "proposal_invalid", "error": "Kitty could not produce a usable objective. Make the requested outcome more concrete, then try again."}
+    try:
+        allowed_paths = normalize_allowed_paths(raw.get("allowed_paths"))
+    except ValueError:
+        return {
+            "ok": False,
+            "error_code": "proposal_scope_invalid",
+            "error": "Kitty could not determine a safe file scope. Narrow the request to one concrete file or area, then try again.",
+        }
+
+    task: dict[str, Any] = {
+        "objective": objective.strip(),
+        "instructions": request.strip(),
+        "allowed_paths": allowed_paths,
+    }
+    for key in ("title", "initiative_id"):
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            task[key] = value.strip()
+    for key in ("acceptance_criteria", "validation_commands"):
+        value = raw.get(key)
+        if value is not None:
+            if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
+                return {"ok": False, "error_code": "proposal_invalid", "error": f"Compiled proposal has invalid {key}."}
+            task[key] = [item.strip() for item in value]
+
+    return {
+        "ok": True,
+        "task": task,
+        "routing": {
+            "mode": "request_scoped_fallback" if allow_provider_fallback else "saved_provider_preference",
+            "saved_preference_changed": False,
+        },
+    }
 
 
 def _slugify(text: str, *, max_len: int = 40) -> str:
@@ -114,6 +222,64 @@ def _plan_markdown(manifest: dict[str, Any], *, instructions: str) -> str:
     )
 
 
+@contextmanager
+def _planning_artifact_claim(
+    *,
+    slug: str,
+    base_sha: str,
+    task_id: str,
+) -> Iterator[str | None]:
+    """Own Builder's internal planning writes without widening user code scope."""
+    root = repo_tools.repo_root()
+    registry_path = root / "coordination" / "resources.yaml"
+    if not registry_path.exists():
+        # Minimal test repos and legacy deployments without KX do not need a
+        # synthetic claim. Their own Git hooks remain authoritative.
+        yield None
+        return
+
+    paths = [
+        repo_tools.planning_artifact_path("design", slug),
+        repo_tools.planning_artifact_path("plan", slug),
+    ]
+    resources = agent_coordination.resolve_paths_to_resources(
+        paths, registry_path=registry_path
+    )
+    if len(resources) != 1:
+        raise repo_tools.PlanningArtifactError(
+            "planning artifacts must resolve to exactly one coordination resource"
+        )
+
+    session_id = f"kitty-builder-planning-{uuid.uuid4().hex}"
+    db_path = agent_coordination.canonical_repo_root(root) / agent_coordination.DB_FILENAME
+    acquired = agent_coordination.acquire(
+        session_id=session_id,
+        participant="KittyBuilder",
+        role="OWN",
+        resource_id=resources[0],
+        lane="conversation-planning",
+        task_id=task_id,
+        branch=None,
+        worktree=str(root),
+        base_sha=base_sha,
+        paths=paths,
+        lease_seconds=5 * 60,
+        db_path=db_path,
+        registry_path=registry_path,
+    )
+    if acquired.get("status") != "ACQUIRED":
+        holder = acquired.get("holder") or {}
+        detail = holder.get("session_id") or "another active owner"
+        raise repo_tools.PlanningArtifactError(
+            f"planning artifacts are locked by {detail}"
+        )
+
+    try:
+        yield session_id
+    finally:
+        agent_coordination.release(session_id, db_path=db_path)
+
+
 def propose(
     *,
     objective: str,
@@ -168,23 +334,28 @@ def propose(
 
     slug = _slugify(manifest["initiative_id"])
     try:
-        design = repo_tools.write_planning_artifact(
-            kind="design",
-            slug=slug,
-            markdown=_design_markdown(manifest, objective=objective, instructions=instructions),
-            expected_base_sha=base_sha,
-        )
-        plan = repo_tools.write_planning_artifact(
-            kind="plan",
-            slug=slug,
-            markdown=_plan_markdown(manifest, instructions=instructions),
-            # A plan branches from the design commit itself, per
-            # docs/KITTYBUILDER_MCP.md ("expected_base_sha is the commit the
-            # plan branch starts from; in the normal workflow it is the
-            # design commit itself").
-            expected_base_sha=design["commit_sha"],
-            expected_dependency_sha=design["commit_sha"],
-        )
+        with _planning_artifact_claim(
+            slug=slug, base_sha=base_sha, task_id=manifest["initiative_id"]
+        ) as planning_session_id:
+            design = repo_tools.write_planning_artifact(
+                kind="design",
+                slug=slug,
+                markdown=_design_markdown(manifest, objective=objective, instructions=instructions),
+                expected_base_sha=base_sha,
+                agent_session_id=planning_session_id,
+            )
+            plan = repo_tools.write_planning_artifact(
+                kind="plan",
+                slug=slug,
+                markdown=_plan_markdown(manifest, instructions=instructions),
+                # A plan branches from the design commit itself, per
+                # docs/KITTYBUILDER_MCP.md ("expected_base_sha is the commit the
+                # plan branch starts from; in the normal workflow it is the
+                # design commit itself").
+                expected_base_sha=design["commit_sha"],
+                expected_dependency_sha=design["commit_sha"],
+                agent_session_id=planning_session_id,
+            )
     except Exception as exc:
         return receipt(
             "conversation_propose",

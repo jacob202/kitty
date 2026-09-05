@@ -95,6 +95,7 @@ import {
   // builder control
   executeOperatorCommand,
   // conversation -> builder job handoff
+  compileBuilderProposal,
   proposeBuilderJob,
   approveBuilderJob,
   resumeBuilderJob,
@@ -901,6 +902,11 @@ export function useOperatorCommand() {
       queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
     },
   })
+}
+
+// Conversation -> Builder job handoff: compilation only shapes a bounded task.
+export function useCompileBuilderProposal() {
+  return useMutation({ mutationFn: compileBuilderProposal })
 }
 
 // Conversation -> Builder job handoff: propose does not touch Builder queue

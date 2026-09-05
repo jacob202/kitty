@@ -18,8 +18,10 @@ Public API:
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
+from pathlib import Path
 from typing import Any
 
 from gateway import db as kitty_db
@@ -64,8 +66,19 @@ class ProjectDeletionDisabledError(ProjectError):
     """Hard deletion is unavailable until project relationship integrity is complete."""
 
 
+def _using_explicit_isolated_data_root() -> bool:
+    raw = os.environ.get("KITTY_DATA_ROOT", "").strip()
+    if not raw:
+        return False
+    configured = Path(raw).expanduser().resolve()
+    canonical = (PROJECT_ROOT / "data").resolve()
+    return configured != canonical
+
+
 def init_db() -> None:
     kitty_db.migrate(db_file=PROJECTS_DB_FILE)
+    if _using_explicit_isolated_data_root():
+        return
     _seed_kitty_project_once()
     _seed_benefits_project_once()
 

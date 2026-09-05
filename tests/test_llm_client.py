@@ -305,6 +305,45 @@ def test_call_llm_falls_back_on_litellm_error():
     assert result == "Fallback response"
 
 
+def test_call_llm_explicit_provider_pin_still_fails_closed():
+    from gateway.llm_client import ProviderChainExhausted, call_llm
+
+    with (
+        patch("gateway.llm_client.selected_provider_name", return_value="openrouter"),
+        patch("gateway.llm_client.call_selected_provider", side_effect=ProviderChainExhausted(["selected provider 'openrouter' returned no response"])),
+        patch("gateway.llm_client._post") as auto_post,
+        pytest.raises(ProviderChainExhausted),
+    ):
+        call_llm([{"role": "user", "content": "hello"}], model="kitty-small")
+
+    auto_post.assert_not_called()
+
+
+def test_call_llm_request_scoped_fallback_can_recover_without_changing_pin():
+    from gateway.llm_client import ProviderChainExhausted, call_llm
+
+    fake_response = MagicMock()
+    fake_response.raise_for_status.return_value = None
+    fake_response.json.return_value = {
+        "choices": [{"message": {"role": "assistant", "content": "alternate route"}}],
+        "model": "kitty-small",
+    }
+    with (
+        patch("gateway.llm_client.selected_provider_name", return_value="openrouter"),
+        patch("gateway.llm_client.call_selected_provider", side_effect=ProviderChainExhausted(["selected provider 'openrouter' returned no response"])),
+        patch("gateway.llm_client._post", return_value=fake_response) as auto_post,
+        patch("gateway.llm_client.log_llm_usage"),
+    ):
+        result = call_llm(
+            [{"role": "user", "content": "hello"}],
+            model="kitty-small",
+            allow_provider_fallback=True,
+        )
+
+    assert result == "alternate route"
+    auto_post.assert_called_once()
+
+
 # ── chat_completions_non_stream ───────────────────────────────────────────────
 
 
@@ -470,6 +509,50 @@ def test_call_provider_exception_returns_empty():
         )
 
     assert result == ""
+
+
+def test_call_provider_ollama_native_disables_thinking():
+    """An Ollama-native local endpoint uses deterministic non-thinking chat."""
+    from gateway.llm_client import ProviderConfig, _call_provider
+
+    provider = ProviderConfig(
+        name="local",
+        route="local_ollama",
+        base_url="http://127.0.0.1:11434/api",
+        model_default="qwen3.5:4b",
+        requires_key=False,
+        kind="local",
+        free_tier=True,
+    )
+    mock_resp = MagicMock()
+    mock_resp.is_success = True
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "model": "qwen3.5:4b",
+        "message": {"role": "assistant", "content": '{"ok":true}'},
+        "prompt_eval_count": 10,
+        "eval_count": 5,
+    }
+
+    with (
+        patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client._post", return_value=mock_resp) as mock_post,
+        patch("gateway.llm_client.log_llm_usage"),
+    ):
+        result = _call_provider(
+            provider,
+            messages=[{"role": "user", "content": "compile"}],
+            max_tokens=300,
+            temperature=0,
+            timeout=45,
+        )
+
+    assert result == '{"ok":true}'
+    call = mock_post.call_args
+    assert call.args[0] == "http://127.0.0.1:11434/api/chat"
+    assert call.kwargs["json"]["think"] is False
+    assert call.kwargs["json"]["stream"] is False
+    assert call.kwargs["json"]["options"] == {"temperature": 0, "num_predict": 300}
 
 
 def test_call_provider_success_path_with_response_format():

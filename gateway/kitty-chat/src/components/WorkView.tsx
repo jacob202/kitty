@@ -2,6 +2,8 @@
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { BuilderProposalCard, type BuilderProposalTask } from '@/components/builder/BuilderProposalCard'
+import { useCompileBuilderProposal } from '@/lib/queries'
 import {
   useBuilderAction,
   usePreflight,
@@ -70,6 +72,7 @@ export default function WorkView({
             </div>
           </div>
           {sourceReason && <DegradedSourceNotice reason={sourceReason} />}
+          <WorkBuilderRequest />
           {supervisor.data
             ? <BuilderRunBanner supervisor={supervisor.data} supervisorKnown={supervisorKnown} />
             : <BuilderRunBanner supervisor={{ schema_version: 1, running: false, active_runs: [], eligible_now: 0, on_hold: 0, last_tick_at: null, lock_path: null, scheduler_enabled: null }} supervisorKnown={false} />
@@ -118,6 +121,98 @@ export default function WorkView({
         )}
       </div>
     </div>
+  )
+}
+
+function WorkBuilderRequest() {
+  const [request, setRequest] = useState('')
+  const [proposal, setProposal] = useState<BuilderProposalTask | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [preparing, setPreparing] = useState(false)
+  const [proposalKey, setProposalKey] = useState(0)
+  const compileProposal = useCompileBuilderProposal()
+
+  const prepare = async (allowProviderFallback = false) => {
+    const trimmed = request.trim()
+    if (!trimmed || preparing) return
+    setPreparing(true)
+    setError(null)
+    setProposal(null)
+    try {
+      const result = await compileProposal.mutateAsync({
+        request: trimmed,
+        ...(allowProviderFallback ? { allow_provider_fallback: true } : {}),
+      })
+      if (!result.ok || !result.task) {
+        setError(result.error || 'Kitty could not turn that request into a bounded Builder proposal. Add one concrete outcome or affected area, then try again.')
+        return
+      }
+      setProposalKey(value => value + 1)
+      setProposal(result.task)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      setError(
+        !message || /failed to fetch|networkerror|load failed/i.test(message)
+          ? 'Could not reach the Kitty gateway — check that it is running, then try again.'
+          : 'Kitty could not prepare the proposal right now — no model provider is available. Try again in a moment.',
+      )
+    } finally {
+      setPreparing(false)
+    }
+  }
+
+  return (
+    <section aria-label="Ask Builder" style={builderRequestStyle}>
+      <div style={{ display: 'grid', gap: 4 }}>
+        <strong style={{ color: 'var(--color-text-primary)' }}>Ask Builder</strong>
+        <span style={actionNoteStyle}>Describe the result you want. Kitty will prepare a bounded proposal before anything is created or run.</span>
+      </div>
+      <textarea
+        aria-label="Ask Builder for work"
+        value={request}
+        onChange={event => setRequest(event.target.value)}
+        placeholder="What should Builder change or fix?"
+        rows={3}
+        style={builderRequestInputStyle}
+      />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => void prepare(false)}
+          disabled={preparing || !request.trim()}
+          style={{ ...primaryActionStyle, opacity: preparing || !request.trim() ? 0.55 : 1 }}
+          aria-label={error ? 'Try preparing again' : 'Prepare Builder proposal'}
+        >
+          {preparing ? 'Preparing…' : error ? 'Try same route again' : 'Prepare proposal'}
+        </button>
+        {error && (
+          <button
+            type="button"
+            onClick={() => void prepare(true)}
+            disabled={preparing || !request.trim()}
+            style={{ ...secondaryActionStyle, opacity: preparing || !request.trim() ? 0.55 : 1 }}
+          >
+            Try another available model
+          </button>
+        )}
+        <span style={metaStyle}>
+          Proposal preparation uses Kitty's current model routing; execution route and spend are shown by Builder before execution.
+        </span>
+      </div>
+      {error && (
+        <div role="alert" style={preflightErrorStyle}>
+          {error} Your request is still here. Trying another available model applies only to this proposal and does not change your saved provider preference.
+        </div>
+      )}
+      {proposal && (
+        <BuilderProposalCard
+          key={proposalKey}
+          task={proposal}
+          chatId="work-builder-request"
+          messageIndex={proposalKey}
+        />
+      )}
+    </section>
   )
 }
 
@@ -225,6 +320,9 @@ function approvalLabel(item: GatewayWorkItem): string | null {
   return typeof state === 'string' ? `approval ${state}` : null
 }
 
+const builderRequestStyle: CSSProperties = { display: 'grid', gap: 10, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-surface)', background: 'var(--color-surface)', padding: '14px 16px' }
+const builderRequestInputStyle: CSSProperties = { width: '100%', resize: 'vertical', minHeight: 76, boxSizing: 'border-box', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', background: 'var(--color-surface-elevated)', color: 'var(--color-text-primary)', padding: '10px 12px', fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.45 }
+
 const workCanvasStyle: CSSProperties = { width: '100%', maxWidth: 1120, margin: '0 auto', display: 'grid', gap: 20, alignContent: 'start' }
 const workHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }
 const workHeaderActionsStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }
@@ -306,7 +404,7 @@ export function rowAction(item: GatewayWorkItem, builderRunning: boolean, schedu
 }
 
 const START_BUILDER_CONFIRM =
-  'Run ready work now? This starts one global Builder pass and may start up to two free Builder runs.'
+  'Run ready work now? This starts one global Builder pass and may start up to two Builder runs. Execution routes and any spend remain subject to current Builder routing and spend policy.'
 
 function canCancel(item: GatewayWorkItem): boolean {
   const terminal = item.next_action === 'cancelled' || item.next_action === 'done' || item.state === 'completed'
@@ -532,6 +630,7 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
   const review = evidenceRecord(evidence.review)
   const validation = evidenceRecord(evidence.validation)
   const publication = evidenceRecord(evidence.publication)
+  const execution = evidenceRecord(evidence.execution)
   const reviewVerdict = evidenceScalar(review?.verdict)
   const reviewSummary = boundedEvidenceText(review?.summary)
   const validationStatus = evidenceScalar(validation?.status)
@@ -540,6 +639,14 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
   const publicationChecks = evidenceScalar(publication?.checks_state)
   const publicationMerged = typeof publication?.merged === 'boolean' ? publication.merged : null
   const publicationMergedAt = evidenceDate(publication?.merged_at)
+  const executionState = evidenceScalar(execution?.state)
+  const executionProvider = evidenceScalar(execution?.provider)
+  const executionModel = evidenceScalar(execution?.model)
+  const executionRoute = evidenceScalar(execution?.route)
+  const executionRetries = evidenceScalar(execution?.retries)
+  const executionCost = typeof execution?.estimated_usage_cad === 'number' ? execution.estimated_usage_cad : null
+  const executionCostBasis = boundedEvidenceText(execution?.cost_basis)
+  const executionReason = boundedEvidenceText(execution?.reason)
 
   return (
     <>
@@ -551,6 +658,14 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
       {publicationChecks && <div>publication checks {publicationChecks}</div>}
       {publicationMerged !== null && <div>publication {publicationMerged ? 'merged' : 'not merged'}</div>}
       {publicationMerged === true && publicationMergedAt && <div>merged {publicationMergedAt}</div>}
+      {execution && <div>execution {executionState ?? 'recorded'}</div>}
+      {executionProvider && <div>provider {executionProvider}</div>}
+      {executionModel && <div>model {executionModel}</div>}
+      {executionRoute && <div>route {executionRoute}</div>}
+      {executionRetries !== null && <div>retries {executionRetries}</div>}
+      {executionCost !== null && <div>estimated spend CAD {executionCost.toFixed(4)}</div>}
+      {executionCostBasis && <div>{executionCostBasis}</div>}
+      {executionReason && <div>{executionReason}</div>}
     </>
   )
 }
@@ -560,5 +675,7 @@ function evidenceLabels(item: GatewayWorkItem): string[] {
   if (item.evidence.review) labels.push('Review evidence available')
   if (item.evidence.publication) labels.push('Publication evidence available')
   if (item.evidence.validation) labels.push('Validation evidence available')
+  const execution = evidenceRecord(item.evidence.execution)
+  if (execution?.state === 'settled') labels.push('Execution receipt available')
   return labels
 }

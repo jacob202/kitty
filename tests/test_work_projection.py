@@ -113,6 +113,68 @@ def test_projection_marks_partial_integrity_as_degraded_and_reports_bounded_bloc
     assert payload["items"][0]["data_quality"]["state"] == "partial"
 
 
+def test_completed_packet_projects_existing_compute_governor_execution_receipt(monkeypatch, tmp_path):
+    from gateway import _work_projection_item as item_projection
+
+    packet = _base_packet("p-receipt", task_state="done", next_action="done")
+    packet["base_sha"] = "abc123"
+    receipt_db = tmp_path / "receipts.db"
+    receipt_db.touch()
+    monkeypatch.setattr(item_projection, "COMPUTE_GOVERNOR_DB", receipt_db)
+    seen = {}
+
+    def fake_receipt(db_path, *, task_type, subject_ref, head_sha):
+        seen.update(task_type=task_type, subject_ref=subject_ref, head_sha=head_sha)
+        return {
+            "route": "cheap",
+            "model": "openrouter/deepseek/deepseek-v4-flash",
+            "provider": "openrouter",
+            "outcome": "settled",
+            "retries": 1,
+            "estimated_usage_cad": 0.0184,
+            "created_at": "2026-08-13T12:01:00+00:00",
+        }
+
+    monkeypatch.setattr(item_projection.cg, "find_settled_receipt", fake_receipt)
+    payload = project_work_snapshot(
+        _snapshot_for(packet, initiative_state="completed"), now=NOW
+    )
+
+    receipt = payload["items"][0]["evidence"]["execution"]
+    assert receipt == {
+        "state": "settled",
+        "route": "cheap",
+        "provider": "openrouter",
+        "model": "openrouter/deepseek/deepseek-v4-flash",
+        "retries": 1,
+        "estimated_usage_cad": 0.0184,
+        "cost_basis": "Kitty local estimate — not a provider invoice",
+        "recorded_at": "2026-08-13T12:01:00+00:00",
+    }
+    assert seen == {
+        "task_type": "implement",
+        "subject_ref": "init-1/p-receipt",
+        "head_sha": "abc123",
+    }
+
+
+def test_packet_without_settled_receipt_does_not_invent_execution_evidence(monkeypatch, tmp_path):
+    from gateway import _work_projection_item as item_projection
+
+    packet = _base_packet("p-no-receipt", task_state="done", next_action="done")
+    packet["base_sha"] = "def456"
+    receipt_db = tmp_path / "receipts.db"
+    receipt_db.touch()
+    monkeypatch.setattr(item_projection, "COMPUTE_GOVERNOR_DB", receipt_db)
+    monkeypatch.setattr(item_projection.cg, "find_settled_receipt", lambda *args, **kwargs: None)
+
+    payload = project_work_snapshot(
+        _snapshot_for(packet, initiative_state="completed"), now=NOW
+    )
+
+    assert payload["items"][0]["evidence"]["execution"] is None
+
+
 def test_projection_preserves_observation_window_and_counts():
     packet = _base_packet("p1", eligibility_state="eligible", next_action="claim")
     payload = project_work_snapshot(_snapshot_for(packet, next_packet="p1"), now=NOW)

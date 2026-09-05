@@ -87,6 +87,29 @@ describe('BuilderProposalCard', () => {
     expect(gateway.proposeBuilderJob).not.toHaveBeenCalled()
   })
 
+  it('edits the proposal before compiling the Mission', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit proposal' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Proposal objective' }), { target: { value: 'Fix only the retry cap' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Proposal instructions' }), { target: { value: 'Change only the retry cap and preserve all other behavior.' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Proposal allowed paths' }), { target: { value: 'gateway/retry.py\ntests/test_retry.py' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save proposal changes' }))
+
+    expect(screen.getAllByText(/Fix only the retry cap/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    await waitFor(() => expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce())
+    expect(gateway.proposeBuilderJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objective: 'Fix only the retry cap',
+        instructions: 'Change only the retry cap and preserve all other behavior.',
+        allowed_paths: ['gateway/retry.py', 'tests/test_retry.py'],
+      }),
+      expect.anything(),
+    )
+  })
+
   it('compiles the task, then requires a confirm step before approving', async () => {
     vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
     vi.mocked(gateway.approveBuilderJob).mockResolvedValue({
@@ -110,6 +133,8 @@ describe('BuilderProposalCard', () => {
 
     const approveButton = await screen.findByText('Approve')
     fireEvent.click(approveButton)
+    expect(screen.getByText(/execution route under current policy/i)).toBeInTheDocument()
+    expect(screen.queryByText(/free worker/i)).not.toBeInTheDocument()
 
     // Clicking Approve must not itself create the job — it only opens the
     // confirm step; the mutation fires on the explicit Confirm click.

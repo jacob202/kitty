@@ -21,6 +21,7 @@ REQUIRED_RESOURCES = {
     "builder:queue-reconciliation",
     "runtime:provenance",
     "ui:action-grammar",
+    "docs:planning-artifacts",
     "docs:roadmap",
     "evaluation:project-sources",
     "memory:continuity",
@@ -354,6 +355,77 @@ def test_store_is_wal_and_mutex_is_a_partial_unique_index(store: tuple[Path, Pat
     assert "role in ('own','integrate')" in normalized.replace(" ", "") or "rolein('own','integrate')" in normalized.replace(" ", "")
 
 
+def test_registry_excludes_planning_artifacts_from_broad_docs_resource(tmp_path: Path) -> None:
+    registry_path = tmp_path / "resources.yaml"
+    registry_path.write_text(
+        """resources:
+  docs:planning-artifacts:
+    paths:
+      - docs/superpowers/plans/**
+      - docs/superpowers/specs/**
+  docs:roadmap:
+    paths:
+      - docs/**
+    exclude_paths:
+      - docs/superpowers/plans/**
+      - docs/superpowers/specs/**
+""",
+        encoding="utf-8",
+    )
+
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/superpowers/plans/2026-09-04-conv-proof.md"], registry_path=registry_path
+    ) == ["docs:planning-artifacts"]
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/superpowers/specs/2026-09-04-conv-proof-design.md"], registry_path=registry_path
+    ) == ["docs:planning-artifacts"]
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/reference/MULTI_AGENT_COORDINATION.md"], registry_path=registry_path
+    ) == ["docs:roadmap"]
+
+
+def test_registry_exclusion_is_path_local_for_multi_path_resolution(tmp_path: Path) -> None:
+    registry_path = tmp_path / "resources.yaml"
+    registry_path.write_text(
+        """resources:
+  docs:planning-artifacts:
+    paths:
+      - docs/superpowers/plans/**
+      - docs/superpowers/specs/**
+  docs:roadmap:
+    paths:
+      - docs/**
+    exclude_paths:
+      - docs/superpowers/plans/**
+      - docs/superpowers/specs/**
+""",
+        encoding="utf-8",
+    )
+
+    assert agent_coordination.resolve_paths_to_resources(
+        [
+            "docs/ROADMAP.md",
+            "docs/superpowers/plans/2026-09-04-conv-proof.md",
+        ],
+        registry_path=registry_path,
+    ) == ["docs:planning-artifacts", "docs:roadmap"]
+
+
+def test_tracked_registry_splits_planning_artifacts_from_roadmap() -> None:
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/superpowers/plans/2026-09-04-conv-proof.md"],
+        registry_path=TRACKED_REGISTRY,
+    ) == ["docs:planning-artifacts"]
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/superpowers/specs/2026-09-04-conv-proof-design.md"],
+        registry_path=TRACKED_REGISTRY,
+    ) == ["docs:planning-artifacts"]
+    assert agent_coordination.resolve_paths_to_resources(
+        ["docs/reference/MULTI_AGENT_COORDINATION.md"],
+        registry_path=TRACKED_REGISTRY,
+    ) == ["docs:roadmap"]
+
+
 def test_registry_seed_is_exact_deterministic_and_points_at_real_tree() -> None:
     data = yaml.safe_load(TRACKED_REGISTRY.read_text(encoding="utf-8"))
     assert set(data["resources"]) == REQUIRED_RESOURCES
@@ -444,23 +516,45 @@ def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
         "coordination/resources.yaml",
         "kitty",
         "gateway/doctor.py",
+        "gateway/llm_client.py",
         "scripts/desktop/start_ui.sh",
         "scripts/hooks/pre-push",
         "tests/test_agent_coordination_acceptance.py",
+        "tests/test_chat_errors.py",
         "tests/test_doctor_freshness.py",
         "tests/test_kitty_launcher_runtime.py",
+        "tests/test_llm_client.py",
         "tests/test_pre_push_gate.py",
         "tests/test_start_ui_script.py",
     ]
+    memory_paths = [
+        "gateway/project_store.py",
+        "gateway/routes/session_context.py",
+        "tests/test_project_store.py",
+        "tests/test_session_context_route.py",
+    ]
     action_paths = [
+        "gateway/conversation_handoff.py",
+        "gateway/routes/conversation_handoff.py",
+        "tests/test_conversation_handoff.py",
+        "tests/test_conversation_handoff_routes.py",
+        "gateway/kitty-chat/src/components/WorkView.tsx",
+        "gateway/kitty-chat/src/components/builder/BuilderProposalCard.tsx",
         "gateway/kitty-chat/src/lib/gateway.ts",
         "gateway/kitty-chat/src/lib/queries.ts",
         "gateway/kitty-chat/src/lib/actions-contract.ts",
         "gateway/kitty-chat/src/lib/actions-adapters.ts",
         "gateway/kitty-chat/tests/actionsContract.test.ts",
+        "gateway/kitty-chat/tests/BuilderProposalCard.test.tsx",
+        "gateway/kitty-chat/tests/WorkViewActions.test.tsx",
+        "gateway/kitty-chat/tests/WorkViewCockpit.test.tsx",
     ]
     for path in runtime_paths:
         assert "runtime:provenance" in agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ), path
+    for path in memory_paths:
+        assert "memory:continuity" in agent_coordination.resolve_paths_to_resources(
             [path], registry_path=TRACKED_REGISTRY
         ), path
     for path in action_paths:

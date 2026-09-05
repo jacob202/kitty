@@ -3,14 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView, { rowAction, type RowAction } from '../src/components/WorkView'
 import type { GatewayWorkItem } from '../src/lib/work'
 
-const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, mutate } = vi.hoisted(() => ({
+const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, useCompileBuilderProposal, mutate } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(),
   usePreflight: vi.fn(),
   useSupervisor: vi.fn(),
   useBuilderAction: vi.fn(),
+  useCompileBuilderProposal: vi.fn(),
   mutate: vi.fn(),
 }))
 vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction }))
+vi.mock('../src/lib/queries', async () => {
+  const actual = await vi.importActual<typeof import('../src/lib/queries')>('../src/lib/queries')
+  return { ...actual, useCompileBuilderProposal }
+})
 
 function item(overrides: Partial<GatewayWorkItem> = {}): GatewayWorkItem {
   return {
@@ -70,6 +75,8 @@ beforeEach(() => {
   usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
   useSupervisor.mockReset()
   useBuilderAction.mockReset()
+  useCompileBuilderProposal.mockReset()
+  useCompileBuilderProposal.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
   mutate.mockReset()
   vi.stubGlobal('confirm', vi.fn(() => true))
 })
@@ -179,17 +186,19 @@ describe('Builder run banner', () => {
     expect(screen.getByText(/9 more are on hold until their project is resumed/)).toBeInTheDocument()
   })
 
-  it('confirms before starting Builder and states the bounded free scope', () => {
+  it('confirms before starting Builder without promising a free execution route', () => {
     renderWork([item()], supervisor())
     fireEvent.click(screen.getByRole('button', { name: 'Run ready work now' }))
-    expect(globalThis.confirm).toHaveBeenCalledWith(expect.stringMatching(/free Builder runs/i))
+    expect(globalThis.confirm).toHaveBeenCalledWith(expect.stringMatching(/current Builder routing and spend policy/i))
+    expect(globalThis.confirm).not.toHaveBeenCalledWith(expect.stringMatching(/free Builder runs/i))
     expect(mutate).toHaveBeenCalledWith('tick', expect.anything())
   })
 
-  it('describes the global pass as free-only before running it', () => {
+  it('describes the global pass as policy-controlled before running it', () => {
     renderWork([item()], supervisor())
     fireEvent.click(screen.getByRole('button', { name: 'Run ready work now' }))
-    expect(globalThis.confirm).toHaveBeenCalledWith(expect.stringMatching(/free Builder runs/i))
+    expect(globalThis.confirm).toHaveBeenCalledWith(expect.stringMatching(/may start up to two Builder runs/i))
+    expect(globalThis.confirm).toHaveBeenCalledWith(expect.stringMatching(/current Builder routing and spend policy/i))
   })
 
   it('does not start Builder when the user declines the confirmation', () => {
