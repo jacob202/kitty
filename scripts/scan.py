@@ -2,26 +2,50 @@
 """Daily stale-state report. Facts come only from git/gh; never guessed."""
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 TITLE_PREFIX = "NEEDS JACOB — "
+PLANNING_EXTENSIONS = {".json", ".md", ".txt", ".yaml", ".yml"}
 
 
 def run(cmd):
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
-def gh_json(args):
+def gh_call(args):
     r = run(["gh"] + args + ["--repo", REPO])
     if r.returncode != 0:
-        return None
+        detail = r.stderr.strip() or "unknown gh error"
+        print(f"stale scan failed: gh {' '.join(args[:2])}: {detail}", file=sys.stderr)
+        raise SystemExit(1)
+    return r
+
+
+def gh_json(args):
+    r = gh_call(args)
     try:
         return json.loads(r.stdout)
     except ValueError:
-        return None
+        print(f"stale scan failed: invalid JSON from gh {' '.join(args[:2])}", file=sys.stderr)
+        raise SystemExit(1)
+
+
+def is_planning_artifact(path):
+    lower = path.lower()
+    parts = lower.split("/")
+    name = parts[-1]
+    suffix = "." + name.rsplit(".", 1)[1] if "." in name else ""
+    if suffix not in PLANNING_EXTENSIONS:
+        return False
+    if any(part in {"plan", "plans", "roadmap", "roadmaps"} for part in parts[:-1]):
+        return True
+    stem = name.rsplit(".", 1)[0]
+    tokens = {token for token in re.split(r"[-_.]+", stem) if token}
+    return bool(tokens & {"plan", "plans", "roadmap", "roadmaps"})
 
 
 def days_since(iso):
@@ -80,7 +104,7 @@ for name, age in sorted(unmerged_branches.items()):
     if log.returncode != 0:
         continue
     files = sorted({f for f in log.stdout.splitlines() if f.strip()})
-    hits = [f for f in files if "roadmap" in f.lower() or "plan" in f.lower()]
+    hits = [f for f in files if is_planning_artifact(f)]
     if hits:
         findings.append(
             f"`{name}` touched {hits[0]} in the last 30d and has never merged — merge the branch or fold it into main."
@@ -93,13 +117,13 @@ existing = [i for i in existing if i["title"].startswith(TITLE_PREFIX)]
 
 if not findings:
     for issue in existing:
-        run(["gh", "issue", "close", str(issue["number"]), "--repo", REPO])
+        gh_call(["issue", "close", str(issue["number"])])
     sys.exit(0)
 
 title = f"{TITLE_PREFIX}{today}"
 body = "\n".join(f"- {f}" for f in findings)
 
 if existing:
-    run(["gh", "issue", "edit", str(existing[0]["number"]), "--repo", REPO, "--title", title, "--body", body])
+    gh_call(["issue", "edit", str(existing[0]["number"]), "--title", title, "--body", body])
 else:
-    run(["gh", "issue", "create", "--repo", REPO, "--title", title, "--body", body])
+    gh_call(["issue", "create", "--title", title, "--body", body])
