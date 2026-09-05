@@ -82,6 +82,7 @@ resources:
     - kitty
     - scripts/desktop/start_ui.sh
     - scripts/hooks/**
+    - scripts/scan.py
     - tests/test_agent_coordination_acceptance.py
     - tests/test_agent_room_cli.py
     - tests/test_agent_room_lifecycle_hooks.py

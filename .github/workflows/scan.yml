@@ -1,0 +1,25 @@
+name: Stale Scan
+
+on:
+  schedule:
+    - cron: "0 13 * * *" # 07:00 Regina (no DST)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run stale scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/scan.py
