@@ -527,3 +527,290 @@ def test_reply_to_direct_message_records_consumption_without_acknowledging_broad
     inbox = {item["id"]: item for item in agent_workspace.list_inbox("codex")}
     assert inbox[direct["id"]]["receipt_state"] == "acknowledged"
     assert inbox[broadcast["id"]]["receipt_state"] == "sent"
+
+
+def test_mission_continuity_modules_are_available():
+    import importlib.util
+
+    assert importlib.util.find_spec("gateway.memory_mission") is not None
+    assert importlib.util.find_spec("gateway.context_mission") is not None
+
+
+def test_mission_state_persists_independently_of_worker_sessions(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    created = memory_mission.create_mission(
+        mission_id="life-2",
+        objective="Build a life worth participating in",
+        definition_of_done=["durable coordination exists"],
+        supervisor_id="chad",
+        db_path=db_path,
+    )
+
+    reopened = memory_mission.get_mission("life-2", db_path=db_path)
+
+    assert reopened == created
+    assert reopened["mission_id"] == "life-2"
+    assert reopened["status"] == "PLANNING"
+    assert reopened["supervisor"] == {"id": "chad", "epoch": 1}
+    assert reopened["definition_of_done"] == ["durable coordination exists"]
+
+
+def test_mission_execution_requires_current_independent_plan_review(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="life-2",
+        objective="Coordinate Life 2.0",
+        definition_of_done=["verified outcome"],
+        supervisor_id="chad",
+        db_path=db_path,
+    )
+    digest = "a" * 64
+    memory_mission.set_plan(
+        "life-2", plan_ref="plan://life-2/v1", plan_digest=digest, db_path=db_path
+    )
+
+    with pytest.raises(memory_mission.MissionError, match="independent"):
+        memory_mission.record_plan_review(
+            "life-2", reviewer_id="chad", plan_digest=digest,
+            verdict="approved", db_path=db_path,
+        )
+    with pytest.raises(memory_mission.MissionError, match="current plan"):
+        memory_mission.record_plan_review(
+            "life-2", reviewer_id="verifier", plan_digest="b" * 64,
+            verdict="approved", db_path=db_path,
+        )
+    with pytest.raises(memory_mission.MissionError, match="approved plan review"):
+        memory_mission.begin_execution("life-2", db_path=db_path)
+
+    memory_mission.record_plan_review(
+        "life-2", reviewer_id="verifier", plan_digest=digest,
+        verdict="approved", evidence={"review": "separate-process"}, db_path=db_path,
+    )
+    executing = memory_mission.begin_execution("life-2", db_path=db_path)
+    assert executing["status"] == "EXECUTING"
+    assert executing["plan"]["review_state"] == "approved"
+
+
+def test_replacing_mission_supervisor_fences_stale_worker_writes(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="life-2",
+        objective="Coordinate Life 2.0",
+        definition_of_done=["restart-safe supervision"],
+        supervisor_id="chad",
+        db_path=db_path,
+    )
+    replaced = memory_mission.replace_supervisor(
+        "life-2", new_supervisor_id="chad-2",
+        expected_supervisor_id="chad", expected_epoch=1, db_path=db_path,
+    )
+    assert replaced["supervisor"] == {"id": "chad-2", "epoch": 2}
+
+    with pytest.raises(memory_mission.MissionError, match="stale supervisor"):
+        memory_mission.update_checkpoint(
+            "life-2", supervisor_id="chad", supervisor_epoch=1,
+            checkpoint={"verified": ["old worker"]}, db_path=db_path,
+        )
+
+    updated = memory_mission.update_checkpoint(
+        "life-2", supervisor_id="chad-2", supervisor_epoch=2,
+        checkpoint={"verified": ["research synthesis complete"]}, db_path=db_path,
+    )
+    assert updated["checkpoint"] == {"verified": ["research synthesis complete"]}
+
+
+def _executing_life_mission(db_path):
+    from gateway import memory_mission
+
+    memory_mission.create_mission(
+        mission_id="life-2", objective="Coordinate Life 2.0",
+        definition_of_done=["bounded autonomous coordination"],
+        supervisor_id="chad", db_path=db_path,
+    )
+    digest = "c" * 64
+    memory_mission.set_plan(
+        "life-2", plan_ref="plan://life-2/v1", plan_digest=digest, db_path=db_path
+    )
+    memory_mission.record_plan_review(
+        "life-2", reviewer_id="independent-plan-verifier", plan_digest=digest,
+        verdict="approved", db_path=db_path,
+    )
+    return memory_mission.begin_execution("life-2", db_path=db_path)
+
+
+def test_mission_cycle_detects_changed_lane_then_stays_silent_on_no_change(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    decisions = []
+    delegations = []
+    notifications = []
+
+    def decide(context):
+        decisions.append(context)
+        return {"outcome": "advance", "reason": "resource scout completed", "task": {"owner": "existing-action", "id": "synthesize-resources"}}
+
+    def delegate(task):
+        delegations.append(task)
+        return {"ok": True, "receipt": "delegation:1"}
+
+    observation = {"source": "research", "locator": "resource-scout", "digest": "result-v1", "observed_at": 1.0}
+    first = context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[observation], decide=decide, delegate=delegate,
+        notify=notifications.append, db_path=db_path,
+    )
+    second = context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[observation], decide=decide, delegate=delegate,
+        notify=notifications.append, db_path=db_path,
+    )
+
+    assert first["outcome"] == "advance"
+    assert first["delegation"] == {"ok": True, "receipt": "delegation:1"}
+    assert second["outcome"] == "no_change"
+    assert len(decisions) == 1
+    assert len(delegations) == 1
+    assert notifications == []
+    reopened = memory_mission.get_mission("life-2", db_path=db_path)
+    assert reopened["source_cursors"]["research|resource-scout"] == "result-v1"
+
+
+def test_mission_cycle_dedupes_human_escalation_across_changed_inputs(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    notifications = []
+
+    def needs_jacob(_context):
+        return {
+            "outcome": "needs_jacob",
+            "reason": "A real-world outreach action needs Jacob's authorization",
+            "escalation_key": "authorize:life2:outreach",
+        }
+
+    first = context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[{"source": "opportunities", "locator": "peer-support", "digest": "v1"}],
+        decide=needs_jacob, notify=notifications.append, db_path=db_path,
+    )
+    second = context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[{"source": "opportunities", "locator": "peer-support", "digest": "v2"}],
+        decide=needs_jacob, notify=notifications.append, db_path=db_path,
+    )
+
+    assert first["outcome"] == "needs_jacob"
+    assert first["notified"] is True
+    assert second["outcome"] == "needs_jacob"
+    assert second["notified"] is False
+    assert len(notifications) == 1
+    reopened = memory_mission.get_mission("life-2", db_path=db_path)
+    assert reopened["pending_escalation"]["key"] == "authorize:life2:outreach"
+
+
+def test_mission_acceptance_is_independent_and_exact_candidate_bound(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    candidate_one = "d" * 64
+    verifying = memory_mission.record_candidate(
+        "life-2", candidate_ref="candidate://life-2/1",
+        candidate_digest=candidate_one, db_path=db_path,
+    )
+    assert verifying["status"] == "VERIFYING"
+
+    with pytest.raises(memory_mission.MissionError, match="independent"):
+        memory_mission.record_acceptance(
+            "life-2", reviewer_id="chad", candidate_digest=candidate_one,
+            verdict="accepted", db_path=db_path,
+        )
+    rejected = memory_mission.record_acceptance(
+        "life-2", reviewer_id="acceptance-verifier", candidate_digest=candidate_one,
+        verdict="rejected", evidence={"defect": "resume gap"}, db_path=db_path,
+    )
+    assert rejected["status"] == "REPAIRING"
+
+    candidate_two = "e" * 64
+    repaired = memory_mission.record_candidate(
+        "life-2", candidate_ref="candidate://life-2/2",
+        candidate_digest=candidate_two, db_path=db_path,
+    )
+    assert repaired["acceptance"]["state"] == "unreviewed"
+    with pytest.raises(memory_mission.MissionError, match="current candidate"):
+        memory_mission.record_acceptance(
+            "life-2", reviewer_id="acceptance-verifier", candidate_digest=candidate_one,
+            verdict="accepted", db_path=db_path,
+        )
+    accepted = memory_mission.record_acceptance(
+        "life-2", reviewer_id="acceptance-verifier", candidate_digest=candidate_two,
+        verdict="accepted", evidence={"exact_candidate": True}, db_path=db_path,
+    )
+    assert accepted["status"] == "DONE"
+    assert accepted["acceptance"]["state"] == "accepted"
+
+
+def test_mission_pause_resume_and_stop_gate_autonomous_cycles(tmp_path):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    _executing_life_mission(db_path)
+    decisions = []
+
+    paused = memory_mission.pause_mission("life-2", reason="Jacob paused it", db_path=db_path)
+    assert paused["status"] == "PAUSED"
+    paused_cycle = context_mission.run_cycle(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        observations=[{"source": "research", "locator": "lane", "digest": "v1"}],
+        decide=lambda context: decisions.append(context) or {"outcome": "advance"},
+        db_path=db_path,
+    )
+    assert paused_cycle == {"outcome": "paused", "reason": "Jacob paused it"}
+    assert decisions == []
+
+    resumed = memory_mission.resume_mission("life-2", db_path=db_path)
+    assert resumed["status"] == "EXECUTING"
+    stopped = memory_mission.stop_mission("life-2", reason="Mission stopped", db_path=db_path)
+    assert stopped["status"] == "STOPPED"
+    with pytest.raises(memory_mission.MissionError, match="stopped"):
+        memory_mission.resume_mission("life-2", db_path=db_path)
+
+
+def test_worker_report_is_preserved_without_becoming_verified_state(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="life-2",
+        objective="Coordinate Life 2.0",
+        definition_of_done=["truthful evidence"],
+        supervisor_id="chad",
+        db_path=db_path,
+    )
+    memory_mission.update_checkpoint(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        checkpoint={"verified_state": ["research artifact exists"]}, db_path=db_path,
+    )
+    updated = memory_mission.record_worker_report(
+        "life-2", supervisor_id="chad", supervisor_epoch=1,
+        worker_id="scout-2", report={"claim": "all resource scouting is complete"},
+        evidence_locator="worker://scout-2/result-7", db_path=db_path,
+    )
+
+    assert updated["checkpoint"]["verified_state"] == ["research artifact exists"]
+    assert updated["checkpoint"]["worker_reports"] == [
+        {
+            "worker_id": "scout-2",
+            "report": {"claim": "all resource scouting is complete"},
+            "evidence_locator": "worker://scout-2/result-7",
+        }
+    ]
