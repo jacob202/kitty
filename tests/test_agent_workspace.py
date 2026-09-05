@@ -1242,3 +1242,126 @@ async def test_mission_automation_action_preserves_source_unavailable_as_run_evi
     mission = memory_mission.get_mission("life-2", db_path=db_path)
     assert mission["source_cursors"] == {}
     automation_actions.clear_registry()
+
+
+def test_mission_global_thread_observation_is_locator_digest_not_copied_thread(
+    tmp_path, monkeypatch
+):
+    from gateway import agent_workspace, context_mission
+
+    db_path = tmp_path / "kitty.db"
+    monkeypatch.setattr(agent_workspace, "WORKSPACE_DB_FILE", db_path)
+    root = agent_workspace.post_global_message(
+        sender_id="dsh", content="Life 2.0 handoff v1", message_kind="handoff"
+    )
+
+    first = context_mission.observe_global_thread(root["id"])
+    assert first["source"] == "workspace_global"
+    assert first["locator"] == f"thread:{root['id']}"
+    assert first["message_count"] == 1
+    assert first["last_message_id"] == root["id"]
+    assert "content" not in first
+    assert "messages" not in first
+
+    reply = agent_workspace.post_global_message(
+        sender_id="codex", content="Independent evidence arrived", message_kind="result",
+        parent_message_id=root["id"],
+    )
+    second = context_mission.observe_global_thread(reply["id"])
+    assert second["locator"] == first["locator"]
+    assert second["digest"] != first["digest"]
+    assert second["message_count"] == 2
+    assert second["last_message_id"] == reply["id"]
+
+    agent_workspace.post_global_message(
+        sender_id="dsh", content="unrelated room message", message_kind="status"
+    )
+    third = context_mission.observe_global_thread(root["id"])
+    assert third == second
+
+
+def test_mission_global_thread_observation_missing_locator_is_source_unavailable(tmp_path, monkeypatch):
+    from gateway import agent_workspace, automation_actions, context_mission
+
+    monkeypatch.setattr(agent_workspace, "WORKSPACE_DB_FILE", tmp_path / "kitty.db")
+    with pytest.raises(automation_actions.SourceUnavailable, match="workspace_global thread"):
+        context_mission.observe_global_thread("message_missing")
+
+
+def test_mission_global_thread_observation_fails_closed_at_thread_cap(monkeypatch):
+    from gateway import agent_workspace, automation_actions, context_mission
+
+    rows = [
+        {
+            "id": f"message_{i}", "parent_message_id": None if i == 0 else "message_0",
+            "sender_kind": "agent", "sender_id": "dsh", "recipient_id": None,
+            "message_kind": "status", "content": "x", "created_at": float(i),
+        }
+        for i in range(500)
+    ]
+    monkeypatch.setattr(agent_workspace, "list_thread", lambda _message_id, limit=500: rows)
+    with pytest.raises(automation_actions.SourceUnavailable, match="observation cap"):
+        context_mission.observe_global_thread("message_0")
+
+
+@pytest.mark.asyncio
+async def test_mission_automation_wake_tracks_only_named_global_thread_changes(tmp_path, monkeypatch):
+    from gateway import (
+        action_grants,
+        agent_workspace,
+        automation_actions,
+        automation_runs,
+        context_mission,
+        memory_mission,
+    )
+    db_path = tmp_path / "kitty.db"
+    monkeypatch.setattr(agent_workspace, "WORKSPACE_DB_FILE", db_path)
+    monkeypatch.setattr(automation_runs, "DB_FILE", db_path)
+    monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", db_path)
+    automation_actions.clear_registry()
+    _executing_life_mission(db_path)
+    root = agent_workspace.post_global_message(
+        sender_id="dsh", content="Life 2.0 handoff", message_kind="handoff"
+    )
+    decisions = []
+
+    def decide(context):
+        decisions.append(context)
+        return {"outcome": "blocked", "reason": "source change recorded for synthesis"}
+
+    action = context_mission.build_automation_action(
+        "life-2",
+        observe=lambda _payload: [context_mission.observe_global_thread(root["id"])],
+        decide=decide,
+        db_path=db_path,
+    )
+    automation_actions.register_action("mission.life2.cycle", action)
+    first = await automation_actions.run_action(
+        "mission.life2.cycle", trigger_kind="time", automation_id="mission:life-2"
+    )
+    second = await automation_actions.run_action(
+        "mission.life2.cycle", trigger_kind="time", automation_id="mission:life-2"
+    )
+    agent_workspace.post_global_message(
+        sender_id="dsh", content="unrelated update", message_kind="status"
+    )
+    unrelated = await automation_actions.run_action(
+        "mission.life2.cycle", trigger_kind="time", automation_id="mission:life-2"
+    )
+    reply = agent_workspace.post_global_message(
+        sender_id="codex", content="new evidence", message_kind="result",
+        parent_message_id=root["id"],
+    )
+    changed = await automation_actions.run_action(
+        "mission.life2.cycle", trigger_kind="time", automation_id="mission:life-2"
+    )
+
+    assert [first["status"], second["status"], unrelated["status"], changed["status"]] == [
+        "completed", "condition_false", "condition_false", "completed"
+    ]
+    assert len(decisions) == 2
+    mission = memory_mission.get_mission("life-2", db_path=db_path)
+    assert mission["source_cursors"][f"workspace_global|thread:{root['id']}"] == (
+        context_mission.observe_global_thread(reply["id"])["digest"]
+    )
+    automation_actions.clear_registry()

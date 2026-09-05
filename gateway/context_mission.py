@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 from typing import Any, Callable
 
-from gateway import automation_actions, memory_mission
+from gateway import agent_workspace, automation_actions, memory_mission
 
 DecisionFn = Callable[[dict[str, Any]], dict[str, Any]]
 DelegateFn = Callable[[dict[str, Any]], dict[str, Any]]
@@ -196,6 +198,56 @@ def run_cycle(
     )
     return cycle
 
+
+
+def observe_global_thread(message_id: str) -> dict[str, Any]:
+    """Return a bounded change observation for one explicit GAR thread locator.
+
+    GAR remains the owner of message content. Mission state receives only a
+    locator, digest, and small provenance metadata so collaboration evidence
+    cannot silently become Mission truth or a copied transcript.
+    """
+    try:
+        rows = agent_workspace.list_thread(message_id, limit=500)
+    except agent_workspace.AgentWorkspaceError as exc:
+        raise automation_actions.SourceUnavailable(
+            f"workspace_global thread {message_id!r} is unavailable: {exc}"
+        ) from exc
+    if not rows:
+        raise automation_actions.SourceUnavailable(
+            f"workspace_global thread {message_id!r} returned no messages"
+        )
+    if len(rows) >= 500:
+        raise automation_actions.SourceUnavailable(
+            f"workspace_global thread {message_id!r} reached the observation cap; "
+            "freshness cannot be proven"
+        )
+
+    digest_rows = [
+        {
+            "id": row.get("id"),
+            "parent_message_id": row.get("parent_message_id"),
+            "sender_kind": row.get("sender_kind"),
+            "sender_id": row.get("sender_id"),
+            "recipient_id": row.get("recipient_id"),
+            "message_kind": row.get("message_kind"),
+            "content": row.get("content"),
+            "created_at": row.get("created_at"),
+        }
+        for row in rows
+    ]
+    encoded = json.dumps(digest_rows, sort_keys=True, separators=(",", ":")).encode()
+    root_id = str(rows[0]["id"])
+    last = rows[-1]
+    return {
+        "source": "workspace_global",
+        "locator": f"thread:{root_id}",
+        "digest": hashlib.sha256(encoded).hexdigest(),
+        "observed_at": float(last["created_at"]),
+        "classification": "collaboration_evidence",
+        "message_count": len(rows),
+        "last_message_id": str(last["id"]),
+    }
 
 def build_automation_action(
     mission_id: str, *, observe: ObserveFn, decide: DecisionFn,
