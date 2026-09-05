@@ -1271,18 +1271,22 @@ def run_worker(
     task = bq.claim_task(task_id, worker, lease_seconds=lease_seconds, db_path=db_path)
     lease_token = task["lease_token"]
     claim_version = task["claim_version"]
+    # Production ownership must stay on KX's canonical store. Environment
+    # overrides exist only for hermetic tests (including detached subprocesses);
+    # explicit internal arguments remain the dependency-injection seam.
+    test_mode = os.environ.get("KITTY_ENV") == "test"
     coordination_db = (
         Path(coordination_db_path)
         if coordination_db_path is not None
         else Path(os.environ["KITTY_COORDINATION_DB_PATH"])
-        if os.environ.get("KITTY_COORDINATION_DB_PATH")
+        if test_mode and os.environ.get("KITTY_COORDINATION_DB_PATH")
         else ac.default_db_path()
     )
     coordination_registry = (
         Path(coordination_registry_path)
         if coordination_registry_path is not None
         else Path(os.environ["KITTY_COORDINATION_REGISTRY_PATH"])
-        if os.environ.get("KITTY_COORDINATION_REGISTRY_PATH")
+        if test_mode and os.environ.get("KITTY_COORDINATION_REGISTRY_PATH")
         else Path(ac.DEFAULT_REGISTRY_PATH)
     )
     kx_session_id: str | None = None
