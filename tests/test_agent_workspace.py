@@ -557,6 +557,38 @@ def test_mission_state_persists_independently_of_worker_sessions(tmp_path):
     assert reopened["definition_of_done"] == ["durable coordination exists"]
 
 
+def test_mission_list_returns_durable_rows_most_recent_first(tmp_path, monkeypatch):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    stamps = iter((100.0, 200.0))
+    monkeypatch.setattr(memory_mission.time, "time", lambda: next(stamps))
+
+    memory_mission.create_mission(
+        mission_id="mission-older",
+        objective="Older objective",
+        definition_of_done=["older done"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.create_mission(
+        mission_id="mission-newer",
+        objective="Newer objective",
+        definition_of_done=["newer done"],
+        supervisor_id="supervisor-b",
+        db_path=db_path,
+    )
+
+    listed = memory_mission.list_missions(db_path=db_path)
+
+    assert [mission["mission_id"] for mission in listed] == [
+        "mission-newer",
+        "mission-older",
+    ]
+    assert listed[0]["objective"] == "Newer objective"
+    assert listed[1]["status"] == "PLANNING"
+
+
 def test_mission_execution_requires_current_independent_plan_review(tmp_path):
     from gateway import memory_mission
 

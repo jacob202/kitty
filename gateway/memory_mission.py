@@ -135,6 +135,16 @@ def get_mission(mission_id: str, *, db_path: Path = MISSION_DB_FILE) -> dict[str
     return _row_to_mission(row)
 
 
+def list_missions(*, db_path: Path = MISSION_DB_FILE) -> list[dict[str, Any]]:
+    """Return durable Mission rows with the most recently updated first."""
+    init_db(db_path=db_path)
+    with kitty_db.connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM missions ORDER BY updated_at DESC, mission_id ASC"
+        ).fetchall()
+    return [_row_to_mission(row) for row in rows]
+
+
 def create_mission(
     *,
     mission_id: str,
