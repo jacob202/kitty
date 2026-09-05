@@ -128,6 +128,7 @@ function CalendarTodayTile() {
   const WP = usePalette()
   const today = useGatewayCalendarToday()
   const cal = today.data?.calendar
+  const err = today.data?.error
   if (today.isLoading) {
     return (
       <Tile>
@@ -139,9 +140,9 @@ function CalendarTodayTile() {
   if (!cal?.available) {
     return (
       <Tile>
-        <TileLabel>today's schedule</TileLabel>
+        <TileLabel tone={err ? 'danger' : undefined}>today's schedule</TileLabel>
         <div style={{ ...mono, fontSize: 12, color: WP.inkFaint }}>
-          calendar not connected on this mac
+          {err || 'calendar not connected on this mac'}
         </div>
       </Tile>
     )
@@ -165,7 +166,7 @@ function CalendarTodayTile() {
                 fontSize: 12.5,
               }}
             >
-              <span style={{ ...mono, color: WP.inkFaint }}>{ev.start || ''}</span>
+              <span style={{ ...mono, color: WP.inkFaint }}>{ev.start_time || ev.start || ''}</span>
               <span style={{ color: WP.ink }}>{ev.title || 'untitled event'}</span>
             </div>
           ))}
@@ -177,12 +178,15 @@ function CalendarTodayTile() {
 
 function ProjectsTile({ projects, onNavigate }: { projects: any[]; onNavigate?: (v: string) => void }) {
   const WP = usePalette()
+  // Match Home's "active projects" count (HomeState.tsx ActiveProjects) so the
+  // same number doesn't read differently depending which screen shows it.
+  const active = projects.filter((p) => p.status === 'active')
   return (
     <Tile>
-      <TileLabel>projects</TileLabel>
-      <div style={{ ...serif, fontSize: 30, color: WP.ink, lineHeight: 1 }}>{projects.length}</div>
+      <TileLabel>active projects</TileLabel>
+      <div style={{ ...serif, fontSize: 30, color: WP.ink, lineHeight: 1 }}>{active.length}</div>
       <div style={{ ...mono, fontSize: 12, color: WP.inkDim }}>
-        {projects.length === 0 ? 'none yet' : projects.slice(0, 3).map((p) => p.name).filter(Boolean).join(' · ')}
+        {active.length === 0 ? 'none yet' : active.slice(0, 3).map((p) => p.name).filter(Boolean).join(' · ')}
       </div>
       <button
         onClick={() => onNavigate?.('projects')}
@@ -232,13 +236,20 @@ function CalendarTab() {
   const WP = usePalette()
   const upcoming = useGatewayCalendarUpcoming(14)
   const cal = upcoming.data?.calendar
+  const err = upcoming.data?.error
   return (
     <div style={{ padding: '4px 4px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <CalendarTodayTile />
       <Tile>
-        <TileLabel>next 14 days</TileLabel>
-        {!cal?.available ? (
-          <div style={{ ...mono, fontSize: 12, color: WP.inkFaint }}>calendar not connected on this mac</div>
+        <TileLabel tone={!upcoming.isLoading && !cal?.available && err ? 'danger' : undefined}>
+          next 14 days
+        </TileLabel>
+        {upcoming.isLoading ? (
+          <div style={{ ...mono, fontSize: 12, color: WP.inkFaint }}>checking…</div>
+        ) : !cal?.available ? (
+          <div style={{ ...mono, fontSize: 12, color: WP.inkFaint }}>
+            {err || 'calendar not connected on this mac'}
+          </div>
         ) : cal.events.length === 0 ? (
           <div style={{ ...mono, fontSize: 12, color: WP.inkFaint }}>nothing coming up</div>
         ) : (
@@ -251,7 +262,9 @@ function CalendarTab() {
                   borderTop: i === 0 ? 'none' : `1px solid ${WP.line}`, fontSize: 12.5,
                 }}
               >
-                <span style={{ ...mono, color: WP.inkFaint }}>{ev.start || ''}</span>
+                <span style={{ ...mono, color: WP.inkFaint }}>
+                  {ev.start_date && ev.start_time ? `${ev.start_date} ${ev.start_time}` : ev.start || ''}
+                </span>
                 <span style={{ color: WP.ink }}>{ev.title || 'untitled event'}</span>
               </div>
             ))}
@@ -285,6 +298,10 @@ function AssistantTab({ onNavigate }: { onNavigate?: (v: string) => void }) {
   )
 }
 
+// Neutral pose from the mascot set: cream line art with no background, so it
+// sits on the dark WP.ink card below. The "barbie"/"princess" costume poses
+// use pink accents that clash with this palette; other neutral poses would
+// work here too if this one ever needs swapping.
 function MascotTile() {
   const WP = usePalette()
   return (
@@ -294,12 +311,6 @@ function MascotTile() {
         <div style={{ background: WP.ink, borderRadius: 10, padding: 10, flex: 'none' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/mascots/kitty-warm-paper.svg" alt="kitty" style={{ width: 40, height: 40, display: 'block' }} />
-        </div>
-        <div style={{ ...mono, fontSize: 11.5, color: WP.inkDim }}>
-          the neutral pose from the new mascot set — it's cream line art with no
-          background, so it sits on a dark card. the "barbie"/"princess" costume
-          poses use pink accents that clash with this palette; the rest are neutral
-          or already brown/orange/green and would work fine here too.
         </div>
       </div>
     </Tile>

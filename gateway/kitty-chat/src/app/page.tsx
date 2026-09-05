@@ -233,7 +233,7 @@ export default function KittyChat() {
         </main>
       </KittyRuntimeProvider>
 
-      {k.activeView !== 'home' && <CatCorner state={k.catState} />}
+      {k.activeView !== 'home' && k.activeView !== 'dashboard' && <CatCorner state={k.catState} />}
       <div aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
         {k.catState === 'working' ? 'Kitty is working' : k.catState === 'broke' ? 'Kitty needs attention' : k.catState === 'done' ? 'Kitty completed the task' : ''}
       </div>

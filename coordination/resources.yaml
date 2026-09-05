@@ -79,9 +79,13 @@ resources:
     - gateway/kitty-chat/tests/actionsContract.test.ts
   ui:dashboard-shell:
     paths:
+    - gateway/calendar_integration.py
+    - gateway/kitty-chat/public/mascots/kitty-warm-paper.svg
+    - gateway/kitty-chat/src/app/page.tsx
     - gateway/kitty-chat/src/components/BottomNav.tsx
     - gateway/kitty-chat/src/components/DashboardView.tsx
     - gateway/kitty-chat/src/components/Rail.tsx
     - gateway/kitty-chat/src/components/ViewRenderer.tsx
     - gateway/kitty-chat/src/lib/dashboard-calendar.ts
     - gateway/kitty-chat/src/lib/views.tsx
+    - gateway/kitty-chat/tests/PageSurfaceLayout.test.ts

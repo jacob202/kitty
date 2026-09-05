@@ -8,10 +8,31 @@ Public API:
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 from typing import Optional
 
 logger = logging.getLogger("kitty.calendar")
+
+# Matches AppleScript's `date as string` output, e.g.
+# "Thursday, September 4, 2026 at 2:30:00 PM".
+_EVENT_DATETIME_RE = re.compile(
+    r"^\w+,\s*(?P<month>\w+)\s+(?P<day>\d{1,2}),\s*\d{4}\s+at\s+"
+    r"(?P<hour>\d{1,2}):(?P<minute>\d{2})(?::\d{2})?\s*(?P<ampm>[AP]M)$",
+    re.IGNORECASE,
+)
+
+
+def _split_event_datetime(raw: str) -> tuple[str, str]:
+    """Best-effort split of AppleScript's verbose date string into (short_date, short_time)
+    for display. Falls back to the raw string for both if it doesn't match the expected
+    format — the UI always has something to show, it just won't be as compact."""
+    match = _EVENT_DATETIME_RE.match(raw.strip())
+    if not match:
+        return raw, raw
+    short_date = f"{match['month'][:3]} {int(match['day'])}"
+    short_time = f"{int(match['hour'])}:{match['minute']} {match['ampm'].upper()}"
+    return short_date, short_time
 
 
 def _run_applescript(script: str) -> tuple[bool, str]:
@@ -44,10 +65,14 @@ def _parse_event_lines(output: str) -> list[dict]:
     lines = [line.strip() for line in output.split("\n") if line.strip()]
     for i in range(0, len(lines), 3):
         if i + 2 < len(lines):
+            start_raw = lines[i + 1]
+            short_date, short_time = _split_event_datetime(start_raw)
             events.append({
                 "title": lines[i],
-                "start": lines[i + 1],
+                "start": start_raw,
                 "end": lines[i + 2],
+                "start_date": short_date,
+                "start_time": short_time,
             })
     return events
 

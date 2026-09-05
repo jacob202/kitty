@@ -13,6 +13,8 @@ const GATEWAY_BASE = '/proxy'
 export interface GatewayCalendarEvent {
   title?: string
   start?: string
+  start_date?: string
+  start_time?: string
 }
 
 export interface GatewayCalendar {
@@ -49,7 +51,9 @@ async function fetchWithTimeout(input: string, timeoutMs: number): Promise<Respo
 
 async function fetchGatewayCalendar(path: string): Promise<GatewayCalendarPayload> {
   try {
-    const response = await fetchWithTimeout(`${GATEWAY_BASE}${path}`, 4000)
+    // Backend's own osascript call allows 15s (calendar_integration.py); stay above that
+    // so a healthy-but-slow Calendar lookup doesn't get reported as a timeout.
+    const response = await fetchWithTimeout(`${GATEWAY_BASE}${path}`, 16000)
     if (!response.ok) {
       return { calendar: null, fromLiveGateway: false, error: describeFetchError(null, response) }
     }

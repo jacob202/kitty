@@ -32,7 +32,7 @@ describe('product surface shell ownership', () => {
     expect(page).toContain('modelError={k.modelGateway.error}')
   })
 
-  it('keeps the fixed mascot off Home where the dashboard has an inline mascot', () => {
-    expect(page).toContain("k.activeView !== 'home' && <CatCorner")
+  it('keeps the fixed mascot off Home and Dashboard, which both have an inline mascot', () => {
+    expect(page).toContain("k.activeView !== 'home' && k.activeView !== 'dashboard' && <CatCorner")
   })
 })
