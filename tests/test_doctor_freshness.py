@@ -179,3 +179,65 @@ def test_doctor_ui_check_reports_shared_runtime_build_state(monkeypatch):
     assert checks[0].name == "runtime:ui_build_provenance"
     assert "stale" in checks[0].detail
     assert "/tmp/kitty" in checks[0].detail
+
+
+def test_gateway_probe_rejects_unrelated_command_that_mentions_gateway_target(monkeypatch):
+    monkeypatch.setattr(
+        doctor,
+        "_listener_process_info",
+        lambda **_kwargs: {
+            "state": "running",
+            "pid": 4321,
+            "cwd": "/tmp",
+            "command": "python fake.py --note gateway.app:app",
+            "start_time": time.time(),
+        },
+    )
+
+    result = doctor._gateway_process_info(port=8000)
+
+    assert result["state"] == "running-unverifiable"
+    assert "not the Kitty gateway" in result["error"]
+
+
+def test_ui_runtime_provenance_rejects_unrelated_listener_inside_repo(monkeypatch, tmp_path):
+    root = _ui_repo(tmp_path)
+    runtime_cwd = root / "gateway" / "kitty-chat" / ".next" / "standalone"
+    runtime_cwd.mkdir(parents=True)
+    monkeypatch.setattr(
+        doctor,
+        "_listener_process_info",
+        lambda **_kwargs: {
+            "state": "running",
+            "pid": 55,
+            "cwd": str(runtime_cwd),
+            "command": "python3 -m http.server 4000",
+            "start_time": time.time(),
+        },
+    )
+
+    result = doctor._ui_runtime_provenance(port=4000)
+
+    assert result["state"] == "unknown"
+    assert result["runtime_pid"] == "55"
+
+
+def test_ui_runtime_provenance_rejects_next_server_outside_standalone_cwd(monkeypatch, tmp_path):
+    root = _ui_repo(tmp_path)
+    runtime_cwd = root / "gateway" / "kitty-chat"
+    monkeypatch.setattr(
+        doctor,
+        "_listener_process_info",
+        lambda **_kwargs: {
+            "state": "running",
+            "pid": 56,
+            "cwd": str(runtime_cwd),
+            "command": "next-server (v16.3.0)",
+            "start_time": time.time(),
+        },
+    )
+
+    result = doctor._ui_runtime_provenance(port=4000)
+
+    assert result["state"] == "unknown"
+    assert result["runtime_pid"] == "56"

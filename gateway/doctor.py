@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import pathlib
+import shlex
 import shutil
 import ssl
 import subprocess
@@ -385,12 +386,33 @@ def _listener_process_info(*, port: int) -> dict[str, object]:
     }
 
 
+def _is_gateway_process_command(command: str) -> bool:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False
+    if "gateway.app:app" not in tokens:
+        return False
+    target_index = tokens.index("gateway.app:app")
+    invocation = tokens[:target_index]
+    if not invocation:
+        return False
+    if Path(invocation[0]).name == "uvicorn":
+        return True
+    if len(invocation) >= 2 and Path(invocation[1]).name == "uvicorn":
+        return True
+    return any(
+        token == "-m" and index + 1 < len(invocation) and invocation[index + 1] == "uvicorn"
+        for index, token in enumerate(invocation)
+    )
+
+
 def _gateway_process_info(*, port: int = 8000) -> dict[str, object]:
     """Return listener identity only when the process is the real Uvicorn gateway."""
     info = _listener_process_info(port=port)
     if info.get("state") != "running":
         return info
-    if "gateway.app:app" not in str(info.get("command") or ""):
+    if not _is_gateway_process_command(str(info.get("command") or "")):
         return {
             **info,
             "state": "running-unverifiable",
@@ -486,6 +508,19 @@ def _ui_build_provenance(root: Path = ROOT) -> dict[str, str]:
     }
 
 
+def _is_ui_runtime_process(process: dict[str, object]) -> bool:
+    command = str(process.get("command") or "")
+    cwd = str(process.get("cwd") or "")
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False
+    if not tokens or Path(tokens[0]).name != "next-server":
+        return False
+    parts = Path(cwd).parts
+    return len(parts) >= 4 and parts[-4:] == ("gateway", "kitty-chat", ".next", "standalone")
+
+
 def _ui_runtime_provenance(*, port: int = 4000) -> dict[str, str]:
     """Classify the build actually served by the UI listener's worktree."""
     process = _listener_process_info(port=port)
@@ -500,7 +535,7 @@ def _ui_runtime_provenance(*, port: int = 4000) -> dict[str, str]:
             "runtime_root": "unknown",
             "runtime_pid": "unknown",
         }
-    if process_state != "running":
+    if process_state != "running" or not _is_ui_runtime_process(process):
         return {
             "state": "unknown",
             "build_id": "unknown",
