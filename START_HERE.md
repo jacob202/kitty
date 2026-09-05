@@ -58,6 +58,11 @@ live evidence; it does not duplicate current state.
 - Builder work: use explicit intent (`builder status`, `builder next`,
   `review builder`, or a named task). Bare `next` never selects or runs a
   Builder packet.
+- Completion: when a substantial assigned task is genuinely verified complete,
+  automatically execute `.agents/skills/session-end/SKILL.md` before the final
+  closeout response. Do not wait for the user to say `session end`; explicit
+  `session end`, `wrap up`, or equivalent also triggers the same closeout. Do
+  not close while work, review, CI, or required acceptance remains pending.
 
 ## Canonical reading order
 

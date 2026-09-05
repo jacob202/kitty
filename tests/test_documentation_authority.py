@@ -109,10 +109,13 @@ def test_openwebui_onboarding_artifacts_are_explicitly_historical() -> None:
     assert "All “current” and “verified” claims below are scoped to the 2026-08-02 session" in handoff
 
 def test_shared_doctrine_challenges_premises_and_closes_substantial_work_automatically() -> None:
+    start_here = " ".join(_read("START_HERE.md").lower().split())
     agents = " ".join(_read("AGENTS.md").lower().split())
     preferences = " ".join(_read("config/PREFERENCES.md").lower().split())
     session_end = " ".join(_read(".agents/skills/session-end/SKILL.md").lower().split())
 
+    assert ".agents/skills/session-end/skill.md" in start_here
+    assert "do not wait for the user to say `session end`" in start_here
     assert "challenge unsupported premises" in agents
     assert "never claim understanding when material ambiguity remains" in agents
     assert "clarifying question" in agents
