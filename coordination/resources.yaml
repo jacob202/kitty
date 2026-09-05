@@ -10,6 +10,7 @@ resources:
     - tests/test_builder_contract_gate.py
     - tests/test_builder_execution_boundary.py
     - tests/test_builder_identity.py
+    - tests/test_builder_models.py
     - tests/test_builder_runner.py
     - tests/test_discord_command_center_phase0.py
     - tests/test_run_workspace.py
