@@ -47,8 +47,10 @@ mcp = FastMCP(
     "kitty-agent-room",
     instructions=(
         "This server joins Kitty's one durable global collaboration room as the "
-        f"fixed identity {CLIENT_IDENTITY!r}. Read the inbox/recent/thread before "
-        "replying. Post/reply never changes Builder execution truth or #490 lane "
+        f"fixed identity {CLIENT_IDENTITY!r}. Use "
+        "room_inbox(unread_only=True, direct_only=True) for assignment discovery; "
+        "use recent/thread only for shared context and conversation continuity. "
+        "Post/reply never changes Builder execution truth or #490 lane "
         "ownership. Acknowledgement means receipt only, never task completion."
     ),
     host=_HOST,
@@ -82,10 +84,17 @@ def room_recent(limit: int = 100) -> list[dict]:
 
 
 @mcp.tool()
-def room_inbox(unread_only: bool = False, limit: int = 100) -> list[dict]:
-    """Read messages addressed to this configured client identity."""
+def room_inbox(
+    unread_only: bool = False,
+    direct_only: bool = False,
+    limit: int = 100,
+) -> list[dict]:
+    """Read this identity's inbox, optionally limited to direct assignments."""
     return agent_workspace.list_inbox(
-        CLIENT_IDENTITY, unread_only=unread_only, limit=limit
+        CLIENT_IDENTITY,
+        unread_only=unread_only,
+        direct_only=direct_only,
+        limit=limit,
     )
 
 

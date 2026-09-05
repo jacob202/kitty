@@ -48,8 +48,8 @@ git status --short --branch
 ./kitty room thread <message_id> --json
 ```
 
-Use an Agent Room MCP inbox for assignment discovery only when it can apply the
-same direct-message filter. An unread direct handoff or a known `room_thread`
+MCP clients use `room_inbox(unread_only=True, direct_only=True)` for the same
+assignment discovery. An unread direct handoff or a known `room_thread`
 message id is a deterministic continuation locator. Use `room_recent` only for
 bounded shared situational context; the newest global window is not an
 assignment index.
