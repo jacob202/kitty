@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+from gateway import agent_coordination as ac
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
@@ -49,6 +50,23 @@ def db_path(tmp_path: Path) -> Path:
     p = tmp_path / "kittybuilder" / "builder_queue.db"
     ba.init_db(p)
     return p
+
+
+@pytest.fixture(autouse=True)
+def isolated_loop_kx(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep synthetic loop paths on a hermetic semantic-ownership store."""
+    registry = tmp_path / "loop-kx-resources.yaml"
+    registry.write_text(
+        "resources:\n  test:all:\n    paths:\n      - '**'\n",
+        encoding="utf-8",
+    )
+    coordination_db = tmp_path / "loop-kx.db"
+    kitty_data_root = tmp_path / "kitty-data"
+    workspace_db = kitty_data_root / "kitty" / "kitty.db"
+    monkeypatch.setattr(ac.agent_workspace, "WORKSPACE_DB_FILE", workspace_db)
+    monkeypatch.setenv("KITTY_DATA_ROOT", str(kitty_data_root))
+    monkeypatch.setenv("KITTY_COORDINATION_DB_PATH", str(coordination_db))
+    monkeypatch.setenv("KITTY_COORDINATION_REGISTRY_PATH", str(registry))
 
 
 def _apply(db_path: Path, *, max_attempts: int = 2,
