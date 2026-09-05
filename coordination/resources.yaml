@@ -43,6 +43,10 @@ resources:
     - gateway/routes/agent_workspace.py
     - tests/test_agent_workspace.py
     - tests/test_check_continuity_state.py
+  runtime:provider-routing:
+    paths:
+    - config/providers.json
+    - gateway/provider_prefs.py
   runtime:provenance:
     paths:
     - .claude/hooks/**
@@ -73,3 +77,10 @@ resources:
     - gateway/kitty-chat/src/lib/queries.ts
     - gateway/kitty-chat/tests/ActionCard.test.tsx
     - gateway/kitty-chat/tests/actionsContract.test.ts
+  ui:dashboard-shell:
+    paths:
+    - gateway/kitty-chat/src/components/BottomNav.tsx
+    - gateway/kitty-chat/src/components/DashboardView.tsx
+    - gateway/kitty-chat/src/components/Rail.tsx
+    - gateway/kitty-chat/src/components/ViewRenderer.tsx
+    - gateway/kitty-chat/src/lib/views.tsx
