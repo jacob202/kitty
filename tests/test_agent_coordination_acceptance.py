@@ -112,6 +112,46 @@ def _race_worker(
     )
 
 
+def _race_many_worker(
+    db_path: str,
+    registry_path: str,
+    session: str,
+    resources: tuple[str, ...],
+    start_event,
+    result_queue,
+) -> None:
+    start_event.wait(10)
+    try:
+        result = agent_coordination.acquire_many(
+            session_id=session,
+            participant="chatgpt",
+            role="OWN",
+            resource_ids=resources,
+            lane="race-many",
+            branch=f"feat/{session}",
+            worktree=f"/tmp/{session}",
+            base_sha=BASE,
+            paths=("**",),
+            db_path=Path(db_path),
+            registry_path=Path(registry_path),
+            now=T0,
+        )
+    except Exception as exc:
+        result_queue.put({"session": session, "error": f"{type(exc).__name__}: {exc}"})
+        return
+    result_queue.put(
+        {
+            "session": session,
+            "status": result["status"],
+            "claims": [claim["resource_id"] for claim in result.get("claims", [])],
+            "holders": [
+                (holder["resource_id"], holder["session_id"])
+                for holder in result.get("holders", [])
+            ],
+        }
+    )
+
+
 @pytest.fixture
 def store(tmp_path: Path) -> tuple[Path, Path]:
     return tmp_path / "coordination.db", _write_registry(tmp_path / "resources.yaml")
@@ -450,3 +490,102 @@ def test_registry_covers_agent_room_interfaces() -> None:
         assert agent_coordination.resolve_paths_to_resources(
             [path], registry_path=TRACKED_REGISTRY
         ) == ["memory:continuity"], path
+
+def test_resolve_scopes_to_resources_handles_file_directory_and_whole_repo(tmp_path: Path) -> None:
+    registry = tmp_path / "resources.yaml"
+    registry.write_text(
+        """resources:
+  alpha:
+    paths:
+      - alpha/**
+  beta:
+    paths:
+      - beta/exact.py
+  docs:
+    paths:
+      - docs/**
+""",
+        encoding="utf-8",
+    )
+
+    assert agent_coordination.resolve_scopes_to_resources(["beta/exact.py"], registry_path=registry) == ["beta"]
+    assert agent_coordination.resolve_scopes_to_resources(["alpha"], registry_path=registry) == ["alpha"]
+    assert agent_coordination.resolve_scopes_to_resources(["."], registry_path=registry) == ["alpha", "beta", "docs"]
+    assert agent_coordination.resolve_scopes_to_resources(["unmapped/file.py"], registry_path=registry) == []
+
+
+def test_acquire_many_conflict_is_all_or_nothing(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "coordination.db"
+    registry = tmp_path / "resources.yaml"
+    registry.write_text(
+        """resources:
+  alpha:
+    paths:
+      - alpha/**
+  beta:
+    paths:
+      - beta/**
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(agent_coordination, "_project_event", lambda *a, **k: {"ok": True})
+    first = agent_coordination.acquire_many(
+        "owner", role="OWN", resource_ids=("alpha",), base_sha=BASE, paths=("**",),
+        db_path=db_path, registry_path=registry, now=T0,
+    )
+    assert first["status"] == "ACQUIRED"
+
+    blocked = agent_coordination.acquire_many(
+        "blocked", role="OWN", resource_ids=("alpha", "beta"), base_sha=BASE, paths=("**",),
+        db_path=db_path, registry_path=registry, now=T0,
+    )
+    assert blocked["status"] == "CONFLICT"
+    active = agent_coordination.list_claims(active_only=True, db_path=db_path, now=T1)
+    assert [(row["resource_id"], row["session_id"]) for row in active] == [("alpha", "owner")]
+
+
+def test_acquire_many_overlapping_set_race_has_one_whole_winner(tmp_path: Path) -> None:
+    db_path = tmp_path / "coordination.db"
+    registry = tmp_path / "resources.yaml"
+    registry.write_text(
+        """resources:
+  alpha:
+    paths:
+      - alpha/**
+  beta:
+    paths:
+      - beta/**
+  gamma:
+    paths:
+      - gamma/**
+""",
+        encoding="utf-8",
+    )
+    ctx = mp.get_context("spawn")
+    start_event = ctx.Event()
+    result_queue = ctx.Queue()
+    processes = [
+        ctx.Process(
+            target=_race_many_worker,
+            args=(str(db_path), str(registry), "left", ("alpha", "beta"), start_event, result_queue),
+        ),
+        ctx.Process(
+            target=_race_many_worker,
+            args=(str(db_path), str(registry), "right", ("beta", "gamma"), start_event, result_queue),
+        ),
+    ]
+    for process in processes:
+        process.start()
+    start_event.set()
+    results = [result_queue.get(timeout=15) for _ in processes]
+    for process in processes:
+        process.join(timeout=15)
+        assert process.exitcode == 0
+
+    assert all("error" not in item for item in results), results
+    winners = [item for item in results if item["status"] == "ACQUIRED"]
+    losers = [item for item in results if item["status"] == "CONFLICT"]
+    assert len(winners) == len(losers) == 1
+    active = agent_coordination.list_claims(active_only=True, db_path=db_path, now=T1)
+    assert {row["session_id"] for row in active} == {winners[0]["session"]}
+    assert all(row["session_id"] != losers[0]["session"] for row in active)
