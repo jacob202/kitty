@@ -649,6 +649,50 @@ def test_mission_builder_locator_is_idempotent_and_cannot_retarget(tmp_path):
         )
 
 
+def test_concurrent_mission_builder_task_binding_admits_one_identity(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="gateway-mission-race",
+        objective="Keep one Builder execution identity",
+        definition_of_done=["one durable task locator wins"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "gateway-mission-race",
+        initiative_id="conv-builder-race",
+        db_path=db_path,
+    )
+    barrier = Barrier(2)
+
+    def bind(task_id: str) -> dict | Exception:
+        barrier.wait(timeout=5)
+        try:
+            return memory_mission.bind_builder_locator(
+                "gateway-mission-race",
+                initiative_id="conv-builder-race",
+                task_id=task_id,
+                db_path=db_path,
+            )
+        except Exception as exc:
+            return exc
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(bind, ["kb-task-a", "kb-task-b"]))
+
+    accepted = [outcome for outcome in outcomes if isinstance(outcome, dict)]
+    rejected = [outcome for outcome in outcomes if isinstance(outcome, Exception)]
+    assert len(accepted) == 1
+    assert len(rejected) == 1
+    assert isinstance(rejected[0], memory_mission.MissionError)
+    assert "different Builder task" in str(rejected[0])
+    final = memory_mission.get_mission("gateway-mission-race", db_path=db_path)
+    assert final["builder_locator"] == accepted[0]["builder_locator"]
+    assert final["builder_locator"]["task_id"] in {"kb-task-a", "kb-task-b"}
+
+
 def test_mission_execution_requires_current_independent_plan_review(tmp_path):
     from gateway import memory_mission
 
