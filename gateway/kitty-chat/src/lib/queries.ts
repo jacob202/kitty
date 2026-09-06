@@ -96,6 +96,7 @@ import {
   executeOperatorCommand,
   // conversation -> builder job handoff
   compileBuilderProposal,
+  fetchMission,
   proposeBuilderJob,
   approveBuilderJob,
   resumeBuilderJob,
@@ -912,6 +913,16 @@ export function useCompileBuilderProposal() {
 // Conversation -> Builder job handoff: propose does not touch Builder queue
 // state, so nothing to invalidate. Approve creates a durable initiative —
 // invalidate the same live projections OperatorControls already refreshes.
+export function useMission(missionId: string | null) {
+  return useQuery({
+    queryKey: ['mission', missionId],
+    queryFn: () => fetchMission(missionId as string),
+    enabled: Boolean(missionId),
+    refetchInterval: 3_000,
+    retry: false,
+  })
+}
+
 export function useProposeBuilderJob() {
   return useMutation({ mutationFn: proposeBuilderJob })
 }
@@ -926,6 +937,9 @@ export function useApproveBuilderJob() {
         queryClient.invalidateQueries({ queryKey: ['work'] })
         if (data.mission_id) {
           queryClient.invalidateQueries({ queryKey: ['conversation-resume', data.mission_id] })
+        }
+        if (data.gateway_mission_id) {
+          queryClient.invalidateQueries({ queryKey: ['mission', data.gateway_mission_id] })
         }
       }
     },

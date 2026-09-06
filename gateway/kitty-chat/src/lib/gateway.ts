@@ -2511,6 +2511,29 @@ export async function compileBuilderProposal(
   )
 }
 
+export interface MissionRecord {
+  mission_id: string
+  objective: string
+  definition_of_done: string[]
+  status: string
+  status_reason?: string | null
+  paused_from_status?: string | null
+  supervisor: { id: string; epoch: number }
+  plan: {
+    ref?: string | null
+    digest?: string | null
+    review_state: string
+    reviewer_id?: string | null
+    review_evidence?: Record<string, unknown> | null
+  }
+  builder_locator?: { initiative_id: string; task_id?: string | null } | null
+  updated_at?: number | null
+}
+
+export async function fetchMission(missionId: string): Promise<MissionRecord> {
+  return await gfetch<MissionRecord>(`/missions/${encodeURIComponent(missionId)}`, undefined, 10000)
+}
+
 export interface ConversationProposeRequest {
   objective: string
   instructions: string

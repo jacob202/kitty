@@ -12,6 +12,7 @@ vi.mock('../src/lib/gateway', async () => {
     proposeBuilderJob: vi.fn(),
     approveBuilderJob: vi.fn(),
     resumeBuilderJob: vi.fn(),
+    fetchMission: vi.fn(),
   }
 })
 
@@ -59,6 +60,14 @@ beforeEach(() => {
       clear: () => values.clear(),
     },
   })
+  vi.mocked(gateway.fetchMission).mockResolvedValue({
+    mission_id: preparedProposal.gateway_mission_id as string,
+    objective: task.objective,
+    definition_of_done: task.acceptance_criteria,
+    status: 'PLAN_REVIEW',
+    supervisor: { id: 'kitty', epoch: 1 },
+    plan: { review_state: 'approved', digest: preparedProposal.gateway_plan_digest },
+  })
 })
 
 afterEach(() => {
@@ -67,6 +76,7 @@ afterEach(() => {
   vi.mocked(gateway.proposeBuilderJob).mockReset()
   vi.mocked(gateway.approveBuilderJob).mockReset()
   vi.mocked(gateway.resumeBuilderJob).mockReset()
+  vi.mocked(gateway.fetchMission).mockReset()
 })
 
 describe('BuilderProposalCard', () => {
@@ -164,6 +174,29 @@ describe('BuilderProposalCard', () => {
     expect(await screen.findByText(/Independent plan review pending/i)).toBeInTheDocument()
     expect(screen.queryByText('Approve')).not.toBeInTheDocument()
     expect(gateway.approveBuilderJob).not.toHaveBeenCalled()
+  })
+
+
+  it('automatically unlocks approval when durable Mission review becomes approved', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue({
+      ...preparedProposal,
+      gateway_plan_review_state: 'unreviewed',
+    })
+    vi.mocked(gateway.fetchMission).mockResolvedValue({
+      mission_id: preparedProposal.gateway_mission_id as string,
+      objective: task.objective,
+      definition_of_done: task.acceptance_criteria,
+      status: 'PLAN_REVIEW',
+      supervisor: { id: 'kitty', epoch: 1 },
+      plan: { review_state: 'approved', digest: preparedProposal.gateway_plan_digest },
+    })
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-auto-review" messageIndex={0} />)
+
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+
+    expect(await screen.findByText('Approve')).toBeInTheDocument()
+    expect(gateway.fetchMission).toHaveBeenCalledWith(preparedProposal.gateway_mission_id)
+    expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
   })
 
   it('compiles the task, then requires a confirm step before approving', async () => {

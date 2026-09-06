@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react'
 import { ArrowUpRight } from 'lucide-react'
-import { useProposeBuilderJob, useApproveBuilderJob, useResumeBuilderJob } from '@/lib/queries'
+import { useProposeBuilderJob, useApproveBuilderJob, useResumeBuilderJob, useMission } from '@/lib/queries'
 import type { ConversationApproveRequest, ConversationProposal } from '@/lib/gateway'
 
 /**
@@ -194,6 +194,10 @@ export function BuilderProposalCard({
   const [pendingApproval, setPendingApproval] = useState<ConversationApproveRequest | null>(null)
   const [proposalIdentity, setProposalIdentity] = useState<string | null>(null)
   const resume = useResumeBuilderJob(resumedMissionId)
+  const gatewayMissionId = proposal?.gateway_mission_id
+    || pendingApproval?.gateway_mission_id
+    || (resumedMissionId ? `gateway-conversation:${resumedMissionId}` : null)
+  const mission = useMission(gatewayMissionId)
 
   useEffect(() => {
     const stored = readStoredApproval(safeStorage.get(storageKey))
@@ -405,6 +409,11 @@ export function BuilderProposalCard({
       {proposal?.ok && (
         <div style={preparedBox}>
           <p style={fieldStyle}><strong>Mission ID:</strong> {proposal.mission_id}</p>
+          {gatewayMissionId && (
+            <p style={fieldStyle}>
+              <strong>Mission state:</strong> {mission.data?.status ?? proposal.gateway_mission_status ?? 'loading'}
+            </p>
+          )}
           <p style={fieldStyle}><strong>Acceptance criteria:</strong></p>
           <ul style={ulStyle}>
             {((proposal.prepared_manifest?.packets as Array<Record<string, unknown>> | undefined)?.[0]
@@ -421,11 +430,16 @@ export function BuilderProposalCard({
             <strong>Plan:</strong> {proposal.plan?.path}
           </p>
 
-          {proposal.gateway_mission_id && proposal.gateway_plan_review_state !== 'approved' ? (
+          {proposal.gateway_mission_id && (mission.data?.plan.review_state ?? proposal.gateway_plan_review_state) !== 'approved' ? (
             <div style={warningBox}>
-              <div>Independent plan review pending. Builder execution cannot be approved until a separate reviewer approves this exact plan.</div>
+              <div>
+                {(mission.data?.plan.review_state ?? proposal.gateway_plan_review_state) === 'rejected'
+                  ? 'Independent plan review rejected this version. Revise the proposal before Builder execution.'
+                  : 'Independent plan review pending. Kitty started a separate read-only reviewer; Builder execution remains locked until it approves this exact plan.'}
+              </div>
+              {mission.isError && <div>Mission status is temporarily unavailable. The review gate remains locked.</div>}
               <button type="button" onClick={doPropose} disabled={propose.isPending} style={btnBase}>
-                {propose.isPending ? 'Checking…' : 'Check review status'}
+                {propose.isPending ? 'Retrying…' : 'Retry review'}
               </button>
             </div>
           ) : !confirming ? (
