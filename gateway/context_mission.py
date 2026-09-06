@@ -13,8 +13,49 @@ DecisionFn = Callable[[dict[str, Any]], dict[str, Any]]
 DelegateFn = Callable[[dict[str, Any]], dict[str, Any]]
 NotifyFn = Callable[[dict[str, Any]], Any]
 ObserveFn = Callable[[dict[str, Any]], list[dict[str, Any]]]
+BuilderResumeFn = Callable[..., dict[str, Any]]
 _ALLOWED_OUTCOMES = {"advance", "needs_jacob", "blocked", "verify", "no_change"}
 _NO_EXPECTATION = object()
+
+
+def read_builder_projection(
+    mission_id: str,
+    *,
+    db_path: Path = memory_mission.MISSION_DB_FILE,
+    resume: BuilderResumeFn | None = None,
+) -> dict[str, Any]:
+    """Re-read Builder-owned execution truth through its canonical resume seam.
+
+    Gateway Mission state owns only the durable Builder locator. The returned
+    projection is intentionally not persisted into Mission state, so Builder
+    remains the sole owner of queue, attempt, execution, review, and
+    publication truth.
+    """
+    mission = memory_mission.get_mission(mission_id, db_path=db_path)
+    locator = mission.get("builder_locator")
+    if not isinstance(locator, dict):
+        return {"locator": None, "builder": None}
+
+    initiative_id = locator.get("initiative_id")
+    if not isinstance(initiative_id, str) or not initiative_id:
+        raise memory_mission.MissionError("Mission has an invalid Builder initiative locator")
+
+    if resume is None:
+        from gateway import conversation_handoff
+
+        resume = conversation_handoff.resume
+    builder = resume(mission_id=initiative_id, task_id=None)
+    if not isinstance(builder, dict):
+        raise memory_mission.MissionError("Builder resume returned an invalid projection")
+    projected_mission = builder.get("mission")
+    if builder.get("ok") is True and (
+        not isinstance(projected_mission, dict)
+        or projected_mission.get("id") != initiative_id
+    ):
+        raise memory_mission.MissionError(
+            "Builder projection resolved a different Builder initiative"
+        )
+    return {"locator": dict(locator), "builder": builder}
 
 
 def _observation_key(observation: dict[str, Any]) -> str:

@@ -693,6 +693,82 @@ def test_concurrent_mission_builder_task_binding_admits_one_identity(tmp_path):
     assert final["builder_locator"]["task_id"] in {"kb-task-a", "kb-task-b"}
 
 
+def test_mission_builder_projection_re_reads_builder_authority_without_copying_state(
+    tmp_path, monkeypatch
+):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="gateway-mission-projection",
+        objective="Observe Builder truth",
+        definition_of_done=["Builder remains execution authority"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "gateway-mission-projection",
+        initiative_id="conv-builder-projection",
+        task_id="kb-task-projection",
+        db_path=db_path,
+    )
+    calls: list[dict[str, str]] = []
+
+    def fake_resume(*, mission_id=None, task_id=None):
+        calls.append({"mission_id": mission_id, "task_id": task_id})
+        return {
+            "ok": True,
+            "state": "running",
+            "mission": {"id": "conv-builder-projection", "state": "active"},
+            "current_work": {"task_id": "kb-task-projection", "state": "running"},
+        }
+
+    projection = context_mission.read_builder_projection(
+        "gateway-mission-projection", db_path=db_path, resume=fake_resume
+    )
+
+    assert calls == [{"mission_id": "conv-builder-projection", "task_id": None}]
+    assert projection["locator"] == {
+        "initiative_id": "conv-builder-projection",
+        "task_id": "kb-task-projection",
+    }
+    assert projection["builder"]["current_work"]["state"] == "running"
+    durable = memory_mission.get_mission("gateway-mission-projection", db_path=db_path)
+    assert durable["builder_locator"] == projection["locator"]
+    assert "builder_state" not in durable
+
+
+def test_mission_builder_projection_fails_closed_on_wrong_builder_identity(
+    tmp_path, monkeypatch
+):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="gateway-mission-mismatch",
+        objective="Reject mismatched Builder truth",
+        definition_of_done=["wrong initiative is never adopted"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "gateway-mission-mismatch",
+        initiative_id="conv-expected",
+        db_path=db_path,
+    )
+    def fake_resume(**_kwargs):
+        return {
+            "ok": True,
+            "mission": {"id": "conv-other"},
+            "state": "done",
+        }
+
+    with pytest.raises(memory_mission.MissionError, match="different Builder initiative"):
+        context_mission.read_builder_projection(
+            "gateway-mission-mismatch", db_path=db_path, resume=fake_resume
+        )
+
+
 def test_mission_execution_requires_current_independent_plan_review(tmp_path):
     from gateway import memory_mission
 
