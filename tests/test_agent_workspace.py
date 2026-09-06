@@ -813,6 +813,64 @@ def test_exact_plan_replay_does_not_regress_review_or_execution(tmp_path):
     }
 
 
+def test_ensure_mission_is_atomic_and_idempotent_for_same_outcome(tmp_path):
+    from gateway import db as kitty_db
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.init_db(db_path=db_path)
+    barrier = Barrier(2)
+
+    def ensure() -> dict:
+        barrier.wait(timeout=5)
+        return memory_mission.ensure_mission(
+            mission_id="gateway-mission-replay",
+            objective="Ship one durable outcome",
+            definition_of_done=["one Mission record exists"],
+            supervisor_id="supervisor-a",
+            db_path=db_path,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(lambda _index: ensure(), range(2)))
+
+    assert [item["mission_id"] for item in outcomes] == [
+        "gateway-mission-replay",
+        "gateway-mission-replay",
+    ]
+    assert [item["mission_id"] for item in memory_mission.list_missions(db_path=db_path)] == [
+        "gateway-mission-replay"
+    ]
+    with kitty_db.connect(db_path) as conn:
+        created_events = conn.execute(
+            "SELECT COUNT(*) FROM mission_events WHERE mission_id=? AND event_type='mission_created'",
+            ("gateway-mission-replay",),
+        ).fetchone()[0]
+    assert created_events == 1
+
+
+def test_ensure_mission_rejects_same_id_for_different_outcome(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.ensure_mission(
+        mission_id="gateway-mission-conflict",
+        objective="Original outcome",
+        definition_of_done=["original done"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+
+    with pytest.raises(memory_mission.MissionError, match="different outcome"):
+        memory_mission.ensure_mission(
+            mission_id="gateway-mission-conflict",
+            objective="Different outcome",
+            definition_of_done=["different done"],
+            supervisor_id="supervisor-b",
+            db_path=db_path,
+        )
+
+
 def test_mission_execution_requires_current_independent_plan_review(tmp_path):
     from gateway import memory_mission
 

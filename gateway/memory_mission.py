@@ -188,6 +188,72 @@ def create_mission(
     return get_mission(mission_id, db_path=db_path)
 
 
+def ensure_mission(
+    *,
+    mission_id: str,
+    objective: str,
+    definition_of_done: list[str],
+    supervisor_id: str,
+    db_path: Path = MISSION_DB_FILE,
+) -> dict[str, Any]:
+    """Create one Mission identity or return the exact existing outcome.
+
+    This is the idempotent creation seam for request retries. A caller may
+    replay the same stable Mission id without creating another record, but the
+    id can never be silently reused for a different objective/definition of
+    done. Existing supervisor/lifecycle state is never reset on replay.
+    """
+    mission_id = _required_text(mission_id, "mission_id")
+    objective = _required_text(objective, "objective")
+    supervisor_id = _required_text(supervisor_id, "supervisor_id")
+    if not definition_of_done or any(
+        not isinstance(item, str) or not item.strip() for item in definition_of_done
+    ):
+        raise MissionError("definition_of_done must contain non-empty strings")
+
+    init_db(db_path=db_path)
+    now = time.time()
+    with kitty_db.connect(db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT * FROM missions WHERE mission_id=?", (mission_id,)
+        ).fetchone()
+        if row is not None:
+            current = _row_to_mission(row)
+            if (
+                current["objective"] != objective
+                or current["definition_of_done"] != definition_of_done
+            ):
+                raise MissionError(
+                    f"Mission {mission_id!r} already exists for a different outcome"
+                )
+            conn.rollback()
+            return current
+
+        conn.execute(
+            "INSERT INTO missions "
+            "(mission_id, objective, definition_of_done_json, status, "
+            "supervisor_id, supervisor_epoch, created_at, updated_at) "
+            "VALUES (?, ?, ?, 'PLANNING', ?, 1, ?, ?)",
+            (
+                mission_id,
+                objective,
+                json.dumps(definition_of_done),
+                supervisor_id,
+                now,
+                now,
+            ),
+        )
+        conn.execute(
+            "INSERT INTO mission_events "
+            "(mission_id,event_type,supervisor_epoch,payload_json,created_at) "
+            "VALUES (?, 'mission_created', 1, ?, ?)",
+            (mission_id, json.dumps({"objective": objective}), now),
+        )
+        conn.commit()
+    return get_mission(mission_id, db_path=db_path)
+
+
 def _append_event(
     conn: sqlite3.Connection,
     *,
