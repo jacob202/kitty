@@ -90,6 +90,15 @@ interface ProposalIdentityCheckpoint {
   task: BuilderProposalTask
 }
 
+interface PreparedProposalCheckpoint {
+  version: 3
+  state: 'prepared'
+  initiativeId: string
+  gatewayMissionId: string
+  task: BuilderProposalTask
+  proposal: ConversationProposal
+}
+
 function isBuilderProposalTask(value: unknown): value is BuilderProposalTask {
   if (!value || typeof value !== 'object') return false
   const task = value as Partial<BuilderProposalTask>
@@ -99,7 +108,13 @@ function isBuilderProposalTask(value: unknown): value is BuilderProposalTask {
     && task.allowed_paths.every(path => typeof path === 'string')
 }
 
-function readStoredApproval(raw: string | null): { missionId: string | null; pending: ConversationApproveRequest | null; task: BuilderProposalTask | null; initiativeId: string | null } | null {
+function readStoredApproval(raw: string | null): {
+  missionId: string | null
+  pending: ConversationApproveRequest | null
+  task: BuilderProposalTask | null
+  initiativeId: string | null
+  proposal: ConversationProposal | null
+} | null {
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as Partial<PendingApprovalCheckpoint> | null
@@ -113,7 +128,38 @@ function readStoredApproval(raw: string | null): { missionId: string | null; pen
       && parsed.approval
       && typeof parsed.approval === 'object'
     ) {
-      return { missionId: parsed.missionId, pending: parsed.approval as ConversationApproveRequest, task: isBuilderProposalTask(parsed.task) ? parsed.task : null, initiativeId: null }
+      return {
+        missionId: parsed.missionId,
+        pending: parsed.approval as ConversationApproveRequest,
+        task: isBuilderProposalTask(parsed.task) ? parsed.task : null,
+        initiativeId: null,
+        proposal: null,
+      }
+    }
+    const prepared = parsed as Partial<PreparedProposalCheckpoint> | null
+    if (
+      prepared
+      && typeof prepared === 'object'
+      && prepared.version === 3
+      && prepared.state === 'prepared'
+      && typeof prepared.initiativeId === 'string'
+      && prepared.initiativeId
+      && typeof prepared.gatewayMissionId === 'string'
+      && prepared.gatewayMissionId
+      && isBuilderProposalTask(prepared.task)
+      && prepared.proposal
+      && typeof prepared.proposal === 'object'
+      && prepared.proposal.ok === true
+      && prepared.proposal.mission_id === prepared.initiativeId
+      && prepared.proposal.gateway_mission_id === prepared.gatewayMissionId
+    ) {
+      return {
+        missionId: null,
+        pending: null,
+        task: prepared.task,
+        initiativeId: prepared.initiativeId,
+        proposal: prepared.proposal as ConversationProposal,
+      }
     }
     const proposal = parsed as Partial<ProposalIdentityCheckpoint> | null
     if (
@@ -125,12 +171,18 @@ function readStoredApproval(raw: string | null): { missionId: string | null; pen
       && proposal.initiativeId
       && isBuilderProposalTask(proposal.task)
     ) {
-      return { missionId: null, pending: null, task: proposal.task, initiativeId: proposal.initiativeId }
+      return {
+        missionId: null,
+        pending: null,
+        task: proposal.task,
+        initiativeId: proposal.initiativeId,
+        proposal: null,
+      }
     }
   } catch {
     // Legacy approved entries are plain mission ids, not JSON.
   }
-  return { missionId: raw, pending: null, task: null, initiativeId: null }
+  return { missionId: raw, pending: null, task: null, initiativeId: null, proposal: null }
 }
 
 export function readPendingBuilderProposalTask(raw: string | null): BuilderProposalTask | null {
@@ -139,6 +191,20 @@ export function readPendingBuilderProposalTask(raw: string | null): BuilderPropo
 
 function proposalIdentityValue(initiativeId: string, task: BuilderProposalTask): string {
   return JSON.stringify({ version: 2, state: 'proposal', initiativeId, task } satisfies ProposalIdentityCheckpoint)
+}
+
+function preparedProposalValue(proposal: ConversationProposal, task: BuilderProposalTask): string | null {
+  const initiativeId = proposal.mission_id
+  const gatewayMissionId = proposal.gateway_mission_id
+  if (!proposal.ok || !initiativeId || !gatewayMissionId) return null
+  return JSON.stringify({
+    version: 3,
+    state: 'prepared',
+    initiativeId,
+    gatewayMissionId,
+    task,
+    proposal,
+  } satisfies PreparedProposalCheckpoint)
 }
 
 function createProposalInitiativeId(): string {
@@ -204,6 +270,7 @@ export function BuilderProposalCard({
     setResumedMissionId(stored?.missionId ?? null)
     setPendingApproval(stored?.pending ?? null)
     setProposalIdentity(stored?.initiativeId ?? null)
+    setProposal(stored?.proposal ?? null)
   }, [storageKey])
 
   useEffect(() => {
@@ -273,7 +340,16 @@ export function BuilderProposalCard({
         acceptance_criteria: draft.acceptance_criteria,
         validation_commands: draft.validation_commands,
       },
-      { onSuccess: (data) => setProposal(data) },
+      {
+        onSuccess: (data) => {
+          setProposal(data)
+          const checkpoint = preparedProposalValue(data, draft)
+          if (checkpoint) {
+            window.localStorage.setItem(storageKey, checkpoint)
+            setProposalIdentity(data.mission_id ?? initiativeId)
+          }
+        },
+      },
     )
   }
 

@@ -177,6 +177,50 @@ describe('BuilderProposalCard', () => {
   })
 
 
+
+  it('reloads a prepared Gateway Mission without recompiling while plan review is pending', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue({
+      ...preparedProposal,
+      gateway_plan_review_state: 'unreviewed',
+    })
+    vi.mocked(gateway.fetchMission).mockResolvedValue({
+      mission_id: preparedProposal.gateway_mission_id as string,
+      objective: task.objective,
+      definition_of_done: task.acceptance_criteria,
+      status: 'PLAN_REVIEW',
+      supervisor: { id: 'kitty', epoch: 1 },
+      plan: { review_state: 'unreviewed', digest: preparedProposal.gateway_plan_digest },
+    })
+
+    const first = renderWithQueryClient(
+      <BuilderProposalCard task={task} chatId="chat-prepared-reload" messageIndex={2} />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    expect(await screen.findByText(/Independent plan review pending/i)).toBeInTheDocument()
+    await waitFor(() => expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce())
+
+    const checkpoint = JSON.parse(
+      window.localStorage.getItem('kitty.builder-proposal.chat-prepared-reload.2') as string,
+    )
+    expect(checkpoint).toMatchObject({
+      version: 3,
+      state: 'prepared',
+      initiativeId: preparedProposal.mission_id,
+      gatewayMissionId: preparedProposal.gateway_mission_id,
+      task,
+    })
+
+    first.unmount()
+    renderWithQueryClient(
+      <BuilderProposalCard task={task} chatId="chat-prepared-reload" messageIndex={2} />,
+    )
+
+    expect(await screen.findByText(/Independent plan review pending/i)).toBeInTheDocument()
+    expect(screen.queryByText('Compile as Builder Mission')).not.toBeInTheDocument()
+    expect(gateway.fetchMission).toHaveBeenCalledWith(preparedProposal.gateway_mission_id)
+    expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
+  })
+
   it('automatically unlocks approval when durable Mission review becomes approved', async () => {
     vi.mocked(gateway.proposeBuilderJob).mockResolvedValue({
       ...preparedProposal,
