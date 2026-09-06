@@ -2528,6 +2528,10 @@ export interface ConversationProposal {
   error?: string | null
   next_action?: string | null
   mission_id?: string | null
+  gateway_mission_id?: string | null
+  gateway_mission_status?: string | null
+  gateway_plan_digest?: string | null
+  gateway_plan_review_state?: string | null
   manifest_sha256?: string
   expected_base_sha?: string
   approval_nonce?: string
@@ -2557,6 +2561,7 @@ export interface ConversationApproveRequest {
   expected_manifest_sha: string
   expected_base_sha: string
   approval_nonce: string
+  gateway_mission_id?: string
   confirmed: boolean
 }
 
@@ -2567,6 +2572,8 @@ export interface ConversationApproval {
   error?: string | null
   next_action?: string | null
   mission_id?: string | null
+  gateway_mission_id?: string | null
+  gateway_mission_status?: string | null
   apply_status?: string
   tasks?: Array<{ packet_id: string; task_id: string }>
 }

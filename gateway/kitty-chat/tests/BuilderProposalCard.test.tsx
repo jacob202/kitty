@@ -26,6 +26,10 @@ const preparedProposal: gateway.ConversationProposal = {
   ok: true,
   state: 'prepared',
   mission_id: 'conv-fix-the-flaky-retry-loop-1',
+  gateway_mission_id: 'gateway-conversation:conv-fix-the-flaky-retry-loop-1',
+  gateway_mission_status: 'PLAN_REVIEW',
+  gateway_plan_digest: 'a'.repeat(64),
+  gateway_plan_review_state: 'approved',
   manifest_sha256: 'a'.repeat(64),
   expected_base_sha: 'b'.repeat(40),
   approval_nonce: 'c'.repeat(64),
@@ -108,6 +112,58 @@ describe('BuilderProposalCard', () => {
       }),
       expect.anything(),
     )
+  })
+
+
+  it('reuses the same explicit initiative after a dropped proposal response and remount', async () => {
+    vi.mocked(gateway.proposeBuilderJob)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockImplementationOnce(async (payload) => ({
+        ...preparedProposal,
+        mission_id: payload.initiative_id,
+      }))
+
+    const first = renderWithQueryClient(
+      <BuilderProposalCard task={task} chatId="chat-proposal-loss" messageIndex={4} />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    await screen.findByText(/Could not reach the Kitty gateway/)
+
+    const firstPayload = vi.mocked(gateway.proposeBuilderJob).mock.calls[0]?.[0]
+    expect(firstPayload?.initiative_id).toMatch(/^conv-ui-[a-z0-9]+$/)
+    const checkpoint = JSON.parse(
+      window.localStorage.getItem('kitty.builder-proposal.chat-proposal-loss.4') as string,
+    )
+    expect(checkpoint).toMatchObject({
+      version: 2,
+      state: 'proposal',
+      initiativeId: firstPayload?.initiative_id,
+      task,
+    })
+
+    first.unmount()
+    renderWithQueryClient(
+      <BuilderProposalCard task={task} chatId="chat-proposal-loss" messageIndex={4} />,
+    )
+    fireEvent.click(await screen.findByText('Compile as Builder Mission'))
+
+    await waitFor(() => expect(gateway.proposeBuilderJob).toHaveBeenCalledTimes(2))
+    const secondPayload = vi.mocked(gateway.proposeBuilderJob).mock.calls[1]?.[0]
+    expect(secondPayload?.initiative_id).toBe(firstPayload?.initiative_id)
+  })
+
+  it('does not expose Builder execution approval while independent plan review is pending', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue({
+      ...preparedProposal,
+      gateway_plan_review_state: 'unreviewed',
+    })
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-review" messageIndex={0} />)
+
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+
+    expect(await screen.findByText(/Independent plan review pending/i)).toBeInTheDocument()
+    expect(screen.queryByText('Approve')).not.toBeInTheDocument()
+    expect(gateway.approveBuilderJob).not.toHaveBeenCalled()
   })
 
   it('compiles the task, then requires a confirm step before approving', async () => {
@@ -215,6 +271,34 @@ describe('BuilderProposalCard', () => {
     expect(window.localStorage.getItem('kitty.builder-proposal.chat-1.0')).toBe(
       preparedProposal.mission_id,
     )
+  })
+
+
+  it('preserves the immutable approval checkpoint when Builder accepted but Mission binding needs recovery', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob).mockResolvedValue({
+      ok: false,
+      state: 'recovery_required',
+      error_code: 'mission_binding_failed',
+      error: 'Builder accepted the work but Mission binding needs reconciliation.',
+      gateway_mission_id: preparedProposal.gateway_mission_id,
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-binding" messageIndex={0} />)
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+
+    await screen.findByText(/Mission binding needs reconciliation/)
+    const checkpoint = JSON.parse(
+      window.localStorage.getItem('kitty.builder-proposal.chat-binding.0') as string,
+    )
+    expect(checkpoint).toMatchObject({
+      version: 1,
+      state: 'pending',
+      missionId: preparedProposal.mission_id,
+      approval: { gateway_mission_id: preparedProposal.gateway_mission_id, confirmed: true },
+    })
   })
 
   it('surfaces a refused approval instead of a false success', async () => {

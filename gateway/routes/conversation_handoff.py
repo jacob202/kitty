@@ -59,6 +59,7 @@ class ApproveRequest(BaseModel):
     expected_manifest_sha: str
     expected_base_sha: str
     approval_nonce: str
+    gateway_mission_id: str | None = None
     confirmed: bool = False
 
 

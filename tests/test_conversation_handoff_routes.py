@@ -103,6 +103,33 @@ def test_approve_route_passes_through_explicit_confirmation(
     assert received["confirmed"] is True
 
 
+
+def test_approve_route_passes_gateway_mission_identity(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    received = {}
+
+    def fake_approve(**kwargs):
+        received.update(kwargs)
+        return {"ok": False, "state": "plan_review", "error_code": "plan_review_required"}
+
+    monkeypatch.setattr(conversation_handoff, "approve", fake_approve)
+    response = client.post(
+        "/builder/conversation/approve",
+        json={
+            "prepared_manifest": {"initiative_id": "conv-1"},
+            "expected_manifest_sha": "a" * 64,
+            "expected_base_sha": "b" * 40,
+            "approval_nonce": "c" * 64,
+            "gateway_mission_id": "gateway-conversation:conv-1",
+            "confirmed": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert received["gateway_mission_id"] == "gateway-conversation:conv-1"
+    assert received["confirmed"] is True
+
 def test_resume_route_accepts_query_params(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -20,7 +20,7 @@ import pytest
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
-from gateway import conversation_handoff
+from gateway import conversation_handoff, memory_mission
 from mcp.builder import commands as mcp_commands
 from mcp.builder import context as mcp_context
 
@@ -56,6 +56,8 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # bi.init_db()'s; a fresh test DB needs it explicitly before any
     # read-only projection (resume_context/work_status) touches attempts.
     ba.init_db(db_path)
+    mission_db = tmp_path / "data" / "kitty" / "kitty.db"
+    monkeypatch.setattr(memory_mission, "MISSION_DB_FILE", mission_db)
     return tmp_path
 
 
@@ -108,6 +110,87 @@ def test_planning_artifact_claim_is_exact_and_released(
         conversation_handoff.repo_tools.planning_artifact_path("plan", "claim-proof"),
     ]
     assert released == [acquired[0]["session_id"]]
+
+
+def test_propose_creates_distinct_gateway_mission_without_builder_job(repo: Path) -> None:
+    result = conversation_handoff.propose(
+        **_task(initiative_id="conv-gateway-mission-proof")
+    )
+
+    assert result["ok"] is True
+    assert result["mission_id"] == "conv-gateway-mission-proof"
+    assert result["gateway_mission_id"] != result["mission_id"]
+    mission = memory_mission.get_mission(
+        result["gateway_mission_id"], db_path=memory_mission.MISSION_DB_FILE
+    )
+    assert mission["objective"] == _task()["objective"]
+    assert mission["status"] == "PLAN_REVIEW"
+    assert mission["plan"]["review_state"] == "unreviewed"
+    assert mission["plan"]["digest"] == result["gateway_plan_digest"]
+    assert mission["builder_locator"] == {
+        "initiative_id": "conv-gateway-mission-proof",
+        "task_id": None,
+    }
+    assert _initiative_rows(repo / "data" / "kittybuilder" / "builder_queue.db") == []
+
+
+def test_exact_proposal_replay_reuses_same_gateway_mission_and_plan(repo: Path) -> None:
+    task = _task(initiative_id="conv-proposal-replay")
+    first = conversation_handoff.propose(**task)
+    second = conversation_handoff.propose(**task)
+
+    assert first["ok"] is True and second["ok"] is True
+    assert second["mission_id"] == first["mission_id"]
+    assert second["gateway_mission_id"] == first["gateway_mission_id"]
+    assert second["gateway_plan_digest"] == first["gateway_plan_digest"]
+    assert second["design"] == first["design"]
+    assert second["plan"] == first["plan"]
+    assert len(memory_mission.list_missions(db_path=memory_mission.MISSION_DB_FILE)) == 1
+
+
+def test_builder_approval_waits_for_independent_gateway_plan_review(repo: Path) -> None:
+    proposal = conversation_handoff.propose(
+        **_task(initiative_id="conv-plan-gate")
+    )
+    kwargs = dict(
+        prepared_manifest=proposal["prepared_manifest"],
+        expected_manifest_sha=proposal["manifest_sha256"],
+        expected_base_sha=proposal["expected_base_sha"],
+        approval_nonce=proposal["approval_nonce"],
+        gateway_mission_id=proposal["gateway_mission_id"],
+        confirmed=True,
+    )
+
+    blocked = conversation_handoff.approve(**kwargs)
+    assert blocked["ok"] is False
+    assert blocked["error_code"] == "plan_review_required"
+    assert _initiative_rows(repo / "data" / "kittybuilder" / "builder_queue.db") == []
+
+    memory_mission.record_plan_review(
+        proposal["gateway_mission_id"],
+        reviewer_id="independent-plan-reviewer",
+        plan_digest=proposal["gateway_plan_digest"],
+        verdict="approved",
+        evidence={"kind": "test-review", "plan": proposal["plan"]["sha"]},
+        db_path=memory_mission.MISSION_DB_FILE,
+    )
+    approved = conversation_handoff.approve(**kwargs)
+
+    assert approved["ok"] is True
+    mission = memory_mission.get_mission(
+        proposal["gateway_mission_id"], db_path=memory_mission.MISSION_DB_FILE
+    )
+    assert mission["status"] == "EXECUTING"
+    assert mission["builder_locator"]["initiative_id"] == approved["mission_id"]
+    assert mission["builder_locator"]["task_id"] == approved["tasks"][0]["task_id"]
+
+    replay = conversation_handoff.approve(**kwargs)
+    assert replay["ok"] is True
+    replayed = memory_mission.get_mission(
+        proposal["gateway_mission_id"], db_path=memory_mission.MISSION_DB_FILE
+    )
+    assert replayed["status"] == "EXECUTING"
+    assert replayed["builder_locator"] == mission["builder_locator"]
 
 
 def test_propose_without_approval_does_not_create_builder_job(repo: Path) -> None:
