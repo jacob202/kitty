@@ -589,6 +589,66 @@ def test_mission_list_returns_durable_rows_most_recent_first(tmp_path, monkeypat
     assert listed[1]["status"] == "PLANNING"
 
 
+def test_mission_builder_locator_is_idempotent_and_cannot_retarget(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="gateway-mission-1",
+        objective="Ship one bounded Builder change",
+        definition_of_done=["Builder result is inspectable"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+
+    proposed = memory_mission.bind_builder_locator(
+        "gateway-mission-1",
+        initiative_id="conv-builder-1",
+        db_path=db_path,
+    )
+    assert proposed["builder_locator"] == {
+        "initiative_id": "conv-builder-1",
+        "task_id": None,
+    }
+
+    approved = memory_mission.bind_builder_locator(
+        "gateway-mission-1",
+        initiative_id="conv-builder-1",
+        task_id="kb-task-1",
+        db_path=db_path,
+    )
+    repeated = memory_mission.bind_builder_locator(
+        "gateway-mission-1",
+        initiative_id="conv-builder-1",
+        task_id="kb-task-1",
+        db_path=db_path,
+    )
+    assert approved["builder_locator"] == repeated["builder_locator"] == {
+        "initiative_id": "conv-builder-1",
+        "task_id": "kb-task-1",
+    }
+    stale_proposal_replay = memory_mission.bind_builder_locator(
+        "gateway-mission-1",
+        initiative_id="conv-builder-1",
+        db_path=db_path,
+    )
+    assert stale_proposal_replay["builder_locator"]["task_id"] == "kb-task-1"
+
+    with pytest.raises(memory_mission.MissionError, match="different Builder initiative"):
+        memory_mission.bind_builder_locator(
+            "gateway-mission-1",
+            initiative_id="conv-builder-2",
+            db_path=db_path,
+        )
+    with pytest.raises(memory_mission.MissionError, match="different Builder task"):
+        memory_mission.bind_builder_locator(
+            "gateway-mission-1",
+            initiative_id="conv-builder-1",
+            task_id="kb-task-2",
+            db_path=db_path,
+        )
+
+
 def test_mission_execution_requires_current_independent_plan_review(tmp_path):
     from gateway import memory_mission
 

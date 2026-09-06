@@ -49,6 +49,7 @@ def init_db(*, db_path: Path = MISSION_DB_FILE) -> None:
                 plan_review_state TEXT NOT NULL DEFAULT 'unreviewed',
                 plan_reviewer_id TEXT,
                 plan_review_evidence_json TEXT,
+                builder_locator_json TEXT,
                 checkpoint_json TEXT NOT NULL DEFAULT '{}',
                 source_cursors_json TEXT NOT NULL DEFAULT '{}',
                 last_cycle_json TEXT,
@@ -77,6 +78,8 @@ def init_db(*, db_path: Path = MISSION_DB_FILE) -> None:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(missions)")}
         if "paused_from_status" not in columns:
             conn.execute("ALTER TABLE missions ADD COLUMN paused_from_status TEXT")
+        if "builder_locator_json" not in columns:
+            conn.execute("ALTER TABLE missions ADD COLUMN builder_locator_json TEXT")
         conn.commit()
 
 
@@ -107,6 +110,8 @@ def _row_to_mission(row: sqlite3.Row) -> dict[str, Any]:
             "review_evidence": json.loads(row["plan_review_evidence_json"])
             if row["plan_review_evidence_json"] else None,
         },
+        "builder_locator": json.loads(row["builder_locator_json"])
+        if row["builder_locator_json"] else None,
         "checkpoint": json.loads(row["checkpoint_json"]),
         "source_cursors": json.loads(row["source_cursors_json"]),
         "last_cycle": json.loads(row["last_cycle_json"]) if row["last_cycle_json"] else None,
@@ -197,6 +202,66 @@ def _append_event(
         "(mission_id,event_type,supervisor_epoch,payload_json,created_at) VALUES (?,?,?,?,?)",
         (mission_id, event_type, supervisor_epoch, json.dumps(payload, sort_keys=True), now),
     )
+
+
+def bind_builder_locator(
+    mission_id: str,
+    *,
+    initiative_id: str,
+    task_id: str | None = None,
+    db_path: Path = MISSION_DB_FILE,
+) -> dict[str, Any]:
+    """Bind one Gateway Mission to Builder identifiers without copying Builder state.
+
+    The Builder initiative is immutable once bound. A later approval may add the
+    durable Builder task id exactly once. Replays preserve the existing locator
+    so an ambiguous/lost HTTP receipt cannot retarget or regress the Mission.
+    """
+    mission_id = _required_text(mission_id, "mission_id")
+    initiative_id = _required_text(initiative_id, "initiative_id")
+    if task_id is not None:
+        task_id = _required_text(task_id, "task_id")
+    init_db(db_path=db_path)
+    now = time.time()
+    with kitty_db.connect(db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT builder_locator_json, supervisor_epoch FROM missions WHERE mission_id=?",
+            (mission_id,),
+        ).fetchone()
+        if row is None:
+            raise MissionNotFound(f"no Mission with id {mission_id!r}")
+
+        current = json.loads(row["builder_locator_json"]) if row["builder_locator_json"] else None
+        if current is not None and current.get("initiative_id") != initiative_id:
+            raise MissionError("Mission is already bound to a different Builder initiative")
+
+        current_task = current.get("task_id") if current else None
+        if current_task is not None and task_id is not None and current_task != task_id:
+            raise MissionError("Mission is already bound to a different Builder task")
+
+        resolved = {
+            "initiative_id": initiative_id,
+            "task_id": current_task if current_task is not None else task_id,
+        }
+        if current == resolved:
+            conn.rollback()
+            return get_mission(mission_id, db_path=db_path)
+
+        conn.execute(
+            "UPDATE missions SET builder_locator_json=?, updated_at=? WHERE mission_id=?",
+            (json.dumps(resolved, sort_keys=True), now, mission_id),
+        )
+        _append_event(
+            conn,
+            mission_id=mission_id,
+            event_type="builder_locator_bound",
+            supervisor_epoch=int(row["supervisor_epoch"]),
+            payload=resolved,
+            now=now,
+        )
+        conn.commit()
+    return get_mission(mission_id, db_path=db_path)
 
 
 def set_plan(
