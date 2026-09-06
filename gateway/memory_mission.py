@@ -269,24 +269,33 @@ def set_plan(
 ) -> dict[str, Any]:
     plan_ref = _required_text(plan_ref, "plan_ref")
     plan_digest = _required_text(plan_digest, "plan_digest")
-    mission = get_mission(mission_id, db_path=db_path)
-    if mission["status"] == "STOPPED":
-        raise MissionError("stopped Mission cannot receive a new plan")
-    if mission["status"] == "DONE":
-        raise MissionError("completed Mission cannot receive a new plan")
+    mission_id = _required_text(mission_id, "mission_id")
+    init_db(db_path=db_path)
     now = time.time()
     with kitty_db.connect(db_path) as conn:
-        cursor = conn.execute(
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT plan_ref, plan_digest, status, supervisor_epoch FROM missions WHERE mission_id=?",
+            (mission_id,),
+        ).fetchone()
+        if row is None:
+            raise MissionNotFound(f"no Mission with id {mission_id!r}")
+        if row["plan_ref"] == plan_ref and row["plan_digest"] == plan_digest:
+            conn.rollback()
+            return get_mission(mission_id, db_path=db_path)
+        if row["status"] == "STOPPED":
+            raise MissionError("stopped Mission cannot receive a new plan")
+        if row["status"] == "DONE":
+            raise MissionError("completed Mission cannot receive a new plan")
+        conn.execute(
             "UPDATE missions SET plan_ref=?, plan_digest=?, plan_review_state='unreviewed', "
             "plan_reviewer_id=NULL, plan_review_evidence_json=NULL, status='PLAN_REVIEW', updated_at=? "
-            "WHERE mission_id=? AND status NOT IN ('STOPPED','DONE')",
+            "WHERE mission_id=?",
             (plan_ref, plan_digest, now, mission_id),
         )
-        if cursor.rowcount != 1:
-            raise MissionError("Mission became stopped or completed before plan update")
         _append_event(
             conn, mission_id=mission_id, event_type="plan_set",
-            supervisor_epoch=mission["supervisor"]["epoch"],
+            supervisor_epoch=int(row["supervisor_epoch"]),
             payload={"plan_ref": plan_ref, "plan_digest": plan_digest}, now=now,
         )
         conn.commit()

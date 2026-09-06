@@ -769,6 +769,50 @@ def test_mission_builder_projection_fails_closed_on_wrong_builder_identity(
         )
 
 
+def test_exact_plan_replay_does_not_regress_review_or_execution(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission-plan-replay",
+        objective="Preserve exact plan review",
+        definition_of_done=["same plan replay is mutation-free"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.set_plan(
+        "mission-plan-replay",
+        plan_ref="plan://same",
+        plan_digest="plan-digest-same",
+        db_path=db_path,
+    )
+    memory_mission.record_plan_review(
+        "mission-plan-replay",
+        reviewer_id="reviewer-b",
+        plan_digest="plan-digest-same",
+        verdict="approved",
+        evidence={"ref": "review://approved"},
+        db_path=db_path,
+    )
+    memory_mission.begin_execution("mission-plan-replay", db_path=db_path)
+
+    replayed = memory_mission.set_plan(
+        "mission-plan-replay",
+        plan_ref="plan://same",
+        plan_digest="plan-digest-same",
+        db_path=db_path,
+    )
+
+    assert replayed["status"] == "EXECUTING"
+    assert replayed["plan"] == {
+        "ref": "plan://same",
+        "digest": "plan-digest-same",
+        "review_state": "approved",
+        "reviewer_id": "reviewer-b",
+        "review_evidence": {"ref": "review://approved"},
+    }
+
+
 def test_mission_execution_requires_current_independent_plan_review(tmp_path):
     from gateway import memory_mission
 
