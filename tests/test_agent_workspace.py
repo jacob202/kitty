@@ -769,6 +769,43 @@ def test_mission_builder_projection_fails_closed_on_wrong_builder_identity(
         )
 
 
+
+
+def test_set_plan_persists_exact_manifest_payload_and_rejects_digest_mismatch(tmp_path):
+    from gateway import builder_initiative as bi
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission-plan-payload", objective="Exact plan",
+        definition_of_done=["exact manifest reviewed"], supervisor_id="kitty", db_path=db_path,
+    )
+    payload = {
+        "manifest_version": 1,
+        "initiative_id": "exact-plan",
+        "title": "Exact plan",
+        "description": "Do exact work",
+        "packets": [{
+            "id": "P1", "title": "Exact plan", "objective": "Exact plan",
+            "depends_on": [], "acceptance_criteria": ["exact manifest reviewed"],
+            "allowed_paths": ["gateway/example.py"],
+            "validation_commands": ["python -m pytest tests/test_example.py -q"],
+        }],
+    }
+    digest = bi.manifest_sha256(payload)
+
+    stored = memory_mission.set_plan(
+        "mission-plan-payload", plan_ref="plan://exact", plan_digest=digest,
+        plan_payload=payload, db_path=db_path,
+    )
+    assert stored["plan"]["payload"] == payload
+
+    with pytest.raises(memory_mission.MissionError, match="payload digest"):
+        memory_mission.set_plan(
+            "mission-plan-payload", plan_ref="plan://other", plan_digest="f" * 64,
+            plan_payload=payload, db_path=db_path,
+        )
+
 def test_exact_plan_replay_does_not_regress_review_or_execution(tmp_path):
     from gateway import memory_mission
 
@@ -810,6 +847,7 @@ def test_exact_plan_replay_does_not_regress_review_or_execution(tmp_path):
         "review_state": "approved",
         "reviewer_id": "reviewer-b",
         "review_evidence": {"ref": "review://approved"},
+        "payload": None,
     }
 
 

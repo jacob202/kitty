@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from gateway import builder_initiative as bi
 from gateway import db as kitty_db
 from gateway.paths import KITTY_DB_FILE
 
@@ -49,6 +50,7 @@ def init_db(*, db_path: Path = MISSION_DB_FILE) -> None:
                 plan_review_state TEXT NOT NULL DEFAULT 'unreviewed',
                 plan_reviewer_id TEXT,
                 plan_review_evidence_json TEXT,
+                plan_payload_json TEXT,
                 builder_locator_json TEXT,
                 checkpoint_json TEXT NOT NULL DEFAULT '{}',
                 source_cursors_json TEXT NOT NULL DEFAULT '{}',
@@ -80,6 +82,8 @@ def init_db(*, db_path: Path = MISSION_DB_FILE) -> None:
             conn.execute("ALTER TABLE missions ADD COLUMN paused_from_status TEXT")
         if "builder_locator_json" not in columns:
             conn.execute("ALTER TABLE missions ADD COLUMN builder_locator_json TEXT")
+        if "plan_payload_json" not in columns:
+            conn.execute("ALTER TABLE missions ADD COLUMN plan_payload_json TEXT")
         conn.commit()
 
 
@@ -109,6 +113,8 @@ def _row_to_mission(row: sqlite3.Row) -> dict[str, Any]:
             "reviewer_id": row["plan_reviewer_id"],
             "review_evidence": json.loads(row["plan_review_evidence_json"])
             if row["plan_review_evidence_json"] else None,
+            "payload": json.loads(row["plan_payload_json"])
+            if row["plan_payload_json"] else None,
         },
         "builder_locator": json.loads(row["builder_locator_json"])
         if row["builder_locator_json"] else None,
@@ -331,33 +337,46 @@ def bind_builder_locator(
 
 
 def set_plan(
-    mission_id: str, *, plan_ref: str, plan_digest: str, db_path: Path = MISSION_DB_FILE
+    mission_id: str, *, plan_ref: str, plan_digest: str,
+    plan_payload: dict[str, Any] | None = None, db_path: Path = MISSION_DB_FILE,
 ) -> dict[str, Any]:
     plan_ref = _required_text(plan_ref, "plan_ref")
     plan_digest = _required_text(plan_digest, "plan_digest")
     mission_id = _required_text(mission_id, "mission_id")
+    payload_json: str | None = None
+    if plan_payload is not None:
+        if not isinstance(plan_payload, dict):
+            raise MissionError("plan_payload must be a JSON object")
+        if bi.manifest_sha256(plan_payload) != plan_digest:
+            raise MissionError("plan payload digest does not match plan_digest")
+        payload_json = json.dumps(plan_payload, sort_keys=True)
     init_db(db_path=db_path)
     now = time.time()
     with kitty_db.connect(db_path) as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            "SELECT plan_ref, plan_digest, status, supervisor_epoch FROM missions WHERE mission_id=?",
+            "SELECT plan_ref, plan_digest, plan_payload_json, plan_review_state, status, "
+            "supervisor_epoch FROM missions WHERE mission_id=?",
             (mission_id,),
         ).fetchone()
         if row is None:
             raise MissionNotFound(f"no Mission with id {mission_id!r}")
-        if row["plan_ref"] == plan_ref and row["plan_digest"] == plan_digest:
+        same_plan = row["plan_ref"] == plan_ref and row["plan_digest"] == plan_digest
+        if same_plan and (payload_json is None or row["plan_payload_json"] == payload_json):
             conn.rollback()
             return get_mission(mission_id, db_path=db_path)
         if row["status"] == "STOPPED":
             raise MissionError("stopped Mission cannot receive a new plan")
         if row["status"] == "DONE":
             raise MissionError("completed Mission cannot receive a new plan")
+        # Backfilling the exact manifest onto a previously digest-only plan must
+        # reopen review: the earlier reviewer could not have inspected this payload.
         conn.execute(
-            "UPDATE missions SET plan_ref=?, plan_digest=?, plan_review_state='unreviewed', "
-            "plan_reviewer_id=NULL, plan_review_evidence_json=NULL, status='PLAN_REVIEW', updated_at=? "
+            "UPDATE missions SET plan_ref=?, plan_digest=?, plan_payload_json=?, "
+            "plan_review_state='unreviewed', plan_reviewer_id=NULL, "
+            "plan_review_evidence_json=NULL, status='PLAN_REVIEW', updated_at=? "
             "WHERE mission_id=?",
-            (plan_ref, plan_digest, now, mission_id),
+            (plan_ref, plan_digest, payload_json, now, mission_id),
         )
         _append_event(
             conn, mission_id=mission_id, event_type="plan_set",
