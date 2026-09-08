@@ -63,9 +63,10 @@ function canonicalActiveView(view: string | null | undefined): string {
   return getView(resolved) ? resolved : 'home'
 }
 
-let chatCounter = 0
-function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
-function newMsgId() { return `msg-${Date.now()}-${Math.random().toString(36).slice(2)}` }
+// UUID-based ids so a page reload cannot collide with an earlier chat id.
+// The old incrementing chatCounter reset to 0 on every reload.
+function newChatId() { return crypto.randomUUID() }
+function newMsgId() { return crypto.randomUUID() }
 
 function makeChat(color: ChatColor): Chat {
   return {
@@ -134,7 +135,9 @@ function getInitials(email?: string): string {
   return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || 'ME'
 }
 
-const USER_INITIALS = getInitials('jacobbrizinski@gmail.com')
+// Sourced from the environment so it is not a hardcoded personal address.
+// Set NEXT_PUBLIC_KITTY_USER_EMAIL to override; falls back to initials 'JB'.
+const USER_INITIALS = getInitials(process.env.NEXT_PUBLIC_KITTY_USER_EMAIL)
 
 function latestSearchQuery(chat: Chat | null): string {
   if (!chat) return ''

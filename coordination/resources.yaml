@@ -54,7 +54,9 @@ resources:
     - gateway/kitty-chat/src/components/StudioView.tsx
     - gateway/kitty-chat/tests/ImageLab*.tsx
     - gateway/routes/image_studio_jobs.py
+    - mcp/imagen/requirements.txt
     - tests/test_image_*.py
+    - workers/comfy_worker/requirements.txt
   memory:continuity:
     paths:
     - gateway/agent_workspace.py
@@ -72,6 +74,7 @@ resources:
   runtime:provenance:
     paths:
     - .claude/hooks/**
+    - .env.example
     - .githooks/**
     - Makefile
     - coordination/**
@@ -79,6 +82,8 @@ resources:
     - gateway/agent_room_cli.py
     - gateway/doctor.py
     - gateway/llm_client.py
+    - gateway/model_routing.py
+    - gateway/requirements.litellm.txt
     - gateway/routes/runtime.py
     - gateway/runtime_manifest.py
     - kitty
@@ -114,6 +119,7 @@ resources:
     - gateway/kitty-chat/src/lib/gateway.ts
     - gateway/kitty-chat/src/lib/queries.ts
     - gateway/kitty-chat/src/lib/work.ts
+    - gateway/kitty-chat/src/state/KittyContext.tsx
     - gateway/kitty-chat/tests/ActionCard.test.tsx
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
     - gateway/kitty-chat/tests/WorkViewActions.test.tsx
