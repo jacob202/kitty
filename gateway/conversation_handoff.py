@@ -31,7 +31,6 @@ from typing import Any, Iterator
 
 from gateway import agent_coordination, llm_client
 from gateway.builder_scope import normalize_allowed_paths
-from gateway.prompts import BUILDER_PROPOSAL_PROMPT
 from mcp.builder import commands as _commands
 from mcp.builder import context as _context
 from mcp.builder import repo_tools
@@ -136,13 +135,25 @@ def _scope_maps_to_current_kx(allowed_paths: list[str]) -> bool:
 
 
 _PROPOSAL_MODEL = "kitty-small"
-_PROPOSAL_SYSTEM_PROMPT = BUILDER_PROPOSAL_PROMPT + """
+_PROPOSAL_SYSTEM_PROMPT = """
+You are a strict JSON compiler for KittyBuilder proposals.
 
-Compiler endpoint rules:
-- Return ONLY the JSON object described above, without the offer sentence or markdown fence.
-- Do not execute anything or claim work is queued, running, or complete.
-- Keep allowed_paths as narrow repo-relative paths; unsafe scope is rejected server-side.
-"""
+Convert the user's requested code/repository change into exactly one JSON object.
+Return JSON only: no reasoning, prose, markdown, offer sentence, or code fence.
+
+Required fields:
+- "objective": one concrete sentence describing the finished result.
+- "allowed_paths": a non-empty list of the narrowest repo-relative files or directories the task may modify.
+
+Optional fields, only when useful:
+- "title": short task title.
+- "acceptance_criteria": list of concrete checkable outcomes.
+- "validation_commands": list of safe commands that verify the requested result.
+
+Do not execute anything. Do not claim work is queued, running, approved, or complete.
+Never use broad scope such as "." or the repository root.
+If the user names a file, preserve that repo-relative file in allowed_paths.
+""".strip()
 
 
 def _proposal_json(text: str) -> dict[str, Any]:

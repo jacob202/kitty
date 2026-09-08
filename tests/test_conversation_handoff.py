@@ -343,9 +343,11 @@ def test_compile_request_uses_lightweight_builder_only_prompt(monkeypatch: pytes
     assert seen["kwargs"]["model"] == "kitty-small"
     assert seen["kwargs"]["temperature"] == 0
     combined = "\n".join(str(message.get("content", "")) for message in seen["messages"])
-    from gateway.prompts import BUILDER_PROPOSAL_PROMPT
-    assert BUILDER_PROPOSAL_PROMPT in combined
-    assert len(combined) < 5000
+    assert "strict json compiler" in combined.lower()
+    assert "want me to send this to builder" not in combined.lower()
+    assert "kitty-builder-proposal" not in combined.lower()
+    assert "allowed_paths" in combined
+    assert len(combined) < 3000
     assert "personal memory" not in combined.lower()
     assert "morning brief" not in combined.lower()
 
