@@ -129,9 +129,14 @@ Required fields:
 
 Optional fields, only when useful:
 - "title": short task title.
-- "acceptance_criteria": list of concrete checkable outcomes (plain statements, not shell commands).
+- "acceptance_criteria": list of concrete checkable outcomes (plain statements).
+- "validation_commands": list of plain read-only shell checks that would prove the outcome
+  (for example: grep -Fxq 'exact expected line' path/to/file). Use only test, [, grep,
+  cat, head, tail, wc, cmp, diff, file, stat, ls, or "python3 -m pytest". No pipes,
+  redirects, command substitution, &&, ||, or destructive commands. Each path must be
+  inside allowed_paths. Prefer a check of the file's content, not just its existence.
 
-Do not emit shell commands. Do not execute anything. Do not claim work is queued, running, approved, or complete.
+Do not execute anything. Do not claim work is queued, running, approved, or complete.
 Never use broad scope such as "." or the repository root.
 If the user names a file, preserve that repo-relative file in allowed_paths.
 """.strip()
@@ -164,14 +169,47 @@ class _ProposalUnusable(Exception):
         self.error = error
 
 
+# Builder runs validation_commands with shell=True after a generic approval and
+# the proposal card does not show them, so a model-supplied command is only kept
+# when it is a plain read-only verification: no shell metacharacters and a
+# leading executable from this allowlist. Anything else is discarded and a
+# deterministic existence check over the exact scope is synthesized instead.
+_SAFE_VALIDATION_LEADERS = frozenset(
+    {
+        "test", "[", "grep", "egrep", "fgrep", "rg", "cat", "head", "tail",
+        "wc", "cmp", "diff", "file", "stat", "ls", "python3", "python3.12",
+        "pytest", "make",
+    }
+)
+_UNSAFE_VALIDATION_CHARS = frozenset("|;&$`><\n\r\\!*?(){}")
+
+
+def _safe_validation_commands(raw_commands: Any, allowed_paths: list[str]) -> list[str]:
+    kept: list[str] = []
+    for command in raw_commands if isinstance(raw_commands, list) else []:
+        if not isinstance(command, str) or not command.strip():
+            continue
+        text = command.strip()
+        if any(ch in _UNSAFE_VALIDATION_CHARS for ch in text):
+            continue
+        tokens = text.split()
+        if not tokens or tokens[0] not in _SAFE_VALIDATION_LEADERS:
+            continue
+        if tokens[0] in {"python3", "python3.12"} and tokens[1:3] != ["-m", "pytest"]:
+            continue
+        kept.append(text)
+    if kept:
+        return kept
+    return [f"test -e {path}" for path in allowed_paths]
+
+
 def _build_task_from_raw(raw: Any, request: str) -> dict[str, Any]:
     """Turn one compiler JSON object into a bounded Builder task or raise.
 
-    Model-supplied ``validation_commands`` are intentionally dropped: Builder
-    runs validation with ``shell=True`` after a generic approval and the
-    proposal card does not show them, so a prompt-injected or simply wrong
-    command must never reach that path. Builder derives its own validation from
-    the acceptance criteria instead.
+    Model-supplied ``validation_commands`` are allowlist-filtered (see
+    :func:`_safe_validation_commands`); an unsafe or missing set falls back to a
+    deterministic existence check so Builder preflight always has something to
+    run and no injected command can reach Builder's shell.
     """
     if not isinstance(raw, dict):
         raise _ProposalUnusable(
@@ -198,6 +236,9 @@ def _build_task_from_raw(raw: Any, request: str) -> dict[str, Any]:
         "objective": objective.strip(),
         "instructions": request.strip(),
         "allowed_paths": allowed_paths,
+        "validation_commands": _safe_validation_commands(
+            raw.get("validation_commands"), allowed_paths
+        ),
     }
     for key in ("title", "initiative_id"):
         value = raw.get(key)

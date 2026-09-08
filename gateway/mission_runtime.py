@@ -152,6 +152,10 @@ def review_plan(mission_id: str) -> dict[str, Any]:
 
 
 def _plan_review_prompt(mission: dict[str, Any]) -> str:
+    payload = mission["plan"].get("payload") or {}
+    plan_ref = str(mission["plan"].get("ref") or "")
+    plan_path = plan_ref.split("@", 1)[0] if "@" in plan_ref else plan_ref
+    design_path = str((payload.get("design_path") or payload.get("design") or "")).strip()
     return f"""You are the independent Plan Verifier for one Kitty Mission. Stay strictly read-only.
 
 Mission objective: {mission['objective']}
@@ -160,11 +164,14 @@ Exact plan reference: {mission['plan']['ref']}
 Exact plan digest: {mission['plan']['digest']}
 Accountable supervisor: {mission['supervisor']['id']}
 Exact prepared Builder manifest:
-{json.dumps(mission['plan'].get('payload'), ensure_ascii=False, sort_keys=True)}
+{json.dumps(payload, ensure_ascii=False, sort_keys=True)}
 
-Independently inspect current repository authority before deciding. Read START_HERE.md and only the authority/code needed for this plan. Verify the exact plan commit with git, inspect current HEAD/origin/main/worktree state, and inspect supported Builder/KX state when relevant. Do not trust the planner's claims merely because they are in the plan. Do not modify files, stage, commit, push, merge, change credentials, or execute the implementation.
+Your working directory is already checked out to the exact plan commit. Read the plan and design files DIRECTLY from the filesystem with your file-read tool — do not rely on shell/git, and treat a lack of shell access as expected, not a blocker:
+- plan file: {plan_path or '(see plan reference above)'}
+- design file: {design_path or '(named in the manifest, if present)'}
+Also read START_HERE.md and only the authority/code needed to judge this plan. Do not trust the planner's claims merely because they appear in the plan. Do not modify files, stage, commit, push, merge, change credentials, or execute the implementation.
 
-Evaluate: outcome match, current-state accuracy, technical soundness, scope, recoverability, economics, and whether the proposed verification would prove the user outcome. Reject if the evidence is stale, contradictory, unsafe, over-broad, unverifiable, or would duplicate an existing authority.
+Evaluate: outcome match, current-state accuracy, technical soundness, scope, recoverability, economics, and whether the packet's validation_commands would actually prove the definition of done. Reject only if the evidence is stale, contradictory, unsafe, over-broad, genuinely unverifiable from the files provided, or would duplicate an existing authority — not merely because you could not run a shell command.
 
 Your FINAL RESPONSE must be exactly one JSON object and no Markdown/prose around it:
 {{"contract_version":1,"verdict":"approve" or "reject","summary":"...","findings":[{{"severity":"major" or "minor","note":"..."}}]}}
