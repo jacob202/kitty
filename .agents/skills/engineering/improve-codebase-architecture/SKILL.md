@@ -1,6 +1,6 @@
 ---
 name: improve-codebase-architecture
-description: Find deepening opportunities in a codebase, informed by Kitty's domain language in docs/ARCHITECTURE.md and CLAUDE.md. Use when the user wants to improve architecture, find refactoring opportunities, consolidate tightly-coupled modules, or make a codebase more testable and AI-navigable.
+description: Find deepening opportunities in a codebase, informed by Kitty's domain language in docs/ARCHITECTURE.md and AGENTS.md. Use when the user wants to improve architecture, find refactoring opportunities, consolidate tightly-coupled modules, reduce duplication or over-abstraction, or make a codebase more testable and AI-navigable.
 ---
 
 # Improve Codebase Architecture
@@ -9,9 +9,9 @@ Surface architectural friction and propose **deepening opportunities** — refac
 
 ## Glossary
 
-Use these terms exactly in every suggestion. Consistent language is the point — don't drift into "component," "service," "API," or "boundary." The canonical definitions live in [LANGUAGE.md](LANGUAGE.md) and are injected below; the "Key principles" summary follows.
+Use these terms exactly in every suggestion. Consistent language is the point — don't drift into "component," "service," "API," or "boundary." The canonical definitions live in [LANGUAGE.md](LANGUAGE.md), injected below; the "Key principles" summary follows.
 
-!`cat /Users/jacobbrizinski/Projects/kitty/.agents/skills/engineering/improve-codebase-architecture/LANGUAGE.md`
+!`cat "${COMMANDCODE_SKILL_DIR}/LANGUAGE.md"`
 
 Key principles (see LANGUAGE.md / DEEPENING.md for full definitions and test strategy):
 
@@ -51,7 +51,7 @@ If the user names ≤2 specific files or asks about one function/class, skip the
 
 ### 1. Explore
 
-Read the Kitty grounding docs above, then walk the codebase. Use the Task tool (`subagent_type=generalPurpose`) for broad exploration only when the scope is large. Note where you experience friction:
+Read the Kitty grounding docs above, then walk the codebase. Use the Task tool (`subagent_type=explore`, or `general` for multi-step work) for broad exploration only when the scope is large. Note where you experience friction:
 
 - Where does understanding one concept require bouncing between many small modules?
 - Where are modules **shallow** — interface nearly as complex as the implementation?
@@ -70,7 +70,7 @@ Present a numbered list of deepening opportunities. For each candidate:
 - **Solution** — plain English description of what would change
 - **Benefits** — explained in terms of locality and leverage, and also in how tests would improve
 
-**Use Kitty domain vocabulary** (from `docs/ARCHITECTURE.md` and `CLAUDE.md`) **and the architecture vocabulary above.** Talk about "the memory_graph unified query module" — not "the FooBarHandler," and not "the Memory service."
+**Use Kitty domain vocabulary** (from `docs/ARCHITECTURE.md` and `AGENTS.md`) **and the architecture vocabulary above.** Talk about "the memory_graph unified query module" — not "the FooBarHandler," and not "the Memory service."
 
 **Doc conflicts**: if a candidate contradicts an existing doc, only surface it when the friction is real enough to warrant revisiting. Mark it clearly (e.g. _"contradicts docs/ARCHITECTURE.md — but worth reopening because…"_). Skip theoretical refactors that existing docs already forbid.
 
