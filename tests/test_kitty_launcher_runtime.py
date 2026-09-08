@@ -29,6 +29,13 @@ def test_down_disables_launchd_then_stops_only_current_checkout_listeners() -> N
     assert block.index('pid_owned_by_current_checkout "$pid"') < block.index("kill -KILL")
 
 
+def test_start_fails_when_the_ui_bootstrap_fails() -> None:
+    block = SCRIPT.split("cmd_start() {", 1)[1].split("\n}\n\ncmd_down", 1)[0]
+    assert "if ! cmd_ui; then" in block
+    assert "return 1" in block
+    assert block.index("if ! cmd_ui; then") < block.index('open "http://127.0.0.1:$UI_PORT"')
+
+
 def test_start_tracks_ui_pid_and_refuses_occupied_ports() -> None:
     assert '"$RUN_DIR/ui.pid"' in SCRIPT
     assert 'assert_port_available "UI" "$UI_PORT"' in SCRIPT

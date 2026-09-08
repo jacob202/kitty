@@ -466,7 +466,10 @@ cmd_start() {
   # One-shot launch: gateway + LiteLLM + UI, then open the browser.
   cmd_up
 
-  if cmd_ui && command -v open >/dev/null 2>&1; then
+  if ! cmd_ui; then
+    return 1
+  fi
+  if command -v open >/dev/null 2>&1; then
     open "http://127.0.0.1:$UI_PORT"
   fi
 }
