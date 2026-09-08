@@ -199,6 +199,7 @@ def compile_request(request: str, *, allow_provider_fallback: bool = False) -> d
             max_tokens=900,
             temperature=0,
             timeout=60,
+            response_format={"type": "json_object"},
             operation="builder.proposal.compile",
             metadata={
                 "route": "builder_proposal_compile",

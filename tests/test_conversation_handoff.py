@@ -342,6 +342,7 @@ def test_compile_request_uses_lightweight_builder_only_prompt(monkeypatch: pytes
     assert "route" not in result
     assert seen["kwargs"]["model"] == "kitty-small"
     assert seen["kwargs"]["temperature"] == 0
+    assert seen["kwargs"]["response_format"] == {"type": "json_object"}
     combined = "\n".join(str(message.get("content", "")) for message in seen["messages"])
     assert "strict json compiler" in combined.lower()
     assert "want me to send this to builder" not in combined.lower()
