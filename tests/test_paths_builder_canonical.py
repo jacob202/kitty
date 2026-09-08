@@ -28,6 +28,10 @@ def test_builder_launcher_exports_canonical_builder_data_dir(tmp_path: Path) -> 
     env = dict(os.environ)
     env.pop("KITTY_DATA_ROOT", None)
     env.pop("KITTY_BUILDER_DATA_DIR", None)
+    # An autouse fixture isolates the compute-governor DB for every test by
+    # setting this in the current process's real os.environ; a leaked value
+    # here would otherwise conflict with the canonical root this test derives.
+    env.pop("KITTY_COMPUTE_GOVERNOR_DB", None)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     # Pin the stub interpreter: on a checkout with venv/bin/python present the
     # launcher would otherwise run the real builder CLI (whose git calls hit
@@ -64,6 +68,7 @@ def test_builder_launcher_honors_data_root_before_canonical_checkout(tmp_path: P
     env = dict(os.environ)
     env["KITTY_DATA_ROOT"] = str(data_root)
     env.pop("KITTY_BUILDER_DATA_DIR", None)
+    env.pop("KITTY_COMPUTE_GOVERNOR_DB", None)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     env["PYTHON_BIN"] = str(fake_bin / "python3.12")
 

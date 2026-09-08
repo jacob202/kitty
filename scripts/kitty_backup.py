@@ -9,15 +9,27 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from gateway.paths import DATA_DIR, KITTY_DATA_DIR, PROJECT_ROOT
+from gateway.paths import DATA_DIR, KITTY_DATA_DIR
 
 DEFAULT_SOURCE_DIR = KITTY_DATA_DIR
 DEFAULT_BACKUP_ROOT = DATA_DIR / "backups" / "kitty"
+# The workspace root owner-data paths are relative to. This must track the
+# SAME selection as DATA_DIR (KITTY_DATA_ROOT override, else the canonical
+# checkout) — never a literal path derived from this file's own location,
+# which is the invoking checkout and can be a secondary worktree.
+DEFAULT_OWNER_DATA_ROOT = DATA_DIR.parent
 
 # Explicit owner-data inventory. This intentionally excludes secrets such as
-# .env and data/gmail_token.json, and excludes Builder/execution state. Most
-# structured owner stores share data/kitty/kitty.db; the remaining entries are
-# canonical stores identified by the PAA-1 owner-memory classification audit.
+# .env and data/gmail_token.json. Most structured owner stores share
+# data/kitty/kitty.db; the remaining entries are canonical stores identified
+# by the PAA-1 owner-memory classification audit, plus Builder's durable
+# queue DB and the compute-governor and image stores.
+#
+# Deliberately excluded: the rest of data/kittybuilder/ (attempts/, runs/,
+# reports/, backups/, ...) — Builder's per-attempt execution scratch, ~10GB
+# on the canonical checkout. Only its durable queue DB is backed up here;
+# including the scratch trees is a materially larger change (backup size and
+# runtime), not a path-selection fix.
 OWNER_DATA_RELATIVE_PATHS = (
     "data/kitty",
     "data/mem0",
@@ -30,6 +42,9 @@ OWNER_DATA_RELATIVE_PATHS = (
     "data/web_monitors.db",
     "data/plugin_settings.json",
     "data/journal_entries.jsonl",
+    "data/kittybuilder/builder_queue.db",
+    "data/compute_governor",
+    "data/images",
     "config/PREFERENCES.md",
     "config/user_profile.json",
     "config/USER",
@@ -73,7 +88,7 @@ def create_backup(
 
 
 def create_owner_backup(
-    project_root: Path = PROJECT_ROOT,
+    project_root: Path = DEFAULT_OWNER_DATA_ROOT,
     backup_root: Path = DEFAULT_BACKUP_ROOT,
     timestamp: str | None = None,
 ) -> Path:
@@ -270,7 +285,7 @@ def restore(
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("mode") == "owner-data":
-        target_root = Path(target_dir) if target_dir is not None else PROJECT_ROOT
+        target_root = Path(target_dir) if target_dir is not None else DEFAULT_OWNER_DATA_ROOT
         return restore_owner_backup(backup, target_root, replace=replace)
 
     target = Path(target_dir) if target_dir is not None else DEFAULT_SOURCE_DIR
@@ -372,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
         "--target-dir",
         type=Path,
         default=None,
-        help="restore root; defaults to project root for owner-data backups and data/kitty for legacy backups",
+        help="restore root; defaults to the selected personal workspace for owner-data backups and data/kitty for legacy backups",
     )
     real_restore.add_argument(
         "--replace",

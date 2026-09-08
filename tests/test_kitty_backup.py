@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sqlite3
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
 from gateway.paths import DATA_DIR, KITTY_DATA_DIR
 from scripts import kitty_backup
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_create_backup_copies_files_and_sqlite_db(tmp_path):
@@ -187,7 +193,7 @@ def test_owner_backup_roundtrip_covers_canonical_inventory_without_secrets(tmp_p
         path = source_root / rel
         if path.suffix:
             path.parent.mkdir(parents=True, exist_ok=True)
-            if path.name == "web_monitors.db":
+            if path.suffix == ".db":
                 with sqlite3.connect(path) as conn:
                     conn.execute("CREATE TABLE sentinel (value TEXT)")
                     conn.execute("INSERT INTO sentinel VALUES ('monitor')")
@@ -229,6 +235,10 @@ def test_owner_backup_roundtrip_covers_canonical_inventory_without_secrets(tmp_p
         assert conn.execute("SELECT value FROM owner_sentinel").fetchone() == ("kitty",)
     with sqlite3.connect(restored_root / "data" / "web_monitors.db") as conn:
         assert conn.execute("SELECT value FROM sentinel").fetchone() == ("monitor",)
+    with sqlite3.connect(
+        restored_root / "data" / "kittybuilder" / "builder_queue.db"
+    ) as conn:
+        assert conn.execute("SELECT value FROM sentinel").fetchone() == ("monitor",)
 
 
 def test_cli_restore_auto_detects_owner_data_archive(tmp_path, capsys):
@@ -254,3 +264,93 @@ def test_cli_restore_auto_detects_owner_data_archive(tmp_path, capsys):
 
     assert (target_root / "data" / "kitty" / "owner.txt").read_text(encoding="utf-8") == "mine\n"
     assert not (target_root / "owner-data").exists()
+
+
+def test_owner_backup_default_root_follows_selected_workspace_not_invoking_checkout(
+    tmp_path,
+):
+    """DEFAULT_OWNER_DATA_ROOT must track the selected KITTY_DATA_ROOT, never
+    this script's own file location (the invoking checkout) — that mismatch
+    is exactly what made backup/restore miss a secondary worktree's real
+    data when Kitty was invoked from anywhere but the canonical checkout.
+    """
+    workspace = tmp_path / "selected-workspace"
+    kitty_dir = workspace / "data" / "kitty"
+    kitty_dir.mkdir(parents=True)
+    (kitty_dir / "note.txt").write_text("mine\n", encoding="utf-8")
+    (workspace / "config").mkdir()
+    (workspace / "config" / "PREFERENCES.md").write_text("pref\n", encoding="utf-8")
+
+    env = {**os.environ, "KITTY_DATA_ROOT": str(workspace / "data")}
+    backup_root = tmp_path / "backups"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "kitty_backup.py"),
+            "backup",
+            "--backup-root",
+            str(backup_root),
+        ],
+        cwd=tmp_path,  # deliberately not the checkout — proves no cwd/__file__ reliance
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    backup_dir = Path(result.stdout.strip())
+    manifest = json.loads((backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
+
+    assert manifest["source"] == str(workspace)
+    assert (
+        backup_dir / "owner-data" / "data" / "kitty" / "note.txt"
+    ).read_text(encoding="utf-8") == "mine\n"
+    assert (
+        backup_dir / "owner-data" / "config" / "PREFERENCES.md"
+    ).read_text(encoding="utf-8") == "pref\n"
+
+
+def test_kitty_backup_launcher_targets_canonical_root_from_secondary_worktree(
+    tmp_path,
+):
+    """End-to-end: ./kitty backup, invoked with a canonical checkout elsewhere
+    on disk, must archive that canonical workspace — not data relative to
+    wherever the launcher itself happened to be invoked from."""
+    canonical_root = tmp_path / "canonical-kitty"
+    kitty_dir = canonical_root / "data" / "kitty"
+    kitty_dir.mkdir(parents=True)
+    (kitty_dir / "note.txt").write_text("mine\n", encoding="utf-8")
+    (canonical_root / "config").mkdir()
+    (canonical_root / "config" / "PREFERENCES.md").write_text(
+        "pref\n", encoding="utf-8"
+    )
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    git = fake_bin / "git"
+    git.write_text(f"#!/bin/sh\necho {canonical_root}/.git\n")
+    git.chmod(0o755)
+
+    env = dict(os.environ)
+    for key in ("KITTY_DATA_ROOT", "KITTY_BUILDER_DATA_DIR", "KITTY_COMPUTE_GOVERNOR_DB"):
+        env.pop(key, None)
+    env["PYTHON_BIN"] = sys.executable
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+
+    result = subprocess.run(
+        [str(ROOT / "kitty"), "backup"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    backup_dir = Path(result.stdout.strip())
+    assert str(backup_dir).startswith(str(canonical_root / "data" / "backups" / "kitty"))
+    manifest = json.loads((backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["source"] == str(canonical_root)
+    assert (
+        backup_dir / "owner-data" / "data" / "kitty" / "note.txt"
+    ).read_text(encoding="utf-8") == "mine\n"

@@ -110,6 +110,7 @@ resources:
     - mcp/builder/repo_tools.py
     - scripts/desktop/start_ui.sh
     - scripts/hooks/**
+    - scripts/kitty_backup.py
     - scripts/scan.py
     - tests/test_agent_coordination_acceptance.py
     - tests/test_agent_room_cli.py
@@ -119,11 +120,13 @@ resources:
     - tests/test_doctor_freshness.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py
+    - tests/test_kitty_backup.py
     - tests/test_kitty_launcher_runtime.py
     - tests/test_llm_client.py
     - tests/test_mcp_builder_commands.py
     - tests/test_mcp_builder_context.py
     - tests/test_mcp_builder_repo_tools.py
+    - tests/test_paths_builder_canonical.py
     - tests/test_pre_push_gate.py
     - tests/test_session_end_audit.py
     - tests/test_skill_registry.py

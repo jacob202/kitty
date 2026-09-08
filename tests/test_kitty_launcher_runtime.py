@@ -198,3 +198,193 @@ def test_runtime_start_pins_builder_state_to_canonical_checkout() -> None:
 
     run_fg_block = SCRIPT.split("cmd_run_fg() {", 1)[1].split("\n}\n\n", 1)[0]
     assert "ensure_runtime_builder_data_dir" in run_fg_block
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_workspace_resolution_checked_before_gateway_secret_is_written() -> None:
+    # ensure_gateway_secret mutates .env. If workspace resolution ran after it,
+    # a conflicting override or a missing personal data root would write a
+    # secret into .env before Kitty refuses to start — a partial mutation on
+    # the way to a fail-loud error. Both entry points must check first.
+    up_block = SCRIPT.split("cmd_up() {", 1)[1].split("\n}\n\n", 1)[0]
+    assert up_block.index("ensure_runtime_builder_data_dir") < up_block.index("ensure_gateway_secret")
+    assert up_block.index("require_existing_personal_workspace") < up_block.index("ensure_gateway_secret")
+
+    run_fg_block = SCRIPT.split("cmd_run_fg() {", 1)[1].split("\n}\n\n", 1)[0]
+    assert run_fg_block.index("ensure_runtime_builder_data_dir") < run_fg_block.index("ensure_gateway_secret")
+    assert run_fg_block.index("require_existing_personal_workspace") < run_fg_block.index("ensure_gateway_secret")
+
+
+def _extract_function(name: str) -> str:
+    marker = f"{name}() {{"
+    start = SCRIPT.index(marker)
+    body = SCRIPT[start:]
+    close = body.index("\n}\n")
+    return body[: close + 3]
+
+
+def _write_executable(path: Path, body: str) -> None:
+    path.write_text(body, encoding="utf-8")
+    path.chmod(0o755)
+
+
+def _run_workspace_resolver(
+    tmp_path: Path, env_overrides: dict, git_common_dir: str | None
+) -> subprocess.CompletedProcess:
+    """Source the two workspace-resolution functions standalone and run them.
+
+    Proves selection/conflict/missing-state behavior without starting any
+    real Kitty process (no ports, no .env writes, no servers).
+    """
+    functions = "\n".join(
+        [
+            _extract_function("ensure_runtime_builder_data_dir"),
+            _extract_function("require_existing_personal_workspace"),
+        ]
+    )
+    script = tmp_path / "probe.sh"
+    script.write_text(
+        "#!/usr/bin/env bash\nset -uo pipefail\n"
+        + functions
+        + "\nensure_runtime_builder_data_dir || exit 1\n"
+        + "require_existing_personal_workspace || exit 2\n"
+        + 'printf "%s\\n%s\\n%s\\n" "$KITTY_DATA_ROOT" "$KITTY_BUILDER_DATA_DIR" "$KITTY_COMPUTE_GOVERNOR_DB"\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+    env = dict(os.environ)
+    for key in ("KITTY_DATA_ROOT", "KITTY_BUILDER_DATA_DIR", "KITTY_COMPUTE_GOVERNOR_DB"):
+        env.pop(key, None)
+    env.update(env_overrides)
+    env["KITTY_ROOT"] = str(tmp_path)
+
+    if git_common_dir is not None:
+        fake_bin = tmp_path / "bin"
+        fake_bin.mkdir(exist_ok=True)
+        _write_executable(
+            fake_bin / "git", f"#!/usr/bin/env python3\nprint({git_common_dir!r})\n"
+        )
+        env["PATH"] = f"{fake_bin}:{env['PATH']}"
+
+    return subprocess.run(
+        ["bash", str(script)], capture_output=True, text=True, timeout=20, env=env
+    )
+
+
+def test_workspace_resolver_selects_canonical_root_from_secondary_worktree(tmp_path):
+    # Requirement 1: invoking from a secondary worktree still selects the
+    # canonical personal root, not the invoking checkout's own root.
+    canonical = tmp_path / "canonical-workspace"
+    (canonical / "data").mkdir(parents=True)
+
+    result = _run_workspace_resolver(tmp_path, {}, git_common_dir=str(canonical / ".git"))
+
+    assert result.returncode == 0, result.stderr
+    data_root, builder_dir, governor_db = result.stdout.splitlines()
+    # Requirement 3: app data, Builder, and compute-governor paths are one
+    # coherent decision — all three derive from the same selected root.
+    assert data_root == str(canonical / "data")
+    assert builder_dir == str(canonical / "data" / "kittybuilder")
+    assert governor_db == str(canonical / "data" / "compute_governor" / "receipts.db")
+
+
+def test_workspace_resolver_honors_explicit_data_root_override(tmp_path):
+    # Requirement 2: explicit KITTY_DATA_ROOT wins even when canonical
+    # derivation would land somewhere else entirely.
+    isolated = tmp_path / "isolated-data"
+    isolated.mkdir()
+    unrelated_canonical = tmp_path / "unrelated-canonical"
+
+    result = _run_workspace_resolver(
+        tmp_path,
+        {"KITTY_DATA_ROOT": str(isolated)},
+        git_common_dir=str(unrelated_canonical / ".git"),
+    )
+
+    assert result.returncode == 0, result.stderr
+    data_root, builder_dir, governor_db = result.stdout.splitlines()
+    assert data_root == str(isolated)
+    assert builder_dir == str(isolated / "kittybuilder")
+    assert governor_db == str(isolated / "compute_governor" / "receipts.db")
+
+
+def test_workspace_resolver_rejects_conflicting_builder_override(tmp_path):
+    # Requirement 4: a Builder root that contradicts the selected data root
+    # is refused rather than silently splitting state.
+    isolated = tmp_path / "isolated-data"
+    isolated.mkdir()
+    wrong_builder_dir = tmp_path / "somewhere-else" / "kittybuilder"
+
+    result = _run_workspace_resolver(
+        tmp_path,
+        {
+            "KITTY_DATA_ROOT": str(isolated),
+            "KITTY_BUILDER_DATA_DIR": str(wrong_builder_dir),
+        },
+        git_common_dir=None,
+    )
+
+    assert result.returncode == 1
+    assert "conflicts with the selected personal data root" in result.stderr
+    assert "KITTY_BUILDER_DATA_DIR" in result.stderr
+
+
+def test_workspace_resolver_rejects_conflicting_governor_override(tmp_path):
+    isolated = tmp_path / "isolated-data"
+    isolated.mkdir()
+    wrong_governor_db = tmp_path / "somewhere-else" / "receipts.db"
+
+    result = _run_workspace_resolver(
+        tmp_path,
+        {
+            "KITTY_DATA_ROOT": str(isolated),
+            "KITTY_COMPUTE_GOVERNOR_DB": str(wrong_governor_db),
+        },
+        git_common_dir=None,
+    )
+
+    assert result.returncode == 1
+    assert "conflicts with the selected personal data root" in result.stderr
+    assert "KITTY_COMPUTE_GOVERNOR_DB" in result.stderr
+
+
+def test_workspace_resolver_fails_loud_when_personal_data_root_is_missing(tmp_path):
+    # Requirement 6: missing expected personal state fails visibly instead of
+    # silently initializing a fresh empty workspace.
+    missing = tmp_path / "does-not-exist"
+
+    result = _run_workspace_resolver(
+        tmp_path, {"KITTY_DATA_ROOT": str(missing)}, git_common_dir=None
+    )
+
+    assert result.returncode == 2
+    assert "does not exist" in result.stderr
+    assert "will not silently start a fresh empty workspace" in result.stderr
+
+
+def test_kitty_up_refuses_to_start_when_personal_data_root_is_missing(tmp_path):
+    # End-to-end proof at the real command entry point: ./kitty up must fail
+    # before ever writing GATEWAY_SECRET into .env or touching a port.
+    missing_data_root = tmp_path / "missing-personal-data"
+
+    env = dict(os.environ)
+    for key in ("KITTY_BUILDER_DATA_DIR", "KITTY_COMPUTE_GOVERNOR_DB"):
+        env.pop(key, None)
+    env["KITTY_DATA_ROOT"] = str(missing_data_root)
+    env["HOME"] = str(tmp_path)
+
+    result = subprocess.run(
+        [str(ROOT / "kitty"), "up"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode != 0
+    assert "does not exist" in result.stderr
+    assert "will not silently start a fresh empty workspace" in result.stderr

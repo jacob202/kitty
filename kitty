@@ -314,23 +314,66 @@ RESET=[0m
 # ── Subcommands ───────────────────────────────────────────────────────────────
 
 ensure_runtime_builder_data_dir() {
-  # Normal Kitty runtimes share one durable Builder authority across worktrees.
-  # Tests/sandboxes keep isolation by setting KITTY_DATA_ROOT explicitly.
-  if [[ -n "${KITTY_BUILDER_DATA_DIR:-}" ]]; then
-    return 0
-  fi
+  # Normal Kitty runtimes select ONE coherent personal workspace: app data,
+  # Builder, and the compute governor all derive from the same data root, so
+  # they can never silently split across checkouts (the exact bug that
+  # produced this convergence work). KITTY_DATA_ROOT explicit override always
+  # wins — that's how tests/sandboxes keep isolation. Otherwise the root is
+  # the canonical Git common directory's parent, never the invoking worktree's
+  # own root, so a secondary worktree still finds Jacob's real history. A
+  # Builder or compute-governor override that contradicts the selected root
+  # is refused rather than silently splitting state across two workspaces.
+  local data_root
   if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
-    export KITTY_BUILDER_DATA_DIR="${KITTY_DATA_ROOT%/}/kittybuilder"
-    return 0
+    data_root="${KITTY_DATA_ROOT%/}"
+  else
+    local git_common_dir canonical_root
+    git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    canonical_root="$KITTY_ROOT"
+    if [[ -n "$git_common_dir" ]]; then
+      canonical_root="$(dirname "$git_common_dir")"
+    fi
+    data_root="$canonical_root/data"
   fi
 
-  local git_common_dir canonical_root
-  git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-  canonical_root="$KITTY_ROOT"
-  if [[ -n "$git_common_dir" ]]; then
-    canonical_root="$(dirname "$git_common_dir")"
+  local expected_builder_dir="${data_root}/kittybuilder"
+  local expected_governor_db="${data_root}/compute_governor/receipts.db"
+
+  if [[ -n "${KITTY_BUILDER_DATA_DIR:-}" && "${KITTY_BUILDER_DATA_DIR%/}" != "$expected_builder_dir" ]]; then
+    echo "Error: KITTY_BUILDER_DATA_DIR conflicts with the selected personal data root." >&2
+    echo "  data root:              $data_root" >&2
+    echo "  KITTY_BUILDER_DATA_DIR: $KITTY_BUILDER_DATA_DIR" >&2
+    echo "  expected:               $expected_builder_dir" >&2
+    echo "  Set KITTY_DATA_ROOT to the workspace you mean, or unset KITTY_BUILDER_DATA_DIR — Kitty will not split Builder state from app data." >&2
+    return 1
   fi
-  export KITTY_BUILDER_DATA_DIR="$canonical_root/data/kittybuilder"
+  if [[ -n "${KITTY_COMPUTE_GOVERNOR_DB:-}" && "${KITTY_COMPUTE_GOVERNOR_DB}" != "$expected_governor_db" ]]; then
+    echo "Error: KITTY_COMPUTE_GOVERNOR_DB conflicts with the selected personal data root." >&2
+    echo "  data root:                $data_root" >&2
+    echo "  KITTY_COMPUTE_GOVERNOR_DB: $KITTY_COMPUTE_GOVERNOR_DB" >&2
+    echo "  expected:                 $expected_governor_db" >&2
+    echo "  Set KITTY_DATA_ROOT to the workspace you mean, or unset KITTY_COMPUTE_GOVERNOR_DB — Kitty will not split compute-governor state from app data." >&2
+    return 1
+  fi
+
+  export KITTY_DATA_ROOT="$data_root"
+  export KITTY_BUILDER_DATA_DIR="$expected_builder_dir"
+  export KITTY_COMPUTE_GOVERNOR_DB="$expected_governor_db"
+}
+
+require_existing_personal_workspace() {
+  # Never silently start a fresh empty personal workspace. If the selected
+  # data root does not already exist, something resolved wrong (wrong
+  # checkout, an override pointing nowhere) — fail loudly instead of quietly
+  # starting clean, which is how Jacob would lose his history without being
+  # told.
+  if [[ ! -d "$KITTY_DATA_ROOT" ]]; then
+    echo "Error: the selected personal data root does not exist: $KITTY_DATA_ROOT" >&2
+    echo "  Kitty will not silently start a fresh empty workspace in its place." >&2
+    echo "  If this really is a first run, create it: mkdir -p \"$KITTY_DATA_ROOT\"" >&2
+    echo "  Otherwise this checkout is not resolving to the workspace you expect." >&2
+    return 1
+  fi
 }
 
 startup_identity() {
@@ -351,8 +394,9 @@ cmd_up() {
   echo "  ⚡ Starting Kitty..."
   echo ""
   startup_identity "kitty" "-" "$$"
-  ensure_gateway_secret
   ensure_runtime_builder_data_dir
+  require_existing_personal_workspace
+  ensure_gateway_secret
 
   # LiteLLM
   if pid_alive "$RUN_DIR/litellm.pid"; then
@@ -690,6 +734,45 @@ cmd_status() {
     echo "  checkout    no single worktree-bound serving source"
   fi
 
+  # Read-only report of the same selection ensure_runtime_builder_data_dir
+  # would make. Never fails or mutates env here — status must still print
+  # when the workspace is misconfigured, so an operator can see why.
+  local ws_data_root ws_builder_dir ws_governor_db ws_conflict=""
+  if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
+    ws_data_root="${KITTY_DATA_ROOT%/}"
+  else
+    local ws_git_common_dir ws_canonical_root
+    ws_git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    ws_canonical_root="$KITTY_ROOT"
+    if [[ -n "$ws_git_common_dir" ]]; then
+      ws_canonical_root="$(dirname "$ws_git_common_dir")"
+    fi
+    ws_data_root="$ws_canonical_root/data"
+  fi
+  ws_builder_dir="${ws_data_root}/kittybuilder"
+  ws_governor_db="${ws_data_root}/compute_governor/receipts.db"
+  if [[ -n "${KITTY_BUILDER_DATA_DIR:-}" && "${KITTY_BUILDER_DATA_DIR%/}" != "$ws_builder_dir" ]]; then
+    ws_conflict="KITTY_BUILDER_DATA_DIR=$KITTY_BUILDER_DATA_DIR conflicts with expected $ws_builder_dir"
+  fi
+  if [[ -n "${KITTY_COMPUTE_GOVERNOR_DB:-}" && "${KITTY_COMPUTE_GOVERNOR_DB}" != "$ws_governor_db" ]]; then
+    [[ -n "$ws_conflict" ]] && ws_conflict="$ws_conflict; "
+    ws_conflict="${ws_conflict}KITTY_COMPUTE_GOVERNOR_DB=$KITTY_COMPUTE_GOVERNOR_DB conflicts with expected $ws_governor_db"
+  fi
+
+  echo
+  echo "Personal workspace"
+  echo "───────────────────"
+  if [[ -d "$ws_data_root" ]]; then
+    echo "  data root     $ws_data_root"
+  else
+    echo "  data root     $ws_data_root  (missing)"
+  fi
+  echo "  builder root  $ws_builder_dir"
+  echo "  compute root  $ws_governor_db"
+  if [[ -n "$ws_conflict" ]]; then
+    echo "  conflict      $ws_conflict"
+  fi
+
   echo
   echo "Health checks"
   echo "─────────────"
@@ -768,14 +851,19 @@ cmd_logs() {
 }
 
 cmd_backup() {
+  # Backup/restore must target the same selected workspace as everything
+  # else — never paths relative to whatever checkout happened to invoke them.
+  ensure_runtime_builder_data_dir
   "$PYTHON_BIN" "$KITTY_ROOT/scripts/kitty_backup.py" backup "$@"
 }
 
 cmd_restore_drill() {
+  ensure_runtime_builder_data_dir
   "$PYTHON_BIN" "$KITTY_ROOT/scripts/kitty_backup.py" restore-drill "$@"
 }
 
 cmd_restore() {
+  ensure_runtime_builder_data_dir
   "$PYTHON_BIN" "$KITTY_ROOT/scripts/kitty_backup.py" restore "$@"
 }
 
@@ -800,8 +888,9 @@ cmd_uninstall() {
 }
 
 cmd_run_fg() {
-  ensure_gateway_secret
   ensure_runtime_builder_data_dir
+  require_existing_personal_workspace
+  ensure_gateway_secret
   echo "Running gateway in foreground (Ctrl-C to stop)..."
   GATEWAY_RELOAD="${GATEWAY_RELOAD:-1}" bash "$KITTY_ROOT/gateway/start_gateway.sh"
 }
@@ -824,19 +913,7 @@ cmd_builder() {
     python_bin="$(command -v python3.12)"
   fi
 
-  if [[ -z "${KITTY_BUILDER_DATA_DIR:-}" ]]; then
-    if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
-      export KITTY_BUILDER_DATA_DIR="$KITTY_DATA_ROOT/kittybuilder"
-    else
-      local git_common_dir canonical_root
-      git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-      canonical_root="$KITTY_ROOT"
-      if [[ -n "$git_common_dir" ]]; then
-        canonical_root="$(dirname "$git_common_dir")"
-      fi
-      export KITTY_BUILDER_DATA_DIR="$canonical_root/data/kittybuilder"
-    fi
-  fi
+  ensure_runtime_builder_data_dir
 
   PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
     "$python_bin" -m gateway.builder_cli "$@"
@@ -847,15 +924,7 @@ cmd_room() {
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12 || command -v python3)"
   fi
-  if [[ -z "${KITTY_DATA_ROOT:-}" ]]; then
-    local git_common_dir canonical_root
-    git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-    canonical_root="$KITTY_ROOT"
-    if [[ -n "$git_common_dir" ]]; then
-      canonical_root="$(dirname "$git_common_dir")"
-    fi
-    export KITTY_DATA_ROOT="$canonical_root/data"
-  fi
+  ensure_runtime_builder_data_dir
   PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
     "$python_bin" -m gateway.agent_room_cli "$@"
 }
@@ -865,15 +934,7 @@ cmd_agent() {
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12 || command -v python3)"
   fi
-  if [[ -z "${KITTY_DATA_ROOT:-}" ]]; then
-    local git_common_dir canonical_root
-    git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-    canonical_root="$KITTY_ROOT"
-    if [[ -n "$git_common_dir" ]]; then
-      canonical_root="$(dirname "$git_common_dir")"
-    fi
-    export KITTY_DATA_ROOT="$canonical_root/data"
-  fi
+  ensure_runtime_builder_data_dir
   PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
     "$python_bin" -m gateway.agent_coordination_cli "$@"
 }
@@ -883,6 +944,7 @@ cmd_governor() {
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12)"
   fi
+  ensure_runtime_builder_data_dir
   "$python_bin" -m gateway.compute_governor_cli "$@"
 }
 
