@@ -110,13 +110,8 @@ def test_dsh_can_check_in_active_participant(room_db, monkeypatch):
     assert dsh_sessions[0]["presence_state"] == "active"
 
 
-def test_commandcode_is_an_active_sender_not_a_retired_ghost(room_db, monkeypatch):
-    """Command Code sessions need their own durable identity.
-
-    ``claude`` is retired for active routing while staying valid for reads and
-    receipts, so a Command Code session must not post under it. This pins the
-    contrast: the same module rejects one sender and accepts the other.
-    """
+def test_commandcode_and_claude_have_distinct_active_sender_identities(room_db, monkeypatch):
+    """Command Code and Claude sessions keep their own durable identities."""
     _freeze(monkeypatch, 1_000_000.0)
     session = agent_workspace.check_in(
         participant_id="commandcode",
@@ -139,53 +134,48 @@ def test_commandcode_is_an_active_sender_not_a_retired_ghost(room_db, monkeypatc
     )
     assert posted["sender_id"] == "commandcode"
 
-    with pytest.raises(agent_workspace.AgentWorkspaceError, match="retired|active"):
-        agent_workspace.post_global_message(
-            sender_id="claude",
-            content="should still be rejected",
-            message_kind="handoff",
-        )
+    claude_post = agent_workspace.post_global_message(
+        sender_id="claude",
+        content="handoff: Claude lane active",
+        message_kind="handoff",
+    )
+    assert claude_post["sender_id"] == "claude"
 
 
 # ---------------------------------------------------------------------------
-# 3. Claude cannot create a new active session (but historical compatibility)
+# 3. Claude can create an active session and participate normally
 # ---------------------------------------------------------------------------
 
 
-def test_claude_cannot_check_in_new_active_session(room_db):
-    with pytest.raises(agent_workspace.AgentWorkspaceError, match="retired"):
-        agent_workspace.check_in(
-            participant_id="claude",
-            session_id="claude-session-1",
-        )
+def test_claude_can_check_in_new_active_session(room_db):
+    session = agent_workspace.check_in(
+        participant_id="claude",
+        session_id="claude-session-1",
+    )
+    assert session["participant_id"] == "claude"
 
 
-def test_claude_historical_participant_validation_remains(room_db):
-    """Claude is still a valid participant for reads and receipts."""
-    # validate_global_participant should still accept claude
+def test_claude_participant_supports_presence_reads_and_messages(room_db):
     validated = agent_workspace.validate_global_participant("claude")
     assert validated == "claude"
 
-    # list_inbox should still work for claude
     inbox = agent_workspace.list_inbox("claude")
     assert isinstance(inbox, list)
 
-    # post_global_message from claude should be rejected
-    with pytest.raises(agent_workspace.AgentWorkspaceError, match="retired|active"):
-        agent_workspace.post_global_message(
-            sender_id="claude",
-            content="This should be rejected",
-            message_kind="status",
-        )
+    sent = agent_workspace.post_global_message(
+        sender_id="claude",
+        content="Claude is active",
+        message_kind="status",
+    )
+    assert sent["sender_id"] == "claude"
 
-    # post_global_message to claude should be rejected
-    with pytest.raises(agent_workspace.AgentWorkspaceError, match="retired|active"):
-        agent_workspace.post_global_message(
-            sender_id="chatgpt",
-            recipient_id="claude",
-            content="This should also be rejected",
-            message_kind="status",
-        )
+    received = agent_workspace.post_global_message(
+        sender_id="chatgpt",
+        recipient_id="claude",
+        content="Claude can be addressed",
+        message_kind="status",
+    )
+    assert received["recipient_id"] == "claude"
 
 
 # ---------------------------------------------------------------------------
@@ -489,27 +479,27 @@ def test_dsh_can_send_global_message(room_db, monkeypatch):
     assert msg["sender_id"] == "dsh"
 
 
-def test_claude_sending_message_rejected(room_db):
-    with pytest.raises(agent_workspace.AgentWorkspaceError, match="retired|active"):
-        agent_workspace.post_global_message(
-            sender_id="claude",
-            content="Claude should not send new messages",
-            message_kind="status",
-        )
+def test_claude_can_send_message(room_db):
+    msg = agent_workspace.post_global_message(
+        sender_id="claude",
+        content="Claude can send new messages",
+        message_kind="status",
+    )
+    assert msg["sender_id"] == "claude"
 
 
-def test_claude_receiving_message_rejected(room_db):
-    with pytest.raises(agent_workspace.AgentWorkspaceError, match="retired|active"):
-        agent_workspace.post_global_message(
-            sender_id="chatgpt",
-            recipient_id="claude",
-            content="Should not be addressed to retired Claude",
-            message_kind="status",
-        )
+def test_claude_can_receive_message(room_db):
+    msg = agent_workspace.post_global_message(
+        sender_id="chatgpt",
+        recipient_id="claude",
+        content="Claude can receive direct messages",
+        message_kind="status",
+    )
+    assert msg["recipient_id"] == "claude"
 
 
-def test_claude_can_still_read_inbox_and_receipts(room_db):
-    """Historical participant compatibility: Claude can still read."""
+def test_claude_can_read_inbox_and_receipts(room_db):
+    """Claude remains compatible with historical inbox and receipt reads."""
     inbox = agent_workspace.list_inbox("claude")
     assert isinstance(inbox, list)
 
