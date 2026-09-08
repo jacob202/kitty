@@ -96,6 +96,23 @@ listener_pids() {
   lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
 }
 
+all_listener_pid_ports() {
+  local line pid="" name port
+  while IFS= read -r line; do
+    case "$line" in
+      p*) pid="${line#p}" ;;
+      n*)
+        name="${line#n}"
+        port="${name##*:}"
+        port="${port%%[!0-9]*}"
+        if [[ -n "$pid" && "$port" =~ ^[0-9]+$ ]]; then
+          printf '%s|%s\n' "$pid" "$port"
+        fi
+        ;;
+    esac
+  done < <(lsof -nP -iTCP -sTCP:LISTEN -Fpn 2>/dev/null || true) | sort -u
+}
+
 pid_command() {
   ps -p "$1" -o command= 2>/dev/null || true
 }
@@ -148,6 +165,29 @@ pid_role() {
     echo "owned-other-worktree"
   else
     echo "external"
+  fi
+}
+
+pid_worktree_identity() {
+  local pid="$1" cwd root sha
+  pid_owned_by_kitty "$pid" || return 1
+  cwd="$(pid_cwd "$pid")"
+  [[ -n "$cwd" ]] || return 1
+  root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -n "$root" ]] || return 1
+  sha="$(git -C "$root" rev-parse HEAD 2>/dev/null || true)"
+  [[ -n "$sha" ]] || return 1
+  printf '%s@%s\n' "$root" "$sha"
+}
+
+classify_primary_stack() {
+  local ui_identity="${1:-}" gateway_identity="${2:-}"
+  if [[ -z "$ui_identity" || -z "$gateway_identity" ]]; then
+    echo "partial"
+  elif [[ "$ui_identity" == "$gateway_identity" ]]; then
+    echo "coherent"
+  else
+    echo "split"
   fi
 }
 
@@ -575,35 +615,77 @@ cmd_status() {
   echo "  gateway truth ${gateway_probe_level:-WARN}: ${gateway_probe_detail:-runtime provenance probe unavailable}"
 
   echo
-  local svc pidfile pid launch_pid port found_pid cwd role
+  local svc pidfile pid pidfile_pid launch_pid port found_pid cwd role
   for svc in ui gateway litellm; do
+    case "$svc" in
+      ui) port="$UI_PORT" ;;
+      gateway) port="$GATEWAY_PORT" ;;
+      litellm) port="$LITELLM_PORT" ;;
+    esac
     pidfile="$RUN_DIR/$svc.pid"
-    if pid_alive "$pidfile"; then
-      pid=$(cat "$pidfile")
+    found_pid="$(listener_pids "$port" | head -1)"
+    if [[ -n "$found_pid" ]]; then
+      role="$(pid_role "$found_pid")"
+      cwd="$(pid_cwd "$found_pid")"
+      printf "  %-10s running (pid %s; listener :%s; role=%s; cwd=%s)\n" \
+        "$svc" "$found_pid" "$port" "$role" "${cwd:-unknown}"
+      if pid_alive "$pidfile"; then
+        pidfile_pid="$(cat "$pidfile")"
+        if [[ "$pidfile_pid" != "$found_pid" ]]; then
+          printf "             metadata mismatch: pidfile=%s does not own :%s\n" "$pidfile_pid" "$port"
+        fi
+      fi
+    elif pid_alive "$pidfile"; then
+      pid="$(cat "$pidfile")"
       role="$(pid_role "$pid")"
       cwd="$(pid_cwd "$pid")"
-      printf "  %-10s running (pid %s; role=%s; cwd=%s)\n" "$svc" "$pid" "$role" "${cwd:-unknown}"
+      printf "  %-10s process alive but not listening on :%s (pid %s; role=%s; cwd=%s)\n" \
+        "$svc" "$port" "$pid" "$role" "${cwd:-unknown}"
     elif launch_pid="$(launchd_pid "$svc")" && [[ -n "$launch_pid" ]]; then
       role="$(pid_role "$launch_pid")"
       cwd="$(pid_cwd "$launch_pid")"
-      printf "  %-10s running via launchd (pid %s; role=%s; cwd=%s)\n" "$svc" "$launch_pid" "$role" "${cwd:-unknown}"
+      printf "  %-10s launchd process alive but not listening on :%s (pid %s; role=%s; cwd=%s)\n" \
+        "$svc" "$port" "$launch_pid" "$role" "${cwd:-unknown}"
     else
-      case "$svc" in
-        ui) port="$UI_PORT" ;;
-        gateway) port="$GATEWAY_PORT" ;;
-        litellm) port="$LITELLM_PORT" ;;
-      esac
-      found_pid="$(listener_pids "$port" | head -1)"
-      if [[ -n "$found_pid" ]]; then
-        role="$(pid_role "$found_pid")"
-        cwd="$(pid_cwd "$found_pid")"
-        printf "  %-10s running (pid %s; discovered listener on :%s; role=%s; cwd=%s)\n" \
-          "$svc" "$found_pid" "$port" "$role" "${cwd:-unknown}"
-      else
-        printf "  %-10s not running\n" "$svc"
-      fi
+      printf "  %-10s not running\n" "$svc"
     fi
   done
+
+  local ui_pid gateway_pid ui_identity gateway_identity stack_state current_identity
+  ui_pid="$(listener_pids "$UI_PORT" | head -1)"
+  gateway_pid="$(listener_pids "$GATEWAY_PORT" | head -1)"
+  ui_identity=""
+  gateway_identity=""
+  [[ -n "$ui_pid" ]] && ui_identity="$(pid_worktree_identity "$ui_pid" || true)"
+  [[ -n "$gateway_pid" ]] && gateway_identity="$(pid_worktree_identity "$gateway_pid" || true)"
+  stack_state="$(classify_primary_stack "$ui_identity" "$gateway_identity")"
+  current_identity="$KITTY_ROOT@$sha"
+
+  echo
+  echo "Product runtime"
+  echo "───────────────"
+  echo "  stack       $stack_state"
+  if [[ -n "$ui_identity" ]]; then
+    echo "  UI          $ui_identity"
+  elif [[ -n "$ui_pid" ]]; then
+    echo "  UI          external/unknown (pid $ui_pid)"
+  else
+    echo "  UI          not listening"
+  fi
+  if [[ -n "$gateway_identity" ]]; then
+    echo "  Gateway     $gateway_identity"
+  elif [[ -n "$gateway_pid" ]]; then
+    echo "  Gateway     external/unknown (pid $gateway_pid)"
+  else
+    echo "  Gateway     not listening"
+  fi
+  if [[ "$stack_state" == "coherent" && "$ui_identity" == "$current_identity" ]]; then
+    echo "  checkout    serving this exact checkout/source"
+  elif [[ "$stack_state" == "coherent" ]]; then
+    echo "  checkout    serving a different checkout/source"
+  else
+    echo "  checkout    no single worktree-bound serving source"
+  fi
 
   echo
   echo "Health checks"
@@ -625,6 +707,7 @@ cmd_status() {
   echo
   echo "Listeners"
   echo "─────────"
+  local spec label pids
   for spec in "UI:$UI_PORT" "Gateway:$GATEWAY_PORT" "LiteLLM:$LITELLM_PORT"; do
     label="${spec%%:*}"
     port="${spec##*:}"
@@ -637,6 +720,24 @@ cmd_status() {
       printf "  %-10s :%s free\n" "$label" "$port"
     fi
   done
+
+  echo
+  echo "Other Kitty listeners"
+  echo "─────────────────────"
+  local listener_port other_count=0
+  while IFS='|' read -r pid listener_port; do
+    [[ -n "$pid" && -n "$listener_port" ]] || continue
+    case "$listener_port" in
+      "$UI_PORT"|"$GATEWAY_PORT"|"$LITELLM_PORT") continue ;;
+    esac
+    if pid_owned_by_kitty "$pid"; then
+      printf "  :%-8s pid=%s role=%s cwd=%s\n" "$listener_port" "$pid" "$(pid_role "$pid")" "$(pid_cwd "$pid")"
+      other_count=$((other_count + 1))
+    fi
+  done < <(all_listener_pid_ports)
+  if [[ "$other_count" -eq 0 ]]; then
+    echo "  none"
+  fi
 }
 
 cmd_doctor() {

@@ -62,6 +62,43 @@ def test_status_reports_authority_build_and_ownership_truth() -> None:
     assert "external" in SCRIPT
 
 
+def test_status_uses_the_serving_listener_before_pidfile_metadata() -> None:
+    block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
+    listener_lookup = 'found_pid="$(listener_pids "$port" | head -1)"'
+    pidfile_lookup = 'if pid_alive "$pidfile"; then'
+    assert listener_lookup in block
+    assert pidfile_lookup in block
+    assert block.index(listener_lookup) < block.index(pidfile_lookup)
+
+
+def test_primary_stack_classifier_distinguishes_coherent_split_and_partial() -> None:
+    marker = "classify_primary_stack() {"
+    assert marker in SCRIPT
+    body = SCRIPT.split(marker, 1)[1].split("\n}\n", 1)[0]
+    function = marker + body + "\n}\n"
+
+    def classify(ui_identity: str, gateway_identity: str) -> str:
+        result = subprocess.run(
+            ["bash", "-c", function + '\nclassify_primary_stack "$1" "$2"', "bash", ui_identity, gateway_identity],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+
+    assert classify("/tmp/wt@abc", "/tmp/wt@abc") == "coherent"
+    assert classify("/tmp/ui@abc", "/tmp/gw@def") == "split"
+    assert classify("/tmp/wt@abc", "") == "partial"
+
+
+def test_status_exposes_other_kitty_listeners_without_calling_them_stale() -> None:
+    block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
+    assert "Other Kitty listeners" in block
+    assert "all_listener_pid_ports" in SCRIPT
+    assert "pid_owned_by_kitty" in block
+    assert "stale runtime" not in block.lower()
+
+
 def test_status_consumes_the_doctor_runtime_provenance_probe() -> None:
     block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
     assert "runtime_provenance_status_line" in block
