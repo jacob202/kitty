@@ -3281,9 +3281,19 @@ def test_real_dsh_worker_receives_governed_kb_context_through_builder_boundary(
 def test_independent_readonly_review_executor_fails_closed_without_builder_reviewer_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delattr(bl, "_select_healthy_free_reviewer", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     with pytest.raises(bl.LoopError, match="reviewer route selection is unavailable"):
+        bl.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
+
+
+def test_independent_readonly_review_executor_rejects_the_implementer_model_family(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
+    monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/anthropic/claude-opus")
+
+    with pytest.raises(bl.LoopError, match="must not use the implementer's model family"):
         bl.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
 
 
@@ -3317,30 +3327,19 @@ def test_independent_readonly_review_executor_uses_builder_route_and_contains_ho
     ).stdout.strip()
     subprocess.run(["git", "update-ref", "refs/remotes/origin/main", head], cwd=repo, check=True)
 
-    seen_roots: list[Path] = []
-
-    def select_reviewer(root: Path) -> dict[str, object]:
-        seen_roots.append(root)
-        return {
-            "provider": "openrouter",
-            "reviewer_model": "openrouter/example/reviewer:free",
-            "probes": [{"status": "healthy", "role": "reviewer"}],
-        }
-
-    monkeypatch.setattr(bl, "_select_healthy_free_reviewer", select_reviewer, raising=False)
     monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
+    monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/deepseek/deepseek-chat")
     monkeypatch.setenv("GITHUB_TOKEN", "must-not-propagate")
     monkeypatch.setenv("OTHER_SECRET", "must-not-propagate")
 
     result = bl.run_independent_readonly_review("Review this exact plan.", root=repo)
 
-    assert seen_roots == [repo.resolve()]
     assert result["provider"] == "openrouter"
-    assert result["model"] == "openrouter/example/reviewer:free"
+    assert result["model"] == "openrouter/deepseek/deepseek-chat"
     assert result["review_head"] == head
     assert result["review_origin_main"] == head
     assert result["output"] == '{"verdict":"approve","summary":"contained"}'
-    assert result["probes"] == [{"status": "healthy", "role": "reviewer"}]
+    assert result["probes"] == []
     assert subprocess.run(
         ["git", "status", "--porcelain=v1", "--untracked-files=all"],
         cwd=repo,

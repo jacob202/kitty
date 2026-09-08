@@ -404,8 +404,16 @@ def _readonly_review_fingerprint(root: Path) -> tuple[str, str]:
     )
 
 
-def _prepare_readonly_review_checkout(source_root: Path, review_root: Path) -> tuple[str, str | None]:
-    """Create a tracked-only local clone pinned to current Builder Git authority."""
+def _prepare_readonly_review_checkout(
+    source_root: Path, review_root: Path, *, checkout_sha: str | None = None
+) -> tuple[str, str | None]:
+    """Create a tracked-only local clone pinned to current Builder Git authority.
+
+    ``checkout_sha`` lets the caller review a commit that descends from the
+    current source HEAD (a bound design/plan commit), so the exact artifacts
+    under review are physically present in the reviewer's tree instead of only
+    reachable through a planning ref.
+    """
     source_head = _readonly_review_git_output(source_root, "rev-parse", "HEAD")
     origin_probe = subprocess.run(
         [beb.boundary_git_executable(), "rev-parse", "--verify", "refs/remotes/origin/main^{commit}"],
@@ -422,7 +430,17 @@ def _prepare_readonly_review_checkout(source_root: Path, review_root: Path) -> t
     if clone.returncode != 0:
         detail = (clone.stderr or clone.stdout or "no output").strip()[:600]
         raise LoopError(f"could not create isolated review checkout: {detail}")
-    _readonly_review_git_output(review_root, "checkout", "--detach", source_head)
+    checkout_target = source_head
+    if checkout_sha:
+        resolved = _readonly_review_git_output(review_root, "rev-parse", "--verify", f"{checkout_sha}^{{commit}}")
+        is_descendant = subprocess.run(
+            [beb.boundary_git_executable(), "merge-base", "--is-ancestor", source_head, resolved],
+            cwd=review_root, capture_output=True, text=True, timeout=30, check=False,
+        )
+        if is_descendant.returncode != 0:
+            raise LoopError("review checkout commit does not descend from current Builder HEAD")
+        checkout_target = resolved
+    _readonly_review_git_output(review_root, "checkout", "--detach", checkout_target)
     subprocess.run(
         [beb.boundary_git_executable(), "remote", "remove", "origin"],
         cwd=review_root, capture_output=True, text=True, timeout=30, check=False,
@@ -434,34 +452,48 @@ def _prepare_readonly_review_checkout(source_root: Path, review_root: Path) -> t
     return source_head, origin_main
 
 
+# Independent plan review defaults to a cheap, reliable, non-Claude OpenRouter
+# model. Free models proved too flaky for structured verdicts; a pinned paid
+# model (KITTYBUILDER_REVIEW_MODEL) is allowed, but it must never be the
+# Claude/Anthropic family the implementer belongs to. The DSH sprint preset
+# requests a reasoning effort the model must accept, so the default pairs a
+# thinking-capable model with a conservative effort both can honour.
+_DEFAULT_REVIEW_MODEL = "openrouter/google/gemini-2.5-flash"
+_DEFAULT_REVIEW_REASONING_EFFORT = "low"
+
+
+def _reviewer_is_independent_of_claude(model: str) -> bool:
+    lowered = model.lower()
+    return "claude" not in lowered and "anthropic" not in lowered
+
+
 def run_independent_readonly_review(
-    prompt: str, *, root: Path, timeout: int = DEFAULT_REVIEW_TIMEOUT
+    prompt: str,
+    *,
+    root: Path,
+    timeout: int = DEFAULT_REVIEW_TIMEOUT,
+    review_checkout_sha: str | None = None,
 ) -> dict[str, Any]:
-    """Run one Builder-owned zero-cost independent reviewer with hard read isolation.
+    """Run one Builder-owned independent reviewer with hard read isolation.
 
     This is intentionally state-free: callers own their own review state and
-    exact-digest binding. Builder owns reviewer route health, provider/model
-    selection, credential exposure, filesystem/network containment, and the
-    model process itself.
+    exact-digest binding. Builder owns provider/model selection, credential
+    exposure, filesystem/network containment, and the model process itself.
+    ``review_checkout_sha`` (a commit descending from current Builder HEAD)
+    materialises the exact artifacts under review in the reviewer's tree.
     """
     if not isinstance(prompt, str) or not prompt.strip():
         raise LoopError("review prompt must be non-empty")
     source_root = Path(root).resolve()
-    selector = globals().get("_select_healthy_free_reviewer")
-    if not callable(selector):
-        raise LoopError("Builder reviewer route selection is unavailable")
-    route = selector(source_root)
-    if not isinstance(route, dict):
-        raise LoopError("Builder reviewer route selection returned invalid evidence")
-    provider = str(route.get("provider") or "")
-    model = str(route.get("reviewer_model") or "")
-    if not provider or not model:
-        raise LoopError("Builder has no healthy zero-cost reviewer route")
-    if provider != "openrouter":
-        raise LoopError(f"unsupported Builder reviewer provider {provider!r}")
+    provider = "openrouter"
+    model = os.environ.get("KITTYBUILDER_REVIEW_MODEL", "").strip() or _DEFAULT_REVIEW_MODEL
+    if not _reviewer_is_independent_of_claude(model):
+        raise LoopError(
+            f"independent reviewer must not use the implementer's model family: {model!r}"
+        )
     provider_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not provider_key:
-        raise LoopError("Builder reviewer authentication is unavailable")
+        raise LoopError("Builder reviewer route selection is unavailable")
 
     source_before = _readonly_review_fingerprint(source_root)
     try:
@@ -470,7 +502,7 @@ def run_independent_readonly_review(
             review_root = temp_root / "repo"
             runtime_dir = temp_root / "runtime"
             source_head, origin_main = _prepare_readonly_review_checkout(
-                source_root, review_root
+                source_root, review_root, checkout_sha=review_checkout_sha
             )
             if source_head != source_before[0]:
                 raise LoopError("repository changed while preparing independent review")
@@ -483,6 +515,9 @@ def run_independent_readonly_review(
             env = beb.build_child_environment(os.environ, run_dir=runtime_dir)
             env["OPENROUTER_API_KEY"] = provider_key
             env["KITTY_BUILDER_REPO_ROOT"] = str(review_root)
+            env["KITTY_DSH_REASONING_EFFORT"] = os.environ.get(
+                "KITTYBUILDER_REVIEW_REASONING_EFFORT", _DEFAULT_REVIEW_REASONING_EFFORT
+            )
             command = [
                 "bash", str(launcher), "--preset", "kitty-sprint",
                 "--provider", provider, "--model", model,
@@ -516,7 +551,7 @@ def run_independent_readonly_review(
         "model": model,
         "review_head": source_before[0],
         "review_origin_main": origin_main,
-        "probes": list(route.get("probes") or []),
+        "probes": [],
         "output": output,
     }
 

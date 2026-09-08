@@ -14,6 +14,17 @@ ACTION_NAME = "mission.review_pending"
 _REVIEW_TIMEOUT_SECONDS = 240
 
 
+def _parse_review_json(raw: str) -> Any:
+    """Parse the reviewer verdict, tolerating a ```json fence some models add."""
+    text = raw.strip()
+    if text.startswith("```"):
+        first_newline = text.find("\n")
+        last_fence = text.rfind("```")
+        if first_newline >= 0 and last_fence > first_newline:
+            text = text[first_newline + 1:last_fence].strip()
+    return json.loads(text)
+
+
 class PlanVerifierUnavailable(RuntimeError):
     """No trustworthy zero-cost independent plan verifier is available."""
 
@@ -175,9 +186,17 @@ def run_plan_verifier(mission: dict[str, Any]) -> dict[str, Any]:
         )
 
     root = repo_tools.repo_root().resolve()
+    # The plan/design artifacts live on a planning ref, not the working tree, so
+    # hand the reviewer the exact plan commit to check out — otherwise it can
+    # only reach them through git plumbing it may not think to use.
+    plan_ref = str(mission["plan"].get("ref") or "")
+    review_checkout_sha = plan_ref.rsplit("@", 1)[1] if "@" in plan_ref else None
     try:
         receipt = builder_loop.run_independent_readonly_review(
-            _plan_review_prompt(mission), root=root, timeout=_REVIEW_TIMEOUT_SECONDS
+            _plan_review_prompt(mission),
+            root=root,
+            timeout=_REVIEW_TIMEOUT_SECONDS,
+            review_checkout_sha=review_checkout_sha,
         )
     except builder_loop.LoopError as exc:
         raise PlanVerifierUnavailable(str(exc)) from exc
@@ -186,7 +205,7 @@ def run_plan_verifier(mission: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(raw, str) or not raw.strip():
         raise PlanVerifierUnavailable("independent plan reviewer returned no result")
     try:
-        result = json.loads(raw)
+        result = _parse_review_json(raw)
     except json.JSONDecodeError as exc:
         raise PlanVerifierUnavailable(
             "independent plan reviewer returned invalid JSON"

@@ -204,8 +204,8 @@ def test_propose_review_approve_creates_one_durable_builder_task(
 
     seen: dict[str, object] = {}
 
-    def independent_review(prompt: str, *, root: Path, timeout: int) -> dict:
-        seen.update(prompt=prompt, root=root, timeout=timeout)
+    def independent_review(prompt: str, *, root: Path, timeout: int, review_checkout_sha=None) -> dict:
+        seen.update(prompt=prompt, root=root, timeout=timeout, review_checkout_sha=review_checkout_sha)
         return {
             "provider": "openrouter",
             "model": "openrouter/example/reviewer:free",

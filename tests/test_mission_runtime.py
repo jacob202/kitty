@@ -234,8 +234,8 @@ def test_run_plan_verifier_delegates_execution_to_builder_owned_reviewer(
     monkeypatch.setattr(repo_tools, "repo_root", lambda: tmp_path)
     seen: dict = {}
 
-    def review(prompt: str, *, root: Path, timeout: int):
-        seen.update(prompt=prompt, root=root, timeout=timeout)
+    def review(prompt: str, *, root: Path, timeout: int, review_checkout_sha=None):
+        seen.update(prompt=prompt, root=root, timeout=timeout, review_checkout_sha=review_checkout_sha)
         return {
             "provider": "openrouter",
             "model": "openrouter/example/reviewer:free",
