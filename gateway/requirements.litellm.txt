@@ -1,2 +1,4 @@
-litellm[proxy]
+# Pin to the installed minor with a major-version upper bound so a surprise
+# litellm 2.x cannot drift in transitively. Installed: 1.91.1.
+litellm[proxy]~=1.91.1,<2.0.0
 openai==2.24.0
