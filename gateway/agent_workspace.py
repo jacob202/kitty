@@ -66,9 +66,9 @@ _GLOBAL_AGENT_IDS = frozenset(agent["id"] for agent in GLOBAL_AGENTS)
 _GLOBAL_USER_IDS = frozenset({"jacob"})
 _GLOBAL_PARTICIPANT_IDS = _GLOBAL_AGENT_IDS | _GLOBAL_USER_IDS
 # Retired participants can read and have receipts recorded but cannot send new
-# messages or be addressed in new posts. Claude is retired for active routing
-# while remaining a valid historical participant.
-_RETIRED_PARTICIPANT_IDS: frozenset[str] = frozenset({"claude"})
+# messages or be addressed in new posts. Keep this empty while every rostered
+# participant is active; add an id here only for an intentional retirement.
+_RETIRED_PARTICIPANT_IDS: frozenset[str] = frozenset()
 _ACTIVE_SENDER_IDS = _GLOBAL_PARTICIPANT_IDS - _RETIRED_PARTICIPANT_IDS
 _RECEIPT_STATES = {"seen", "acknowledged"}
 

@@ -62,21 +62,19 @@ def test_global_post_validates_participants_and_preserves_sender_kind(room_db):
             message_kind="status",
         )
 
-    # Retired participants cannot send or be addressed in new messages
-    with pytest.raises(agent_workspace.AgentWorkspaceError, match="retired"):
-        agent_workspace.post_global_message(
-            sender_id="claude",
-            content="Claude cannot send new messages.",
-            message_kind="status",
-        )
-
-    with pytest.raises(agent_workspace.AgentWorkspaceError, match="retired"):
-        agent_workspace.post_global_message(
-            sender_id="chatgpt",
-            recipient_id="claude",
-            content="Cannot address retired Claude.",
-            message_kind="status",
-        )
+    claude_post = agent_workspace.post_global_message(
+        sender_id="claude",
+        content="Claude can send new messages.",
+        message_kind="status",
+    )
+    to_claude = agent_workspace.post_global_message(
+        sender_id="chatgpt",
+        recipient_id="claude",
+        content="Claude can receive direct messages.",
+        message_kind="status",
+    )
+    assert claude_post["sender_id"] == "claude"
+    assert to_claude["recipient_id"] == "claude"
 
 
 def test_inbox_contains_addressed_messages_but_not_other_or_self_messages(room_db):

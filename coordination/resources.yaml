@@ -64,6 +64,7 @@ resources:
     - gateway/routes/agent_workspace.py
     - mcp/agent_room/**
     - tests/test_agent_room_global.py
+    - tests/test_agent_room_presence.py
     - tests/test_agent_workspace.py
     - tests/test_agent_workspace_routes.py
     - tests/test_check_continuity_state.py
