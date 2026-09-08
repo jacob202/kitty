@@ -45,8 +45,11 @@ describe('Image Lab premium workspace', () => {
   })
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); window.localStorage.clear() })
 
-  it('puts route, recipe, estimate, and identity mode in visible preflight', async () => {
+  it('keeps route, recipe, estimate, and identity mode in More controls', async () => {
     render(<ImageLab />)
+    const moreControls = await screen.findByTestId('image-lab-more-controls')
+    expect(moreControls).not.toHaveAttribute('open')
+    fireEvent.click(screen.getByText('More controls'))
     const preflight = await screen.findByTestId('image-lab-preflight')
     await waitFor(() => expect(preflight).toHaveTextContent('openrouter'))
     expect(preflight).toHaveTextContent('vendor/image')
@@ -55,6 +58,8 @@ describe('Image Lab premium workspace', () => {
     expect(preflight).toHaveTextContent('~12 sec')
     expect(preflight).toHaveTextContent('Balanced')
     expect(preflight).toHaveTextContent('best available')
+    expect(screen.getByTestId('image-lab-estimate')).toHaveTextContent('$0.13')
+    expect(screen.getByTestId('image-lab-per-image-estimate')).toHaveTextContent('per image $0.07')
   })
 
   it('lets the user lock GPT-Image-2 and carries that recipe through estimate and planning', async () => {
@@ -89,6 +94,8 @@ describe('Image Lab premium workspace', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<ImageLab />)
+    await screen.findByTestId('image-lab-more-controls')
+    fireEvent.click(screen.getByText('More controls'))
     const route = await screen.findByRole('combobox', { name: 'generation route' })
     fireEvent.change(route, { target: { value: 'openai_gpt_image_2' } })
 
@@ -129,6 +136,8 @@ describe('Image Lab premium workspace', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<ImageLab />)
+    await screen.findByTestId('image-lab-more-controls')
+    fireEvent.click(screen.getByText('More controls'))
     await screen.findByTestId('image-lab-preflight')
     fireEvent.change(screen.getByRole('textbox', { name: 'Image request' }), { target: { value: 'auto route portrait' } })
     fireEvent.click(screen.getByTestId('image-lab-send'))
@@ -161,6 +170,8 @@ describe('Image Lab premium workspace', () => {
     }))
 
     render(<ImageLab />)
+    await screen.findByTestId('image-lab-more-controls')
+    fireEvent.click(screen.getByText('More controls'))
     const route = await screen.findByRole('combobox', { name: 'generation route' })
     const offline = Array.from(route.querySelectorAll('option')).find(option => option.value === 'comfyui_pulid_sdxl')
     const online = Array.from(route.querySelectorAll('option')).find(option => option.value === 'openrouter_auto')
@@ -221,6 +232,7 @@ describe('Image Lab premium workspace', () => {
     render(<ImageLab />)
     fireEvent.click(await screen.findByTestId('image-lab-character-picker'))
     fireEvent.click(await screen.findByText('Mia'))
+    fireEvent.click(screen.getByText('More controls'))
 
     const profile = await screen.findByTestId('image-lab-character-profile')
     expect(profile).toHaveTextContent('Portrait anchor for editorial scenes.')

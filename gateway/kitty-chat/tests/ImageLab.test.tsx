@@ -124,6 +124,7 @@ describe('ImageLab', () => {
     const fetchMock = stubFetch()
     render(<ImageLab />)
 
+    fireEvent.click(screen.getByText('More controls'))
     fireEvent.click(screen.getByRole('button', { name: '4 images' }))
     const estimateLine = await screen.findByTestId('image-lab-estimate')
     await waitFor(() => expect(estimateLine).toHaveTextContent('$0.27'))
@@ -167,6 +168,8 @@ describe('ImageLab', () => {
     render(<ImageLab />)
 
     expect(await screen.findByText(/no image engine is online/i)).toBeInTheDocument()
+    expect(screen.getByTestId('image-lab-more-controls')).not.toHaveAttribute('open')
+    expect(screen.getByText(/your session and references remain available/i)).toBeVisible()
     expect(screen.getByPlaceholderText(/tell kitty what you want to make/i)).toBeInTheDocument()
     expect(screen.getByTestId('image-lab-send')).toBeDisabled()
   })

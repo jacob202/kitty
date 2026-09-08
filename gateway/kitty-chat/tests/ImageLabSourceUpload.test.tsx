@@ -62,6 +62,7 @@ describe('Image Lab external edit source', () => {
     vi.stubGlobal('fetch', fetchMock)
     render(<ImageLab />)
 
+    fireEvent.click(screen.getByText('More controls'))
     fireEvent.change(screen.getByRole('textbox', { name: 'Image request' }), {
       target: { value: 'change only the jacket' },
     })
