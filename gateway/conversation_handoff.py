@@ -192,25 +192,50 @@ def compile_request(request: str, *, allow_provider_fallback: bool = False) -> d
         {"role": "system", "content": _PROPOSAL_SYSTEM_PROMPT},
         {"role": "user", "content": request.strip()},
     ]
-    try:
-        text = llm_client.call_llm(
-            messages,
-            model=_PROPOSAL_MODEL,
-            max_tokens=900,
-            temperature=0,
-            timeout=60,
-            response_format={"type": "json_object"},
-            operation="builder.proposal.compile",
-            metadata={
-                "route": "builder_proposal_compile",
-                "request_scoped_provider_fallback": allow_provider_fallback,
-                "spend_policy": "saved_provider" if allow_provider_fallback else "zero_cost_only",
-            },
-            allow_provider_fallback=allow_provider_fallback,
-            zero_cost_only=not allow_provider_fallback,
-        )
-    except llm_client.ProviderChainExhausted:
-        if not allow_provider_fallback:
+    raw: dict[str, Any] | None = None
+    attempts = 1 if allow_provider_fallback else 2
+    provider_exhausted = False
+    for attempt in range(attempts):
+        try:
+            text = llm_client.call_llm(
+                messages,
+                model=_PROPOSAL_MODEL,
+                max_tokens=900,
+                temperature=0,
+                timeout=60,
+                response_format={"type": "json_object"},
+                operation="builder.proposal.compile",
+                metadata={
+                    "route": "builder_proposal_compile",
+                    "request_scoped_provider_fallback": allow_provider_fallback,
+                    "spend_policy": "saved_provider" if allow_provider_fallback else "zero_cost_only",
+                    "attempt": attempt + 1,
+                },
+                allow_provider_fallback=allow_provider_fallback,
+                zero_cost_only=not allow_provider_fallback,
+            )
+        except llm_client.ProviderChainExhausted:
+            provider_exhausted = True
+            if attempt + 1 < attempts:
+                continue
+            break
+        except Exception:
+            return {
+                "ok": False,
+                "error_code": "proposal_compile_failed",
+                "error": "Kitty could not prepare the proposal right now. Try again in a moment.",
+            }
+
+        provider_exhausted = False
+        try:
+            raw = _proposal_json(text)
+            break
+        except (json.JSONDecodeError, ValueError, TypeError):
+            if attempt + 1 < attempts:
+                continue
+
+    if raw is None:
+        if not allow_provider_fallback and provider_exhausted:
             return {
                 "ok": False,
                 "error_code": "proposal_no_spend_unavailable",
@@ -219,21 +244,12 @@ def compile_request(request: str, *, allow_provider_fallback: bool = False) -> d
                     "Your request is preserved; retry the no-spend route or explicitly use your saved provider route."
                 ),
             }
-        return {
-            "ok": False,
-            "error_code": "proposal_compile_failed",
-            "error": "The saved provider route could not prepare this proposal right now.",
-        }
-    except Exception:
-        return {
-            "ok": False,
-            "error_code": "proposal_compile_failed",
-            "error": "Kitty could not prepare the proposal right now. Try again in a moment.",
-        }
-
-    try:
-        raw = _proposal_json(text)
-    except (json.JSONDecodeError, ValueError, TypeError):
+        if allow_provider_fallback and provider_exhausted:
+            return {
+                "ok": False,
+                "error_code": "proposal_compile_failed",
+                "error": "The saved provider route could not prepare this proposal right now.",
+            }
         return {
             "ok": False,
             "error_code": "proposal_invalid",

@@ -491,6 +491,51 @@ def test_compile_request_rejects_unbounded_scope(monkeypatch: pytest.MonkeyPatch
     assert "narrow" in result["error"].lower()
 
 
+def test_compile_request_retries_no_spend_once_after_transient_provider_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import llm_client
+
+    calls: list[dict] = []
+
+    def fake_call(messages, **kwargs):
+        calls.append(dict(kwargs))
+        if len(calls) == 1:
+            raise llm_client.ProviderChainExhausted(["openrouter: transient free-route failure"])
+        return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+    result = conversation_handoff.compile_request("Fix the launch bug.")
+
+    assert result["ok"] is True
+    assert len(calls) == 2
+    assert all(call["zero_cost_only"] is True for call in calls)
+    assert all(call["allow_provider_fallback"] is False for call in calls)
+    assert result["routing"] == {"mode": "no_spend", "saved_preference_changed": False}
+
+
+def test_compile_request_retries_no_spend_once_after_unusable_free_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import llm_client
+
+    calls = 0
+
+    def fake_call(messages, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "not json"
+        return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+    result = conversation_handoff.compile_request("Fix the launch bug.")
+
+    assert result["ok"] is True
+    assert calls == 2
+    assert result["routing"] == {"mode": "no_spend", "saved_preference_changed": False}
+
+
 def test_compile_request_reports_no_spend_unavailable_without_claiming_all_routes_failed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
