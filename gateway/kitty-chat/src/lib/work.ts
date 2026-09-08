@@ -158,18 +158,6 @@ function isEvidence(value: unknown): value is Record<string, unknown> {
     && isEvidenceField(value, 'publication', 'checks_state', isNullableString)
     && isEvidenceField(value, 'publication', 'merged', isNullableBoolean)
     && isEvidenceField(value, 'publication', 'merged_at', isNullableString)
-    && isEvidenceField(value, 'execution', 'state', isNullableString)
-    && isEvidenceField(value, 'execution', 'route', isNullableString)
-    && isEvidenceField(value, 'execution', 'provider', isNullableString)
-    && isEvidenceField(value, 'execution', 'model', isNullableString)
-    && isEvidenceField(value, 'execution', 'actual_provider', isNullableString)
-    && isEvidenceField(value, 'execution', 'actual_model', isNullableString)
-    && isEvidenceField(value, 'execution', 'actual_usage_cad', isNullableNumberOrString)
-    && isEvidenceField(value, 'execution', 'actual_cost_source', isNullableString)
-    && isEvidenceField(value, 'execution', 'retries', isNullableNumberOrString)
-    && isEvidenceField(value, 'execution', 'estimated_usage_cad', isNullableNumberOrString)
-    && isEvidenceField(value, 'execution', 'cost_basis', isNullableString)
-    && isEvidenceField(value, 'execution', 'recorded_at', isNullableString)
   )
 }
 

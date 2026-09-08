@@ -2496,6 +2496,10 @@ export interface BuilderCompileResult {
 export async function compileBuilderProposal(
   payload: { request: string; allow_provider_fallback?: boolean },
 ): Promise<BuilderCompileResult> {
+  // The no-spend route can try two subscription CLIs (~22s each) and then a
+  // bounded openrouter/free attempt before it gives up, so the client deadline
+  // must comfortably clear the backend's worst case rather than abort a retry
+  // that would have succeeded.
   return await gfetch<BuilderCompileResult>(
     '/builder/conversation/compile',
     {
@@ -2503,7 +2507,7 @@ export async function compileBuilderProposal(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     },
-    65_000,
+    150_000,
   )
 }
 

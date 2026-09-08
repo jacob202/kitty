@@ -471,37 +471,16 @@ def _resolve_provider_model(provider: ProviderConfig, request_model: str | None)
     return provider.model_default
 
 
-_LOCAL_PROVIDER_BASE_URL = (
-    os.environ.get("KITTY_LOCAL_LLM_BASE", "").strip()
-    or os.environ.get("MLX_BASE_URL", "").strip()
-    or "http://127.0.0.1:8010/v1"
-)
-_LOCAL_PROVIDER_IS_OLLAMA = (
-    ":11434" in _LOCAL_PROVIDER_BASE_URL
-    or _LOCAL_PROVIDER_BASE_URL.rstrip("/").endswith("/api")
-)
-
-
-def _local_model_for_request(_request_model: str | None) -> str:
-    configured = (
-        os.environ.get("KITTY_LOCAL_LLM_MODEL", "").strip()
-        or os.environ.get("MLX_MODEL", "").strip()
-    )
-    if configured:
-        return configured
-    return "qwen3.5:4b" if _LOCAL_PROVIDER_IS_OLLAMA else "mlx-community/Qwen3.5-4B-4bit"
-
-
 PROVIDERS: dict[str, ProviderConfig] = {
     # gateway/start_mlx.sh has always been able to serve a model on the Mac, but
     # nothing in the routing layer pointed at it — so every "hi" paid cloud
     # latency (and cloud credit) for work a 4-bit local model handles instantly.
     "local": ProviderConfig(
         name="local",
-        route="local_ollama" if _LOCAL_PROVIDER_IS_OLLAMA else "local_mlx",
-        base_url=_LOCAL_PROVIDER_BASE_URL,
-        model_default="qwen3.5:4b" if _LOCAL_PROVIDER_IS_OLLAMA else "mlx-community/Qwen3.5-4B-4bit",
-        model_resolver=_local_model_for_request,
+        route="local_mlx",
+        base_url=os.environ.get("MLX_BASE_URL", "http://127.0.0.1:8010/v1"),
+        model_default="mlx-community/Qwen3.5-4B-4bit",
+        model_env="MLX_MODEL",
         requires_key=False,
         kind="local",
         free_tier=True,
@@ -697,19 +676,7 @@ def _call_provider(
     if provider.request_mutator is not None:
         payload, headers = provider.request_mutator(payload, headers, request_model)
 
-    if provider.route == "local_ollama":
-        url = f"{provider.base_url.rstrip('/')}/chat"
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
-            "think": False,
-            "options": {"temperature": temperature, "num_predict": max_tokens},
-        }
-        if response_format == {"type": "json_object"}:
-            payload["format"] = "json"
-    else:
-        url = f"{provider.base_url}/chat/completions"
+    url = f"{provider.base_url}/chat/completions"
 
     try:
         resp = _post(url, headers=headers, json=payload, timeout=timeout)
@@ -738,18 +705,6 @@ def _call_provider(
             return ""
 
         data = resp.json()
-        if provider.route == "local_ollama":
-            message = data.get("message") if isinstance(data, dict) else None
-            content = message.get("content") if isinstance(message, dict) else None
-            data = {
-                "choices": [{"message": {"role": "assistant", "content": content or ""}}],
-                "model": data.get("model") or model,
-                "usage": {
-                    "prompt_tokens": int(data.get("prompt_eval_count") or 0),
-                    "completion_tokens": int(data.get("eval_count") or 0),
-                    "total_tokens": int(data.get("prompt_eval_count") or 0) + int(data.get("eval_count") or 0),
-                },
-            }
         mlog = data.get("model") or model
         return _finalize_openai_shape_response(
             data,
@@ -951,7 +906,6 @@ def call_llm(
     response_format: dict[str, Any] | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
-    allow_provider_fallback: bool = False,
     zero_cost_only: bool = False,
 ) -> str:
     """
@@ -1011,33 +965,22 @@ def call_llm(
             return out
         raise ProviderChainExhausted([f"{provider_name}: {_REASON_NO_RESPONSE}"])
 
-    # Exact provider selection remains fail-closed by default. A caller may
-    # explicitly opt into one request-scoped recovery attempt that falls through
-    # to Kitty's automatic routing without changing the saved provider preference.
-    try:
-        selected = selected_provider_name()
-    except ProviderChainExhausted as exc:
-        if not allow_provider_fallback:
-            raise
-        logger.warning("Selected provider unavailable (%s); request-scoped fallback allowed", exc)
-        selected = None
+    # Exact provider selection stays fail-closed: an explicit pin never silently
+    # cascades to LiteLLM or another provider. The request-scoped saved-provider
+    # retry is issued by the caller through ``call_selected_provider`` directly.
+    selected = selected_provider_name()
     if selected is not None:
-        try:
-            return call_selected_provider(
-                selected,
-                messages,
-                request_model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                timeout=timeout,
-                response_format=response_format,
-                operation=operation,
-                metadata=metadata,
-            )
-        except ProviderChainExhausted as exc:
-            if not allow_provider_fallback:
-                raise
-            logger.warning("Selected provider failed (%s); request-scoped fallback allowed", exc)
+        return call_selected_provider(
+            selected,
+            messages,
+            request_model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+            response_format=response_format,
+            operation=operation,
+            metadata=metadata,
+        )
 
     try:
         payload = {

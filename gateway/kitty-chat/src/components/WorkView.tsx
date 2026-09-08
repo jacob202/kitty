@@ -649,7 +649,6 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
   const review = evidenceRecord(evidence.review)
   const validation = evidenceRecord(evidence.validation)
   const publication = evidenceRecord(evidence.publication)
-  const execution = evidenceRecord(evidence.execution)
   const reviewVerdict = evidenceScalar(review?.verdict)
   const reviewSummary = boundedEvidenceText(review?.summary)
   const validationStatus = evidenceScalar(validation?.status)
@@ -658,18 +657,6 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
   const publicationChecks = evidenceScalar(publication?.checks_state)
   const publicationMerged = typeof publication?.merged === 'boolean' ? publication.merged : null
   const publicationMergedAt = evidenceDate(publication?.merged_at)
-  const executionState = evidenceScalar(execution?.state)
-  const executionProvider = evidenceScalar(execution?.provider)
-  const executionModel = evidenceScalar(execution?.model)
-  const actualExecutionProvider = evidenceScalar(execution?.actual_provider)
-  const actualExecutionModel = evidenceScalar(execution?.actual_model)
-  const actualExecutionUsage = typeof execution?.actual_usage_cad === 'number' ? execution.actual_usage_cad : null
-  const actualExecutionCostSource = evidenceScalar(execution?.actual_cost_source)
-  const executionRoute = evidenceScalar(execution?.route)
-  const executionRetries = evidenceScalar(execution?.retries)
-  const executionCost = typeof execution?.estimated_usage_cad === 'number' ? execution.estimated_usage_cad : null
-  const executionCostBasis = boundedEvidenceText(execution?.cost_basis)
-  const executionReason = boundedEvidenceText(execution?.reason)
 
   return (
     <>
@@ -681,18 +668,6 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
       {publicationChecks && <div>publication checks {publicationChecks}</div>}
       {publicationMerged !== null && <div>publication {publicationMerged ? 'merged' : 'not merged'}</div>}
       {publicationMerged === true && publicationMergedAt && <div>merged {publicationMergedAt}</div>}
-      {execution && <div>execution {executionState ?? 'recorded'}</div>}
-      {executionProvider && <div>configured provider {executionProvider}</div>}
-      {executionModel && <div>configured model {executionModel}</div>}
-      {actualExecutionProvider && <div>actual provider {actualExecutionProvider}</div>}
-      {actualExecutionModel && <div>actual model {actualExecutionModel}</div>}
-      {actualExecutionUsage !== null && <div>actual spend CAD {actualExecutionUsage.toFixed(4)}</div>}
-      {actualExecutionUsage === null && actualExecutionCostSource === 'unavailable' && <div>actual spend unavailable</div>}
-      {executionRoute && <div>configured route {executionRoute}</div>}
-      {executionRetries !== null && <div>retries {executionRetries}</div>}
-      {executionCost !== null && <div>estimated spend CAD {executionCost.toFixed(4)}</div>}
-      {executionCostBasis && <div>{executionCostBasis}</div>}
-      {executionReason && <div>{executionReason}</div>}
     </>
   )
 }
@@ -702,7 +677,5 @@ function evidenceLabels(item: GatewayWorkItem): string[] {
   if (item.evidence.review) labels.push('Review evidence available')
   if (item.evidence.publication) labels.push('Publication evidence available')
   if (item.evidence.validation) labels.push('Validation evidence available')
-  const execution = evidenceRecord(item.evidence.execution)
-  if (execution?.state === 'settled') labels.push('Execution receipt available')
   return labels
 }

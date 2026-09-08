@@ -361,45 +361,4 @@ describe('WorkView visual hierarchy', () => {
     expect(screen.getByText('partial Builder data')).toBeVisible()
   })
 
-  it('shows actual execution identity separately from configured routing and estimated spend', () => {
-    const base = snapshot().items[0]
-    renderSnapshot({
-      ...snapshot(),
-      items: [{
-        ...base,
-        state: 'completed',
-        evidence: {
-          ...base.evidence,
-          execution: {
-            state: 'settled',
-            route: 'cheap',
-            provider: 'openrouter',
-            model: 'openrouter/deepseek/deepseek-v4-flash',
-            actual_provider: 'openrouter',
-            actual_model: 'openrouter/nvidia/nemotron-3-super-120b-a12b:free',
-            actual_usage_cad: null,
-            actual_cost_source: 'unavailable',
-            retries: 1,
-            estimated_usage_cad: 0.0184,
-            cost_basis: 'Kitty local estimate — not a provider invoice',
-            recorded_at: '2026-08-13T12:01:00+00:00',
-          },
-        },
-      }],
-    })
-
-    expect(screen.getByText('Execution receipt available')).toBeVisible()
-    fireEvent.click(screen.getByText('Details'))
-    expect(screen.getByText('execution settled')).toBeVisible()
-    expect(screen.getByText('configured provider openrouter')).toBeVisible()
-    expect(screen.getByText('configured model openrouter/deepseek/deepseek-v4-flash')).toBeVisible()
-    expect(screen.getByText('actual provider openrouter')).toBeVisible()
-    expect(screen.getByText('actual model openrouter/nvidia/nemotron-3-super-120b-a12b:free')).toBeVisible()
-    expect(screen.getByText('actual spend unavailable')).toBeVisible()
-    expect(screen.getByText('configured route cheap')).toBeVisible()
-    expect(screen.getByText('retries 1')).toBeVisible()
-    expect(screen.getByText('estimated spend CAD 0.0184')).toBeVisible()
-    expect(screen.getByText('Kitty local estimate — not a provider invoice')).toBeVisible()
-  })
-
 })

@@ -21,6 +21,7 @@ remains the single authority.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import subprocess
 import uuid
@@ -35,6 +36,8 @@ from mcp.builder import commands as _commands
 from mcp.builder import context as _context
 from mcp.builder import repo_tools
 from mcp.builder.schemas import receipt
+
+logger = logging.getLogger("kitty.conversation_handoff")
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
 _DEFAULT_PACKET_ID = "packet-1"
@@ -81,33 +84,6 @@ def _resolve_unique_tracked_path_aliases(allowed_paths: list[str]) -> list[str]:
     return resolved
 
 
-def _rewrite_validation_path_aliases(
-    commands: list[str], original_paths: list[str], resolved_paths: list[str]
-) -> list[str]:
-    """Keep validation commands bound to aliases Builder already canonicalized.
-
-    Only rewrite standalone path tokens when scope resolution proved an
-    unambiguous tracked-file alias. This does not guess ambiguous paths or
-    rewrite arbitrary substrings.
-    """
-    aliases = [
-        (original, resolved)
-        for original, resolved in zip(original_paths, resolved_paths, strict=True)
-        if original != resolved
-    ]
-    rewritten: list[str] = []
-    for command in commands:
-        updated = command
-        for original, resolved in aliases:
-            updated = re.sub(
-                rf"(?<![\w./-]){re.escape(original)}(?![\w./-])",
-                resolved,
-                updated,
-            )
-        rewritten.append(updated)
-    return rewritten
-
-
 def _scope_maps_to_current_kx(allowed_paths: list[str]) -> bool:
     """Return whether every proposed mutation scope has current KX ownership.
 
@@ -147,10 +123,9 @@ Required fields:
 
 Optional fields, only when useful:
 - "title": short task title.
-- "acceptance_criteria": list of concrete checkable outcomes.
-- "validation_commands": list of safe commands that verify the requested result.
+- "acceptance_criteria": list of concrete checkable outcomes (plain statements, not shell commands).
 
-Do not execute anything. Do not claim work is queued, running, approved, or complete.
+Do not emit shell commands. Do not execute anything. Do not claim work is queued, running, approved, or complete.
 Never use broad scope such as "." or the repository root.
 If the user names a file, preserve that repo-relative file in allowed_paths.
 """.strip()
@@ -174,6 +149,66 @@ def _proposal_json(text: str) -> dict[str, Any]:
     return payload
 
 
+class _ProposalUnusable(Exception):
+    """A model response parsed but is not a usable Builder proposal."""
+
+    def __init__(self, error_code: str, error: str) -> None:
+        super().__init__(error)
+        self.error_code = error_code
+        self.error = error
+
+
+def _build_task_from_raw(raw: Any, request: str) -> dict[str, Any]:
+    """Turn one compiler JSON object into a bounded Builder task or raise.
+
+    Model-supplied ``validation_commands`` are intentionally dropped: Builder
+    runs validation with ``shell=True`` after a generic approval and the
+    proposal card does not show them, so a prompt-injected or simply wrong
+    command must never reach that path. Builder derives its own validation from
+    the acceptance criteria instead.
+    """
+    if not isinstance(raw, dict):
+        raise _ProposalUnusable(
+            "proposal_invalid",
+            "Kitty received an unusable proposal from the model. Try again, or make the requested outcome more concrete.",
+        )
+    objective = raw.get("objective")
+    if not isinstance(objective, str) or not objective.strip():
+        raise _ProposalUnusable(
+            "proposal_invalid",
+            "Kitty could not produce a usable objective. Make the requested outcome more concrete, then try again.",
+        )
+    try:
+        allowed_paths = _resolve_unique_tracked_path_aliases(
+            normalize_allowed_paths(raw.get("allowed_paths"))
+        )
+    except ValueError as exc:
+        raise _ProposalUnusable(
+            "proposal_scope_invalid",
+            "Kitty could not determine a safe file scope. Narrow the request to one concrete file or area, then try again.",
+        ) from exc
+
+    task: dict[str, Any] = {
+        "objective": objective.strip(),
+        "instructions": request.strip(),
+        "allowed_paths": allowed_paths,
+    }
+    for key in ("title", "initiative_id"):
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            task[key] = value.strip()
+    criteria = raw.get("acceptance_criteria")
+    if criteria is not None:
+        if not isinstance(criteria, list) or any(
+            not isinstance(item, str) or not item.strip() for item in criteria
+        ):
+            raise _ProposalUnusable(
+                "proposal_invalid", "Compiled proposal has invalid acceptance_criteria."
+            )
+        task["acceptance_criteria"] = [item.strip() for item in criteria]
+    return task
+
+
 def compile_request(request: str, *, allow_provider_fallback: bool = False) -> dict[str, Any]:
     """Compile plain language into a bounded Builder task without chat context.
 
@@ -192,34 +227,36 @@ def compile_request(request: str, *, allow_provider_fallback: bool = False) -> d
         {"role": "system", "content": _PROPOSAL_SYSTEM_PROMPT},
         {"role": "user", "content": request.strip()},
     ]
-    raw: dict[str, Any] | None = None
-    attempts = 1 if allow_provider_fallback else 2
+
+    if allow_provider_fallback:
+        return _compile_via_saved_provider(messages, request)
+
+    # Default: no-spend only. One bounded retry that also covers a structurally
+    # invalid model response, not just a transport failure.
     provider_exhausted = False
-    for attempt in range(attempts):
+    last_unusable: _ProposalUnusable | None = None
+    for attempt in range(2):
         try:
             text = llm_client.call_llm(
                 messages,
                 model=_PROPOSAL_MODEL,
                 max_tokens=900,
                 temperature=0,
-                timeout=60,
+                timeout=30,
                 response_format={"type": "json_object"},
                 operation="builder.proposal.compile",
                 metadata={
                     "route": "builder_proposal_compile",
-                    "request_scoped_provider_fallback": allow_provider_fallback,
-                    "spend_policy": "saved_provider" if allow_provider_fallback else "zero_cost_only",
+                    "spend_policy": "zero_cost_only",
                     "attempt": attempt + 1,
                 },
-                allow_provider_fallback=allow_provider_fallback,
-                zero_cost_only=not allow_provider_fallback,
+                zero_cost_only=True,
             )
         except llm_client.ProviderChainExhausted:
             provider_exhausted = True
-            if attempt + 1 < attempts:
-                continue
-            break
+            continue
         except Exception:
+            logger.exception("proposal compile failed on the no-spend route")
             return {
                 "ok": False,
                 "error_code": "proposal_compile_failed",
@@ -228,75 +265,100 @@ def compile_request(request: str, *, allow_provider_fallback: bool = False) -> d
 
         provider_exhausted = False
         try:
-            raw = _proposal_json(text)
-            break
+            task = _build_task_from_raw(_proposal_json(text), request)
         except (json.JSONDecodeError, ValueError, TypeError):
-            if attempt + 1 < attempts:
-                continue
+            last_unusable = _ProposalUnusable(
+                "proposal_invalid",
+                "Kitty received an unusable proposal from the model. Try again, or make the requested outcome more concrete.",
+            )
+            continue
+        except _ProposalUnusable as exc:
+            last_unusable = exc
+            continue
+        return {
+            "ok": True,
+            "task": task,
+            "routing": {"mode": "no_spend", "saved_preference_changed": False},
+        }
 
-    if raw is None:
-        if not allow_provider_fallback and provider_exhausted:
-            return {
-                "ok": False,
-                "error_code": "proposal_no_spend_unavailable",
-                "error": (
-                    "Kitty could not prepare this proposal on a no-spend route right now. "
-                    "Your request is preserved; retry the no-spend route or explicitly use your saved provider route."
-                ),
-            }
-        if allow_provider_fallback and provider_exhausted:
-            return {
-                "ok": False,
-                "error_code": "proposal_compile_failed",
-                "error": "The saved provider route could not prepare this proposal right now.",
-            }
+    if provider_exhausted:
+        return {
+            "ok": False,
+            "error_code": "proposal_no_spend_unavailable",
+            "error": (
+                "Kitty could not prepare this proposal on a no-spend route right now. "
+                "Your request is preserved; retry the no-spend route or explicitly use your saved provider route."
+            ),
+        }
+    if last_unusable is not None:
+        return {"ok": False, "error_code": last_unusable.error_code, "error": last_unusable.error}
+    return {
+        "ok": False,
+        "error_code": "proposal_invalid",
+        "error": "Kitty received an unusable proposal from the model. Try again, or make the requested outcome more concrete.",
+    }
+
+
+def _compile_via_saved_provider(messages: list[dict[str, Any]], request: str) -> dict[str, Any]:
+    """One request-scoped retry pinned exactly to the saved provider route.
+
+    This never cascades to LiteLLM or any other provider and never changes the
+    saved preference. With no saved provider it is a no-op surfaced as an
+    actionable message rather than a silent spend elsewhere.
+    """
+    try:
+        selected = llm_client.selected_provider_name()
+    except llm_client.ProviderChainExhausted:
+        selected = None
+    if selected is None:
+        return {
+            "ok": False,
+            "error_code": "no_saved_provider",
+            "error": "You have no saved provider route to try. Set a provider in Settings, or retry the no-spend route.",
+        }
+    try:
+        text = llm_client.call_selected_provider(
+            selected,
+            messages,
+            request_model=_PROPOSAL_MODEL,
+            max_tokens=900,
+            temperature=0,
+            timeout=30,
+            response_format={"type": "json_object"},
+            operation="builder.proposal.compile",
+            metadata={
+                "route": "builder_proposal_compile",
+                "spend_policy": "saved_provider",
+                "request_scoped_provider_fallback": True,
+            },
+        )
+    except llm_client.ProviderChainExhausted:
+        return {
+            "ok": False,
+            "error_code": "proposal_compile_failed",
+            "error": f"The saved provider route ({selected}) could not prepare this proposal right now.",
+        }
+    except Exception:
+        logger.exception("proposal compile failed on the saved provider route")
+        return {
+            "ok": False,
+            "error_code": "proposal_compile_failed",
+            "error": "Kitty could not prepare the proposal right now. Try again in a moment.",
+        }
+    try:
+        task = _build_task_from_raw(_proposal_json(text), request)
+    except (json.JSONDecodeError, ValueError, TypeError):
         return {
             "ok": False,
             "error_code": "proposal_invalid",
             "error": "Kitty received an unusable proposal from the model. Try again, or make the requested outcome more concrete.",
         }
-
-    objective = raw.get("objective")
-    if not isinstance(objective, str) or not objective.strip():
-        return {"ok": False, "error_code": "proposal_invalid", "error": "Kitty could not produce a usable objective. Make the requested outcome more concrete, then try again."}
-    try:
-        proposed_allowed_paths = normalize_allowed_paths(raw.get("allowed_paths"))
-        allowed_paths = _resolve_unique_tracked_path_aliases(proposed_allowed_paths)
-    except ValueError:
-        return {
-            "ok": False,
-            "error_code": "proposal_scope_invalid",
-            "error": "Kitty could not determine a safe file scope. Narrow the request to one concrete file or area, then try again.",
-        }
-
-    task: dict[str, Any] = {
-        "objective": objective.strip(),
-        "instructions": request.strip(),
-        "allowed_paths": allowed_paths,
-    }
-    for key in ("title", "initiative_id"):
-        value = raw.get(key)
-        if isinstance(value, str) and value.strip():
-            task[key] = value.strip()
-    for key in ("acceptance_criteria", "validation_commands"):
-        value = raw.get(key)
-        if value is not None:
-            if not isinstance(value, list) or any(not isinstance(item, str) or not item.strip() for item in value):
-                return {"ok": False, "error_code": "proposal_invalid", "error": f"Compiled proposal has invalid {key}."}
-            normalized_items = [item.strip() for item in value]
-            if key == "validation_commands":
-                normalized_items = _rewrite_validation_path_aliases(
-                    normalized_items, proposed_allowed_paths, allowed_paths
-                )
-            task[key] = normalized_items
-
+    except _ProposalUnusable as exc:
+        return {"ok": False, "error_code": exc.error_code, "error": exc.error}
     return {
         "ok": True,
         "task": task,
-        "routing": {
-            "mode": "request_scoped_fallback" if allow_provider_fallback else "no_spend",
-            "saved_preference_changed": False,
-        },
+        "routing": {"mode": "request_scoped_fallback", "saved_preference_changed": False},
     }
 
 

@@ -374,9 +374,12 @@ def test_compile_request_resolves_unique_extensionless_tracked_file(
     assert result["task"]["allowed_paths"] == ["README.md"]
 
 
-def test_compile_request_rewrites_validation_path_when_scope_alias_is_canonicalized(
+def test_compile_request_drops_model_generated_validation_commands(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A prompt-injected or wrong shell command must never reach Builder's
+    shell=True validation via a generic approval, and the proposal card does
+    not show these, so the compiler strips them entirely."""
     from gateway import llm_client
 
     monkeypatch.setattr(
@@ -384,7 +387,7 @@ def test_compile_request_rewrites_validation_path_when_scope_alias_is_canonicali
         "call_llm",
         lambda *args, **kwargs: (
             '{"objective":"Add a greeting","allowed_paths":["README"],'
-            '"validation_commands":["head -1 README | grep -i \'hello.world\'"]}'
+            '"validation_commands":["rm -rf ~"]}'
         ),
     )
 
@@ -394,9 +397,7 @@ def test_compile_request_rewrites_validation_path_when_scope_alias_is_canonicali
 
     assert result["ok"] is True
     assert result["task"]["allowed_paths"] == ["README.md"]
-    assert result["task"]["validation_commands"] == [
-        "head -1 README.md | grep -i 'hello.world'"
-    ]
+    assert "validation_commands" not in result["task"]
 
 
 def test_propose_rejects_scope_that_cannot_map_to_kx_before_planning(
@@ -453,26 +454,48 @@ def test_compile_request_prefers_no_spend_route_by_default(monkeypatch: pytest.M
 
     assert result["ok"] is True
     assert seen["zero_cost_only"] is True
-    assert seen["allow_provider_fallback"] is False
     assert result["routing"] == {"mode": "no_spend", "saved_preference_changed": False}
 
 
-
-def test_compile_request_request_scoped_fallback_is_explicit_and_does_not_change_saved_preference(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_compile_request_request_scoped_fallback_is_pinned_to_the_saved_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The saved-provider retry calls exactly the selected provider and never
+    cascades to LiteLLM or the automatic chain, and never changes the saved
+    preference."""
     from gateway import llm_client
 
-    seen = {}
-    def fake_call(messages, **kwargs):
-        seen.update(kwargs)
+    seen: dict = {}
+
+    def fake_selected(provider_name, messages, **kwargs):
+        seen["provider_name"] = provider_name
+        seen["kwargs"] = kwargs
         return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
 
-    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+    monkeypatch.setattr(llm_client, "selected_provider_name", lambda: "openrouter")
+    monkeypatch.setattr(llm_client, "call_selected_provider", fake_selected)
+    monkeypatch.setattr(
+        llm_client, "call_llm", lambda *a, **k: pytest.fail("must not touch the automatic chain")
+    )
     result = conversation_handoff.compile_request("Fix the launch bug.", allow_provider_fallback=True)
 
     assert result["ok"] is True
-    assert seen["allow_provider_fallback"] is True
-    assert seen["zero_cost_only"] is False
+    assert seen["provider_name"] == "openrouter"
+    assert seen["kwargs"]["metadata"]["spend_policy"] == "saved_provider"
     assert result["routing"] == {"mode": "request_scoped_fallback", "saved_preference_changed": False}
+
+
+def test_compile_request_request_scoped_fallback_without_saved_provider_is_actionable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import llm_client
+
+    monkeypatch.setattr(llm_client, "selected_provider_name", lambda: None)
+    monkeypatch.setattr(
+        llm_client, "call_selected_provider", lambda *a, **k: pytest.fail("no provider to call")
+    )
+    result = conversation_handoff.compile_request("Fix the launch bug.", allow_provider_fallback=True)
+
+    assert result["ok"] is False
+    assert result["error_code"] == "no_saved_provider"
 
 
 def test_compile_request_rejects_unbounded_scope(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -510,8 +533,31 @@ def test_compile_request_retries_no_spend_once_after_transient_provider_exhausti
     assert result["ok"] is True
     assert len(calls) == 2
     assert all(call["zero_cost_only"] is True for call in calls)
-    assert all(call["allow_provider_fallback"] is False for call in calls)
     assert result["routing"] == {"mode": "no_spend", "saved_preference_changed": False}
+
+
+def test_compile_request_retries_no_spend_once_after_structurally_invalid_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A response that parses to JSON but is missing required fields is just as
+    unusable as malformed JSON, so it still gets the one bounded retry."""
+    from gateway import llm_client
+
+    calls = 0
+
+    def fake_call(messages, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "{}"
+        return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+    result = conversation_handoff.compile_request("Fix the launch bug.")
+
+    assert calls == 2
+    assert result["ok"] is True
+    assert result["task"]["objective"] == "Fix launch"
 
 
 def test_compile_request_retries_no_spend_once_after_unusable_free_output(

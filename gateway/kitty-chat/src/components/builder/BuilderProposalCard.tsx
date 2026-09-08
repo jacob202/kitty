@@ -33,6 +33,34 @@ export interface BuilderProposalTask {
   validation_commands?: string[]
 }
 
+// Some browsers (privacy mode, blocked site data, sandboxed embeds) throw on
+// any localStorage access. Durable Builder state never depends on it — it is
+// only a reload convenience — so a storage failure must not stop the user from
+// reviewing or approving a freshly compiled proposal.
+const safeStorage = {
+  get(key: string): string | null {
+    try {
+      return window.localStorage.getItem(key)
+    } catch {
+      return null
+    }
+  },
+  set(key: string, value: string): void {
+    try {
+      window.localStorage.setItem(key, value)
+    } catch {
+      /* storage unavailable — reload recovery is best-effort only */
+    }
+  },
+  remove(key: string): void {
+    try {
+      window.localStorage.removeItem(key)
+    } catch {
+      /* storage unavailable — nothing to clean up */
+    }
+  },
+}
+
 // gateway.ts's describeFetchError already turns an HTTP error status into
 // "Gateway returned <status> <statusText>", but when the browser can't reach
 // the gateway at all (connection refused, DNS failure), fetch() itself
@@ -135,15 +163,15 @@ export function BuilderProposalCard({
   const resume = useResumeBuilderJob(resumedMissionId)
 
   useEffect(() => {
-    const stored = readStoredApproval(window.localStorage.getItem(storageKey))
+    const stored = readStoredApproval(safeStorage.get(storageKey))
     setResumedMissionId(stored?.missionId ?? null)
     setPendingApproval(stored?.pending ?? null)
   }, [storageKey])
 
   useEffect(() => {
     if (pendingApproval && resumedMissionId && resume.data?.mission?.id === resumedMissionId) {
-      if (persistResolvedMission) window.localStorage.setItem(storageKey, resumedMissionId)
-      else window.localStorage.removeItem(storageKey)
+      if (persistResolvedMission) safeStorage.set(storageKey, resumedMissionId)
+      else safeStorage.remove(storageKey)
       setPendingApproval(null)
     }
   }, [pendingApproval, persistResolvedMission, resume.data?.mission?.id, resumedMissionId, storageKey])
@@ -153,12 +181,12 @@ export function BuilderProposalCard({
     approve.mutate(pendingApproval, {
       onSuccess: (data) => {
         if (data.ok && data.mission_id) {
-          if (persistResolvedMission) window.localStorage.setItem(storageKey, data.mission_id)
-          else window.localStorage.removeItem(storageKey)
+          if (persistResolvedMission) safeStorage.set(storageKey, data.mission_id)
+          else safeStorage.remove(storageKey)
           setPendingApproval(null)
           setResumedMissionId(data.mission_id)
         } else {
-          window.localStorage.removeItem(storageKey)
+          safeStorage.remove(storageKey)
           setPendingApproval(null)
           setResumedMissionId(null)
         }
@@ -224,22 +252,22 @@ export function BuilderProposalCard({
     // durable Builder write succeeds but the HTTP receipt is lost, reload can
     // reconcile by mission id and safely replay this same idempotent approval
     // instead of compiling a second initiative.
-    window.localStorage.setItem(storageKey, pendingApprovalValue(missionId, approvalPayload, draft))
+    safeStorage.set(storageKey, pendingApprovalValue(missionId, approvalPayload, draft))
     setPendingApproval(approvalPayload)
     approve.mutate(
       approvalPayload,
       {
         onSuccess: (data) => {
           if (data.ok && data.mission_id) {
-            if (persistResolvedMission) window.localStorage.setItem(storageKey, data.mission_id)
-            else window.localStorage.removeItem(storageKey)
+            if (persistResolvedMission) safeStorage.set(storageKey, data.mission_id)
+            else safeStorage.remove(storageKey)
             setPendingApproval(null)
             setResumedMissionId(data.mission_id)
           } else {
             // A server receipt with ok:false is a definite refusal, not an
             // ambiguous lost response. Preserve the visible proposal so the
             // user can correct/re-prepare it rather than pinning a fake job.
-            window.localStorage.removeItem(storageKey)
+            safeStorage.remove(storageKey)
             setPendingApproval(null)
           }
         },
