@@ -557,6 +557,358 @@ def test_mission_state_persists_independently_of_worker_sessions(tmp_path):
     assert reopened["definition_of_done"] == ["durable coordination exists"]
 
 
+def test_mission_list_returns_durable_rows_most_recent_first(tmp_path, monkeypatch):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    stamps = iter((100.0, 200.0))
+    monkeypatch.setattr(memory_mission.time, "time", lambda: next(stamps))
+
+    memory_mission.create_mission(
+        mission_id="mission-older",
+        objective="Older objective",
+        definition_of_done=["older done"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.create_mission(
+        mission_id="mission-newer",
+        objective="Newer objective",
+        definition_of_done=["newer done"],
+        supervisor_id="supervisor-b",
+        db_path=db_path,
+    )
+
+    listed = memory_mission.list_missions(db_path=db_path)
+
+    assert [mission["mission_id"] for mission in listed] == [
+        "mission-newer",
+        "mission-older",
+    ]
+    assert listed[0]["objective"] == "Newer objective"
+    assert listed[1]["status"] == "PLANNING"
+
+
+def test_mission_builder_locator_is_idempotent_and_cannot_retarget(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="gateway-mission-1",
+        objective="Ship one bounded Builder change",
+        definition_of_done=["Builder result is inspectable"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+
+    proposed = memory_mission.bind_builder_locator(
+        "gateway-mission-1",
+        initiative_id="conv-builder-1",
+        db_path=db_path,
+    )
+    assert proposed["builder_locator"] == {
+        "initiative_id": "conv-builder-1",
+        "task_id": None,
+    }
+
+    approved = memory_mission.bind_builder_locator(
+        "gateway-mission-1",
+        initiative_id="conv-builder-1",
+        task_id="kb-task-1",
+        db_path=db_path,
+    )
+    repeated = memory_mission.bind_builder_locator(
+        "gateway-mission-1",
+        initiative_id="conv-builder-1",
+        task_id="kb-task-1",
+        db_path=db_path,
+    )
+    assert approved["builder_locator"] == repeated["builder_locator"] == {
+        "initiative_id": "conv-builder-1",
+        "task_id": "kb-task-1",
+    }
+    stale_proposal_replay = memory_mission.bind_builder_locator(
+        "gateway-mission-1",
+        initiative_id="conv-builder-1",
+        db_path=db_path,
+    )
+    assert stale_proposal_replay["builder_locator"]["task_id"] == "kb-task-1"
+
+    with pytest.raises(memory_mission.MissionError, match="different Builder initiative"):
+        memory_mission.bind_builder_locator(
+            "gateway-mission-1",
+            initiative_id="conv-builder-2",
+            db_path=db_path,
+        )
+    with pytest.raises(memory_mission.MissionError, match="different Builder task"):
+        memory_mission.bind_builder_locator(
+            "gateway-mission-1",
+            initiative_id="conv-builder-1",
+            task_id="kb-task-2",
+            db_path=db_path,
+        )
+
+
+def test_concurrent_mission_builder_task_binding_admits_one_identity(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="gateway-mission-race",
+        objective="Keep one Builder execution identity",
+        definition_of_done=["one durable task locator wins"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "gateway-mission-race",
+        initiative_id="conv-builder-race",
+        db_path=db_path,
+    )
+    barrier = Barrier(2)
+
+    def bind(task_id: str) -> dict | Exception:
+        barrier.wait(timeout=5)
+        try:
+            return memory_mission.bind_builder_locator(
+                "gateway-mission-race",
+                initiative_id="conv-builder-race",
+                task_id=task_id,
+                db_path=db_path,
+            )
+        except Exception as exc:
+            return exc
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(bind, ["kb-task-a", "kb-task-b"]))
+
+    accepted = [outcome for outcome in outcomes if isinstance(outcome, dict)]
+    rejected = [outcome for outcome in outcomes if isinstance(outcome, Exception)]
+    assert len(accepted) == 1
+    assert len(rejected) == 1
+    assert isinstance(rejected[0], memory_mission.MissionError)
+    assert "different Builder task" in str(rejected[0])
+    final = memory_mission.get_mission("gateway-mission-race", db_path=db_path)
+    assert final["builder_locator"] == accepted[0]["builder_locator"]
+    assert final["builder_locator"]["task_id"] in {"kb-task-a", "kb-task-b"}
+
+
+def test_mission_builder_projection_re_reads_builder_authority_without_copying_state(
+    tmp_path, monkeypatch
+):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="gateway-mission-projection",
+        objective="Observe Builder truth",
+        definition_of_done=["Builder remains execution authority"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "gateway-mission-projection",
+        initiative_id="conv-builder-projection",
+        task_id="kb-task-projection",
+        db_path=db_path,
+    )
+    calls: list[dict[str, str]] = []
+
+    def fake_resume(*, mission_id=None, task_id=None):
+        calls.append({"mission_id": mission_id, "task_id": task_id})
+        return {
+            "ok": True,
+            "state": "running",
+            "mission": {"id": "conv-builder-projection", "state": "active"},
+            "current_work": {"task_id": "kb-task-projection", "state": "running"},
+        }
+
+    projection = context_mission.read_builder_projection(
+        "gateway-mission-projection", db_path=db_path, resume=fake_resume
+    )
+
+    assert calls == [{"mission_id": "conv-builder-projection", "task_id": None}]
+    assert projection["locator"] == {
+        "initiative_id": "conv-builder-projection",
+        "task_id": "kb-task-projection",
+    }
+    assert projection["builder"]["current_work"]["state"] == "running"
+    durable = memory_mission.get_mission("gateway-mission-projection", db_path=db_path)
+    assert durable["builder_locator"] == projection["locator"]
+    assert "builder_state" not in durable
+
+
+def test_mission_builder_projection_fails_closed_on_wrong_builder_identity(
+    tmp_path, monkeypatch
+):
+    from gateway import context_mission, memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="gateway-mission-mismatch",
+        objective="Reject mismatched Builder truth",
+        definition_of_done=["wrong initiative is never adopted"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "gateway-mission-mismatch",
+        initiative_id="conv-expected",
+        db_path=db_path,
+    )
+    def fake_resume(**_kwargs):
+        return {
+            "ok": True,
+            "mission": {"id": "conv-other"},
+            "state": "done",
+        }
+
+    with pytest.raises(memory_mission.MissionError, match="different Builder initiative"):
+        context_mission.read_builder_projection(
+            "gateway-mission-mismatch", db_path=db_path, resume=fake_resume
+        )
+
+
+
+
+def test_set_plan_persists_exact_manifest_payload_and_rejects_digest_mismatch(tmp_path):
+    from gateway import builder_initiative as bi
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission-plan-payload", objective="Exact plan",
+        definition_of_done=["exact manifest reviewed"], supervisor_id="kitty", db_path=db_path,
+    )
+    payload = {
+        "manifest_version": 1,
+        "initiative_id": "exact-plan",
+        "title": "Exact plan",
+        "description": "Do exact work",
+        "packets": [{
+            "id": "P1", "title": "Exact plan", "objective": "Exact plan",
+            "depends_on": [], "acceptance_criteria": ["exact manifest reviewed"],
+            "allowed_paths": ["gateway/example.py"],
+            "validation_commands": ["python -m pytest tests/test_example.py -q"],
+        }],
+    }
+    digest = bi.manifest_sha256(payload)
+
+    stored = memory_mission.set_plan(
+        "mission-plan-payload", plan_ref="plan://exact", plan_digest=digest,
+        plan_payload=payload, db_path=db_path,
+    )
+    assert stored["plan"]["payload"] == payload
+
+    with pytest.raises(memory_mission.MissionError, match="payload digest"):
+        memory_mission.set_plan(
+            "mission-plan-payload", plan_ref="plan://other", plan_digest="f" * 64,
+            plan_payload=payload, db_path=db_path,
+        )
+
+def test_exact_plan_replay_does_not_regress_review_or_execution(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission-plan-replay",
+        objective="Preserve exact plan review",
+        definition_of_done=["same plan replay is mutation-free"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+    memory_mission.set_plan(
+        "mission-plan-replay",
+        plan_ref="plan://same",
+        plan_digest="plan-digest-same",
+        db_path=db_path,
+    )
+    memory_mission.record_plan_review(
+        "mission-plan-replay",
+        reviewer_id="reviewer-b",
+        plan_digest="plan-digest-same",
+        verdict="approved",
+        evidence={"ref": "review://approved"},
+        db_path=db_path,
+    )
+    memory_mission.begin_execution("mission-plan-replay", db_path=db_path)
+
+    replayed = memory_mission.set_plan(
+        "mission-plan-replay",
+        plan_ref="plan://same",
+        plan_digest="plan-digest-same",
+        db_path=db_path,
+    )
+
+    assert replayed["status"] == "EXECUTING"
+    assert replayed["plan"] == {
+        "ref": "plan://same",
+        "digest": "plan-digest-same",
+        "review_state": "approved",
+        "reviewer_id": "reviewer-b",
+        "review_evidence": {"ref": "review://approved"},
+        "payload": None,
+    }
+
+
+def test_ensure_mission_is_atomic_and_idempotent_for_same_outcome(tmp_path):
+    from gateway import db as kitty_db
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.init_db(db_path=db_path)
+    barrier = Barrier(2)
+
+    def ensure() -> dict:
+        barrier.wait(timeout=5)
+        return memory_mission.ensure_mission(
+            mission_id="gateway-mission-replay",
+            objective="Ship one durable outcome",
+            definition_of_done=["one Mission record exists"],
+            supervisor_id="supervisor-a",
+            db_path=db_path,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(lambda _index: ensure(), range(2)))
+
+    assert [item["mission_id"] for item in outcomes] == [
+        "gateway-mission-replay",
+        "gateway-mission-replay",
+    ]
+    assert [item["mission_id"] for item in memory_mission.list_missions(db_path=db_path)] == [
+        "gateway-mission-replay"
+    ]
+    with kitty_db.connect(db_path) as conn:
+        created_events = conn.execute(
+            "SELECT COUNT(*) FROM mission_events WHERE mission_id=? AND event_type='mission_created'",
+            ("gateway-mission-replay",),
+        ).fetchone()[0]
+    assert created_events == 1
+
+
+def test_ensure_mission_rejects_same_id_for_different_outcome(tmp_path):
+    from gateway import memory_mission
+
+    db_path = tmp_path / "kitty.db"
+    memory_mission.ensure_mission(
+        mission_id="gateway-mission-conflict",
+        objective="Original outcome",
+        definition_of_done=["original done"],
+        supervisor_id="supervisor-a",
+        db_path=db_path,
+    )
+
+    with pytest.raises(memory_mission.MissionError, match="different outcome"):
+        memory_mission.ensure_mission(
+            mission_id="gateway-mission-conflict",
+            objective="Different outcome",
+            definition_of_done=["different done"],
+            supervisor_id="supervisor-b",
+            db_path=db_path,
+        )
+
+
 def test_mission_execution_requires_current_independent_plan_review(tmp_path):
     from gateway import memory_mission
 

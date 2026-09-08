@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from gateway import builder_initiative as bi
 from gateway import db as kitty_db
 from gateway.paths import KITTY_DB_FILE
 
@@ -49,6 +50,8 @@ def init_db(*, db_path: Path = MISSION_DB_FILE) -> None:
                 plan_review_state TEXT NOT NULL DEFAULT 'unreviewed',
                 plan_reviewer_id TEXT,
                 plan_review_evidence_json TEXT,
+                plan_payload_json TEXT,
+                builder_locator_json TEXT,
                 checkpoint_json TEXT NOT NULL DEFAULT '{}',
                 source_cursors_json TEXT NOT NULL DEFAULT '{}',
                 last_cycle_json TEXT,
@@ -77,6 +80,10 @@ def init_db(*, db_path: Path = MISSION_DB_FILE) -> None:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(missions)")}
         if "paused_from_status" not in columns:
             conn.execute("ALTER TABLE missions ADD COLUMN paused_from_status TEXT")
+        if "builder_locator_json" not in columns:
+            conn.execute("ALTER TABLE missions ADD COLUMN builder_locator_json TEXT")
+        if "plan_payload_json" not in columns:
+            conn.execute("ALTER TABLE missions ADD COLUMN plan_payload_json TEXT")
         conn.commit()
 
 
@@ -106,7 +113,11 @@ def _row_to_mission(row: sqlite3.Row) -> dict[str, Any]:
             "reviewer_id": row["plan_reviewer_id"],
             "review_evidence": json.loads(row["plan_review_evidence_json"])
             if row["plan_review_evidence_json"] else None,
+            "payload": json.loads(row["plan_payload_json"])
+            if row["plan_payload_json"] else None,
         },
+        "builder_locator": json.loads(row["builder_locator_json"])
+        if row["builder_locator_json"] else None,
         "checkpoint": json.loads(row["checkpoint_json"]),
         "source_cursors": json.loads(row["source_cursors_json"]),
         "last_cycle": json.loads(row["last_cycle_json"]) if row["last_cycle_json"] else None,
@@ -133,6 +144,16 @@ def get_mission(mission_id: str, *, db_path: Path = MISSION_DB_FILE) -> dict[str
     if row is None:
         raise MissionNotFound(f"no Mission with id {mission_id!r}")
     return _row_to_mission(row)
+
+
+def list_missions(*, db_path: Path = MISSION_DB_FILE) -> list[dict[str, Any]]:
+    """Return durable Mission rows with the most recently updated first."""
+    init_db(db_path=db_path)
+    with kitty_db.connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM missions ORDER BY updated_at DESC, mission_id ASC"
+        ).fetchall()
+    return [_row_to_mission(row) for row in rows]
 
 
 def create_mission(
@@ -173,6 +194,72 @@ def create_mission(
     return get_mission(mission_id, db_path=db_path)
 
 
+def ensure_mission(
+    *,
+    mission_id: str,
+    objective: str,
+    definition_of_done: list[str],
+    supervisor_id: str,
+    db_path: Path = MISSION_DB_FILE,
+) -> dict[str, Any]:
+    """Create one Mission identity or return the exact existing outcome.
+
+    This is the idempotent creation seam for request retries. A caller may
+    replay the same stable Mission id without creating another record, but the
+    id can never be silently reused for a different objective/definition of
+    done. Existing supervisor/lifecycle state is never reset on replay.
+    """
+    mission_id = _required_text(mission_id, "mission_id")
+    objective = _required_text(objective, "objective")
+    supervisor_id = _required_text(supervisor_id, "supervisor_id")
+    if not definition_of_done or any(
+        not isinstance(item, str) or not item.strip() for item in definition_of_done
+    ):
+        raise MissionError("definition_of_done must contain non-empty strings")
+
+    init_db(db_path=db_path)
+    now = time.time()
+    with kitty_db.connect(db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT * FROM missions WHERE mission_id=?", (mission_id,)
+        ).fetchone()
+        if row is not None:
+            current = _row_to_mission(row)
+            if (
+                current["objective"] != objective
+                or current["definition_of_done"] != definition_of_done
+            ):
+                raise MissionError(
+                    f"Mission {mission_id!r} already exists for a different outcome"
+                )
+            conn.rollback()
+            return current
+
+        conn.execute(
+            "INSERT INTO missions "
+            "(mission_id, objective, definition_of_done_json, status, "
+            "supervisor_id, supervisor_epoch, created_at, updated_at) "
+            "VALUES (?, ?, ?, 'PLANNING', ?, 1, ?, ?)",
+            (
+                mission_id,
+                objective,
+                json.dumps(definition_of_done),
+                supervisor_id,
+                now,
+                now,
+            ),
+        )
+        conn.execute(
+            "INSERT INTO mission_events "
+            "(mission_id,event_type,supervisor_epoch,payload_json,created_at) "
+            "VALUES (?, 'mission_created', 1, ?, ?)",
+            (mission_id, json.dumps({"objective": objective}), now),
+        )
+        conn.commit()
+    return get_mission(mission_id, db_path=db_path)
+
+
 def _append_event(
     conn: sqlite3.Connection,
     *,
@@ -189,29 +276,111 @@ def _append_event(
     )
 
 
+def bind_builder_locator(
+    mission_id: str,
+    *,
+    initiative_id: str,
+    task_id: str | None = None,
+    db_path: Path = MISSION_DB_FILE,
+) -> dict[str, Any]:
+    """Bind one Gateway Mission to Builder identifiers without copying Builder state.
+
+    The Builder initiative is immutable once bound. A later approval may add the
+    durable Builder task id exactly once. Replays preserve the existing locator
+    so an ambiguous/lost HTTP receipt cannot retarget or regress the Mission.
+    """
+    mission_id = _required_text(mission_id, "mission_id")
+    initiative_id = _required_text(initiative_id, "initiative_id")
+    if task_id is not None:
+        task_id = _required_text(task_id, "task_id")
+    init_db(db_path=db_path)
+    now = time.time()
+    with kitty_db.connect(db_path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT builder_locator_json, supervisor_epoch FROM missions WHERE mission_id=?",
+            (mission_id,),
+        ).fetchone()
+        if row is None:
+            raise MissionNotFound(f"no Mission with id {mission_id!r}")
+
+        current = json.loads(row["builder_locator_json"]) if row["builder_locator_json"] else None
+        if current is not None and current.get("initiative_id") != initiative_id:
+            raise MissionError("Mission is already bound to a different Builder initiative")
+
+        current_task = current.get("task_id") if current else None
+        if current_task is not None and task_id is not None and current_task != task_id:
+            raise MissionError("Mission is already bound to a different Builder task")
+
+        resolved = {
+            "initiative_id": initiative_id,
+            "task_id": current_task if current_task is not None else task_id,
+        }
+        if current == resolved:
+            conn.rollback()
+            return get_mission(mission_id, db_path=db_path)
+
+        conn.execute(
+            "UPDATE missions SET builder_locator_json=?, updated_at=? WHERE mission_id=?",
+            (json.dumps(resolved, sort_keys=True), now, mission_id),
+        )
+        _append_event(
+            conn,
+            mission_id=mission_id,
+            event_type="builder_locator_bound",
+            supervisor_epoch=int(row["supervisor_epoch"]),
+            payload=resolved,
+            now=now,
+        )
+        conn.commit()
+    return get_mission(mission_id, db_path=db_path)
+
+
 def set_plan(
-    mission_id: str, *, plan_ref: str, plan_digest: str, db_path: Path = MISSION_DB_FILE
+    mission_id: str, *, plan_ref: str, plan_digest: str,
+    plan_payload: dict[str, Any] | None = None, db_path: Path = MISSION_DB_FILE,
 ) -> dict[str, Any]:
     plan_ref = _required_text(plan_ref, "plan_ref")
     plan_digest = _required_text(plan_digest, "plan_digest")
-    mission = get_mission(mission_id, db_path=db_path)
-    if mission["status"] == "STOPPED":
-        raise MissionError("stopped Mission cannot receive a new plan")
-    if mission["status"] == "DONE":
-        raise MissionError("completed Mission cannot receive a new plan")
+    mission_id = _required_text(mission_id, "mission_id")
+    payload_json: str | None = None
+    if plan_payload is not None:
+        if not isinstance(plan_payload, dict):
+            raise MissionError("plan_payload must be a JSON object")
+        if bi.manifest_sha256(plan_payload) != plan_digest:
+            raise MissionError("plan payload digest does not match plan_digest")
+        payload_json = json.dumps(plan_payload, sort_keys=True)
+    init_db(db_path=db_path)
     now = time.time()
     with kitty_db.connect(db_path) as conn:
-        cursor = conn.execute(
-            "UPDATE missions SET plan_ref=?, plan_digest=?, plan_review_state='unreviewed', "
-            "plan_reviewer_id=NULL, plan_review_evidence_json=NULL, status='PLAN_REVIEW', updated_at=? "
-            "WHERE mission_id=? AND status NOT IN ('STOPPED','DONE')",
-            (plan_ref, plan_digest, now, mission_id),
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT plan_ref, plan_digest, plan_payload_json, plan_review_state, status, "
+            "supervisor_epoch FROM missions WHERE mission_id=?",
+            (mission_id,),
+        ).fetchone()
+        if row is None:
+            raise MissionNotFound(f"no Mission with id {mission_id!r}")
+        same_plan = row["plan_ref"] == plan_ref and row["plan_digest"] == plan_digest
+        if same_plan and (payload_json is None or row["plan_payload_json"] == payload_json):
+            conn.rollback()
+            return get_mission(mission_id, db_path=db_path)
+        if row["status"] == "STOPPED":
+            raise MissionError("stopped Mission cannot receive a new plan")
+        if row["status"] == "DONE":
+            raise MissionError("completed Mission cannot receive a new plan")
+        # Backfilling the exact manifest onto a previously digest-only plan must
+        # reopen review: the earlier reviewer could not have inspected this payload.
+        conn.execute(
+            "UPDATE missions SET plan_ref=?, plan_digest=?, plan_payload_json=?, "
+            "plan_review_state='unreviewed', plan_reviewer_id=NULL, "
+            "plan_review_evidence_json=NULL, status='PLAN_REVIEW', updated_at=? "
+            "WHERE mission_id=?",
+            (plan_ref, plan_digest, payload_json, now, mission_id),
         )
-        if cursor.rowcount != 1:
-            raise MissionError("Mission became stopped or completed before plan update")
         _append_event(
             conn, mission_id=mission_id, event_type="plan_set",
-            supervisor_epoch=mission["supervisor"]["epoch"],
+            supervisor_epoch=int(row["supervisor_epoch"]),
             payload={"plan_ref": plan_ref, "plan_digest": plan_digest}, now=now,
         )
         conn.commit()

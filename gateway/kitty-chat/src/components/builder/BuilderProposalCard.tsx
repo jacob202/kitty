@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react'
 import { ArrowUpRight } from 'lucide-react'
-import { useProposeBuilderJob, useApproveBuilderJob, useResumeBuilderJob } from '@/lib/queries'
+import { useProposeBuilderJob, useApproveBuilderJob, useResumeBuilderJob, useMission } from '@/lib/queries'
 import type { ConversationApproveRequest, ConversationProposal } from '@/lib/gateway'
 
 /**
@@ -83,6 +83,22 @@ interface PendingApprovalCheckpoint {
   task?: BuilderProposalTask
 }
 
+interface ProposalIdentityCheckpoint {
+  version: 2
+  state: 'proposal'
+  initiativeId: string
+  task: BuilderProposalTask
+}
+
+interface PreparedProposalCheckpoint {
+  version: 3
+  state: 'prepared'
+  initiativeId: string
+  gatewayMissionId: string
+  task: BuilderProposalTask
+  proposal: ConversationProposal
+}
+
 function isBuilderProposalTask(value: unknown): value is BuilderProposalTask {
   if (!value || typeof value !== 'object') return false
   const task = value as Partial<BuilderProposalTask>
@@ -92,7 +108,13 @@ function isBuilderProposalTask(value: unknown): value is BuilderProposalTask {
     && task.allowed_paths.every(path => typeof path === 'string')
 }
 
-function readStoredApproval(raw: string | null): { missionId: string; pending: ConversationApproveRequest | null; task: BuilderProposalTask | null } | null {
+function readStoredApproval(raw: string | null): {
+  missionId: string | null
+  pending: ConversationApproveRequest | null
+  task: BuilderProposalTask | null
+  initiativeId: string | null
+  proposal: ConversationProposal | null
+} | null {
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as Partial<PendingApprovalCheckpoint> | null
@@ -106,17 +128,93 @@ function readStoredApproval(raw: string | null): { missionId: string; pending: C
       && parsed.approval
       && typeof parsed.approval === 'object'
     ) {
-      return { missionId: parsed.missionId, pending: parsed.approval as ConversationApproveRequest, task: isBuilderProposalTask(parsed.task) ? parsed.task : null }
+      return {
+        missionId: parsed.missionId,
+        pending: parsed.approval as ConversationApproveRequest,
+        task: isBuilderProposalTask(parsed.task) ? parsed.task : null,
+        initiativeId: null,
+        proposal: null,
+      }
+    }
+    const prepared = parsed as Partial<PreparedProposalCheckpoint> | null
+    if (
+      prepared
+      && typeof prepared === 'object'
+      && prepared.version === 3
+      && prepared.state === 'prepared'
+      && typeof prepared.initiativeId === 'string'
+      && prepared.initiativeId
+      && typeof prepared.gatewayMissionId === 'string'
+      && prepared.gatewayMissionId
+      && isBuilderProposalTask(prepared.task)
+      && prepared.proposal
+      && typeof prepared.proposal === 'object'
+      && prepared.proposal.ok === true
+      && prepared.proposal.mission_id === prepared.initiativeId
+      && prepared.proposal.gateway_mission_id === prepared.gatewayMissionId
+    ) {
+      return {
+        missionId: null,
+        pending: null,
+        task: prepared.task,
+        initiativeId: prepared.initiativeId,
+        proposal: prepared.proposal as ConversationProposal,
+      }
+    }
+    const proposal = parsed as Partial<ProposalIdentityCheckpoint> | null
+    if (
+      proposal
+      && typeof proposal === 'object'
+      && proposal.version === 2
+      && proposal.state === 'proposal'
+      && typeof proposal.initiativeId === 'string'
+      && proposal.initiativeId
+      && isBuilderProposalTask(proposal.task)
+    ) {
+      return {
+        missionId: null,
+        pending: null,
+        task: proposal.task,
+        initiativeId: proposal.initiativeId,
+        proposal: null,
+      }
     }
   } catch {
     // Legacy approved entries are plain mission ids, not JSON.
   }
-  return { missionId: raw, pending: null, task: null }
+  return { missionId: raw, pending: null, task: null, initiativeId: null, proposal: null }
 }
 
 export function readPendingBuilderProposalTask(raw: string | null): BuilderProposalTask | null {
-  const stored = readStoredApproval(raw)
-  return stored?.pending ? stored.task : null
+  return readStoredApproval(raw)?.task ?? null
+}
+
+function proposalIdentityValue(initiativeId: string, task: BuilderProposalTask): string {
+  return JSON.stringify({ version: 2, state: 'proposal', initiativeId, task } satisfies ProposalIdentityCheckpoint)
+}
+
+function preparedProposalValue(proposal: ConversationProposal, task: BuilderProposalTask): string | null {
+  const initiativeId = proposal.mission_id
+  const gatewayMissionId = proposal.gateway_mission_id
+  if (!proposal.ok || !initiativeId || !gatewayMissionId) return null
+  return JSON.stringify({
+    version: 3,
+    state: 'prepared',
+    initiativeId,
+    gatewayMissionId,
+    task,
+    proposal,
+  } satisfies PreparedProposalCheckpoint)
+}
+
+function createProposalInitiativeId(): string {
+  const cryptoApi = globalThis.crypto
+  if (typeof cryptoApi?.randomUUID === 'function') {
+    return `conv-ui-${cryptoApi.randomUUID().replace(/-/g, '')}`
+  }
+  const bytes = new Uint8Array(16)
+  cryptoApi.getRandomValues(bytes)
+  return `conv-ui-${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}`
 }
 
 function pendingApprovalValue(missionId: string, approval: ConversationApproveRequest, task: BuilderProposalTask): string {
@@ -160,12 +258,19 @@ export function BuilderProposalCard({
   const [confirming, setConfirming] = useState(false)
   const [resumedMissionId, setResumedMissionId] = useState<string | null>(null)
   const [pendingApproval, setPendingApproval] = useState<ConversationApproveRequest | null>(null)
+  const [proposalIdentity, setProposalIdentity] = useState<string | null>(null)
   const resume = useResumeBuilderJob(resumedMissionId)
+  const gatewayMissionId = proposal?.gateway_mission_id
+    || pendingApproval?.gateway_mission_id
+    || (resumedMissionId ? `gateway-conversation:${resumedMissionId}` : null)
+  const mission = useMission(gatewayMissionId)
 
   useEffect(() => {
     const stored = readStoredApproval(safeStorage.get(storageKey))
     setResumedMissionId(stored?.missionId ?? null)
     setPendingApproval(stored?.pending ?? null)
+    setProposalIdentity(stored?.initiativeId ?? null)
+    setProposal(stored?.proposal ?? null)
   }, [storageKey])
 
   useEffect(() => {
@@ -220,17 +325,31 @@ export function BuilderProposalCard({
 
   const doPropose = () => {
     setProposal(null)
+    const initiativeId = draft.initiative_id || proposalIdentity || createProposalInitiativeId()
+    if (!draft.initiative_id && proposalIdentity !== initiativeId) {
+      safeStorage.set(storageKey, proposalIdentityValue(initiativeId, draft))
+      setProposalIdentity(initiativeId)
+    }
     propose.mutate(
       {
         objective: draft.objective,
         instructions: draft.instructions,
         allowed_paths: draft.allowed_paths,
         title: draft.title,
-        initiative_id: draft.initiative_id,
+        initiative_id: initiativeId,
         acceptance_criteria: draft.acceptance_criteria,
         validation_commands: draft.validation_commands,
       },
-      { onSuccess: (data) => setProposal(data) },
+      {
+        onSuccess: (data) => {
+          setProposal(data)
+          const checkpoint = preparedProposalValue(data, draft)
+          if (checkpoint) {
+            safeStorage.set(storageKey, checkpoint)
+            setProposalIdentity(data.mission_id ?? initiativeId)
+          }
+        },
+      },
     )
   }
 
@@ -246,6 +365,7 @@ export function BuilderProposalCard({
       expected_manifest_sha: proposal.manifest_sha256,
       expected_base_sha: proposal.expected_base_sha,
       approval_nonce: proposal.approval_nonce,
+      gateway_mission_id: proposal.gateway_mission_id || undefined,
       confirmed: true,
     }
     // Persist the exact immutable approval before the external effect. If the
@@ -263,6 +383,10 @@ export function BuilderProposalCard({
             else safeStorage.remove(storageKey)
             setPendingApproval(null)
             setResumedMissionId(data.mission_id)
+          } else if (data.state === 'recovery_required' && data.error_code === 'mission_binding_failed') {
+            // Builder may already have accepted the exact job. Keep the immutable
+            // approval checkpoint so the same nonce-bound request can reconcile
+            // Mission's locator without compiling or approving a second job.
           } else {
             // A server receipt with ok:false is a definite refusal, not an
             // ambiguous lost response. Preserve the visible proposal so the
@@ -361,6 +485,11 @@ export function BuilderProposalCard({
       {proposal?.ok && (
         <div style={preparedBox}>
           <p style={fieldStyle}><strong>Mission ID:</strong> {proposal.mission_id}</p>
+          {gatewayMissionId && (
+            <p style={fieldStyle}>
+              <strong>Mission state:</strong> {mission.data?.status ?? proposal.gateway_mission_status ?? 'loading'}
+            </p>
+          )}
           <p style={fieldStyle}><strong>Acceptance criteria:</strong></p>
           <ul style={ulStyle}>
             {((proposal.prepared_manifest?.packets as Array<Record<string, unknown>> | undefined)?.[0]
@@ -377,7 +506,19 @@ export function BuilderProposalCard({
             <strong>Plan:</strong> {proposal.plan?.path}
           </p>
 
-          {!confirming ? (
+          {proposal.gateway_mission_id && (mission.data?.plan.review_state ?? proposal.gateway_plan_review_state) !== 'approved' ? (
+            <div style={warningBox}>
+              <div>
+                {(mission.data?.plan.review_state ?? proposal.gateway_plan_review_state) === 'rejected'
+                  ? 'Independent plan review rejected this version. Revise the proposal before Builder execution.'
+                  : 'Independent plan review pending. Kitty started a separate read-only reviewer; Builder execution remains locked until it approves this exact plan.'}
+              </div>
+              {mission.isError && <div>Mission status is temporarily unavailable. The review gate remains locked.</div>}
+              <button type="button" onClick={doPropose} disabled={propose.isPending} style={btnBase}>
+                {propose.isPending ? 'Retrying…' : 'Retry review'}
+              </button>
+            </div>
+          ) : !confirming ? (
             <button type="button" onClick={() => setConfirming(true)} style={btnPrimary}>
               Approve
             </button>

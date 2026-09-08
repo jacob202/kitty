@@ -12,7 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import conversation_handoff
+from gateway import conversation_handoff, mission_runtime
 from gateway.routes import conversation_handoff as route
 
 
@@ -47,6 +47,63 @@ def test_propose_route_defaults_and_delegates(client: TestClient, monkeypatch: p
     assert received["initiative_id"] is None
     assert received["acceptance_criteria"] is None
 
+
+
+def test_successful_proposal_dispatches_independent_plan_review_in_background(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reviewed: list[str] = []
+
+    def fake_propose(**kwargs):
+        return {
+            "ok": True,
+            "state": "prepared",
+            "mission_id": "conv-1",
+            "gateway_mission_id": "gateway-conversation:conv-1",
+        }
+
+    async def request_review(mission_id: str):
+        reviewed.append(mission_id)
+        return {"status": "completed"}
+
+    monkeypatch.setattr(conversation_handoff, "propose", fake_propose)
+    monkeypatch.setattr(mission_runtime, "request_plan_review", request_review)
+
+    response = client.post(
+        "/builder/conversation/propose",
+        json={
+            "objective": "Fix the bug",
+            "instructions": "Do the fix",
+            "allowed_paths": ["gateway/"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["gateway_mission_id"] == "gateway-conversation:conv-1"
+    assert reviewed == ["gateway-conversation:conv-1"]
+
+
+def test_failed_proposal_does_not_dispatch_plan_review(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reviewed: list[str] = []
+    monkeypatch.setattr(
+        conversation_handoff,
+        "propose",
+        lambda **kwargs: {"ok": False, "state": "needs_decision", "error": "nope"},
+    )
+
+    async def request_review(mission_id: str):
+        reviewed.append(mission_id)
+
+    monkeypatch.setattr(mission_runtime, "request_plan_review", request_review)
+    response = client.post(
+        "/builder/conversation/propose",
+        json={"objective": "Fix", "instructions": "Do", "allowed_paths": ["gateway/"]},
+    )
+
+    assert response.status_code == 200
+    assert reviewed == []
 
 def test_approve_route_defaults_confirmed_false(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -102,6 +159,33 @@ def test_approve_route_passes_through_explicit_confirmation(
     assert response.json()["mission_id"] == "conv-1"
     assert received["confirmed"] is True
 
+
+
+def test_approve_route_passes_gateway_mission_identity(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    received = {}
+
+    def fake_approve(**kwargs):
+        received.update(kwargs)
+        return {"ok": False, "state": "plan_review", "error_code": "plan_review_required"}
+
+    monkeypatch.setattr(conversation_handoff, "approve", fake_approve)
+    response = client.post(
+        "/builder/conversation/approve",
+        json={
+            "prepared_manifest": {"initiative_id": "conv-1"},
+            "expected_manifest_sha": "a" * 64,
+            "expected_base_sha": "b" * 40,
+            "approval_nonce": "c" * 64,
+            "gateway_mission_id": "gateway-conversation:conv-1",
+            "confirmed": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert received["gateway_mission_id"] == "gateway-conversation:conv-1"
+    assert received["confirmed"] is True
 
 def test_resume_route_accepts_query_params(
     client: TestClient, monkeypatch: pytest.MonkeyPatch

@@ -146,6 +146,11 @@ async def lifespan(app: FastAPI):
     from gateway.image_recipes import seed_default_recipes
 
     seed_default_recipes()
+    from gateway import mission_runtime
+
+    # Registration is pure in-process wiring and remains available even in test
+    # mode; execution still goes through Automation policy/evidence.
+    mission_runtime.register_action()
     background_services_enabled = not is_test_env()
     if background_services_enabled:
         try:
@@ -179,6 +184,15 @@ async def lifespan(app: FastAPI):
             _recover_unknown_bfl_jobs_on_startup()
         )
         app.state.image_recovery_task = image_recovery_task
+
+        # A one-shot restart reconciliation re-enters the existing Automation
+        # action authority for only still-unreviewed Mission plans. Proposal
+        # requests also dispatch this action immediately, so no Mission polling
+        # scheduler is created here.
+        mission_review_recovery_task = asyncio.create_task(
+            mission_runtime.request_pending_reviews()
+        )
+        app.state.mission_review_recovery_task = mission_review_recovery_task
 
         from gateway.image_batches import worker_loop as image_batch_worker_loop
         from gateway.routes.image_studio_jobs import execute_studio_batch_request
@@ -382,6 +396,13 @@ async def lifespan(app: FastAPI):
             pending_image_recovery.cancel()
             try:
                 await pending_image_recovery
+            except asyncio.CancelledError:
+                pass
+        pending_mission_recovery = getattr(app.state, "mission_review_recovery_task", None)
+        if pending_mission_recovery is not None and not pending_mission_recovery.done():
+            pending_mission_recovery.cancel()
+            try:
+                await pending_mission_recovery
             except asyncio.CancelledError:
                 pass
     try:

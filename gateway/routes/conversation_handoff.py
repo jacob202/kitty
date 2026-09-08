@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel, Field
 
-from gateway import conversation_handoff
+from gateway import conversation_handoff, mission_runtime
 
 logger = logging.getLogger("kitty.conversation_handoff_routes")
 router = APIRouter(tags=["conversation-handoff"])
@@ -59,6 +59,7 @@ class ApproveRequest(BaseModel):
     expected_manifest_sha: str
     expected_base_sha: str
     approval_nonce: str
+    gateway_mission_id: str | None = None
     confirmed: bool = False
 
 
@@ -79,10 +80,14 @@ def compile_builder_request(body: CompileRequest) -> dict:
 
 
 @router.post("/builder/conversation/propose")
-def propose_builder_job(body: ProposeRequest) -> dict:
-    """Compile the conversation's task and prepare a Mission candidate. No mutation."""
+def propose_builder_job(body: ProposeRequest, background_tasks: BackgroundTasks) -> dict:
+    """Prepare one Mission candidate and automatically request independent plan review."""
     try:
-        return _translate_receipt_error(conversation_handoff.propose(**body.model_dump()))
+        result = _translate_receipt_error(conversation_handoff.propose(**body.model_dump()))
+        gateway_mission_id = result.get("gateway_mission_id") if result.get("ok") else None
+        if isinstance(gateway_mission_id, str) and gateway_mission_id:
+            background_tasks.add_task(mission_runtime.request_plan_review, gateway_mission_id)
+        return result
     except Exception:
         logger.exception("conversation propose failed")
         return {

@@ -33,6 +33,7 @@ import math
 import os
 import shlex
 import subprocess
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -382,6 +383,176 @@ def _durable_kb_manifest_evidence(context: dict[str, Any]) -> dict[str, Any]:
         "latency_ms": context.get("latency_ms"),
         "cost": context.get("cost"),
         "limits": context.get("limits"),
+    }
+
+
+def _readonly_review_git_output(root: Path, *args: str) -> str:
+    completed = subprocess.run(
+        [beb.boundary_git_executable(), *args],
+        cwd=root, capture_output=True, text=True, timeout=30, check=False,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "no output").strip()[:600]
+        raise LoopError(f"git {' '.join(args[:3])} failed while preparing review: {detail}")
+    return completed.stdout.strip()
+
+
+def _readonly_review_fingerprint(root: Path) -> tuple[str, str]:
+    return (
+        _readonly_review_git_output(root, "rev-parse", "HEAD"),
+        _readonly_review_git_output(root, "status", "--porcelain=v1", "--untracked-files=all"),
+    )
+
+
+def _prepare_readonly_review_checkout(
+    source_root: Path, review_root: Path, *, checkout_sha: str | None = None
+) -> tuple[str, str | None]:
+    """Create a tracked-only local clone pinned to current Builder Git authority.
+
+    ``checkout_sha`` lets the caller review a commit that descends from the
+    current source HEAD (a bound design/plan commit), so the exact artifacts
+    under review are physically present in the reviewer's tree instead of only
+    reachable through a planning ref.
+    """
+    source_head = _readonly_review_git_output(source_root, "rev-parse", "HEAD")
+    origin_probe = subprocess.run(
+        [beb.boundary_git_executable(), "rev-parse", "--verify", "refs/remotes/origin/main^{commit}"],
+        cwd=source_root, capture_output=True, text=True, timeout=30, check=False,
+    )
+    origin_main = origin_probe.stdout.strip() if origin_probe.returncode == 0 else None
+    clone = subprocess.run(
+        [
+            beb.boundary_git_executable(), "clone", "--local", "--no-hardlinks",
+            "--no-checkout", str(source_root), str(review_root),
+        ],
+        capture_output=True, text=True, timeout=60, check=False,
+    )
+    if clone.returncode != 0:
+        detail = (clone.stderr or clone.stdout or "no output").strip()[:600]
+        raise LoopError(f"could not create isolated review checkout: {detail}")
+    checkout_target = source_head
+    if checkout_sha:
+        resolved = _readonly_review_git_output(review_root, "rev-parse", "--verify", f"{checkout_sha}^{{commit}}")
+        is_descendant = subprocess.run(
+            [beb.boundary_git_executable(), "merge-base", "--is-ancestor", source_head, resolved],
+            cwd=review_root, capture_output=True, text=True, timeout=30, check=False,
+        )
+        if is_descendant.returncode != 0:
+            raise LoopError("review checkout commit does not descend from current Builder HEAD")
+        checkout_target = resolved
+    _readonly_review_git_output(review_root, "checkout", "--detach", checkout_target)
+    subprocess.run(
+        [beb.boundary_git_executable(), "remote", "remove", "origin"],
+        cwd=review_root, capture_output=True, text=True, timeout=30, check=False,
+    )
+    if origin_main:
+        _readonly_review_git_output(
+            review_root, "update-ref", "refs/remotes/origin/main", origin_main
+        )
+    return source_head, origin_main
+
+
+# Independent plan review defaults to a cheap, reliable, non-Claude OpenRouter
+# model. Free models proved too flaky for structured verdicts; a pinned paid
+# model (KITTYBUILDER_REVIEW_MODEL) is allowed, but it must never be the
+# Claude/Anthropic family the implementer belongs to. The DSH sprint preset
+# requests a reasoning effort the model must accept, so the default pairs a
+# thinking-capable model with a conservative effort both can honour.
+_DEFAULT_REVIEW_MODEL = "openrouter/google/gemini-2.5-flash"
+_DEFAULT_REVIEW_REASONING_EFFORT = "low"
+
+
+def _reviewer_is_independent_of_claude(model: str) -> bool:
+    lowered = model.lower()
+    return "claude" not in lowered and "anthropic" not in lowered
+
+
+def run_independent_readonly_review(
+    prompt: str,
+    *,
+    root: Path,
+    timeout: int = DEFAULT_REVIEW_TIMEOUT,
+    review_checkout_sha: str | None = None,
+) -> dict[str, Any]:
+    """Run one Builder-owned independent reviewer with hard read isolation.
+
+    This is intentionally state-free: callers own their own review state and
+    exact-digest binding. Builder owns provider/model selection, credential
+    exposure, filesystem/network containment, and the model process itself.
+    ``review_checkout_sha`` (a commit descending from current Builder HEAD)
+    materialises the exact artifacts under review in the reviewer's tree.
+    """
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise LoopError("review prompt must be non-empty")
+    source_root = Path(root).resolve()
+    provider = "openrouter"
+    model = os.environ.get("KITTYBUILDER_REVIEW_MODEL", "").strip() or _DEFAULT_REVIEW_MODEL
+    if not _reviewer_is_independent_of_claude(model):
+        raise LoopError(
+            f"independent reviewer must not use the implementer's model family: {model!r}"
+        )
+    provider_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not provider_key:
+        raise LoopError("Builder reviewer route selection is unavailable")
+
+    source_before = _readonly_review_fingerprint(source_root)
+    try:
+        with tempfile.TemporaryDirectory(prefix="kitty-builder-readonly-review-") as temp_dir:
+            temp_root = Path(temp_dir)
+            review_root = temp_root / "repo"
+            runtime_dir = temp_root / "runtime"
+            source_head, origin_main = _prepare_readonly_review_checkout(
+                source_root, review_root, checkout_sha=review_checkout_sha
+            )
+            if source_head != source_before[0]:
+                raise LoopError("repository changed while preparing independent review")
+            launcher = (review_root / "scripts" / "kittybuilder_dsh.sh").resolve()
+            if not launcher.is_file():
+                raise LoopError("Builder DSH review launcher is unavailable")
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            prompt_path = runtime_dir / "prompt.txt"
+            prompt_path.write_text(prompt.strip() + "\n", encoding="utf-8")
+            env = beb.build_child_environment(os.environ, run_dir=runtime_dir)
+            env["OPENROUTER_API_KEY"] = provider_key
+            env["KITTY_BUILDER_REPO_ROOT"] = str(review_root)
+            env["KITTY_DSH_REASONING_EFFORT"] = os.environ.get(
+                "KITTYBUILDER_REVIEW_REASONING_EFFORT", _DEFAULT_REVIEW_REASONING_EFFORT
+            )
+            command = [
+                "bash", str(launcher), "--preset", "kitty-sprint",
+                "--provider", provider, "--model", model,
+                "--permission", "read-only", "--task-file", str(prompt_path),
+            ]
+            wrapped = beb.wrap_command(
+                command, worktree=review_root, run_dir=runtime_dir,
+                environment=env, read_paths=[prompt_path], worktree_writable=False,
+            )
+            review_before = _readonly_review_fingerprint(review_root)
+            completed = subprocess.run(
+                wrapped, cwd=review_root, env=env, capture_output=True, text=True,
+                timeout=timeout, check=False,
+            )
+            review_after = _readonly_review_fingerprint(review_root)
+            if review_after != review_before:
+                raise LoopError("read-only reviewer changed its isolated checkout")
+    except subprocess.TimeoutExpired as exc:
+        raise LoopError("independent reviewer timed out") from exc
+
+    source_after = _readonly_review_fingerprint(source_root)
+    if source_after != source_before:
+        raise LoopError("repository changed while independent review was running")
+    if completed.returncode != 0:
+        raise LoopError("independent reviewer is unavailable")
+    output = completed.stdout.strip()
+    if not output:
+        raise LoopError("independent reviewer returned no result")
+    return {
+        "provider": provider,
+        "model": model,
+        "review_head": source_before[0],
+        "review_origin_main": origin_main,
+        "probes": [],
+        "output": output,
     }
 
 

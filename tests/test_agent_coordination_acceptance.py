@@ -17,6 +17,7 @@ T0 = "2026-09-03T12:00:00+00:00"
 T1 = "2026-09-03T12:00:02+00:00"
 REQUIRED_RESOURCES = {
     "agent-runtime:containment",
+    "automation:execution",
     "builder:initiative-lifecycle",
     "builder:queue-reconciliation",
     "runtime:provenance",
@@ -24,6 +25,7 @@ REQUIRED_RESOURCES = {
     "docs:roadmap",
     "evaluation:project-sources",
     "memory:continuity",
+    "mission:runtime",
     "image-lab:generation",
 }
 
@@ -468,6 +470,38 @@ def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
             [path], registry_path=TRACKED_REGISTRY
         ), path
 
+
+
+def test_registry_covers_mission_runtime_and_automation_execution() -> None:
+    runtime_paths = [
+        "gateway/app.py",
+        "gateway/routes/register.py",
+        "tests/test_app_lifespan_hermetic.py",
+    ]
+    mission_paths = [
+        "gateway/mission_runtime.py",
+        "gateway/routes/missions.py",
+        "tests/test_mission_runtime.py",
+        "tests/test_missions_routes.py",
+    ]
+    automation_paths = [
+        "gateway/automation_actions.py",
+        "gateway/automation_runs.py",
+        "tests/test_automation_actions.py",
+        "tests/test_automation_runs.py",
+    ]
+    for path in runtime_paths:
+        assert agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ) == ["runtime:provenance"], path
+    for path in mission_paths:
+        assert agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ) == ["mission:runtime"], path
+    for path in automation_paths:
+        assert agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ) == ["automation:execution"], path
 
 def test_registry_covers_agent_room_interfaces() -> None:
     runtime_paths = [

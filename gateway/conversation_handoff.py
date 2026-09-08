@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Any, Iterator
 
-from gateway import agent_coordination, llm_client
+from gateway import agent_coordination, llm_client, memory_mission
 from gateway.builder_scope import normalize_allowed_paths
 from mcp.builder import commands as _commands
 from mcp.builder import context as _context
@@ -44,6 +44,12 @@ _DEFAULT_PACKET_ID = "packet-1"
 _DEFAULT_ACCEPTANCE_CRITERIA = (
     "Implementation matches the approved objective and instructions.",
 )
+_MISSION_SUPERVISOR_ID = "kitty"
+
+
+def _gateway_mission_id(builder_initiative_id: str) -> str:
+    """Namespace Gateway Mission identity away from Builder initiative identity."""
+    return f"gateway-conversation:{builder_initiative_id}"
 
 def _resolve_unique_tracked_path_aliases(allowed_paths: list[str]) -> list[str]:
     """Resolve only unambiguous extensionless aliases to tracked repo files.
@@ -123,9 +129,14 @@ Required fields:
 
 Optional fields, only when useful:
 - "title": short task title.
-- "acceptance_criteria": list of concrete checkable outcomes (plain statements, not shell commands).
+- "acceptance_criteria": list of concrete checkable outcomes (plain statements).
+- "validation_commands": list of plain read-only shell checks that would prove the outcome
+  (for example: grep -Fxq 'exact expected line' path/to/file). Use only test, [, grep,
+  cat, head, tail, wc, cmp, diff, file, stat, ls, or "python3 -m pytest". No pipes,
+  redirects, command substitution, &&, ||, or destructive commands. Each path must be
+  inside allowed_paths. Prefer a check of the file's content, not just its existence.
 
-Do not emit shell commands. Do not execute anything. Do not claim work is queued, running, approved, or complete.
+Do not execute anything. Do not claim work is queued, running, approved, or complete.
 Never use broad scope such as "." or the repository root.
 If the user names a file, preserve that repo-relative file in allowed_paths.
 """.strip()
@@ -158,14 +169,47 @@ class _ProposalUnusable(Exception):
         self.error = error
 
 
+# Builder runs validation_commands with shell=True after a generic approval and
+# the proposal card does not show them, so a model-supplied command is only kept
+# when it is a plain read-only verification: no shell metacharacters and a
+# leading executable from this allowlist. Anything else is discarded and a
+# deterministic existence check over the exact scope is synthesized instead.
+_SAFE_VALIDATION_LEADERS = frozenset(
+    {
+        "test", "[", "grep", "egrep", "fgrep", "rg", "cat", "head", "tail",
+        "wc", "cmp", "diff", "file", "stat", "ls", "python3", "python3.12",
+        "pytest", "make",
+    }
+)
+_UNSAFE_VALIDATION_CHARS = frozenset("|;&$`><\n\r\\!*?(){}")
+
+
+def _safe_validation_commands(raw_commands: Any, allowed_paths: list[str]) -> list[str]:
+    kept: list[str] = []
+    for command in raw_commands if isinstance(raw_commands, list) else []:
+        if not isinstance(command, str) or not command.strip():
+            continue
+        text = command.strip()
+        if any(ch in _UNSAFE_VALIDATION_CHARS for ch in text):
+            continue
+        tokens = text.split()
+        if not tokens or tokens[0] not in _SAFE_VALIDATION_LEADERS:
+            continue
+        if tokens[0] in {"python3", "python3.12"} and tokens[1:3] != ["-m", "pytest"]:
+            continue
+        kept.append(text)
+    if kept:
+        return kept
+    return [f"test -e {path}" for path in allowed_paths]
+
+
 def _build_task_from_raw(raw: Any, request: str) -> dict[str, Any]:
     """Turn one compiler JSON object into a bounded Builder task or raise.
 
-    Model-supplied ``validation_commands`` are intentionally dropped: Builder
-    runs validation with ``shell=True`` after a generic approval and the
-    proposal card does not show them, so a prompt-injected or simply wrong
-    command must never reach that path. Builder derives its own validation from
-    the acceptance criteria instead.
+    Model-supplied ``validation_commands`` are allowlist-filtered (see
+    :func:`_safe_validation_commands`); an unsafe or missing set falls back to a
+    deterministic existence check so Builder preflight always has something to
+    run and no injected command can reach Builder's shell.
     """
     if not isinstance(raw, dict):
         raise _ProposalUnusable(
@@ -192,6 +236,9 @@ def _build_task_from_raw(raw: Any, request: str) -> dict[str, Any]:
         "objective": objective.strip(),
         "instructions": request.strip(),
         "allowed_paths": allowed_paths,
+        "validation_commands": _safe_validation_commands(
+            raw.get("validation_commands"), allowed_paths
+        ),
     }
     for key in ("title", "initiative_id"):
         value = raw.get(key)
@@ -613,9 +660,54 @@ def propose(
         expected_base_sha=base_sha,
         base_scope="checkout",
     )
+    if not prepared.get("ok"):
+        return prepared
+
+    builder_initiative_id = str(prepared["mission_id"])
+    gateway_mission_id = _gateway_mission_id(builder_initiative_id)
+    packet = manifest["packets"][0]
+    try:
+        mission = memory_mission.ensure_mission(
+            mission_id=gateway_mission_id,
+            objective=objective.strip(),
+            definition_of_done=list(packet["acceptance_criteria"]),
+            supervisor_id=_MISSION_SUPERVISOR_ID,
+            db_path=memory_mission.MISSION_DB_FILE,
+        )
+        mission = memory_mission.bind_builder_locator(
+            gateway_mission_id,
+            initiative_id=builder_initiative_id,
+            db_path=memory_mission.MISSION_DB_FILE,
+        )
+        plan_ref = f"{plan['artifact_path']}@{plan['commit_sha']}"
+        mission = memory_mission.set_plan(
+            gateway_mission_id,
+            plan_ref=plan_ref,
+            plan_digest=str(prepared["manifest_sha256"]),
+            plan_payload=prepared["prepared_manifest"],
+            db_path=memory_mission.MISSION_DB_FILE,
+        )
+    except memory_mission.MissionError as exc:
+        return receipt(
+            "conversation_propose",
+            ok=False,
+            state="needs_decision",
+            error_code="mission_binding_failed",
+            error=str(exc),
+            next_action="Resolve the Mission identity conflict before proposing this work again.",
+        )
+
     prepared["objective"] = objective.strip()
     prepared["design"] = {"path": design["artifact_path"], "sha": design["commit_sha"]}
-    prepared["plan"] = {"path": plan["artifact_path"], "sha": plan["commit_sha"]}
+    prepared["plan"] = {
+        "path": plan["artifact_path"],
+        "sha": plan["commit_sha"],
+        "digest": prepared["manifest_sha256"],
+    }
+    prepared["gateway_mission_id"] = gateway_mission_id
+    prepared["gateway_mission_status"] = mission["status"]
+    prepared["gateway_plan_digest"] = mission["plan"]["digest"]
+    prepared["gateway_plan_review_state"] = mission["plan"]["review_state"]
     return prepared
 
 
@@ -625,6 +717,7 @@ def approve(
     expected_manifest_sha: str,
     expected_base_sha: str,
     approval_nonce: str,
+    gateway_mission_id: str | None = None,
     confirmed: bool = False,
 ) -> dict[str, Any]:
     """Create the durable Builder job -- only after explicit human confirmation.
@@ -644,13 +737,112 @@ def approve(
             error="creating a Builder job requires explicit human confirmation",
             next_action="Show the exact prepared Mission and require an explicit Approve action.",
         )
-    return _commands.mission_approve(
+
+    mission: dict[str, Any] | None = None
+    if gateway_mission_id is not None:
+        try:
+            mission = memory_mission.get_mission(
+                gateway_mission_id, db_path=memory_mission.MISSION_DB_FILE
+            )
+        except memory_mission.MissionError as exc:
+            return receipt(
+                "conversation_approve",
+                ok=False,
+                state="needs_decision",
+                error_code="mission_not_found",
+                error=str(exc),
+                next_action="Recover the durable Mission before approving Builder execution.",
+            )
+        builder_initiative_id = prepared_manifest.get("initiative_id")
+        locator = mission.get("builder_locator") or {}
+        if locator.get("initiative_id") != builder_initiative_id:
+            return receipt(
+                "conversation_approve",
+                ok=False,
+                state="needs_decision",
+                error_code="mission_builder_mismatch",
+                error="Gateway Mission is bound to a different Builder initiative.",
+                next_action="Re-open the current Mission proposal instead of approving a different Builder job.",
+            )
+        if mission["plan"]["digest"] != expected_manifest_sha:
+            return receipt(
+                "conversation_approve",
+                ok=False,
+                state="needs_decision",
+                error_code="plan_digest_mismatch",
+                error="The approved Mission plan does not match this Builder proposal version.",
+                next_action="Review the current proposal version before approving execution.",
+            )
+        if mission["plan"]["review_state"] != "approved":
+            return receipt(
+                "conversation_approve",
+                ok=False,
+                state="plan_review",
+                error_code="plan_review_required",
+                error="Independent plan review is required before Builder execution can be approved.",
+                next_action="Wait for an independent reviewer to approve this exact plan.",
+                gateway_mission_id=gateway_mission_id,
+            )
+        if locator.get("task_id") is None and mission["status"] != "PLAN_REVIEW":
+            return receipt(
+                "conversation_approve",
+                ok=False,
+                state="needs_decision",
+                error_code="mission_not_ready",
+                error=f"Mission cannot start Builder execution from {mission['status']} state.",
+                next_action="Recover the Mission state before approving execution.",
+            )
+
+    result = _commands.mission_approve(
         prepared_manifest,
         expected_manifest_sha=expected_manifest_sha,
         expected_base_sha=expected_base_sha,
         approval_nonce=approval_nonce,
         base_scope="checkout",
     )
+    if not result.get("ok") or gateway_mission_id is None:
+        return result
+
+    tasks = result.get("tasks") or []
+    task_id = tasks[0].get("task_id") if len(tasks) == 1 and isinstance(tasks[0], dict) else None
+    if not isinstance(task_id, str) or not task_id:
+        return receipt(
+            "conversation_approve",
+            ok=False,
+            state="recovery_required",
+            error_code="mission_binding_failed",
+            error="Builder accepted the work but did not return the single durable task locator Mission expects.",
+            next_action="Retry this exact approval to reconcile the existing Builder job; do not compile a new one.",
+            gateway_mission_id=gateway_mission_id,
+            builder_receipt=result,
+        )
+
+    try:
+        mission = memory_mission.bind_builder_locator(
+            gateway_mission_id,
+            initiative_id=str(result["mission_id"]),
+            task_id=task_id,
+            db_path=memory_mission.MISSION_DB_FILE,
+        )
+        if mission["status"] == "PLAN_REVIEW":
+            mission = memory_mission.begin_execution(
+                gateway_mission_id, db_path=memory_mission.MISSION_DB_FILE
+            )
+    except memory_mission.MissionError as exc:
+        return receipt(
+            "conversation_approve",
+            ok=False,
+            state="recovery_required",
+            error_code="mission_binding_failed",
+            error=str(exc),
+            next_action="Retry this exact approval to reconcile the existing Builder job; do not compile a new one.",
+            gateway_mission_id=gateway_mission_id,
+            builder_receipt=result,
+        )
+
+    result["gateway_mission_id"] = gateway_mission_id
+    result["gateway_mission_status"] = mission["status"]
+    return result
 
 
 def resume(*, mission_id: str | None = None, task_id: str | None = None) -> dict[str, Any]:
