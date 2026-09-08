@@ -742,6 +742,27 @@ class TestApply:
         assert first["priority"] == 5
         assert second["priority"] == 0
 
+    def test_apply_persists_nonce_bound_approval_without_storing_nonce(self, db_path: Path):
+        manifest = _manifest()
+        digest = bi.manifest_sha256(manifest)
+        result = bi.apply_manifest(
+            manifest,
+            db_path=db_path,
+            approval_binding={
+                "manifest_sha256": digest,
+                "base_sha": "0" * 40,
+                "method": "mission_nonce",
+            },
+            base_sha="0" * 40,
+        )
+        assert result["status"] == "created"
+        initiative = bi.get_initiative("kitty-alpha-v1", db_path=db_path)
+        assert initiative["approval_manifest_sha256"] == digest
+        assert initiative["approval_base_sha"] == "0" * 40
+        assert initiative["approval_method"] == "mission_nonce"
+        assert initiative["approved_at"] is not None
+        assert "nonce" not in {key for key in initiative if key not in {"approval_method"}}
+
     def test_identical_reapply_is_unchanged(self, db_path: Path):
         first = bi.apply_manifest(_manifest(), db_path=db_path)
         second = bi.apply_manifest(_manifest(), db_path=db_path)

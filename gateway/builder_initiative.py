@@ -116,6 +116,10 @@ CREATE TABLE IF NOT EXISTS initiatives (
     pause_reason TEXT,
     superseded_by TEXT,
     superseded_at TIMESTAMP,
+    approval_manifest_sha256 TEXT,
+    approval_base_sha TEXT,
+    approval_method TEXT,
+    approved_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -176,6 +180,14 @@ def _ensure_initiative_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE initiatives ADD COLUMN superseded_by TEXT")
     if existing and "superseded_at" not in existing:
         conn.execute("ALTER TABLE initiatives ADD COLUMN superseded_at TIMESTAMP")
+    for column, ddl in (
+        ("approval_manifest_sha256", "TEXT"),
+        ("approval_base_sha", "TEXT"),
+        ("approval_method", "TEXT"),
+        ("approved_at", "TIMESTAMP"),
+    ):
+        if existing and column not in existing:
+            conn.execute(f"ALTER TABLE initiatives ADD COLUMN {column} {ddl}")
     if existing:
         # Builder has no per-initiative repo selection: resolve_base_sha always
         # resolves against Path.cwd(), and every packet's allowed_paths to date
@@ -829,6 +841,7 @@ def apply_manifest(
     repo_root: Path | None = None,
     base_sha: str | None = None,
     project_id: int = 1,
+    approval_binding: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Validate and apply a manifest. Atomic and idempotent.
 
@@ -858,13 +871,24 @@ def apply_manifest(
     digest = manifest_sha256(manifest)
     canonical = canonicalize_manifest(manifest)
     packets = manifest["packets"]
+    if approval_binding is not None:
+        expected = {"manifest_sha256", "base_sha", "method"}
+        if set(approval_binding) != expected:
+            raise ValueError("approval_binding must contain manifest_sha256, base_sha, and method")
+        if approval_binding["manifest_sha256"] != digest:
+            raise ValueError("approval binding manifest SHA does not match the applied Mission")
+        if base_sha is None or approval_binding["base_sha"] != base_sha:
+            raise ValueError("approval binding base SHA must match the explicit applied base")
+        if approval_binding["method"] != "mission_nonce":
+            raise ValueError("unsupported Builder approval binding method")
 
     init_db(db_path)
     conn = bq.connect(db_path)
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            "SELECT manifest_sha256 FROM initiatives WHERE id = ?",
+            "SELECT manifest_sha256, approval_manifest_sha256, approval_base_sha, "
+            "approval_method FROM initiatives WHERE id = ?",
             (initiative_id,),
         ).fetchone()
         if row is not None:
@@ -886,7 +910,34 @@ def apply_manifest(
                     (initiative_id,),
                 ).fetchall()
             ]
-            conn.rollback()
+            if approval_binding is not None:
+                stored = (
+                    row["approval_manifest_sha256"],
+                    row["approval_base_sha"],
+                    row["approval_method"],
+                )
+                wanted = (
+                    approval_binding["manifest_sha256"],
+                    approval_binding["base_sha"],
+                    approval_binding["method"],
+                )
+                if all(value is None for value in stored):
+                    conn.execute(
+                        "UPDATE initiatives SET approval_manifest_sha256 = ?, "
+                        "approval_base_sha = ?, approval_method = ?, "
+                        "approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP "
+                        "WHERE id = ?",
+                        (*wanted, initiative_id),
+                    )
+                    conn.commit()
+                elif stored == wanted:
+                    conn.rollback()
+                else:
+                    raise InitiativeConflictError(
+                        f"initiative {initiative_id!r} already has a different approval binding"
+                    )
+            else:
+                conn.rollback()
             return {
                 "status": "unchanged",
                 "initiative_id": initiative_id,
@@ -935,6 +986,17 @@ def apply_manifest(
                 project_id,
             ),
         )
+        if approval_binding is not None:
+            conn.execute(
+                "UPDATE initiatives SET approval_manifest_sha256 = ?, approval_base_sha = ?, "
+                "approval_method = ?, approved_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (
+                    approval_binding["manifest_sha256"],
+                    approval_binding["base_sha"],
+                    approval_binding["method"],
+                    initiative_id,
+                ),
+            )
 
         mappings = []
         for seq, packet in enumerate(packets):

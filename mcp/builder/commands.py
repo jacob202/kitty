@@ -296,7 +296,14 @@ def mission_approve(
             )
         _verify_bound_artifacts(refs, base_sha=expected_base_sha)
         applied = bi.apply_manifest(
-            prepared_manifest, repo_root=root, base_sha=expected_base_sha
+            prepared_manifest,
+            repo_root=root,
+            base_sha=expected_base_sha,
+            approval_binding={
+                "manifest_sha256": digest,
+                "base_sha": expected_base_sha,
+                "method": "mission_nonce",
+            },
         )
         return receipt(
             "mission_approve",

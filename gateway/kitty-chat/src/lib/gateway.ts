@@ -2472,6 +2472,45 @@ export async function executeOperatorCommand(payload: OperatorCommandPayload): P
 // gateway/conversation_handoff.py) so a job proposed from a Kitty chat and one
 // proposed by an MCP client share one approval mechanism and one durable store.
 
+export interface BuilderCompileResult {
+  ok: boolean
+  error_code?: string | null
+  error?: string | null
+  task?: {
+    objective: string
+    instructions: string
+    allowed_paths: string[]
+    title?: string
+    initiative_id?: string
+    acceptance_criteria?: string[]
+    validation_commands?: string[]
+  }
+  route?: {
+    provider: string
+    model: string
+    route_model?: string
+    estimated_cost_cad: number | null
+  }
+}
+
+export async function compileBuilderProposal(
+  payload: { request: string; allow_provider_fallback?: boolean },
+): Promise<BuilderCompileResult> {
+  // The no-spend route can try two subscription CLIs (~22s each) and then a
+  // bounded openrouter/free attempt before it gives up, so the client deadline
+  // must comfortably clear the backend's worst case rather than abort a retry
+  // that would have succeeded.
+  return await gfetch<BuilderCompileResult>(
+    '/builder/conversation/compile',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    150_000,
+  )
+}
+
 export interface ConversationProposeRequest {
   objective: string
   instructions: string

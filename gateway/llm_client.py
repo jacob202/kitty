@@ -17,6 +17,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
+import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -328,10 +331,14 @@ def _openrouter_fallback_model(litellm_model: str) -> str:
 
     ``KITTY_OPENROUTER_DIRECT_MODEL`` is a text-lane override. Vision keeps its
     dedicated multimodal route so an inexpensive text model cannot silently
-    replace the model required to inspect an attached image.
+    replace the model required to inspect an attached image. Explicit free
+    routing is also preserved so a zero-cost-only caller cannot be rewritten
+    onto a paid direct-model override.
     """
     if litellm_model == "kitty-vision":
         return _LITELLM_TO_OPENROUTER[litellm_model]
+    if litellm_model == "openrouter/free":
+        return litellm_model
     direct = os.environ.get("KITTY_OPENROUTER_DIRECT_MODEL", "").strip()
     if direct:
         return direct
@@ -760,6 +767,136 @@ def call_selected_provider(
     return out
 
 
+# ── zero-marginal-cost subscription CLIs ─────────────────────────────────────
+# Jacob already pays for ChatGPT and Claude subscriptions. On a zero-cost-only
+# call (Builder proposal compilation) those authenticated CLIs are the cheapest
+# route and must be tried before unreliable free API routing. Each CLI gets one
+# bounded attempt; any failure (missing binary, not logged in, usage limit,
+# timeout, unparsable output) returns ``None`` so the caller falls through to
+# ``openrouter/free`` and finally a truthful no-spend-unavailable result. This
+# never crosses to local Ollama/MLX or any paid API route.
+_SUBSCRIPTION_CLI_PER_CALL_TIMEOUT = int(
+    os.environ.get("KITTY_SUBSCRIPTION_CLI_TIMEOUT", "22") or "22"
+)
+
+
+def _subscription_messages_to_prompt(messages: list[dict]) -> str:
+    parts: list[str] = []
+    for message in messages:
+        content = str(message.get("content", "")).strip()
+        if not content:
+            continue
+        role = str(message.get("role", "user")).lower()
+        parts.append(content if role == "system" else f"{role.upper()}: {content}")
+    return "\n\n".join(parts)
+
+
+def _codex_subscription_completion(prompt: str, *, timeout: int) -> str | None:
+    codex = shutil.which("codex")
+    if codex is None:
+        return None
+    with tempfile.TemporaryDirectory(prefix="kitty-codex-compile-") as workdir:
+        last_message = os.path.join(workdir, "last-message.txt")
+        args = [
+            codex,
+            "exec",
+            "--ephemeral",
+            "--ignore-user-config",
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "-C",
+            workdir,
+            "-o",
+            last_message,
+            prompt,
+        ]
+        try:
+            proc = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                stdin=subprocess.DEVNULL,
+                cwd=workdir,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return None
+        if proc.returncode != 0:
+            return None
+        try:
+            with open(last_message, encoding="utf-8") as handle:
+                text = handle.read().strip()
+        except OSError:
+            return None
+    return text or None
+
+
+def _claude_subscription_completion(prompt: str, *, timeout: int) -> str | None:
+    claude = shutil.which("claude")
+    if claude is None:
+        return None
+    with tempfile.TemporaryDirectory(prefix="kitty-claude-compile-") as workdir:
+        args = [claude, "-p", prompt, "--output-format", "json"]
+        try:
+            proc = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                stdin=subprocess.DEVNULL,
+                cwd=workdir,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return None
+        if proc.returncode != 0:
+            return None
+        try:
+            data = json.loads(proc.stdout)
+        except (ValueError, TypeError):
+            return None
+    if not isinstance(data, dict) or data.get("is_error") or data.get("subtype") != "success":
+        return None
+    result = data.get("result")
+    if isinstance(result, str) and result.strip():
+        return result.strip()
+    return None
+
+
+def subscription_cli_completion(
+    messages: list[dict],
+    *,
+    response_format: dict[str, Any] | None = None,
+    timeout: int | None = None,
+) -> tuple[str, str] | None:
+    """One bounded zero-marginal-cost completion via an authenticated CLI.
+
+    Order: Codex CLI (ChatGPT auth) then Claude CLI (claude.ai auth). Returns
+    ``(text, cli_name)`` or ``None`` when no subscription CLI can answer. Never
+    raises. ``KITTY_DISABLE_SUBSCRIPTION_CLI=1`` opts out entirely.
+    """
+    if os.environ.get("KITTY_DISABLE_SUBSCRIPTION_CLI", "").strip().lower() in {"1", "true", "yes"}:
+        return None
+    budget = min(int(timeout or 60), 45) or _SUBSCRIPTION_CLI_PER_CALL_TIMEOUT
+    per_call = min(budget, _SUBSCRIPTION_CLI_PER_CALL_TIMEOUT)
+    prompt = _subscription_messages_to_prompt(messages)
+    if response_format == {"type": "json_object"}:
+        prompt = f"{prompt}\n\nReturn exactly one valid JSON object and nothing else: no prose, no code fence."
+    attempts: tuple[tuple[str, Callable[[], str | None]], ...] = (
+        ("codex", lambda: _codex_subscription_completion(prompt, timeout=per_call)),
+        ("claude", lambda: _claude_subscription_completion(prompt, timeout=per_call)),
+    )
+    for name, run in attempts:
+        try:
+            out = run()
+        except Exception:  # noqa: BLE001 — a broken CLI must never break routing
+            logger.warning("subscription CLI %s raised during zero-cost completion", name, exc_info=True)
+            out = None
+        if out:
+            return out, name
+    return None
+
+
 def call_llm(
     messages: list[dict],
     model: str | None = None,
@@ -769,6 +906,7 @@ def call_llm(
     response_format: dict[str, Any] | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
+    zero_cost_only: bool = False,
 ) -> str:
     """
     Centralized hub for all LLM calls.
@@ -787,6 +925,49 @@ def call_llm(
 
     model = normalize_litellm_request_model(model) or route_model("")
 
+    if zero_cost_only:
+        subscription = subscription_cli_completion(
+            messages, response_format=response_format, timeout=timeout
+        )
+        if subscription is not None:
+            text, cli_name = subscription
+            log_llm_usage(
+                f"subscription:{cli_name}",
+                cli_name,
+                operation,
+                None,
+                {
+                    **(metadata or {}),
+                    "spend_policy": "zero_cost_subscription",
+                    "route": "subscription_cli",
+                },
+            )
+            return text
+
+        provider_name = "openrouter"
+        if provider_is_environment_disabled(provider_name):
+            raise ProviderChainExhausted([f"{provider_name}: {_REASON_DISABLED}"])
+        provider = PROVIDERS[provider_name]
+        if not provider_is_configured(provider):
+            raise ProviderChainExhausted([f"{provider_name}: {_REASON_NO_KEY}"])
+        out = _call_provider(
+            provider,
+            messages,
+            max_tokens,
+            temperature,
+            timeout,
+            response_format,
+            operation=operation,
+            metadata={**(metadata or {}), "spend_policy": "zero_cost_only"},
+            request_model="openrouter/free",
+        )
+        if out:
+            return out
+        raise ProviderChainExhausted([f"{provider_name}: {_REASON_NO_RESPONSE}"])
+
+    # Exact provider selection stays fail-closed: an explicit pin never silently
+    # cascades to LiteLLM or another provider. The request-scoped saved-provider
+    # retry is issued by the caller through ``call_selected_provider`` directly.
     selected = selected_provider_name()
     if selected is not None:
         return call_selected_provider(

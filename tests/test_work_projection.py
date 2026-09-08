@@ -243,3 +243,18 @@ def test_primary_work_projection_hides_superseded_history_but_counts_it():
     assert payload["total_items"] == 1
     assert payload["historical_items"] == 1
     assert payload["counts"]["total"] == 1
+
+
+def test_projection_exposes_durable_mission_approval_binding():
+    packet = _base_packet("p-approved")
+    snapshot = _snapshot_for(packet)
+    snapshot["initiatives"][0]["approval"] = {
+        "state": "approved",
+        "manifest_sha256": "a" * 64,
+        "base_sha": "b" * 40,
+        "method": "mission_nonce",
+        "approved_at": "2026-08-13T11:58:00Z",
+    }
+
+    payload = project_work_snapshot(snapshot, now=NOW)
+    assert payload["items"][0]["evidence"]["approval"] == snapshot["initiatives"][0]["approval"]

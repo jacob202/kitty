@@ -75,6 +75,41 @@ def _initiative_rows(db_path: Path) -> list[dict]:
     return bi.list_initiatives(db_path=db_path)
 
 
+def test_planning_artifact_claim_is_exact_and_released(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry = repo / "coordination" / "resources.yaml"
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text("resources:\n  docs:roadmap:\n    paths:\n      - docs/**\n", encoding="utf-8")
+    base = _git(repo, "rev-parse", "HEAD")
+    acquired: list[dict] = []
+    released: list[str] = []
+
+    def fake_acquire(**kwargs):
+        acquired.append(kwargs)
+        return {"status": "ACQUIRED", "claim": {"session_id": kwargs["session_id"]}}
+
+    monkeypatch.setattr(conversation_handoff.agent_coordination, "acquire", fake_acquire)
+    monkeypatch.setattr(
+        conversation_handoff.agent_coordination,
+        "release",
+        lambda session_id, **kwargs: released.append(session_id) or {"released": 1},
+    )
+
+    with conversation_handoff._planning_artifact_claim(
+        slug="claim-proof", base_sha=base, task_id="conv-claim-proof"
+    ) as session_id:
+        assert session_id.startswith("kitty-builder-planning-")
+
+    assert len(acquired) == 1
+    assert acquired[0]["resource_id"] == "docs:roadmap"
+    assert acquired[0]["paths"] == [
+        conversation_handoff.repo_tools.planning_artifact_path("design", "claim-proof"),
+        conversation_handoff.repo_tools.planning_artifact_path("plan", "claim-proof"),
+    ]
+    assert released == [acquired[0]["session_id"]]
+
+
 def test_propose_without_approval_does_not_create_builder_job(repo: Path) -> None:
     result = conversation_handoff.propose(**_task())
 
@@ -153,6 +188,11 @@ def test_explicit_approval_creates_exactly_one_durable_job(repo: Path) -> None:
     rows = _initiative_rows(db_path)
     assert [row["id"] for row in rows] == [mission_id]
     assert len(approved["tasks"]) == 1
+    initiative = bi.get_initiative(mission_id, db_path=db_path)
+    assert initiative["approval_manifest_sha256"] == proposal["manifest_sha256"]
+    assert initiative["approval_base_sha"] == proposal["expected_base_sha"]
+    assert initiative["approval_method"] == "mission_nonce"
+    assert initiative["approved_at"] is not None
 
 
 def test_proposal_without_confirmed_flag_refuses_even_with_full_payload(repo: Path) -> None:
@@ -278,3 +318,319 @@ def test_paid_execution_remains_behind_existing_authorization_boundary() -> None
 
     assert result["ok"] is False
     assert result["error_code"] == "spend_not_authorized"
+
+
+def test_compile_request_uses_lightweight_builder_only_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gateway import llm_client
+
+    seen = {}
+
+    def fake_call(messages, **kwargs):
+        seen["messages"] = messages
+        seen["kwargs"] = kwargs
+        return '{"objective":"Add the proof file","instructions":"Create rc0-builder-proof.txt with exactly rc0 builder proof.","allowed_paths":["rc0-builder-proof.txt"],"acceptance_criteria":["The file contains exactly rc0 builder proof."]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+
+    request = 'Add a text file named rc0-builder-proof.txt containing exactly "rc0 builder proof".'
+    result = conversation_handoff.compile_request(request)
+
+    assert result["ok"] is True
+    assert result["task"]["objective"] == "Add the proof file"
+    assert result["task"]["instructions"] == request
+    assert result["task"]["allowed_paths"] == ["rc0-builder-proof.txt"]
+    assert "route" not in result
+    assert seen["kwargs"]["model"] == "kitty-small"
+    assert seen["kwargs"]["temperature"] == 0
+    assert seen["kwargs"]["response_format"] == {"type": "json_object"}
+    combined = "\n".join(str(message.get("content", "")) for message in seen["messages"])
+    assert "strict json compiler" in combined.lower()
+    assert "want me to send this to builder" not in combined.lower()
+    assert "kitty-builder-proposal" not in combined.lower()
+    assert "allowed_paths" in combined
+    assert len(combined) < 3000
+    assert "personal memory" not in combined.lower()
+    assert "morning brief" not in combined.lower()
+
+
+def test_compile_request_resolves_unique_extensionless_tracked_file(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from gateway import llm_client
+
+    monkeypatch.setattr(
+        llm_client,
+        "call_llm",
+        lambda *args, **kwargs: (
+            '{"objective":"Add a greeting","allowed_paths":["README"]}'
+        ),
+    )
+
+    result = conversation_handoff.compile_request(
+        "Add a one-line hello-world greeting to the README file."
+    )
+
+    assert result["ok"] is True
+    assert result["task"]["allowed_paths"] == ["README.md"]
+
+
+def test_compile_request_drops_model_generated_validation_commands(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A prompt-injected or wrong shell command must never reach Builder's
+    shell=True validation via a generic approval, and the proposal card does
+    not show these, so the compiler strips them entirely."""
+    from gateway import llm_client
+
+    monkeypatch.setattr(
+        llm_client,
+        "call_llm",
+        lambda *args, **kwargs: (
+            '{"objective":"Add a greeting","allowed_paths":["README"],'
+            '"validation_commands":["rm -rf ~"]}'
+        ),
+    )
+
+    result = conversation_handoff.compile_request(
+        "Add a one-line hello-world greeting to the README file."
+    )
+
+    assert result["ok"] is True
+    assert result["task"]["allowed_paths"] == ["README.md"]
+    assert "validation_commands" not in result["task"]
+
+
+def test_propose_rejects_scope_that_cannot_map_to_kx_before_planning(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry = repo / "coordination" / "resources.yaml"
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(
+        "resources:\n"
+        "  docs:planning-artifacts:\n"
+        "    paths:\n"
+        "      - docs/superpowers/plans/**\n"
+        "      - docs/superpowers/specs/**\n"
+        "  docs:roadmap:\n"
+        "    paths:\n"
+        "      - '*.md'\n",
+        encoding="utf-8",
+    )
+    planning_called = False
+
+    def fail_if_planning_started(*args, **kwargs):
+        nonlocal planning_called
+        planning_called = True
+        raise AssertionError("scope validation must precede planning artifacts")
+
+    monkeypatch.setattr(
+        conversation_handoff.repo_tools,
+        "write_planning_artifact",
+        fail_if_planning_started,
+    )
+
+    result = conversation_handoff.propose(
+        objective="Create a proof file",
+        instructions="Create unmapped-proof.txt",
+        allowed_paths=["unmapped-proof.txt"],
+    )
+
+    assert result["ok"] is False
+    assert result["error_code"] == "proposal_scope_invalid"
+    assert planning_called is False
+
+
+def test_compile_request_prefers_no_spend_route_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gateway import llm_client
+
+    seen = {}
+
+    def fake_call(messages, **kwargs):
+        seen.update(kwargs)
+        return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+    result = conversation_handoff.compile_request("Fix the launch bug.")
+
+    assert result["ok"] is True
+    assert seen["zero_cost_only"] is True
+    assert result["routing"] == {"mode": "no_spend", "saved_preference_changed": False}
+
+
+def test_compile_request_request_scoped_fallback_is_pinned_to_the_saved_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The saved-provider retry calls exactly the selected provider and never
+    cascades to LiteLLM or the automatic chain, and never changes the saved
+    preference."""
+    from gateway import llm_client
+
+    seen: dict = {}
+
+    def fake_selected(provider_name, messages, **kwargs):
+        seen["provider_name"] = provider_name
+        seen["kwargs"] = kwargs
+        return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
+
+    monkeypatch.setattr(llm_client, "selected_provider_name", lambda: "openrouter")
+    monkeypatch.setattr(llm_client, "call_selected_provider", fake_selected)
+    monkeypatch.setattr(
+        llm_client, "call_llm", lambda *a, **k: pytest.fail("must not touch the automatic chain")
+    )
+    result = conversation_handoff.compile_request("Fix the launch bug.", allow_provider_fallback=True)
+
+    assert result["ok"] is True
+    assert seen["provider_name"] == "openrouter"
+    assert seen["kwargs"]["metadata"]["spend_policy"] == "saved_provider"
+    assert result["routing"] == {"mode": "request_scoped_fallback", "saved_preference_changed": False}
+
+
+def test_compile_request_request_scoped_fallback_without_saved_provider_is_actionable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import llm_client
+
+    monkeypatch.setattr(llm_client, "selected_provider_name", lambda: None)
+    monkeypatch.setattr(
+        llm_client, "call_selected_provider", lambda *a, **k: pytest.fail("no provider to call")
+    )
+    result = conversation_handoff.compile_request("Fix the launch bug.", allow_provider_fallback=True)
+
+    assert result["ok"] is False
+    assert result["error_code"] == "no_saved_provider"
+
+
+def test_compile_request_rejects_unbounded_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gateway import llm_client
+
+    monkeypatch.setattr(
+        llm_client,
+        "call_llm",
+        lambda *args, **kwargs: '{"objective":"Change everything","instructions":"Edit the repository.","allowed_paths":["."]}',
+    )
+    result = conversation_handoff.compile_request("Fix everything in the repository")
+
+    assert result["ok"] is False
+    assert result["error_code"] == "proposal_scope_invalid"
+    assert "repository" not in result["error"].lower()
+    assert "narrow" in result["error"].lower()
+
+
+def test_compile_request_retries_no_spend_once_after_transient_provider_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import llm_client
+
+    calls: list[dict] = []
+
+    def fake_call(messages, **kwargs):
+        calls.append(dict(kwargs))
+        if len(calls) == 1:
+            raise llm_client.ProviderChainExhausted(["openrouter: transient free-route failure"])
+        return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+    result = conversation_handoff.compile_request("Fix the launch bug.")
+
+    assert result["ok"] is True
+    assert len(calls) == 2
+    assert all(call["zero_cost_only"] is True for call in calls)
+    assert result["routing"] == {"mode": "no_spend", "saved_preference_changed": False}
+
+
+def test_compile_request_retries_no_spend_once_after_structurally_invalid_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A response that parses to JSON but is missing required fields is just as
+    unusable as malformed JSON, so it still gets the one bounded retry."""
+    from gateway import llm_client
+
+    calls = 0
+
+    def fake_call(messages, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "{}"
+        return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+    result = conversation_handoff.compile_request("Fix the launch bug.")
+
+    assert calls == 2
+    assert result["ok"] is True
+    assert result["task"]["objective"] == "Fix launch"
+
+
+def test_compile_request_retries_no_spend_once_after_unusable_free_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import llm_client
+
+    calls = 0
+
+    def fake_call(messages, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "not json"
+        return '{"objective":"Fix launch","allowed_paths":["gateway/launcher.py"]}'
+
+    monkeypatch.setattr(llm_client, "call_llm", fake_call)
+    result = conversation_handoff.compile_request("Fix the launch bug.")
+
+    assert result["ok"] is True
+    assert calls == 2
+    assert result["routing"] == {"mode": "no_spend", "saved_preference_changed": False}
+
+
+def test_compile_request_reports_no_spend_unavailable_without_claiming_all_routes_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import llm_client
+
+    def fail(*args, **kwargs):
+        assert kwargs["zero_cost_only"] is True
+        raise llm_client.ProviderChainExhausted(["local: no response", "openrouter: no response"])
+
+    monkeypatch.setattr(llm_client, "call_llm", fail)
+    result = conversation_handoff.compile_request("Fix the launch bug.")
+
+    assert result["ok"] is False
+    assert result["error_code"] == "proposal_no_spend_unavailable"
+    assert "no-spend" in result["error"].lower() or "without spending" in result["error"].lower()
+    assert "no model provider" not in result["error"].lower()
+
+
+
+def test_compile_request_translates_provider_failure_without_internal_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gateway import llm_client
+
+    def fail(*args, **kwargs):
+        raise llm_client.ProviderChainExhausted(["openrouter: 401 sk-secret-token", "local: connection refused 127.0.0.1:8010"])
+
+    monkeypatch.setattr(llm_client, "call_llm", fail)
+
+    result = conversation_handoff.compile_request("Change gateway/example.py so the example returns true.")
+
+    assert result["ok"] is False
+    assert result["error_code"] == "proposal_no_spend_unavailable"
+    assert "openrouter" not in result["error"].lower()
+    assert "127.0.0.1" not in result["error"]
+    assert "sk-secret-token" not in result["error"]
+    assert "no-spend" in result["error"].lower() or "without spending" in result["error"].lower()
+
+
+def test_compile_request_does_not_misreport_malformed_model_output_as_provider_outage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import llm_client
+
+    monkeypatch.setattr(llm_client, "call_llm", lambda *args, **kwargs: "this is not json")
+
+    result = conversation_handoff.compile_request(
+        "Change gateway/example.py so the example returns true."
+    )
+
+    assert result["ok"] is False
+    assert result["error_code"] == "proposal_invalid"
+    assert "no model provider" not in result["error"].lower()
+    assert "unusable proposal" in result["error"].lower()

@@ -305,6 +305,177 @@ def test_call_llm_falls_back_on_litellm_error():
     assert result == "Fallback response"
 
 
+def test_call_llm_explicit_provider_pin_still_fails_closed():
+    from gateway.llm_client import ProviderChainExhausted, call_llm
+
+    with (
+        patch("gateway.llm_client.selected_provider_name", return_value="openrouter"),
+        patch("gateway.llm_client.call_selected_provider", side_effect=ProviderChainExhausted(["selected provider 'openrouter' returned no response"])),
+        patch("gateway.llm_client._post") as auto_post,
+        pytest.raises(ProviderChainExhausted),
+    ):
+        call_llm([{"role": "user", "content": "hello"}], model="kitty-small")
+
+    auto_post.assert_not_called()
+
+
+def test_openrouter_free_route_ignores_paid_direct_model_override(monkeypatch: pytest.MonkeyPatch):
+    from gateway.llm_client import _openrouter_fallback_model
+
+    monkeypatch.setenv("KITTY_OPENROUTER_DIRECT_MODEL", "deepseek/deepseek-v4-flash")
+    assert _openrouter_fallback_model("openrouter/free") == "openrouter/free"
+
+
+def test_call_llm_zero_cost_only_uses_free_route_without_paid_selected_or_litellm():
+    from gateway.llm_client import call_llm
+
+    calls: list[tuple[str, str | None]] = []
+
+    def fake_provider(provider, messages, *args, request_model=None, **kwargs):
+        calls.append((provider.name, request_model))
+        if provider.name == "openrouter":
+            return "free response"
+        return ""
+
+    with (
+        patch("gateway.llm_client.subscription_cli_completion", return_value=None),
+        patch("gateway.llm_client.selected_provider_name", return_value="openrouter") as selected,
+        patch("gateway.llm_client.call_selected_provider") as paid_selected,
+        patch("gateway.llm_client._post") as litellm_post,
+        patch("gateway.llm_client._call_provider", side_effect=fake_provider),
+        patch("gateway.llm_client.provider_is_configured", return_value=True),
+        patch("gateway.llm_client.provider_is_environment_disabled", return_value=False),
+        patch("gateway.llm_client.effective_provider_order", return_value=["openrouter", "local"]),
+    ):
+        result = call_llm(
+            [{"role": "user", "content": "hello"}],
+            model="kitty-small",
+            zero_cost_only=True,
+        )
+
+    assert result == "free response"
+    assert calls == [("openrouter", "openrouter/free")]
+    selected.assert_not_called()
+    paid_selected.assert_not_called()
+    litellm_post.assert_not_called()
+
+
+def test_call_llm_zero_cost_only_fails_closed_without_paid_or_local_fallback():
+    from gateway.llm_client import ProviderChainExhausted, call_llm
+
+    calls: list[tuple[str, str | None]] = []
+
+    def fake_provider(provider, messages, *args, request_model=None, **kwargs):
+        calls.append((provider.name, request_model))
+        if provider.name == "local":
+            return "local response must not be used"
+        return ""
+
+    with (
+        patch("gateway.llm_client.subscription_cli_completion", return_value=None),
+        patch("gateway.llm_client.selected_provider_name", return_value="openrouter") as selected,
+        patch("gateway.llm_client.call_selected_provider") as paid_selected,
+        patch("gateway.llm_client._post") as litellm_post,
+        patch("gateway.llm_client._call_provider", side_effect=fake_provider),
+        patch("gateway.llm_client.provider_is_configured", return_value=True),
+        patch("gateway.llm_client.provider_is_environment_disabled", return_value=False),
+        patch("gateway.llm_client.effective_provider_order", return_value=["openrouter", "local"]),
+        pytest.raises(ProviderChainExhausted),
+    ):
+        call_llm(
+            [{"role": "user", "content": "hello"}],
+            model="kitty-small",
+            zero_cost_only=True,
+        )
+
+    assert calls == [("openrouter", "openrouter/free")]
+    selected.assert_not_called()
+    paid_selected.assert_not_called()
+    litellm_post.assert_not_called()
+
+
+def test_call_llm_zero_cost_only_prefers_subscription_cli_before_free_route():
+    from gateway.llm_client import call_llm
+
+    with (
+        patch(
+            "gateway.llm_client.subscription_cli_completion",
+            return_value=('{"objective":"x"}', "codex"),
+        ) as sub,
+        patch("gateway.llm_client._call_provider") as free_route,
+        patch("gateway.llm_client._post") as litellm_post,
+        patch("gateway.llm_client.call_selected_provider") as paid_selected,
+        patch("gateway.llm_client.log_llm_usage") as usage,
+    ):
+        result = call_llm(
+            [{"role": "user", "content": "hello"}],
+            model="kitty-small",
+            zero_cost_only=True,
+        )
+
+    assert result == '{"objective":"x"}'
+    sub.assert_called_once()
+    free_route.assert_not_called()
+    litellm_post.assert_not_called()
+    paid_selected.assert_not_called()
+    provider_arg = usage.call_args.args[0]
+    metadata_arg = usage.call_args.args[4]
+    assert provider_arg == "subscription:codex"
+    assert metadata_arg["spend_policy"] == "zero_cost_subscription"
+
+
+def test_subscription_cli_completion_tries_codex_then_claude():
+    from gateway.llm_client import subscription_cli_completion
+
+    with (
+        patch("gateway.llm_client._codex_subscription_completion", return_value=None) as codex,
+        patch("gateway.llm_client._claude_subscription_completion", return_value="ok") as claude,
+    ):
+        out = subscription_cli_completion(
+            [{"role": "user", "content": "hi"}], response_format={"type": "json_object"}
+        )
+
+    assert out == ("ok", "claude")
+    codex.assert_called_once()
+    claude.assert_called_once()
+
+
+def test_subscription_cli_completion_returns_none_when_disabled(monkeypatch: pytest.MonkeyPatch):
+    from gateway.llm_client import subscription_cli_completion
+
+    monkeypatch.setenv("KITTY_DISABLE_SUBSCRIPTION_CLI", "1")
+    with (
+        patch("gateway.llm_client._codex_subscription_completion") as codex,
+        patch("gateway.llm_client._claude_subscription_completion") as claude,
+    ):
+        assert subscription_cli_completion([{"role": "user", "content": "hi"}]) is None
+    codex.assert_not_called()
+    claude.assert_not_called()
+
+
+def test_subscription_cli_completion_none_when_no_binaries(monkeypatch: pytest.MonkeyPatch):
+    from gateway import llm_client
+
+    monkeypatch.setattr(llm_client.shutil, "which", lambda _name: None)
+    assert (
+        llm_client.subscription_cli_completion([{"role": "user", "content": "hi"}]) is None
+    )
+
+
+def test_codex_subscription_completion_none_on_nonzero_exit(monkeypatch: pytest.MonkeyPatch):
+    from gateway import llm_client
+
+    monkeypatch.setattr(llm_client.shutil, "which", lambda _name: "/usr/bin/codex")
+
+    class _Proc:
+        returncode = 1
+        stdout = ""
+        stderr = "You've hit your usage limit."
+
+    monkeypatch.setattr(llm_client.subprocess, "run", lambda *a, **k: _Proc())
+    assert llm_client._codex_subscription_completion("prompt", timeout=5) is None
+
+
 # ── chat_completions_non_stream ───────────────────────────────────────────────
 
 

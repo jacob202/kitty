@@ -2,14 +2,16 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, mutate } = vi.hoisted(() => ({
+const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, useCompileBuilderProposal, mutate } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(),
   usePreflight: vi.fn(),
   useSupervisor: vi.fn(),
   useBuilderAction: vi.fn(),
+  useCompileBuilderProposal: vi.fn(),
   mutate: vi.fn(),
 }))
 vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction }))
+vi.mock('../src/lib/queries', () => ({ useCompileBuilderProposal }))
 
 function supervisor(overrides: Record<string, unknown> = {}) {
   return {
@@ -65,6 +67,8 @@ describe('WorkView projection', () => {
     usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
     useSupervisor.mockReset()
     useBuilderAction.mockReset()
+    useCompileBuilderProposal.mockReset()
+    useCompileBuilderProposal.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
     mutate.mockReset()
     useSupervisor.mockReturnValue({ data: supervisor(), isPending: false, isError: false, error: null })
     useBuilderAction.mockReturnValue({ mutate, isPending: false })
@@ -356,4 +360,5 @@ describe('WorkView visual hierarchy', () => {
     fireEvent.click(screen.getByText('Source details'))
     expect(screen.getByText('partial Builder data')).toBeVisible()
   })
+
 })

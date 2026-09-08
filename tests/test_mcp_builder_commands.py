@@ -135,6 +135,11 @@ def test_mission_approve_recomputes_binding_and_delegates_to_builder(
     assert approved["mission_id"] == "mcp-proof-1"
     assert approved["tasks"] == [{"packet_id": "packet-1", "task_id": "kb_1"}]
     apply.assert_called_once()
+    assert apply.call_args.kwargs["approval_binding"] == {
+        "manifest_sha256": digest,
+        "base_sha": base,
+        "method": "mission_nonce",
+    }
 
 
 def test_mission_approve_replay_is_harmless_idempotent(

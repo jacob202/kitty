@@ -95,6 +95,7 @@ import {
   // builder control
   executeOperatorCommand,
   // conversation -> builder job handoff
+  compileBuilderProposal,
   proposeBuilderJob,
   approveBuilderJob,
   resumeBuilderJob,
@@ -903,6 +904,11 @@ export function useOperatorCommand() {
   })
 }
 
+// Conversation -> Builder job handoff: compilation only shapes a bounded task.
+export function useCompileBuilderProposal() {
+  return useMutation({ mutationFn: compileBuilderProposal })
+}
+
 // Conversation -> Builder job handoff: propose does not touch Builder queue
 // state, so nothing to invalidate. Approve creates a durable initiative —
 // invalidate the same live projections OperatorControls already refreshes.
@@ -918,6 +924,9 @@ export function useApproveBuilderJob() {
       if (data.ok) {
         queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
         queryClient.invalidateQueries({ queryKey: ['work'] })
+        if (data.mission_id) {
+          queryClient.invalidateQueries({ queryKey: ['conversation-resume', data.mission_id] })
+        }
       }
     },
   })
