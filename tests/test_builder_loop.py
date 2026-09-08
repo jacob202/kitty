@@ -3276,3 +3276,75 @@ def test_real_dsh_worker_receives_governed_kb_context_through_builder_boundary(
     assert evidence["sources"] == ["corrections/2026-09-04-initiative-without-lane-theft.md"]
     assert evidence["cost"] == {"state": "unknown", "reason": "not_reported_by_openviking"}
     assert task_id == result["task_id"]
+
+
+def test_independent_readonly_review_executor_fails_closed_without_builder_reviewer_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delattr(bl, "_select_healthy_free_reviewer", raising=False)
+
+    with pytest.raises(bl.LoopError, match="reviewer route selection is unavailable"):
+        bl.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_independent_readonly_review_executor_uses_builder_route_and_contains_host_secrets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "source"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "review@example.test"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Review Fixture"], cwd=repo, check=True)
+    (repo / "START_HERE.md").write_text("# authority\n", encoding="utf-8")
+    outside_secret = repo / ".env"
+    outside_secret.write_text("TOP_SECRET=must-not-read\n", encoding="utf-8")
+    launcher = repo / "scripts" / "kittybuilder_dsh.sh"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text(
+        "#!/bin/bash\n"
+        "set -eu\n"
+        "if [ -n \"${GITHUB_TOKEN:-}\" ] || [ -n \"${OTHER_SECRET:-}\" ]; then exit 91; fi\n"
+        "if [ \"${OPENROUTER_API_KEY:-}\" != \"provider-key\" ]; then exit 92; fi\n"
+        f"if cat {str(outside_secret)!r} >/dev/null 2>&1; then exit 93; fi\n"
+        "printf '%s\\n' '{\"verdict\":\"approve\",\"summary\":\"contained\"}'\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "START_HERE.md", "scripts"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "review fixture"], cwd=repo, check=True)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    subprocess.run(["git", "update-ref", "refs/remotes/origin/main", head], cwd=repo, check=True)
+
+    seen_roots: list[Path] = []
+
+    def select_reviewer(root: Path) -> dict[str, object]:
+        seen_roots.append(root)
+        return {
+            "provider": "openrouter",
+            "reviewer_model": "openrouter/example/reviewer:free",
+            "probes": [{"status": "healthy", "role": "reviewer"}],
+        }
+
+    monkeypatch.setattr(bl, "_select_healthy_free_reviewer", select_reviewer, raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
+    monkeypatch.setenv("GITHUB_TOKEN", "must-not-propagate")
+    monkeypatch.setenv("OTHER_SECRET", "must-not-propagate")
+
+    result = bl.run_independent_readonly_review("Review this exact plan.", root=repo)
+
+    assert seen_roots == [repo.resolve()]
+    assert result["provider"] == "openrouter"
+    assert result["model"] == "openrouter/example/reviewer:free"
+    assert result["review_head"] == head
+    assert result["review_origin_main"] == head
+    assert result["output"] == '{"verdict":"approve","summary":"contained"}'
+    assert result["probes"] == [{"status": "healthy", "role": "reviewer"}]
+    assert subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout == "?? .env\n"
