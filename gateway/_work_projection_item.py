@@ -30,13 +30,23 @@ def _project_work_item(initiative):
             "validation": (current_attempt or {}).get("validation"),
             "review": (current_attempt or {}).get("review"),
             "publication": publication,
-            "approval": {
-                "state": "unavailable",
-                "reason": "No durable Gateway approval binding exists for Builder initiatives yet.",
-            },
+            "approval": _project_approval(initiative),
         },
         "data_quality": dict((current_packet or {}).get("data_quality") or {"state": "complete", "issues": []}),
         "updated_at": _latest_updated_at(initiative, packets),
+    }
+
+
+def _project_approval(initiative):
+    approval = initiative.get("approval")
+    if isinstance(approval, dict) and approval.get("state") == "approved":
+        return {
+            key: approval.get(key)
+            for key in ("state", "manifest_sha256", "base_sha", "method", "approved_at")
+        }
+    return {
+        "state": "unavailable",
+        "reason": "No durable Gateway approval binding exists for this Builder initiative.",
     }
 
 

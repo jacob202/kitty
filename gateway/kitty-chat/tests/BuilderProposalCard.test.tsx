@@ -87,6 +87,29 @@ describe('BuilderProposalCard', () => {
     expect(gateway.proposeBuilderJob).not.toHaveBeenCalled()
   })
 
+  it('edits the proposal before compiling the Mission', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit proposal' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Proposal objective' }), { target: { value: 'Fix only the retry cap' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Proposal instructions' }), { target: { value: 'Change only the retry cap and preserve all other behavior.' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Proposal allowed paths' }), { target: { value: 'gateway/retry.py\ntests/test_retry.py' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save proposal changes' }))
+
+    expect(screen.getAllByText(/Fix only the retry cap/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    await waitFor(() => expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce())
+    expect(gateway.proposeBuilderJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objective: 'Fix only the retry cap',
+        instructions: 'Change only the retry cap and preserve all other behavior.',
+        allowed_paths: ['gateway/retry.py', 'tests/test_retry.py'],
+      }),
+      expect.anything(),
+    )
+  })
+
   it('compiles the task, then requires a confirm step before approving', async () => {
     vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
     vi.mocked(gateway.approveBuilderJob).mockResolvedValue({
@@ -110,6 +133,8 @@ describe('BuilderProposalCard', () => {
 
     const approveButton = await screen.findByText('Approve')
     fireEvent.click(approveButton)
+    expect(screen.getByText(/execution route under current policy/i)).toBeInTheDocument()
+    expect(screen.queryByText(/free worker/i)).not.toBeInTheDocument()
 
     // Clicking Approve must not itself create the job — it only opens the
     // confirm step; the mutation fires on the explicit Confirm click.
@@ -132,6 +157,61 @@ describe('BuilderProposalCard', () => {
     // Once approved, the card switches straight to the durable job view — the
     // mission id is persisted so a reload finds it too (see below).
     await screen.findByText(/Track it in the Work view/)
+    expect(window.localStorage.getItem('kitty.builder-proposal.chat-1.0')).toBe(
+      preparedProposal.mission_id,
+    )
+  })
+
+  it('recovers when approval commits ambiguously instead of compiling a duplicate job', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({
+        ok: true,
+        state: 'accepted',
+        mission_id: preparedProposal.mission_id,
+        apply_status: 'unchanged',
+      })
+    vi.mocked(gateway.resumeBuilderJob)
+      .mockResolvedValueOnce({
+        ok: false,
+        state: 'unknown',
+        error_code: 'work_not_found',
+        error: `Builder work not found: ${preparedProposal.mission_id}`,
+      })
+      .mockResolvedValue({
+        ok: true,
+        mission: { id: preparedProposal.mission_id, state: 'active' },
+        current_work: { state: 'queued' },
+      })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+
+    const retry = await screen.findByRole('button', { name: 'Retry same approval' })
+    const checkpoint = JSON.parse(
+      window.localStorage.getItem('kitty.builder-proposal.chat-1.0') as string,
+    )
+    expect(checkpoint).toMatchObject({
+      version: 1,
+      state: 'pending',
+      missionId: preparedProposal.mission_id,
+      approval: {
+        expected_manifest_sha: preparedProposal.manifest_sha256,
+        expected_base_sha: preparedProposal.expected_base_sha,
+        approval_nonce: preparedProposal.approval_nonce,
+        confirmed: true,
+      },
+    })
+    expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
+
+    fireEvent.click(retry)
+
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledTimes(2))
+    await screen.findByText(/Track it in the Work view/)
+    expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
     expect(window.localStorage.getItem('kitty.builder-proposal.chat-1.0')).toBe(
       preparedProposal.mission_id,
     )
@@ -258,4 +338,92 @@ describe('BuilderProposalCard', () => {
     expect(await screen.findByText(/conv-no-nav-1/)).toBeInTheDocument()
     expect(screen.queryByTestId('builder-proposal-open-work')).not.toBeInTheDocument()
   })
+
+  it('does not let an old numbered Work key hijack a new pending-only Work proposal', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.work-builder-request.1', 'conv-old-work-job')
+
+    renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={1}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+
+    expect(await screen.findByText('Compile as Builder Mission')).toBeInTheDocument()
+    expect(gateway.resumeBuilderJob).not.toHaveBeenCalled()
+  })
+
+  it('clears the pending-only Work checkpoint once approval is durably accepted', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob).mockResolvedValue({ ok: true, state: 'accepted', mission_id: preparedProposal.mission_id })
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({ ok: true, mission: { id: preparedProposal.mission_id, state: 'accepted' } })
+
+    renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={1}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+
+    await screen.findByText(/Track it in the Work view/)
+    expect(window.localStorage.getItem('kitty.builder-proposal.work.pending')).toBeNull()
+    expect(window.localStorage.getItem('kitty.builder-proposal.work-builder-request.1')).toBeNull()
+  })
+
+  it('reloads the exact pending-only Work approval and clears it when the durable mission is found', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'active' },
+      current_work: { state: 'queued' },
+    })
+
+    const first = renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={1}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledOnce())
+    expect(JSON.parse(window.localStorage.getItem('kitty.builder-proposal.work.pending') as string)).toMatchObject({
+      state: 'pending',
+      missionId: preparedProposal.mission_id,
+      task,
+    })
+
+    first.unmount()
+    vi.mocked(gateway.resumeBuilderJob).mockClear()
+    renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={99}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+
+    expect(await screen.findByText(/Track it in the Work view/)).toBeInTheDocument()
+    expect(gateway.resumeBuilderJob).toHaveBeenCalledWith(preparedProposal.mission_id)
+    await waitFor(() => expect(window.localStorage.getItem('kitty.builder-proposal.work.pending')).toBeNull())
+    expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
+    expect(gateway.approveBuilderJob).toHaveBeenCalledOnce()
+  })
+
 })

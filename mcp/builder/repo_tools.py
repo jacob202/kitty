@@ -88,6 +88,51 @@ def _run_git(
     return result
 
 
+_AGENT_SESSION_FILENAME = "kitty-agent-session"
+
+
+def _propagate_agent_session(
+    source_root: Path,
+    dest_worktree: Path,
+    *,
+    session_id: str | None = None,
+) -> None:
+    """Carry the caller's active Kitty agent-session claim into an ephemeral worktree.
+
+    ``write_planning_artifact`` commits through a short-lived ``git worktree
+    add`` sandbox so the caller's own checkout is never touched. Each worktree
+    gets its own private git-dir, and the shared pre-commit hook checks for a
+    ``kitty-agent-session`` file scoped to that git-dir before allowing a
+    commit. Without this, the sandbox never has one of its own and every
+    planning-artifact commit fails closed -- even when the caller already
+    holds a valid claim on ``source_root``. This does not weaken that check:
+    it only extends the caller's own already-established session to the
+    disposable worktree it triggered, so a caller with no session still fails
+    the same way it always has.
+    """
+    selected_session = session_id.strip() if isinstance(session_id, str) else ""
+    if session_id is not None and (not selected_session or "\n" in selected_session or "\r" in selected_session):
+        raise PlanningArtifactError("agent_session_id must be a single non-empty line")
+
+    if not selected_session:
+        source_dir = _run_git(
+            ["rev-parse", "--path-format=absolute", "--git-dir"], root=source_root
+        ).stdout.strip()
+        marker = Path(source_dir) / _AGENT_SESSION_FILENAME
+        if not marker.exists():
+            return
+        selected_session = marker.read_text(encoding="utf-8").strip()
+        if not selected_session:
+            return
+
+    dest_dir = _run_git(
+        ["rev-parse", "--path-format=absolute", "--git-dir"], root=dest_worktree
+    ).stdout.strip()
+    (Path(dest_dir) / _AGENT_SESSION_FILENAME).write_text(
+        selected_session + "\n", encoding="utf-8"
+    )
+
+
 def repo_head() -> str:
     sha = _run_git(["rev-parse", "HEAD"], root=repo_root()).stdout.strip()
     if not _SHA_RE.fullmatch(sha):
@@ -260,7 +305,7 @@ def _require_commit(sha: str, *, label: str) -> str:
     return sha
 
 
-def _planning_path(kind: Literal["design", "plan"], slug: str) -> str:
+def planning_artifact_path(kind: Literal["design", "plan"], slug: str) -> str:
     today = date.today().isoformat()
     if kind == "design":
         return f"docs/superpowers/specs/{today}-{slug}-design.md"
@@ -274,6 +319,7 @@ def write_planning_artifact(
     markdown: str,
     expected_base_sha: str,
     expected_dependency_sha: str | None = None,
+    agent_session_id: str | None = None,
 ) -> dict:
     """Create a design/plan commit in an isolated deterministic planning branch."""
     if kind not in ("design", "plan"):
@@ -319,7 +365,7 @@ def write_planning_artifact(
                 "plan dependency is not an ancestor of the expected plan base"
             )
 
-    artifact_path = _planning_path(kind, slug)
+    artifact_path = planning_artifact_path(kind, slug)
     content_digest = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
     branch = (
         f"mcp/planning/{kind}-{slug}-{base[:8]}-{content_digest[:8]}"
@@ -357,6 +403,9 @@ def write_planning_artifact(
             timeout=60,
         )
         try:
+            _propagate_agent_session(
+                root, worktree, session_id=agent_session_id
+            )
             destination = worktree / artifact_path
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(markdown, encoding="utf-8")
