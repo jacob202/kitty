@@ -139,3 +139,18 @@ def test_agent_command_uses_shared_coordination_cli() -> None:
     assert "-m gateway.agent_coordination_cli" in block
     assert 'agent)     shift; cmd_agent "$@" ;;' in SCRIPT
     assert "kitty agent" in SCRIPT
+
+
+def test_runtime_start_pins_builder_state_to_canonical_checkout() -> None:
+    assert "ensure_runtime_builder_data_dir() {" in SCRIPT
+    helper = SCRIPT.split("ensure_runtime_builder_data_dir() {", 1)[1].split("\n}\n", 1)[0]
+    assert "--git-common-dir" in helper
+    assert "KITTY_BUILDER_DATA_DIR" in helper
+    assert "KITTY_DATA_ROOT" in helper
+
+    up_block = SCRIPT.split("cmd_up() {", 1)[1].split("\n}\n\n", 1)[0]
+    assert "ensure_runtime_builder_data_dir" in up_block
+    assert up_block.index("ensure_runtime_builder_data_dir") < up_block.index("# LiteLLM")
+
+    run_fg_block = SCRIPT.split("cmd_run_fg() {", 1)[1].split("\n}\n\n", 1)[0]
+    assert "ensure_runtime_builder_data_dir" in run_fg_block
