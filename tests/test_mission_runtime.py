@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from gateway import automation_actions, memory_mission, mission_runtime
+from gateway import automation_actions, builder_loop, memory_mission, mission_runtime
+from gateway import builder_initiative as bi
+from gateway import paid_review_admission as pra
+from mcp.builder import repo_tools
 
 
 @pytest.fixture()
@@ -354,3 +357,143 @@ def test_request_plan_review_does_not_reuse_running_review_for_old_plan_digest(
         assert captured[0]["trigger_ref"] == mission["plan"]["digest"]
 
     asyncio.run(exercise())
+
+
+# ---------------------------------------------------------------------------
+# Paid Mission-review admission guard — fail-closed by default.
+#
+# All three real entry paths (startup recovery, the Automation/runtime action,
+# and a direct internal call) funnel through
+# builder_loop.run_independent_readonly_review. These tests exercise the real
+# chain (no mocking of run_plan_verifier/run_independent_readonly_review) and
+# prove zero dispatch: no subprocess is spawned, so no paid model call and no
+# credential exposure can happen, regardless of whether a provider key is
+# present in the environment.
+# ---------------------------------------------------------------------------
+
+
+def _plan_review_mission_with_matching_payload(
+    db_path: Path, *, mission_id: str = "mission-guard"
+) -> dict:
+    payload = {
+        "manifest_version": 1,
+        "initiative_id": mission_id,
+        "title": "Guard fixture",
+        "description": "prove the paid review admission guard",
+        "packets": [{
+            "id": "P1",
+            "title": "Guard fixture",
+            "objective": "prove the guard",
+            "depends_on": [],
+            "acceptance_criteria": ["contained"],
+            "allowed_paths": ["gateway/example.py"],
+            "validation_commands": [],
+        }],
+    }
+    memory_mission.create_mission(
+        mission_id=mission_id,
+        objective="Ship the reviewed plan safely",
+        definition_of_done=["The plan is independently reviewed before execution."],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    return memory_mission.set_plan(
+        mission_id,
+        plan_ref="docs/superpowers/plans/review-proof.md@" + "a" * 40,
+        plan_digest=bi.manifest_sha256(payload),
+        plan_payload=payload,
+        db_path=db_path,
+    )
+
+
+@pytest.mark.asyncio
+async def test_startup_recovery_dispatches_zero_paid_provider_calls_when_not_admitted(
+    mission_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """gateway/app.py calls request_pending_reviews() on startup; the real
+    chain must reach the admission guard and dispatch nothing."""
+    from gateway import action_grants, automation_runs
+
+    mission = _plan_review_mission_with_matching_payload(
+        mission_db, mission_id="mission-startup-guard"
+    )
+    monkeypatch.setattr(automation_runs, "DB_FILE", mission_db)
+    monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", mission_db)
+    monkeypatch.setattr(repo_tools, "repo_root", lambda: mission_db.parent)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-value-must-not-be-read")
+    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
+    spawned: list[object] = []
+    monkeypatch.setattr(builder_loop.subprocess, "run", lambda *a, **k: spawned.append((a, k)))
+    mission_runtime.register_action()
+
+    receipts = await mission_runtime.request_pending_reviews()
+
+    assert len(receipts) == 1
+    assert receipts[0]["status"] == "source_unavailable"
+    assert "awaiting authorization" in receipts[0]["error"]
+    assert spawned == []
+    current = memory_mission.get_mission(mission["mission_id"], db_path=mission_db)
+    assert current["status"] == "PLAN_REVIEW"
+    assert current["plan"]["review_state"] == "unreviewed"
+
+
+@pytest.mark.asyncio
+async def test_review_pending_action_dispatches_zero_paid_provider_calls_when_not_admitted(
+    mission_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Automation/runtime action handler must hit the same chokepoint."""
+    mission = _plan_review_mission_with_matching_payload(
+        mission_db, mission_id="mission-pending-guard"
+    )
+    monkeypatch.setattr(repo_tools, "repo_root", lambda: mission_db.parent)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-value-must-not-be-read")
+    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
+    spawned: list[object] = []
+    monkeypatch.setattr(builder_loop.subprocess, "run", lambda *a, **k: spawned.append((a, k)))
+
+    with pytest.raises(automation_actions.SourceUnavailable, match="awaiting authorization"):
+        await mission_runtime.review_pending_action({"mission_id": mission["mission_id"]})
+
+    assert spawned == []
+    current = memory_mission.get_mission(mission["mission_id"], db_path=mission_db)
+    assert current["status"] == "PLAN_REVIEW"
+    assert current["plan"]["review_state"] == "unreviewed"
+
+
+def test_review_plan_direct_call_cannot_bypass_admission_zero_dispatch(
+    mission_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A direct internal review_plan()/run_plan_verifier() call must not be
+    able to reach dispatch either — there is only one chokepoint."""
+    mission = _plan_review_mission_with_matching_payload(
+        mission_db, mission_id="mission-direct-guard"
+    )
+    monkeypatch.setattr(repo_tools, "repo_root", lambda: mission_db.parent)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-value-must-not-be-read")
+    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
+    spawned: list[object] = []
+    monkeypatch.setattr(builder_loop.subprocess, "run", lambda *a, **k: spawned.append((a, k)))
+
+    with pytest.raises(automation_actions.SourceUnavailable, match="awaiting authorization"):
+        mission_runtime.review_plan(mission["mission_id"])
+
+    assert spawned == []
+    current = memory_mission.get_mission(mission["mission_id"], db_path=mission_db)
+    assert current["status"] == "PLAN_REVIEW"
+    assert current["plan"]["review_state"] == "unreviewed"
+
+
+def test_paid_review_guard_refuses_on_policy_even_with_valid_provider_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The guard is a policy refusal, not an accident of a missing key: it
+    must refuse even when OPENROUTER_API_KEY is present in the environment."""
+    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-value-present-in-env")
+    spawned: list[object] = []
+    monkeypatch.setattr(builder_loop.subprocess, "run", lambda *a, **k: spawned.append((a, k)))
+
+    with pytest.raises(builder_loop.LoopError, match="awaiting authorization"):
+        builder_loop.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
+
+    assert spawned == []

@@ -49,6 +49,7 @@ from gateway import builder_initiative as bi
 from gateway import builder_pr_janitor as bj
 from gateway import builder_queue as bq
 from gateway import compute_governor as cg
+from gateway import paid_review_admission
 from gateway.builder_brief import default_branch_name
 from gateway.builder_context import build_context_manifest, write_run_manifest
 from gateway.builder_runner import (
@@ -484,6 +485,8 @@ def run_independent_readonly_review(
     """
     if not isinstance(prompt, str) or not prompt.strip():
         raise LoopError("review prompt must be non-empty")
+    if not paid_review_admission.is_paid_review_admitted():
+        raise LoopError(paid_review_admission.PAID_REVIEW_NOT_ADMITTED_REASON)
     source_root = Path(root).resolve()
     provider = "openrouter"
     model = os.environ.get("KITTYBUILDER_REVIEW_MODEL", "").strip() or _DEFAULT_REVIEW_MODEL

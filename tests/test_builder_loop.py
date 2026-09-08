@@ -21,6 +21,7 @@ from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
 from gateway import builder_queue as bq
+from gateway import paid_review_admission as pra
 
 pytestmark = pytest.mark.integration
 
@@ -3278,9 +3279,25 @@ def test_real_dsh_worker_receives_governed_kb_context_through_builder_boundary(
     assert task_id == result["task_id"]
 
 
+def test_independent_readonly_review_executor_fails_closed_when_paid_review_not_admitted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default posture: refuse before the provider key is even read."""
+    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key-present-but-irrelevant")
+    calls: list[object] = []
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append((a, k)))
+
+    with pytest.raises(bl.LoopError, match="awaiting authorization"):
+        bl.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
+
+    assert calls == []
+
+
 def test_independent_readonly_review_executor_fails_closed_without_builder_reviewer_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv(pra.ADMISSION_ENV_VAR, pra.ADMISSION_OPT_IN_VALUE)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     with pytest.raises(bl.LoopError, match="reviewer route selection is unavailable"):
@@ -3290,6 +3307,7 @@ def test_independent_readonly_review_executor_fails_closed_without_builder_revie
 def test_independent_readonly_review_executor_rejects_the_implementer_model_family(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv(pra.ADMISSION_ENV_VAR, pra.ADMISSION_OPT_IN_VALUE)
     monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
     monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/anthropic/claude-opus")
 
@@ -3327,6 +3345,7 @@ def test_independent_readonly_review_executor_uses_builder_route_and_contains_ho
     ).stdout.strip()
     subprocess.run(["git", "update-ref", "refs/remotes/origin/main", head], cwd=repo, check=True)
 
+    monkeypatch.setenv(pra.ADMISSION_ENV_VAR, pra.ADMISSION_OPT_IN_VALUE)
     monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
     monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/deepseek/deepseek-chat")
     monkeypatch.setenv("GITHUB_TOKEN", "must-not-propagate")
