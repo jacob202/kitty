@@ -273,6 +273,26 @@ RESET=[0m
 
 # ── Subcommands ───────────────────────────────────────────────────────────────
 
+ensure_runtime_builder_data_dir() {
+  # Normal Kitty runtimes share one durable Builder authority across worktrees.
+  # Tests/sandboxes keep isolation by setting KITTY_DATA_ROOT explicitly.
+  if [[ -n "${KITTY_BUILDER_DATA_DIR:-}" ]]; then
+    return 0
+  fi
+  if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
+    export KITTY_BUILDER_DATA_DIR="${KITTY_DATA_ROOT%/}/kittybuilder"
+    return 0
+  fi
+
+  local git_common_dir canonical_root
+  git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  canonical_root="$KITTY_ROOT"
+  if [[ -n "$git_common_dir" ]]; then
+    canonical_root="$(dirname "$git_common_dir")"
+  fi
+  export KITTY_BUILDER_DATA_DIR="$canonical_root/data/kittybuilder"
+}
+
 startup_identity() {
   local label="$1" port="$2" pid="$3"
   local sha build_id
@@ -292,6 +312,7 @@ cmd_up() {
   echo ""
   startup_identity "kitty" "-" "$$"
   ensure_gateway_secret
+  ensure_runtime_builder_data_dir
 
   # LiteLLM
   if pid_alive "$RUN_DIR/litellm.pid"; then
@@ -676,6 +697,7 @@ cmd_uninstall() {
 
 cmd_run_fg() {
   ensure_gateway_secret
+  ensure_runtime_builder_data_dir
   echo "Running gateway in foreground (Ctrl-C to stop)..."
   GATEWAY_RELOAD="${GATEWAY_RELOAD:-1}" bash "$KITTY_ROOT/gateway/start_gateway.sh"
 }
