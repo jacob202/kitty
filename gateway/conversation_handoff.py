@@ -643,6 +643,7 @@ def propose(
             gateway_mission_id,
             plan_ref=plan_ref,
             plan_digest=str(prepared["manifest_sha256"]),
+            plan_payload=prepared["prepared_manifest"],
             db_path=memory_mission.MISSION_DB_FILE,
         )
     except memory_mission.MissionError as exc:

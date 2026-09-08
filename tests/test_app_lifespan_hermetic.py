@@ -11,6 +11,7 @@ async def test_test_env_skips_external_background_services(monkeypatch):
     import gateway.cron as cron
     import gateway.image_batches as image_batches
     import gateway.image_recipes as image_recipes
+    import gateway.mission_runtime as mission_runtime
     import gateway.telegram_bot as telegram_bot
 
     monkeypatch.setenv("KITTY_ENV", "test")
@@ -37,10 +38,58 @@ async def test_test_env_skips_external_background_services(monkeypatch):
     monkeypatch.setattr(cron, "register_action", lambda *args, **kwargs: None)
     monkeypatch.setattr(cron, "schedule", lambda *args, **kwargs: None)
     monkeypatch.setattr(cron, "start", lambda: started.append("cron"))
+    registrations: list[str] = []
+    monkeypatch.setattr(mission_runtime, "register_action", lambda: registrations.append("mission"))
 
     async with app_module.lifespan(app_module.app):
         await asyncio.sleep(0)
         assert started == []
+        assert registrations == ["mission"]
+
+
+@pytest.mark.asyncio
+async def test_gateway_startup_retries_pending_mission_reviews_without_new_scheduler(monkeypatch):
+    import gateway.app as app_module
+    import gateway.cron as cron
+    import gateway.image_batches as image_batches
+    import gateway.image_recipes as image_recipes
+    import gateway.mission_runtime as mission_runtime
+    import gateway.telegram_bot as telegram_bot
+
+    monkeypatch.setenv("KITTY_ENV", "development")
+    monkeypatch.setattr(app_module, "validate_dirs", lambda: None)
+    monkeypatch.setattr(app_module, "validate_env", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_chat_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_research_runs_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_actions_on_startup", lambda: None)
+    monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
+    monkeypatch.setattr(telegram_bot, "is_configured", lambda: False)
+
+    async def forever(*_args, **_kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(image_batches, "worker_loop", forever)
+    monkeypatch.setattr(cron, "register_action", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cron, "list_schedules", lambda: [{"action": "brief.deliver"}])
+    monkeypatch.setattr(cron, "schedule", lambda *args, **kwargs: "sid")
+    monkeypatch.setattr(cron, "start", lambda: None)
+    monkeypatch.setattr(mission_runtime, "register_action", lambda: None)
+    recovered: list[str] = []
+
+    async def recover():
+        recovered.append("pending")
+        return []
+
+    monkeypatch.setattr(mission_runtime, "request_pending_reviews", recover)
+
+    async with app_module.lifespan(app_module.app):
+        await asyncio.sleep(0)
+        assert recovered == ["pending"]
+        assert not any(getattr(item, "action", None) == mission_runtime.ACTION_NAME for item in [])
 
 
 @pytest.mark.asyncio

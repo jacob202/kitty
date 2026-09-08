@@ -327,7 +327,7 @@ export function BuilderProposalCard({
     setProposal(null)
     const initiativeId = draft.initiative_id || proposalIdentity || createProposalInitiativeId()
     if (!draft.initiative_id && proposalIdentity !== initiativeId) {
-      window.localStorage.setItem(storageKey, proposalIdentityValue(initiativeId, draft))
+      safeStorage.set(storageKey, proposalIdentityValue(initiativeId, draft))
       setProposalIdentity(initiativeId)
     }
     propose.mutate(
@@ -345,7 +345,7 @@ export function BuilderProposalCard({
           setProposal(data)
           const checkpoint = preparedProposalValue(data, draft)
           if (checkpoint) {
-            window.localStorage.setItem(storageKey, checkpoint)
+            safeStorage.set(storageKey, checkpoint)
             setProposalIdentity(data.mission_id ?? initiativeId)
           }
         },

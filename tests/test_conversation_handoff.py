@@ -19,8 +19,8 @@ import pytest
 
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
+from gateway import builder_loop, conversation_handoff, memory_mission, mission_runtime
 from gateway import builder_queue as bq
-from gateway import conversation_handoff, memory_mission
 from mcp.builder import commands as mcp_commands
 from mcp.builder import context as mcp_context
 
@@ -127,6 +127,7 @@ def test_propose_creates_distinct_gateway_mission_without_builder_job(repo: Path
     assert mission["status"] == "PLAN_REVIEW"
     assert mission["plan"]["review_state"] == "unreviewed"
     assert mission["plan"]["digest"] == result["gateway_plan_digest"]
+    assert mission["plan"]["payload"] == result["prepared_manifest"]
     assert mission["builder_locator"] == {
         "initiative_id": "conv-gateway-mission-proof",
         "task_id": None,
@@ -191,6 +192,60 @@ def test_builder_approval_waits_for_independent_gateway_plan_review(repo: Path) 
     )
     assert replayed["status"] == "EXECUTING"
     assert replayed["builder_locator"] == mission["builder_locator"]
+
+
+def test_propose_review_approve_creates_one_durable_builder_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proposal = conversation_handoff.propose(
+        **_task(initiative_id="conv-gate2-e2e-proof")
+    )
+    assert proposal["ok"] is True
+
+    seen: dict[str, object] = {}
+
+    def independent_review(prompt: str, *, root: Path, timeout: int) -> dict:
+        seen.update(prompt=prompt, root=root, timeout=timeout)
+        return {
+            "provider": "openrouter",
+            "model": "openrouter/example/reviewer:free",
+            "review_head": _git(repo, "rev-parse", "HEAD"),
+            "review_origin_main": _git(repo, "rev-parse", "HEAD"),
+            "probes": [{"status": "healthy", "role": "reviewer"}],
+            "output": (
+                '{"contract_version":1,"verdict":"approve",'
+                '"summary":"exact plan approved","findings":[]}'
+            ),
+        }
+
+    monkeypatch.setattr(
+        builder_loop, "run_independent_readonly_review", independent_review
+    )
+    reviewed = mission_runtime.review_plan(proposal["gateway_mission_id"])
+    assert reviewed["plan"]["review_state"] == "approved"
+    assert reviewed["plan"]["payload"] == proposal["prepared_manifest"]
+    assert '"initiative_id": "conv-gate2-e2e-proof"' in str(seen["prompt"])
+
+    approve_kwargs = dict(
+        prepared_manifest=proposal["prepared_manifest"],
+        expected_manifest_sha=proposal["manifest_sha256"],
+        expected_base_sha=proposal["expected_base_sha"],
+        approval_nonce=proposal["approval_nonce"],
+        gateway_mission_id=proposal["gateway_mission_id"],
+        confirmed=True,
+    )
+    approved = conversation_handoff.approve(**approve_kwargs)
+    assert approved["ok"] is True
+    assert len(approved["tasks"]) == 1
+
+    db_path = repo / "data" / "kittybuilder" / "builder_queue.db"
+    assert len(_initiative_rows(db_path)) == 1
+    first_task_id = approved["tasks"][0]["task_id"]
+
+    replay = conversation_handoff.approve(**approve_kwargs)
+    assert replay["ok"] is True
+    assert replay["tasks"][0]["task_id"] == first_task_id
+    assert len(_initiative_rows(db_path)) == 1
 
 
 def test_propose_without_approval_does_not_create_builder_job(repo: Path) -> None:

@@ -113,6 +113,70 @@ def begin_run(
     return current
 
 
+def claim_running_run(
+    *,
+    automation_id: str,
+    action: str,
+    trigger_kind: str,
+    trigger_ref: str | None = None,
+    schedule_id: str | None = None,
+    due_at: float | None = None,
+    started_at: float | None = None,
+    policy: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Atomically reuse or create one exact running trigger execution.
+
+    The transaction serializes contenders before checking the running ledger, so
+    concurrent dispatchers cannot both create work for the same exact trigger.
+    A different trigger_ref remains independent even when automation_id is the same.
+    """
+    init_db()
+    started = time.time() if started_at is None else float(started_at)
+    policy_json = json.dumps(policy, sort_keys=True) if policy is not None else None
+    payload_json = json.dumps(payload, sort_keys=True) if payload is not None else None
+    run_id = f"arun_{uuid.uuid4().hex}"
+    with kitty_db.connect(DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT * FROM automation_runs WHERE automation_id = ? AND action = ? "
+            "AND trigger_kind = ? AND trigger_ref IS ? AND schedule_id IS ? "
+            "AND status = 'running' ORDER BY started_at DESC, id DESC LIMIT 1",
+            (automation_id, action, trigger_kind, trigger_ref, schedule_id),
+        ).fetchone()
+        if row is not None:
+            existing = _row_to_run(row)
+            if existing is None:
+                raise AutomationRunError("running run disappeared during claim")
+            conn.commit()
+            return existing, False
+        conn.execute(
+            "INSERT INTO automation_runs "
+            "(id, automation_id, action, trigger_kind, trigger_ref, schedule_id, due_at, "
+            "started_at, status, policy_json, payload_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?)",
+            (
+                run_id,
+                automation_id,
+                action,
+                trigger_kind,
+                trigger_ref,
+                schedule_id,
+                due_at,
+                started,
+                policy_json,
+                payload_json,
+                started,
+            ),
+        )
+        row = conn.execute("SELECT * FROM automation_runs WHERE id = ?", (run_id,)).fetchone()
+        conn.commit()
+    created = _row_to_run(row)
+    if created is None:
+        raise AutomationRunError("run insert did not persist")
+    return created, True
+
+
 def claim_scheduled_run(
     schedule: dict[str, Any],
     *,

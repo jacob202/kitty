@@ -189,3 +189,37 @@ def test_disabled_and_not_due_are_explainable_without_fake_run_rows(automation_d
     waiting_row = next(row for row in cron.list_schedules() if row["id"] == waiting)
     assert cron.explain_schedule(waiting_row, now=100.0)["state"] == "not_due"
     assert automation_runs.list_runs(automation_id=waiting) == []
+
+def test_claim_running_run_is_exact_and_single_flight(automation_db):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from gateway import automation_runs
+
+    kwargs = {
+        "automation_id": "mission-plan-review:mission-1",
+        "action": "mission.review_pending",
+        "trigger_kind": "signal",
+        "trigger_ref": "digest-current",
+    }
+
+    def claim():
+        return automation_runs.claim_running_run(**kwargs)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first_future = pool.submit(claim)
+        second_future = pool.submit(claim)
+        first = first_future.result(timeout=5)
+        second = second_future.result(timeout=5)
+
+    rows = automation_runs.list_runs(
+        automation_id=kwargs["automation_id"], statuses=frozenset({"running"})
+    )
+    assert len(rows) == 1
+    assert {first[1], second[1]} == {True, False}
+    assert first[0]["id"] == second[0]["id"] == rows[0]["id"]
+
+    different, created = automation_runs.claim_running_run(
+        **{**kwargs, "trigger_ref": "digest-new"}
+    )
+    assert created is True
+    assert different["id"] != rows[0]["id"]
