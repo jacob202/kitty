@@ -545,6 +545,30 @@ def _planning_artifact_claim(
         agent_coordination.release(session_id, db_path=db_path)
 
 
+def _resolve_origin(
+    *,
+    conversation_id: str | None,
+    message_id: str | None,
+    project_id: int | None,
+) -> dict[str, Any] | None:
+    """Decide once, server-side, where a proposal came from.
+
+    A chat origin wins over a bare project id: the conversation already knows
+    its project, and resolving it here keeps the two from disagreeing later.
+    An unbound proposal stays unbound rather than being guessed at — a wrong
+    origin sends results to the wrong place, which is worse than none.
+    """
+    if conversation_id:
+        return memory_mission.resolve_chat_origin(
+            conversation_id=conversation_id,
+            message_id=message_id,
+            db_path=memory_mission.MISSION_DB_FILE,
+        )
+    if project_id is not None:
+        return memory_mission.project_origin(project_id)
+    return None
+
+
 def propose(
     *,
     objective: str,
@@ -554,6 +578,9 @@ def propose(
     title: str | None = None,
     acceptance_criteria: list[str] | None = None,
     validation_commands: list[str] | None = None,
+    conversation_id: str | None = None,
+    message_id: str | None = None,
+    project_id: int | None = None,
 ) -> dict[str, Any]:
     """Compile a conversation task and prepare it as a bound Mission candidate.
 
@@ -563,7 +590,26 @@ def propose(
     then handed to the existing ``mission_prepare``, so the returned receipt
     (including the approval nonce) is byte-for-byte the same contract an MCP
     client would see. There is exactly one approval mechanism system-wide.
+
+    ``conversation_id``/``message_id`` bind the Mission to the chat that asked
+    for it, and ``project_id`` binds a request raised from a Project with no
+    conversation. The binding is resolved and stored server-side so the result
+    can find its way home from a different browser or device.
     """
+    try:
+        bound_origin = _resolve_origin(
+            conversation_id=conversation_id, message_id=message_id, project_id=project_id
+        )
+    except memory_mission.MissionError as exc:
+        return receipt(
+            "conversation_propose",
+            ok=False,
+            state="needs_decision",
+            error_code="origin_invalid",
+            error=str(exc),
+            next_action="Retry from the chat or project this request belongs to.",
+        )
+
     try:
         repo_tools.repo_root()
         base_sha = repo_tools.repo_head()
@@ -672,6 +718,7 @@ def propose(
             objective=objective.strip(),
             definition_of_done=list(packet["acceptance_criteria"]),
             supervisor_id=_MISSION_SUPERVISOR_ID,
+            origin=bound_origin,
             db_path=memory_mission.MISSION_DB_FILE,
         )
         mission = memory_mission.bind_builder_locator(

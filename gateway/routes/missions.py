@@ -47,6 +47,31 @@ def list_missions() -> dict:
     return {"missions": memory_mission.list_missions(db_path=memory_mission.MISSION_DB_FILE)}
 
 
+@router.get("/missions/by-origin")
+def missions_by_origin(conversation_id: str | None = None, project_id: int | None = None) -> dict:
+    """Find the work a chat or project delegated, without any browser state.
+
+    This is the server-owned recovery path: a new browser, a cleared cache, or
+    a phone can all ask what a conversation started and get the same answer.
+    """
+    if conversation_id:
+        return {
+            "missions": memory_mission.missions_for_conversation(
+                conversation_id, db_path=memory_mission.MISSION_DB_FILE
+            )
+        }
+    if project_id is not None:
+        return {
+            "missions": memory_mission.missions_for_project(
+                project_id, db_path=memory_mission.MISSION_DB_FILE
+            )
+        }
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="name a conversation_id or a project_id",
+    )
+
+
 @router.get("/missions/{mission_id}")
 def get_mission(mission_id: str) -> dict:
     try:

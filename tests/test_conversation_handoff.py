@@ -798,3 +798,80 @@ def test_compile_request_does_not_misreport_malformed_model_output_as_provider_o
     assert result["error_code"] == "proposal_invalid"
     assert "no model provider" not in result["error"].lower()
     assert "unusable proposal" in result["error"].lower()
+
+
+def _seed_chat_origin(db_path: Path) -> None:
+    """Minimum chat rows for a Chat-originated proposal to bind against."""
+    from gateway import db as kitty_db
+
+    memory_mission.init_db(db_path=db_path)
+    with kitty_db.connect(db_path) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS chat_conversations (
+                id TEXT PRIMARY KEY, project_id INTEGER, title TEXT NOT NULL DEFAULT '',
+                created_at REAL NOT NULL, updated_at REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS chat_turns (
+                id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, project_id INTEGER,
+                sequence INTEGER NOT NULL, status TEXT NOT NULL,
+                manifest_revision TEXT NOT NULL, created_at REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id TEXT PRIMARY KEY, turn_id TEXT NOT NULL, role TEXT NOT NULL,
+                content TEXT NOT NULL, status TEXT NOT NULL, created_at REAL NOT NULL);
+            INSERT OR REPLACE INTO chat_conversations (id, project_id, created_at, updated_at)
+                VALUES ('conv-origin', 4, 0, 0);
+            INSERT OR REPLACE INTO chat_turns
+                (id, conversation_id, project_id, sequence, status, manifest_revision, created_at)
+                VALUES ('turn-origin', 'conv-origin', NULL, 1, 'succeeded', 'r1', 0);
+            INSERT OR REPLACE INTO chat_messages
+                (id, turn_id, role, content, status, created_at)
+                VALUES ('msg-origin', 'turn-origin', 'user', 'please fix it', 'complete', 0);
+            """
+        )
+        conn.commit()
+
+
+def test_propose_binds_the_originating_chat_and_project_server_side(repo: Path) -> None:
+    """P3: the result's way home is stored by the server, not the browser."""
+    _seed_chat_origin(memory_mission.MISSION_DB_FILE)
+
+    result = conversation_handoff.propose(
+        **_task(initiative_id="conv-origin-binding"),
+        conversation_id="conv-origin",
+        message_id="msg-origin",
+    )
+
+    assert result["ok"] is True
+    mission = memory_mission.get_mission(
+        result["gateway_mission_id"], db_path=memory_mission.MISSION_DB_FILE
+    )
+    assert mission["origin"] == {
+        "kind": "chat",
+        "conversation_id": "conv-origin",
+        "message_id": "msg-origin",
+        "project_id": 4,
+    }
+    recovered = memory_mission.missions_for_conversation(
+        "conv-origin", db_path=memory_mission.MISSION_DB_FILE
+    )
+    assert [m["mission_id"] for m in recovered] == [result["gateway_mission_id"]]
+
+
+def test_propose_without_an_origin_stays_unbound_rather_than_guessing(repo: Path) -> None:
+    result = conversation_handoff.propose(**_task(initiative_id="conv-origin-absent"))
+
+    assert result["ok"] is True
+    mission = memory_mission.get_mission(
+        result["gateway_mission_id"], db_path=memory_mission.MISSION_DB_FILE
+    )
+    assert mission["origin"] is None
+
+
+def test_propose_refuses_an_unknown_conversation_instead_of_dropping_it(repo: Path) -> None:
+    result = conversation_handoff.propose(
+        **_task(initiative_id="conv-origin-unknown"),
+        conversation_id="conv-does-not-exist",
+    )
+
+    assert result["ok"] is False
+    assert result["error_code"] == "origin_invalid"

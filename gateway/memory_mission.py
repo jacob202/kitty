@@ -84,6 +84,20 @@ def init_db(*, db_path: Path = MISSION_DB_FILE) -> None:
             conn.execute("ALTER TABLE missions ADD COLUMN builder_locator_json TEXT")
         if "plan_payload_json" not in columns:
             conn.execute("ALTER TABLE missions ADD COLUMN plan_payload_json TEXT")
+        # Where the request came from, so a delegated result can find its way
+        # back without the browser holding the only copy of that relationship.
+        for column, sql_type in (
+            ("origin_kind", "TEXT"),
+            ("origin_conversation_id", "TEXT"),
+            ("origin_message_id", "TEXT"),
+            ("origin_project_id", "INTEGER"),
+        ):
+            if column not in columns:
+                conn.execute(f"ALTER TABLE missions ADD COLUMN {column} {sql_type}")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_missions_origin_conversation "
+            "ON missions(origin_conversation_id, updated_at DESC)"
+        )
         conn.commit()
 
 
@@ -94,8 +108,27 @@ def _required_text(value: str, label: str) -> str:
     return text
 
 
+ORIGIN_CHAT = "chat"
+ORIGIN_PROJECT = "project"
+_ORIGIN_KINDS = frozenset({ORIGIN_CHAT, ORIGIN_PROJECT})
+
+
+def _row_origin(row: sqlite3.Row) -> dict[str, Any] | None:
+    """Return the durable origin binding, or None for unbound legacy rows."""
+    kind = row["origin_kind"] if "origin_kind" in row.keys() else None
+    if not kind:
+        return None
+    return {
+        "kind": kind,
+        "conversation_id": row["origin_conversation_id"],
+        "message_id": row["origin_message_id"],
+        "project_id": row["origin_project_id"],
+    }
+
+
 def _row_to_mission(row: sqlite3.Row) -> dict[str, Any]:
     return {
+        "origin": _row_origin(row),
         "mission_id": row["mission_id"],
         "objective": row["objective"],
         "definition_of_done": json.loads(row["definition_of_done_json"]),
@@ -146,6 +179,131 @@ def get_mission(mission_id: str, *, db_path: Path = MISSION_DB_FILE) -> dict[str
     return _row_to_mission(row)
 
 
+def resolve_chat_origin(
+    *,
+    conversation_id: str,
+    message_id: str | None = None,
+    db_path: Path = MISSION_DB_FILE,
+) -> dict[str, Any]:
+    """Resolve a Chat-originated binding server-side, project included.
+
+    The project is decided here, at binding time, rather than read back later:
+    prefer the project of the turn the request came from, then the
+    conversation's own project. Moving the conversation to another project
+    afterwards must not drag historical work with it, so the answer is stored
+    on the Mission instead of being recomputed from live conversation state.
+
+    A message id that does not belong to the named conversation is refused
+    rather than silently dropped — a wrong anchor is worse than no anchor.
+    """
+    conversation_id = _required_text(conversation_id, "conversation_id")
+    init_db(db_path=db_path)
+    with kitty_db.connect(db_path) as conn:
+        try:
+            conversation = conn.execute(
+                "SELECT project_id FROM chat_conversations WHERE id = ?",
+                (conversation_id,),
+            ).fetchone()
+        except sqlite3.OperationalError as exc:
+            # A database that has never run a chat has no conversation tables.
+            # That is "no such conversation", not an internal failure.
+            raise MissionNotFound(
+                f"no conversation with id {conversation_id!r}"
+            ) from exc
+        if conversation is None:
+            raise MissionNotFound(f"no conversation with id {conversation_id!r}")
+
+        project_id = conversation["project_id"]
+        resolved_message_id: str | None = None
+        if message_id:
+            turn = conn.execute(
+                "SELECT t.conversation_id AS conversation_id, t.project_id AS project_id "
+                "FROM chat_messages m JOIN chat_turns t ON t.id = m.turn_id "
+                "WHERE m.id = ?",
+                (message_id,),
+            ).fetchone()
+            if turn is None:
+                raise MissionNotFound(f"no chat message with id {message_id!r}")
+            if turn["conversation_id"] != conversation_id:
+                raise MissionError(
+                    f"chat message {message_id!r} does not belong to conversation "
+                    f"{conversation_id!r}"
+                )
+            resolved_message_id = message_id
+            if turn["project_id"] is not None:
+                project_id = turn["project_id"]
+
+    return {
+        "kind": ORIGIN_CHAT,
+        "conversation_id": conversation_id,
+        "message_id": resolved_message_id,
+        "project_id": project_id,
+    }
+
+
+def project_origin(project_id: int) -> dict[str, Any]:
+    """Bind a request raised from a Project directly, with no conversation."""
+    if not isinstance(project_id, int) or isinstance(project_id, bool):
+        raise MissionError("project_id must be an integer")
+    return {
+        "kind": ORIGIN_PROJECT,
+        "conversation_id": None,
+        "message_id": None,
+        "project_id": project_id,
+    }
+
+
+def _validated_origin(origin: dict[str, Any] | None) -> dict[str, Any] | None:
+    if origin is None:
+        return None
+    kind = origin.get("kind")
+    if kind not in _ORIGIN_KINDS:
+        raise MissionError(f"origin kind must be one of {sorted(_ORIGIN_KINDS)}, got {kind!r}")
+    if kind == ORIGIN_CHAT and not origin.get("conversation_id"):
+        raise MissionError("a chat origin must name its conversation")
+    if kind == ORIGIN_PROJECT and origin.get("project_id") is None:
+        raise MissionError("a project origin must name its project")
+    return {
+        "kind": kind,
+        "conversation_id": origin.get("conversation_id"),
+        "message_id": origin.get("message_id"),
+        "project_id": origin.get("project_id"),
+    }
+
+
+def missions_for_conversation(
+    conversation_id: str, *, db_path: Path = MISSION_DB_FILE
+) -> list[dict[str, Any]]:
+    """Return the Missions this conversation delegated, newest first.
+
+    This is the server-owned recovery path: a browser with empty storage, or a
+    different device entirely, can still find the work a chat started.
+    """
+    conversation_id = _required_text(conversation_id, "conversation_id")
+    init_db(db_path=db_path)
+    with kitty_db.connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM missions WHERE origin_conversation_id = ? "
+            "ORDER BY updated_at DESC, mission_id ASC",
+            (conversation_id,),
+        ).fetchall()
+    return [_row_to_mission(row) for row in rows]
+
+
+def missions_for_project(
+    project_id: int, *, db_path: Path = MISSION_DB_FILE
+) -> list[dict[str, Any]]:
+    """Return every Mission bound to this project, newest first."""
+    init_db(db_path=db_path)
+    with kitty_db.connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM missions WHERE origin_project_id = ? "
+            "ORDER BY updated_at DESC, mission_id ASC",
+            (project_id,),
+        ).fetchall()
+    return [_row_to_mission(row) for row in rows]
+
+
 def list_missions(*, db_path: Path = MISSION_DB_FILE) -> list[dict[str, Any]]:
     """Return durable Mission rows with the most recently updated first."""
     init_db(db_path=db_path)
@@ -162,6 +320,7 @@ def create_mission(
     objective: str,
     definition_of_done: list[str],
     supervisor_id: str,
+    origin: dict[str, Any] | None = None,
     db_path: Path = MISSION_DB_FILE,
 ) -> dict[str, Any]:
     mission_id = _required_text(mission_id, "mission_id")
@@ -171,6 +330,7 @@ def create_mission(
         not isinstance(item, str) or not item.strip() for item in definition_of_done
     ):
         raise MissionError("definition_of_done must contain non-empty strings")
+    bound = _validated_origin(origin)
     now = time.time()
     init_db(db_path=db_path)
     try:
@@ -178,9 +338,21 @@ def create_mission(
             conn.execute(
                 "INSERT INTO missions "
                 "(mission_id, objective, definition_of_done_json, status, "
-                "supervisor_id, supervisor_epoch, created_at, updated_at) "
-                "VALUES (?, ?, ?, 'PLANNING', ?, 1, ?, ?)",
-                (mission_id, objective, json.dumps(definition_of_done), supervisor_id, now, now),
+                "supervisor_id, supervisor_epoch, created_at, updated_at, "
+                "origin_kind, origin_conversation_id, origin_message_id, origin_project_id) "
+                "VALUES (?, ?, ?, 'PLANNING', ?, 1, ?, ?, ?, ?, ?, ?)",
+                (
+                    mission_id,
+                    objective,
+                    json.dumps(definition_of_done),
+                    supervisor_id,
+                    now,
+                    now,
+                    bound["kind"] if bound else None,
+                    bound["conversation_id"] if bound else None,
+                    bound["message_id"] if bound else None,
+                    bound["project_id"] if bound else None,
+                ),
             )
             conn.execute(
                 "INSERT INTO mission_events "
@@ -200,6 +372,7 @@ def ensure_mission(
     objective: str,
     definition_of_done: list[str],
     supervisor_id: str,
+    origin: dict[str, Any] | None = None,
     db_path: Path = MISSION_DB_FILE,
 ) -> dict[str, Any]:
     """Create one Mission identity or return the exact existing outcome.
@@ -208,6 +381,12 @@ def ensure_mission(
     replay the same stable Mission id without creating another record, but the
     id can never be silently reused for a different objective/definition of
     done. Existing supervisor/lifecycle state is never reset on replay.
+
+    Origin is bound once, at creation. A replay carrying the same origin is
+    accepted; one carrying a different origin is refused rather than silently
+    rehoming finished work. A replay that omits origin leaves the stored
+    binding alone, so a retry from a client that has lost its context cannot
+    erase where the work came from.
     """
     mission_id = _required_text(mission_id, "mission_id")
     objective = _required_text(objective, "objective")
@@ -216,6 +395,7 @@ def ensure_mission(
         not isinstance(item, str) or not item.strip() for item in definition_of_done
     ):
         raise MissionError("definition_of_done must contain non-empty strings")
+    bound = _validated_origin(origin)
 
     init_db(db_path=db_path)
     now = time.time()
@@ -233,14 +413,19 @@ def ensure_mission(
                 raise MissionError(
                     f"Mission {mission_id!r} already exists for a different outcome"
                 )
+            if bound is not None and current["origin"] not in (None, bound):
+                raise MissionError(
+                    f"Mission {mission_id!r} is already bound to a different origin"
+                )
             conn.rollback()
             return current
 
         conn.execute(
             "INSERT INTO missions "
             "(mission_id, objective, definition_of_done_json, status, "
-            "supervisor_id, supervisor_epoch, created_at, updated_at) "
-            "VALUES (?, ?, ?, 'PLANNING', ?, 1, ?, ?)",
+            "supervisor_id, supervisor_epoch, created_at, updated_at, "
+            "origin_kind, origin_conversation_id, origin_message_id, origin_project_id) "
+            "VALUES (?, ?, ?, 'PLANNING', ?, 1, ?, ?, ?, ?, ?, ?)",
             (
                 mission_id,
                 objective,
@@ -248,6 +433,10 @@ def ensure_mission(
                 supervisor_id,
                 now,
                 now,
+                bound["kind"] if bound else None,
+                bound["conversation_id"] if bound else None,
+                bound["message_id"] if bound else None,
+                bound["project_id"] if bound else None,
             ),
         )
         conn.execute(
