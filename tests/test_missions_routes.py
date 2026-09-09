@@ -271,3 +271,37 @@ def test_unbound_missions_report_no_origin_rather_than_a_guess(client: TestClien
         json={"objective": "No origin", "definition_of_done": ["done"]},
     )
     assert created.json()["origin"] is None
+
+
+def test_mission_for_initiative_finds_the_bound_mission(tmp_path: Path) -> None:
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission_bound",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "mission_bound", initiative_id="conv-initiative-1", db_path=db_path
+    )
+
+    found = memory_mission.mission_for_initiative("conv-initiative-1", db_path=db_path)
+
+    assert found is not None
+    assert found["mission_id"] == "mission_bound"
+    assert found["acceptance"]["state"] == "unreviewed"
+
+
+def test_mission_for_initiative_is_none_for_unbound_work(tmp_path: Path) -> None:
+    """No Mission is 'unknown', which callers must not read as accepted."""
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission_unbound",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+
+    assert memory_mission.mission_for_initiative("no-such-initiative", db_path=db_path) is None

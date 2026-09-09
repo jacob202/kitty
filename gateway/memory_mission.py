@@ -304,6 +304,31 @@ def missions_for_project(
     return [_row_to_mission(row) for row in rows]
 
 
+def mission_for_initiative(
+    initiative_id: str, *, db_path: Path = MISSION_DB_FILE
+) -> dict[str, Any] | None:
+    """Return the Mission bound to this Builder initiative, if one is.
+
+    Builder's initiative is not the Mission. Finishing the initiative is an
+    implementation fact; whether the outcome was accepted is a separate
+    decision recorded here. Callers that report completion need both, so they
+    need this lookup — and they must treat ``None`` as "unknown", never as
+    "accepted".
+    """
+    initiative_id = _required_text(initiative_id, "initiative_id")
+    init_db(db_path=db_path)
+    with kitty_db.connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM missions WHERE builder_locator_json IS NOT NULL "
+            "ORDER BY updated_at DESC, mission_id ASC"
+        ).fetchall()
+    for row in rows:
+        locator = json.loads(row["builder_locator_json"])
+        if isinstance(locator, dict) and locator.get("initiative_id") == initiative_id:
+            return _row_to_mission(row)
+    return None
+
+
 def list_missions(*, db_path: Path = MISSION_DB_FILE) -> list[dict[str, Any]]:
     """Return durable Mission rows with the most recently updated first."""
     init_db(db_path=db_path)

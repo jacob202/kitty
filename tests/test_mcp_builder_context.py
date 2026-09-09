@@ -219,3 +219,124 @@ def test_status_snapshot_honors_builder_data_dir_override(
 
     assert result is snapshot
     assert seen["db_path"] == override / "builder_queue.db"
+
+
+def _mission(state: str, *, reviewer: str | None = "reviewer-1") -> dict:
+    return {
+        "mission_id": "mission_gw_1",
+        "acceptance": {"state": state, "reviewer_id": reviewer, "evidence": None},
+    }
+
+
+def test_finished_builder_task_is_not_reported_as_a_finished_outcome(
+    monkeypatch: pytest.MonkeyPatch, snapshot: dict
+) -> None:
+    """Builder finishing is implementation evidence, not user-outcome completion."""
+    packet = snapshot["initiatives"][0]["packets"][0]
+    packet["task_state"] = "done"
+    monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
+    monkeypatch.setattr(
+        context, "_mission_acceptance", lambda _id: _mission("unreviewed")["acceptance"]
+    )
+
+    result = context.work_result(task_id="kb_1234_abcd")["result"]
+
+    assert result["builder_task_complete"] is True
+    assert result["complete"] is False
+    assert "not accepted" in result["incomplete_because"]
+
+
+def test_accepted_outcome_is_the_only_thing_reported_complete(
+    monkeypatch: pytest.MonkeyPatch, snapshot: dict
+) -> None:
+    packet = snapshot["initiatives"][0]["packets"][0]
+    packet["task_state"] = "done"
+    monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
+    monkeypatch.setattr(
+        context, "_mission_acceptance", lambda _id: _mission("accepted")["acceptance"]
+    )
+
+    result = context.work_result(task_id="kb_1234_abcd")["result"]
+
+    assert result["complete"] is True
+    assert result["incomplete_because"] is None
+
+
+def test_work_with_no_bound_mission_reads_as_unknown_never_as_accepted(
+    monkeypatch: pytest.MonkeyPatch, snapshot: dict
+) -> None:
+    """Absence of evidence must not be read as acceptance."""
+    packet = snapshot["initiatives"][0]["packets"][0]
+    packet["task_state"] = "done"
+    monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
+
+    import gateway.memory_mission as mm
+
+    monkeypatch.setattr(mm, "mission_for_initiative", lambda _id, **_kw: None)
+
+    result = context.work_result(task_id="kb_1234_abcd")["result"]
+
+    assert result["mission_acceptance"] == {
+        "state": context.ACCEPTANCE_UNKNOWN,
+        "reviewer_id": None,
+        "mission_id": None,
+    }
+    assert result["complete"] is False
+    assert "no Mission acceptance record" in result["incomplete_because"]
+
+
+def test_acceptance_lookup_reports_the_bound_mission(monkeypatch: pytest.MonkeyPatch) -> None:
+    import gateway.memory_mission as mm
+
+    monkeypatch.setattr(
+        mm,
+        "mission_for_initiative",
+        lambda _id, **_kw: {
+            "mission_id": "mission_gw_1",
+            "acceptance": {"state": "accepted", "reviewer_id": "reviewer-1"},
+        },
+    )
+
+    assert context._mission_acceptance("mission-1") == {
+        "state": "accepted",
+        "reviewer_id": "reviewer-1",
+        "mission_id": "mission_gw_1",
+    }
+    assert context._mission_acceptance(None)["state"] == context.ACCEPTANCE_UNKNOWN
+
+
+def test_initiative_level_result_applies_the_same_acceptance_gate(
+    monkeypatch: pytest.MonkeyPatch, snapshot: dict
+) -> None:
+    snapshot["initiatives"][0]["state"] = "completed"
+    monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
+    monkeypatch.setattr(
+        context, "_mission_acceptance", lambda _id: _mission("unreviewed")["acceptance"]
+    )
+
+    result = context.work_result(mission_id="mission-1")["result"]
+
+    assert result["builder_task_complete"] is True
+    assert result["complete"] is False
+
+
+def test_unreadable_mission_store_does_not_crash_the_projection(
+    monkeypatch: pytest.MonkeyPatch, snapshot: dict
+) -> None:
+    """A read-only projection must stay readable when the Mission store is not."""
+    packet = snapshot["initiatives"][0]["packets"][0]
+    packet["task_state"] = "done"
+    monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
+
+    import gateway.memory_mission as mm
+
+    def _boom(_initiative_id, **_kwargs):
+        raise RuntimeError("mission store unavailable")
+
+    monkeypatch.setattr(mm, "mission_for_initiative", _boom)
+
+    result = context.work_result(task_id="kb_1234_abcd")
+
+    assert result["ok"] is True
+    assert result["result"]["mission_acceptance"]["state"] == context.ACCEPTANCE_UNKNOWN
+    assert result["result"]["complete"] is False

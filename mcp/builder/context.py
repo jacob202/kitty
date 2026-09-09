@@ -137,6 +137,54 @@ def _latest_attempt(packet: dict[str, Any]) -> dict[str, Any] | None:
     return history[0] if history else None
 
 
+ACCEPTANCE_UNKNOWN = "unknown"
+
+
+def _mission_acceptance(initiative_id: str | None) -> dict[str, Any]:
+    """Report whether the outcome was accepted, separately from Builder's task.
+
+    A Mission that cannot be read is ``unknown``. It is never reported as
+    accepted: the whole point of this field is that nobody infers acceptance
+    from the absence of evidence.
+    """
+    if not initiative_id:
+        return {"state": ACCEPTANCE_UNKNOWN, "reviewer_id": None, "mission_id": None}
+    try:
+        from gateway import memory_mission
+
+        mission = memory_mission.mission_for_initiative(initiative_id)
+    except Exception:
+        return {"state": ACCEPTANCE_UNKNOWN, "reviewer_id": None, "mission_id": None}
+    if mission is None:
+        return {"state": ACCEPTANCE_UNKNOWN, "reviewer_id": None, "mission_id": None}
+    acceptance = mission.get("acceptance") or {}
+    return {
+        "state": acceptance.get("state") or ACCEPTANCE_UNKNOWN,
+        "reviewer_id": acceptance.get("reviewer_id"),
+        "mission_id": mission.get("mission_id"),
+    }
+
+
+def _outcome_complete(
+    *, builder_done: bool, acceptance: dict[str, Any]
+) -> tuple[bool, str | None]:
+    """Decide whether the *outcome* is complete, and say what is still open.
+
+    Builder finishing its task is implementation evidence. The user's outcome
+    is complete only once that work has also been accepted. Reporting the
+    first as the second is how "it's done" gets said about work nobody has
+    agreed is done.
+    """
+    if not builder_done:
+        return False, "the Builder task has not finished"
+    state = acceptance.get("state")
+    if state == "accepted":
+        return True, None
+    if state == ACCEPTANCE_UNKNOWN:
+        return False, "no Mission acceptance record could be read for this work"
+    return False, f"the Mission outcome is {state}, not accepted"
+
+
 def work_result(
     mission_id: str | None = None,
     task_id: str | None = None,
@@ -150,12 +198,21 @@ def work_result(
     if task_id or (isinstance(work, dict) and "task_id" in work):
         packet = work
         task_state = packet.get("task_state")
+        initiative_id = packet.get("initiative_id")
+        acceptance = _mission_acceptance(initiative_id)
+        builder_done = task_state == "done"
+        complete, incomplete_because = _outcome_complete(
+            builder_done=builder_done, acceptance=acceptance
+        )
         result = {
-            "mission_id": packet.get("initiative_id"),
+            "mission_id": initiative_id,
             "packet_id": packet.get("packet_id"),
             "task_id": packet.get("task_id"),
             "task_state": task_state,
-            "complete": task_state == "done",
+            "builder_task_complete": builder_done,
+            "mission_acceptance": acceptance,
+            "complete": complete,
+            "incomplete_because": incomplete_because,
             "attempt": _latest_attempt(packet),
             "publication": packet.get("publication"),
             "blocker": packet.get("blocked_reason") or packet.get("last_error"),
@@ -170,14 +227,23 @@ def work_result(
 
     initiative = work
     packets = initiative.get("packets") or []
+    initiative_id = initiative.get("initiative_id")
+    acceptance = _mission_acceptance(initiative_id)
+    builder_done = initiative.get("state") == "completed"
+    complete, incomplete_because = _outcome_complete(
+        builder_done=builder_done, acceptance=acceptance
+    )
     return receipt(
         "work_result",
         ok=True,
         state=initiative.get("state"),
         next_action=initiative.get("next_packet"),
         result={
-            "mission_id": initiative.get("initiative_id"),
-            "complete": initiative.get("state") == "completed",
+            "mission_id": initiative_id,
+            "builder_task_complete": builder_done,
+            "mission_acceptance": acceptance,
+            "complete": complete,
+            "incomplete_because": incomplete_because,
             "packets": [
                 {
                     "packet_id": packet.get("packet_id"),
