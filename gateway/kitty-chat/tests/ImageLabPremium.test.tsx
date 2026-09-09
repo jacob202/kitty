@@ -62,6 +62,36 @@ describe('Image Lab premium workspace', () => {
     expect(screen.getByTestId('image-lab-per-image-estimate')).toHaveTextContent('per image $0.07')
   })
 
+  it('hides the previous per-image price while replacement estimate is loading', async () => {
+    window.localStorage.clear()
+    let estimateCalls = 0
+    let releaseSecond!: () => void
+    const secondEstimateGate = new Promise<void>(resolve => { releaseSecond = resolve })
+    const fetchMock = vi.fn(async (url: string) => {
+      const target = String(url)
+      if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [] }) }
+      if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      if (target === '/proxy/studio/estimate') {
+        estimateCalls += 1
+        if (estimateCalls > 1) await secondEstimateGate
+        return { ok: true, status: 200, json: async () => estimate }
+      }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ImageLab />)
+
+    await waitFor(() => expect(screen.getByTestId('image-lab-per-image-estimate')).toHaveTextContent('per image $0.07'))
+    fireEvent.click(screen.getByText('More controls'))
+    fireEvent.change(screen.getByRole('combobox', { name: 'quality' }), { target: { value: 'maximum' } })
+
+    await waitFor(() => expect(screen.getByTestId('image-lab-estimate')).toHaveTextContent('estimating'))
+    expect(screen.getByTestId('image-lab-per-image-estimate')).toHaveTextContent('per-image cost unknown')
+    expect(screen.getByTestId('image-lab-per-image-estimate')).not.toHaveTextContent('$0.07')
+    releaseSecond()
+    await waitFor(() => expect(screen.getByTestId('image-lab-per-image-estimate')).toHaveTextContent('per image $0.07'))
+  })
+
   it('lets the user lock GPT-Image-2 and carries that recipe through estimate and planning', async () => {
     window.localStorage.clear()
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {

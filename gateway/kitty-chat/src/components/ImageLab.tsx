@@ -468,6 +468,9 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     estimateAbort.current?.abort()
     const controller = new AbortController()
     estimateAbort.current = controller
+    // Never keep a decision-relevant price from the previous route/options
+    // visible while a replacement estimate is still in flight.
+    setEstimate(null)
     setEstimateLoading(true)
     void fetch('/proxy/studio/estimate', {
       method: 'POST',
@@ -492,6 +495,15 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
       })
     return () => controller.abort()
   }, [quality, identity, count, selectedRecipeId, anchorJobId, boundCharacterId, selectedCharacter?.character_id])
+
+  useEffect(() => {
+    if (!selectedRecipeId || recipes.length === 0) return
+    const selectedRecipe = recipes.find(recipe => recipe.recipe_id === selectedRecipeId)
+    if (!selectedRecipe) return
+    const editIncompatible = Boolean(anchorJobId) && !selectedRecipe.supports_img2img
+    const createIncompatible = !anchorJobId && selectedRecipe.operation === 'img2img'
+    if (editIncompatible || createIncompatible) setSelectedRecipeId('')
+  }, [anchorJobId, recipes, selectedRecipeId])
 
   useEffect(() => {
     if (activeBatches.length === 0) return
