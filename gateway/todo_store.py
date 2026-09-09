@@ -178,24 +178,59 @@ def restore(items: list[dict]) -> list[dict]:
             "cannot restore todos without reconciling project selections"
         ) from exc
 
+    sort_orders: list[int] = []
+    seen_sort_orders: set[int] = set()
+    referenced_project_ids: set[int] = set()
+    for position, item in enumerate(items):
+        raw_order = item.get("sort_order", position)
+        sort_order = (
+            raw_order
+            if isinstance(raw_order, int) and not isinstance(raw_order, bool)
+            else position
+        )
+        if sort_order in seen_sort_orders:
+            raise TodoStoreError(
+                f"cannot restore todos with duplicate sort_order {sort_order}"
+            )
+        seen_sort_orders.add(sort_order)
+        sort_orders.append(sort_order)
+
+        raw_project = item.get("project_id")
+        if isinstance(raw_project, int) and not isinstance(raw_project, bool):
+            referenced_project_ids.add(raw_project)
+
     now = time.time()
     with kitty_db.connect(TODO_DB_FILE) as conn:
         # Serialize against select_todo()/update(). Snapshot replacement and
         # dangling-pointer repair must be one atomic state transition.
         conn.execute("BEGIN IMMEDIATE")
+        if referenced_project_ids:
+            try:
+                available_project_ids = {
+                    row["id"]
+                    for row in conn.execute("SELECT id FROM projects").fetchall()
+                }
+            except sqlite3.Error as exc:
+                raise TodoStoreError(
+                    "cannot restore todos without reading available projects"
+                ) from exc
+            missing_project_ids = sorted(
+                referenced_project_ids - available_project_ids
+            )
+            if missing_project_ids:
+                missing = ", ".join(
+                    str(project_id) for project_id in missing_project_ids
+                )
+                raise TodoStoreError(
+                    f"cannot restore todos with unknown project_id values: {missing}"
+                )
         conn.execute("DELETE FROM todos")
-        for position, item in enumerate(items):
+        for item, sort_order in zip(items, sort_orders, strict=True):
             status = item.get("status", "pending")
             if status not in VALID_STATUSES:
                 status = "pending"
             raw_id = item.get("id")
             todo_id = raw_id if isinstance(raw_id, int) and not isinstance(raw_id, bool) else None
-            raw_order = item.get("sort_order", position)
-            sort_order = (
-                raw_order
-                if isinstance(raw_order, int) and not isinstance(raw_order, bool)
-                else position
-            )
             raw_project = item.get("project_id")
             project_id = (
                 raw_project

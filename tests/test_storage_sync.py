@@ -162,6 +162,53 @@ def test_snapshot_import_replaces_omitted_selected_todo_and_clears_dangling_poin
     assert project_store.get(project["id"])["selected_todo_id"] is None
 
 
+def test_snapshot_import_rejects_duplicate_sort_orders_before_replacing_todos(
+    tmp_path, monkeypatch
+):
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    todo_store.update([{"content": "Keep current state"}])
+    before = todo_store.get()
+
+    with pytest.raises(todo_store.TodoStoreError, match="duplicate sort_order 4"):
+        storage_sync.import_todos(
+            [
+                {"content": "First snapshot todo", "sort_order": 4},
+                {"content": "Second snapshot todo", "sort_order": 4},
+            ]
+        )
+
+    assert todo_store.get() == before
+
+
+def test_snapshot_import_rejects_missing_project_owner_before_replacing_todos(
+    tmp_path, monkeypatch
+):
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    todo_store.update([{"content": "Keep current state"}])
+    before = todo_store.get()
+    missing_project_id = (
+        max(project["id"] for project in project_store.list_projects()) + 100
+    )
+
+    with pytest.raises(
+        todo_store.TodoStoreError,
+        match=rf"unknown project_id.*{missing_project_id}",
+    ):
+        storage_sync.import_todos(
+            [
+                {
+                    "content": "Snapshot todo with a missing owner",
+                    "sort_order": 0,
+                    "project_id": missing_project_id,
+                }
+            ]
+        )
+
+    assert todo_store.get() == before
+
+
 def test_import_rejects_unknown_format_version():
     with pytest.raises(ValueError, match="format_version"):
         storage_sync.import_all({"format_version": 999, "stores": {}})
