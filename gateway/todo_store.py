@@ -21,6 +21,10 @@ from gateway.paths import DATA_DIR, KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.todo_store")
 
+
+class TodoStoreError(RuntimeError):
+    """Raised when a todo operation cannot proceed safely."""
+
 TODO_DB = DATA_DIR / "todos.db"
 TODO_DB_FILE = KITTY_DB_FILE
 LEGACY_IMPORT_SETTING = "todos_legacy_imported"
@@ -51,6 +55,11 @@ def update(items: list[dict]) -> list[dict]:
     """
     init_db()
     now = time.time()
+    # Read project selections before opening the write transaction. Doing it
+    # inside would run the projects store's own init/migrations while this
+    # connection holds the todos table, which is how two stores deadlock each
+    # other on one database.
+    protected = _protected_todo_ids()
 
     with kitty_db.connect(TODO_DB_FILE) as conn:
         existing = conn.execute(
@@ -91,7 +100,6 @@ def update(items: list[dict]) -> list[dict]:
         # it here would silently destroy the chosen action and its progress
         # note — the exact loss this reconciliation exists to prevent. Explicit
         # removal still works: that is `delete_by_id`.
-        protected = _protected_todo_ids()
         dropped = [
             row["id"]
             for row in existing
@@ -109,19 +117,24 @@ def _protected_todo_ids() -> set[int]:
 
     Asked of ``project_store`` rather than read from the table directly, so the
     two stores stay independently redirectable. A projects store that is absent
-    or unreadable protects nothing rather than blocking every todo update.
+    or unreadable is a refusal to reconcile, not permission to delete.
     """
-    try:
-        from gateway import project_store
+    from gateway import project_store
 
-        return {
-            project["selected_todo_id"]
-            for project in project_store.list_projects()
-            if project.get("selected_todo_id") is not None
-        }
-    except Exception:
-        logger.warning("could not read project selections; no todos protected", exc_info=True)
-        return set()
+    try:
+        projects = project_store.list_projects()
+    except Exception as exc:
+        # Failing open here would silently delete the user's chosen action the
+        # one time the projects store is unhealthy. A todo update is always
+        # replayable; a destroyed selection and its progress note are not.
+        raise TodoStoreError(
+            "cannot reconcile the todo list without reading project selections"
+        ) from exc
+    return {
+        project["selected_todo_id"]
+        for project in projects
+        if project.get("selected_todo_id") is not None
+    }
 
 
 def _match_existing_todo(

@@ -235,11 +235,22 @@ def selected_todo(project_id: int) -> dict[str, Any] | None:
         return None
     from gateway import todo_store
 
-    for todo in todo_store.get():
-        if todo["id"] == todo_id:
-            return todo
-    clear_selected_todo(project_id)
-    return None
+    chosen = next((todo for todo in todo_store.get() if todo["id"] == todo_id), None)
+    if chosen is None:
+        clear_selected_todo(project_id)
+        return None
+    # The selection was valid when it was made; the todo can have moved or been
+    # finished since. Both mean this project no longer has a chosen next action,
+    # and returning one anyway would put another project's work — or work
+    # already done — in front of the user as the thing to do next.
+    owner = chosen.get("project_id")
+    if owner is not None and owner != project_id:
+        clear_selected_todo(project_id)
+        return None
+    if chosen["status"] == "completed":
+        clear_selected_todo(project_id)
+        return None
+    return chosen
 
 
 def _seed_kitty_project_once() -> None:

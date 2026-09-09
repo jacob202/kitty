@@ -274,3 +274,54 @@ class TestSelectionGuards:
 
         with pytest.raises(project_store.ProjectError, match="must be int"):
             project_store.select_todo(project["id"], True)
+
+
+class TestSelectionStaysHonest:
+    def test_a_failing_projects_store_refuses_the_update_rather_than_deleting(
+        self, todos, monkeypatch
+    ):
+        """Failing open here would destroy the chosen action exactly when
+        the projects store is unhealthy."""
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        healthy = project_store.list_projects
+
+        def _broken():
+            raise RuntimeError("projects store unavailable")
+
+        monkeypatch.setattr(project_store, "list_projects", _broken)
+
+        with pytest.raises(todos.TodoStoreError, match="without reading project selections"):
+            todos.update([{"content": "Something else entirely"}])
+
+        # Nothing was deleted. Restore only this patch — monkeypatch.undo()
+        # would also revert the autouse store isolation.
+        monkeypatch.setattr(project_store, "list_projects", healthy)
+        assert project_store.selected_todo(project["id"])["id"] == created[0]["id"]
+
+    def test_completing_the_selected_todo_clears_it_as_the_next_action(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        todos.complete_by_id(created[0]["id"])
+
+        assert project_store.selected_todo(project["id"]) is None
+        assert project_store.get(project["id"])["selected_todo_id"] is None
+        # The todo itself survives as history.
+        assert todos.get()[0]["status"] == "completed"
+
+    def test_a_todo_reassigned_to_another_project_stops_being_the_selection(self, todos):
+        project_store.init_db()
+        mine = project_store.create(name="job-search", kind="admin")
+        theirs = project_store.create(name="benefits", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(mine["id"], created[0]["id"])
+
+        todos.set_project(created[0]["id"], theirs["id"])
+
+        assert project_store.selected_todo(mine["id"]) is None
