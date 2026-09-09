@@ -77,10 +77,18 @@ active roadmap.
 ## Verification
 
 After a meaningful change, run the narrowest relevant checks and report exact
-results. Do not run the full suite, lint, typecheck, or build unless the task
-asks for it or `/qg`/CI requires it. Runtime, UI, launch, and environment
-claims need their corresponding live proof. Never call work complete from
-inspection alone; use the final states in `verified-delivery`. Implementation,
+results. Use targeted checks during implementation; do not run the full suite,
+lint, typecheck, or build unless the task asks for it or `/qg`/CI requires it.
+When iterative remote publication is useful, use a draft pull request rather
+than paying the ready-candidate gate on every intermediate push. A frozen
+candidate is the exact SHA the implementer believes satisfies the outcome
+contract after narrow checks. Mark the pull request ready only after that
+candidate is frozen; independent review and authoritative full CI then evaluate
+the exact candidate. A review finding reopens the candidate, after which repair
+returns to narrow checks until a new SHA is frozen.
+Runtime, UI, launch, and environment claims need their corresponding live proof.
+Never call work complete from inspection alone; use the final states in
+`verified-delivery`. Implementation,
 packet completion, tests, a green PR, or a subagent reporting `DONE` are
 implementation evidence only. A user outcome closes only when its applicable
 outcome contract is verified against the exact running candidate or, for a

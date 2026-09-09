@@ -260,3 +260,20 @@ def test_agent_room_doctrine_keeps_broadcast_feed_out_of_assignment_inbox() -> N
     assert "do not bulk-ack" in coordination
     assert "presence is presence only" in coordination
     assert "does not replace builder execution state" in coordination
+
+
+def test_delivery_doctrine_has_fast_inner_loop_and_frozen_candidate_boundary() -> None:
+    agents = " ".join(_read("AGENTS.md").lower().split())
+    verified = " ".join(
+        _read(".agents/skills/verified-delivery/SKILL.md").lower().split()
+    )
+    testing = " ".join(_read("TESTING.md").lower().split())
+
+    assert "targeted checks during implementation" in agents
+    assert "draft pull request" in agents
+    assert "frozen candidate" in agents
+    assert "mark the pull request ready" in agents
+    assert "independent review runs against the frozen candidate" in verified
+    assert "a reviewer finding reopens the candidate" in verified
+    assert "do not run the full local parity gate after every intermediate push" in testing
+    assert "github's ready-pr checks are the authoritative full delivery gate" in testing

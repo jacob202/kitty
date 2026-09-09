@@ -18,6 +18,14 @@ The Python suite has a deliberate latency split. Cheap hermetic behavior, API, p
 
 Python commands assume the repository's Python 3.12 environment has `requirements.txt`, pytest, pytest-asyncio, and pytest-cov installed. Frontend commands assume `npm ci` has been run and Playwright Chromium is installed.
 
+## Local feedback versus delivery evidence
+
+During implementation, run the narrowest tests and checks that cover the behavior being changed. Do not run the full local parity gate after every intermediate push. If remote iteration is useful, keep the pull request in draft while the candidate is still changing.
+
+Once the implementer has a frozen candidate SHA, independent review evaluates that candidate and the PR can be marked ready. GitHub's ready-PR checks are the authoritative full delivery gate. `make ci` remains the explicit offline/local parity command when full local evidence is required; it is not the default edit-push loop.
+
+A reviewer finding or failed required check reopens the candidate. Repair narrowly, produce a new frozen SHA, and then rerun the affected independent/final evidence instead of repeatedly exercising unrelated global gates during implementation.
+
 ## Python: fast required suite
 
 From the repository root:
