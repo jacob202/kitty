@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import shlex
@@ -49,7 +50,6 @@ from gateway import builder_initiative as bi
 from gateway import builder_pr_janitor as bj
 from gateway import builder_queue as bq
 from gateway import compute_governor as cg
-from gateway import paid_review_admission
 from gateway.builder_brief import default_branch_name
 from gateway.builder_context import build_context_manifest, write_run_manifest
 from gateway.builder_runner import (
@@ -66,6 +66,8 @@ from gateway.builder_runner import (
     worktree_path,
 )
 from gateway.paths import BUILDER_QUEUE_DB
+
+logger = logging.getLogger("kitty.builder_loop")
 
 DEFAULT_REVIEW_TIMEOUT = 240
 
@@ -468,12 +470,126 @@ def _reviewer_is_independent_of_claude(model: str) -> bool:
     return "claude" not in lowered and "anthropic" not in lowered
 
 
+def _review_governor_dispatch(
+    subject_ref: str,
+    *,
+    reviewed_sha: str,
+    requested_route: str = cg.ROUTE_CHEAP,
+) -> "cg.Dispatch":
+    """Describe one independent review in the governor's terms.
+
+    Scope and acceptance come from what the reviewer is actually allowed to do
+    — read the exact reviewed SHA and return a verdict — so the governor is not
+    inventing a second definition of the work.
+    """
+    return cg.Dispatch(
+        task_type="review",
+        work_kind="independent_review",
+        subject_ref=subject_ref,
+        head_sha=reviewed_sha,
+        artifact=f"independent read-only review of {subject_ref} at {reviewed_sha[:12]}",
+        acceptance_tests=("reviewer returns a verdict bound to the exact reviewed SHA",),
+        allowed_scope=("read-only checkout of the reviewed SHA",),
+        exclusions=("any write to the reviewed checkout", "any second paid pass"),
+        risk_class="routine",
+        stopping_condition="the reviewer process exits or the review timeout elapses",
+        requested_route=requested_route,
+    )
+
+
+def _review_governor_gate(
+    subject_ref: str,
+    *,
+    reviewed_sha: str,
+    governor_db: Path,
+) -> "cg.Decision":
+    """Reserve budget for a paid review, or refuse before anything is spent.
+
+    Runs before the provider credential is read and before any subprocess is
+    spawned. There is no ungoverned path: callers may point this at a different
+    ledger, never at none. A downgrade to the free route is a refusal here —
+    this dispatch has no free reviewer to fall back to, so silently "running"
+    it would spend paid budget the governor declined to authorise.
+    """
+    cg.init_db(governor_db)
+    config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
+    reserve = cg.reserve_from_ledger(governor_db, config)
+    decision = cg.decide(
+        governor_db,
+        _review_governor_dispatch(subject_ref, reviewed_sha=reviewed_sha),
+        reserve=reserve,
+    )
+    if decision.action != cg.ACTION_RUN or decision.route not in {
+        cg.ROUTE_CHEAP,
+        cg.ROUTE_FRONTIER,
+    }:
+        raise LoopError(
+            f"compute governor will not authorise paid review of {subject_ref} at "
+            f"{reviewed_sha[:12]} ({decision.action}"
+            + (f" to {decision.route}" if decision.route else "")
+            + "): "
+            + "; ".join(decision.reasons or ("no reason recorded",))
+        )
+
+    projected = cg.estimate_pass_cost_cad(decision.route)
+    if projected > reserve.remaining_cad:
+        raise LoopError(
+            f"paid review of {subject_ref} at {reviewed_sha[:12]} projects CAD "
+            f"{projected:.4f} against CAD {reserve.remaining_cad:.4f} left this week"
+        )
+    return decision
+
+
+def _settle_dispatched_review(
+    source_root: Path,
+    reviewed_sha: str,
+    governor_db: Path,
+    decision: "cg.Decision",
+    model: str,
+    provider: str,
+    *,
+    dispatched: bool,
+    completed: bool,
+) -> None:
+    """Write the receipt for a review that actually reached the provider.
+
+    A refusal before launch owes nothing and writes nothing. Once launched, the
+    pass is spent: a review that produced a usable verdict settles the per-SHA
+    allowance, and one that timed out or came back empty records a failure,
+    which leaves the allowance intact because the work is still owed.
+
+    A ledger write must never replace the reviewer's own failure, so an error
+    here is swallowed rather than raised over the original exception.
+    """
+    if not dispatched:
+        return
+    route = decision.route or cg.ROUTE_CHEAP
+    try:
+        cg.record_receipt(
+            governor_db,
+            _review_governor_dispatch(str(source_root), reviewed_sha=reviewed_sha),
+            outcome=cg.OUTCOME_SETTLED if completed else cg.OUTCOME_FAILED,
+            route=route,
+            model=model,
+            provider=provider,
+            retries=0,
+            estimated_usage_cad=cg.estimate_pass_cost_cad(route),
+        )
+    except Exception:
+        logger.exception(
+            "failed to record compute-governor receipt for review of %s at %s",
+            source_root,
+            reviewed_sha[:12],
+        )
+
+
 def run_independent_readonly_review(
     prompt: str,
     *,
     root: Path,
     timeout: int = DEFAULT_REVIEW_TIMEOUT,
     review_checkout_sha: str | None = None,
+    governor_db: Path | str | None = None,
 ) -> dict[str, Any]:
     """Run one Builder-owned independent reviewer with hard read isolation.
 
@@ -482,11 +598,13 @@ def run_independent_readonly_review(
     exposure, filesystem/network containment, and the model process itself.
     ``review_checkout_sha`` (a commit descending from current Builder HEAD)
     materialises the exact artifacts under review in the reviewer's tree.
+
+    Every call reserves budget through the compute governor first. ``governor_db``
+    selects the ledger — omitting it uses the canonical one; there is no value
+    that skips the reservation.
     """
     if not isinstance(prompt, str) or not prompt.strip():
         raise LoopError("review prompt must be non-empty")
-    if not paid_review_admission.is_paid_review_admitted():
-        raise LoopError(paid_review_admission.PAID_REVIEW_NOT_ADMITTED_REASON)
     source_root = Path(root).resolve()
     provider = "openrouter"
     model = os.environ.get("KITTYBUILDER_REVIEW_MODEL", "").strip() or _DEFAULT_REVIEW_MODEL
@@ -494,11 +612,25 @@ def run_independent_readonly_review(
         raise LoopError(
             f"independent reviewer must not use the implementer's model family: {model!r}"
         )
+
+    # Reserve budget before the provider credential is read and before any
+    # subprocess is spawned, so an unaffordable review cannot reach a provider.
+    source_before = _readonly_review_fingerprint(source_root)
+    reviewed_sha = (review_checkout_sha or source_before[0] or "").strip()
+    if not reviewed_sha:
+        raise LoopError("independent review has no reviewable commit to bind to")
+    ledger = Path(governor_db) if governor_db is not None else cg.default_db_path()
+    decision = _review_governor_gate(
+        str(source_root), reviewed_sha=reviewed_sha, governor_db=ledger
+    )
+
     provider_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not provider_key:
         raise LoopError("Builder reviewer route selection is unavailable")
 
-    source_before = _readonly_review_fingerprint(source_root)
+    # Set once the provider process has been launched: from that point the pass
+    # is spent whatever happens next, so it owes the governor a receipt.
+    dispatched = False
     try:
         with tempfile.TemporaryDirectory(prefix="kitty-builder-readonly-review-") as temp_dir:
             temp_root = Path(temp_dir)
@@ -531,6 +663,7 @@ def run_independent_readonly_review(
                 environment=env, read_paths=[prompt_path], worktree_writable=False,
             )
             review_before = _readonly_review_fingerprint(review_root)
+            dispatched = True
             completed = subprocess.run(
                 wrapped, cwd=review_root, env=env, capture_output=True, text=True,
                 timeout=timeout, check=False,
@@ -538,17 +671,32 @@ def run_independent_readonly_review(
             review_after = _readonly_review_fingerprint(review_root)
             if review_after != review_before:
                 raise LoopError("read-only reviewer changed its isolated checkout")
-    except subprocess.TimeoutExpired as exc:
-        raise LoopError("independent reviewer timed out") from exc
 
-    source_after = _readonly_review_fingerprint(source_root)
-    if source_after != source_before:
-        raise LoopError("repository changed while independent review was running")
-    if completed.returncode != 0:
-        raise LoopError("independent reviewer is unavailable")
-    output = completed.stdout.strip()
-    if not output:
-        raise LoopError("independent reviewer returned no result")
+        source_after = _readonly_review_fingerprint(source_root)
+        if source_after != source_before:
+            raise LoopError("repository changed while independent review was running")
+        if completed.returncode != 0:
+            raise LoopError("independent reviewer is unavailable")
+        output = completed.stdout.strip()
+        if not output:
+            raise LoopError("independent reviewer returned no result")
+    except subprocess.TimeoutExpired as exc:
+        _settle_dispatched_review(
+            source_root, reviewed_sha, ledger, decision, model, provider,
+            dispatched=dispatched, completed=False,
+        )
+        raise LoopError("independent reviewer timed out") from exc
+    except BaseException:
+        _settle_dispatched_review(
+            source_root, reviewed_sha, ledger, decision, model, provider,
+            dispatched=dispatched, completed=False,
+        )
+        raise
+
+    _settle_dispatched_review(
+        source_root, reviewed_sha, ledger, decision, model, provider,
+        dispatched=dispatched, completed=True,
+    )
     return {
         "provider": provider,
         "model": model,

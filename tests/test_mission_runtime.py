@@ -7,7 +7,7 @@ import pytest
 
 from gateway import automation_actions, builder_loop, memory_mission, mission_runtime
 from gateway import builder_initiative as bi
-from gateway import paid_review_admission as pra
+from gateway import compute_governor as cg
 from mcp.builder import repo_tools
 
 
@@ -406,6 +406,61 @@ def _plan_review_mission_with_matching_payload(
     )
 
 
+def _make_reviewable(root: Path) -> None:
+    """Give the review root a real commit so a reservation can bind to a SHA."""
+    import subprocess
+
+    root.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "r@example.test"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Review Fixture"], cwd=root, check=True)
+    (root / "START_HERE.md").write_text("# authority\n", encoding="utf-8")
+    subprocess.run(["git", "add", "START_HERE.md"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "fixture"], cwd=root, check=True)
+
+
+def _record_launcher_dispatches(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Record paid reviewer launches while leaving local git calls working.
+
+    Stubbing every subprocess would also break the local `git rev-parse` the
+    reservation needs to bind a review to an exact SHA, and a local git read is
+    not a paid dispatch.
+    """
+    launched: list[object] = []
+    real_run = builder_loop.subprocess.run
+
+    def _run(*args, **kwargs):
+        if "kittybuilder_dsh.sh" in str(args):
+            launched.append((args, kwargs))
+            raise AssertionError("paid reviewer must not be launched")
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setattr(builder_loop.subprocess, "run", _run)
+    return launched
+
+
+def _exhaust_review_budget(monkeypatch: pytest.MonkeyPatch, ledger: Path) -> None:
+    """Point the governor at an isolated ledger with the week already spent.
+
+    These tests must never read or write the real receipts database, and the
+    refusal they assert has to come from budget policy rather than from a
+    missing provider key.
+    """
+    monkeypatch.setenv("KITTY_COMPUTE_GOVERNOR_DB", str(ledger))
+    cg.init_db(ledger)
+    config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
+    cg.record_receipt(
+        ledger,
+        builder_loop._review_governor_dispatch("other/subject", reviewed_sha="0" * 40),
+        outcome=cg.OUTCOME_SETTLED,
+        route=cg.ROUTE_CHEAP,
+        model="openrouter/other",
+        provider="openrouter",
+        retries=0,
+        estimated_usage_cad=config["weekly_budget_cad"],
+    )
+
+
 @pytest.mark.asyncio
 async def test_startup_recovery_dispatches_zero_paid_provider_calls_when_not_admitted(
     mission_db: Path, monkeypatch: pytest.MonkeyPatch
@@ -421,16 +476,16 @@ async def test_startup_recovery_dispatches_zero_paid_provider_calls_when_not_adm
     monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", mission_db)
     monkeypatch.setattr(repo_tools, "repo_root", lambda: mission_db.parent)
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-value-must-not-be-read")
-    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
-    spawned: list[object] = []
-    monkeypatch.setattr(builder_loop.subprocess, "run", lambda *a, **k: spawned.append((a, k)))
+    _make_reviewable(mission_db.parent)
+    _exhaust_review_budget(monkeypatch, mission_db.parent / "governor.db")
+    spawned = _record_launcher_dispatches(monkeypatch)
     mission_runtime.register_action()
 
     receipts = await mission_runtime.request_pending_reviews()
 
     assert len(receipts) == 1
     assert receipts[0]["status"] == "source_unavailable"
-    assert "awaiting authorization" in receipts[0]["error"]
+    assert "will not authorise" in receipts[0]["error"]
     assert spawned == []
     current = memory_mission.get_mission(mission["mission_id"], db_path=mission_db)
     assert current["status"] == "PLAN_REVIEW"
@@ -447,11 +502,11 @@ async def test_review_pending_action_dispatches_zero_paid_provider_calls_when_no
     )
     monkeypatch.setattr(repo_tools, "repo_root", lambda: mission_db.parent)
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-value-must-not-be-read")
-    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
-    spawned: list[object] = []
-    monkeypatch.setattr(builder_loop.subprocess, "run", lambda *a, **k: spawned.append((a, k)))
+    _make_reviewable(mission_db.parent)
+    _exhaust_review_budget(monkeypatch, mission_db.parent / "governor.db")
+    spawned = _record_launcher_dispatches(monkeypatch)
 
-    with pytest.raises(automation_actions.SourceUnavailable, match="awaiting authorization"):
+    with pytest.raises(automation_actions.SourceUnavailable, match="will not authorise"):
         await mission_runtime.review_pending_action({"mission_id": mission["mission_id"]})
 
     assert spawned == []
@@ -470,11 +525,11 @@ def test_review_plan_direct_call_cannot_bypass_admission_zero_dispatch(
     )
     monkeypatch.setattr(repo_tools, "repo_root", lambda: mission_db.parent)
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-value-must-not-be-read")
-    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
-    spawned: list[object] = []
-    monkeypatch.setattr(builder_loop.subprocess, "run", lambda *a, **k: spawned.append((a, k)))
+    _make_reviewable(mission_db.parent)
+    _exhaust_review_budget(monkeypatch, mission_db.parent / "governor.db")
+    spawned = _record_launcher_dispatches(monkeypatch)
 
-    with pytest.raises(automation_actions.SourceUnavailable, match="awaiting authorization"):
+    with pytest.raises(automation_actions.SourceUnavailable, match="will not authorise"):
         mission_runtime.review_plan(mission["mission_id"])
 
     assert spawned == []
@@ -488,12 +543,12 @@ def test_paid_review_guard_refuses_on_policy_even_with_valid_provider_key(
 ) -> None:
     """The guard is a policy refusal, not an accident of a missing key: it
     must refuse even when OPENROUTER_API_KEY is present in the environment."""
-    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
+    _make_reviewable(tmp_path)
+    _exhaust_review_budget(monkeypatch, tmp_path / "governor.db")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-value-present-in-env")
-    spawned: list[object] = []
-    monkeypatch.setattr(builder_loop.subprocess, "run", lambda *a, **k: spawned.append((a, k)))
+    spawned = _record_launcher_dispatches(monkeypatch)
 
-    with pytest.raises(builder_loop.LoopError, match="awaiting authorization"):
+    with pytest.raises(builder_loop.LoopError, match="will not authorise"):
         builder_loop.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
 
     assert spawned == []

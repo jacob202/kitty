@@ -21,7 +21,7 @@ from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
 from gateway import builder_queue as bq
-from gateway import paid_review_admission as pra
+from gateway import compute_governor as cg
 
 pytestmark = pytest.mark.integration
 
@@ -3279,40 +3279,156 @@ def test_real_dsh_worker_receives_governed_kb_context_through_builder_boundary(
     assert task_id == result["task_id"]
 
 
-def test_independent_readonly_review_executor_fails_closed_when_paid_review_not_admitted(
+def _review_fixture_repo(tmp_path: Path, *, launcher_body: str | None = None) -> Path:
+    """A minimal reviewable checkout whose launcher always returns a verdict."""
+    repo = tmp_path / "source"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "review@example.test"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Review Fixture"], cwd=repo, check=True)
+    (repo / "START_HERE.md").write_text("# authority\n", encoding="utf-8")
+    launcher = repo / "scripts" / "kittybuilder_dsh.sh"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text(
+        launcher_body
+        or "#!/bin/bash\nset -eu\nprintf '%s\\n' '{\"verdict\":\"approve\"}'\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "START_HERE.md", "scripts"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "review fixture"], cwd=repo, check=True)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    subprocess.run(["git", "update-ref", "refs/remotes/origin/main", head], cwd=repo, check=True)
+    return repo
+
+
+def test_independent_readonly_review_failure_does_not_burn_the_sha_allowance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Default posture: refuse before the provider key is even read."""
-    monkeypatch.delenv(pra.ADMISSION_ENV_VAR, raising=False)
+    """A reviewer that returns nothing is still owed, so it must not settle."""
+    repo = _review_fixture_repo(
+        tmp_path, launcher_body="#!/bin/bash\nset -eu\nexit 0\n"
+    )
+    ledger = tmp_path / "governor.db"
+    monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
+    monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/deepseek/deepseek-chat")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+    with pytest.raises(bl.LoopError, match="returned no result"):
+        bl.run_independent_readonly_review(
+            "Review this exact plan.", root=repo, governor_db=ledger
+        )
+
+    assert (
+        cg.find_settled_receipt(
+            ledger, task_type="review", subject_ref=str(repo.resolve()), head_sha=head
+        )
+        is None
+    )
+    # The pass was still dispatched, so it is recorded — just not as settled.
+    with sqlite3.connect(ledger) as conn:
+        outcomes = [
+            row[0]
+            for row in conn.execute(
+                "SELECT outcome FROM work_receipts WHERE head_sha = ?", (head,)
+            )
+        ]
+    assert outcomes == [cg.OUTCOME_FAILED]
+
+
+def test_independent_readonly_review_refuses_when_the_weekly_budget_is_exhausted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default posture: refuse before the provider key is ever used."""
+    repo = _review_fixture_repo(tmp_path)
+    ledger = tmp_path / "governor.db"
     monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key-present-but-irrelevant")
-    calls: list[object] = []
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append((a, k)))
 
-    with pytest.raises(bl.LoopError, match="awaiting authorization"):
-        bl.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
+    # Spend the whole week on an unrelated subject so nothing is left to reserve.
+    cg.init_db(ledger)
+    config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
+    cg.record_receipt(
+        ledger,
+        bl._review_governor_dispatch("other/subject", reviewed_sha="0" * 40),
+        outcome=cg.OUTCOME_SETTLED,
+        route=cg.ROUTE_CHEAP,
+        model="openrouter/other",
+        provider="openrouter",
+        retries=0,
+        estimated_usage_cad=config["weekly_budget_cad"],
+    )
 
-    assert calls == []
+    launched: list[object] = []
+    real_run = subprocess.run
+
+    def _record(*args, **kwargs):
+        launched.append(args)
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", _record)
+
+    with pytest.raises(bl.LoopError, match="left this week|will not authorise"):
+        bl.run_independent_readonly_review(
+            "Review this exact plan.", root=repo, governor_db=ledger
+        )
+
+    assert not any("kittybuilder_dsh.sh" in str(call) for call in launched)
+
+
+def test_independent_readonly_review_will_not_pay_twice_for_the_same_sha(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _review_fixture_repo(tmp_path)
+    ledger = tmp_path / "governor.db"
+    monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
+    monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/deepseek/deepseek-chat")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+    cg.init_db(ledger)
+    cg.record_receipt(
+        ledger,
+        bl._review_governor_dispatch(str(repo.resolve()), reviewed_sha=head),
+        outcome=cg.OUTCOME_SETTLED,
+        route=cg.ROUTE_CHEAP,
+        model="openrouter/deepseek/deepseek-chat",
+        provider="openrouter",
+        retries=0,
+        estimated_usage_cad=0.01,
+    )
+
+    with pytest.raises(bl.LoopError, match="will not authorise"):
+        bl.run_independent_readonly_review(
+            "Review this exact plan.", root=repo, governor_db=ledger
+        )
 
 
 def test_independent_readonly_review_executor_fails_closed_without_builder_reviewer_route(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(pra.ADMISSION_ENV_VAR, pra.ADMISSION_OPT_IN_VALUE)
+    repo = _review_fixture_repo(tmp_path)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     with pytest.raises(bl.LoopError, match="reviewer route selection is unavailable"):
-        bl.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
+        bl.run_independent_readonly_review(
+            "Review this exact plan.", root=repo, governor_db=tmp_path / "governor.db"
+        )
 
 
 def test_independent_readonly_review_executor_rejects_the_implementer_model_family(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(pra.ADMISSION_ENV_VAR, pra.ADMISSION_OPT_IN_VALUE)
     monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
     monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/anthropic/claude-opus")
 
     with pytest.raises(bl.LoopError, match="must not use the implementer's model family"):
-        bl.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
+        bl.run_independent_readonly_review(
+            "Review this exact plan.", root=tmp_path, governor_db=tmp_path / "governor.db"
+        )
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
@@ -3345,13 +3461,15 @@ def test_independent_readonly_review_executor_uses_builder_route_and_contains_ho
     ).stdout.strip()
     subprocess.run(["git", "update-ref", "refs/remotes/origin/main", head], cwd=repo, check=True)
 
-    monkeypatch.setenv(pra.ADMISSION_ENV_VAR, pra.ADMISSION_OPT_IN_VALUE)
     monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
     monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/deepseek/deepseek-chat")
     monkeypatch.setenv("GITHUB_TOKEN", "must-not-propagate")
     monkeypatch.setenv("OTHER_SECRET", "must-not-propagate")
 
-    result = bl.run_independent_readonly_review("Review this exact plan.", root=repo)
+    ledger = tmp_path / "governor.db"
+    result = bl.run_independent_readonly_review(
+        "Review this exact plan.", root=repo, governor_db=ledger
+    )
 
     assert result["provider"] == "openrouter"
     assert result["model"] == "openrouter/deepseek/deepseek-chat"
@@ -3359,6 +3477,12 @@ def test_independent_readonly_review_executor_uses_builder_route_and_contains_ho
     assert result["review_origin_main"] == head
     assert result["output"] == '{"verdict":"approve","summary":"contained"}'
     assert result["probes"] == []
+    # The completed pass is settled against the exact reviewed SHA, so a second
+    # review of the same commit cannot be paid for again.
+    settled = cg.find_settled_receipt(
+        ledger, task_type="review", subject_ref=str(repo.resolve()), head_sha=head
+    )
+    assert settled is not None
     assert subprocess.run(
         ["git", "status", "--porcelain=v1", "--untracked-files=all"],
         cwd=repo,
