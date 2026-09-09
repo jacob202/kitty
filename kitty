@@ -204,7 +204,9 @@ pid_worktree_identity() {
 
 classify_primary_stack() {
   local ui_identity="${1:-}" gateway_identity="${2:-}"
-  if [[ -z "$ui_identity" || -z "$gateway_identity" ]]; then
+  if [[ -z "$ui_identity" && -z "$gateway_identity" ]]; then
+    echo "stopped"
+  elif [[ -z "$ui_identity" || -z "$gateway_identity" ]]; then
     echo "partial"
   elif [[ "$ui_identity" == "$gateway_identity" ]]; then
     echo "coherent"
@@ -342,6 +344,25 @@ expand_user_path() {
     "~/"*) printf '%s/%s\n' "$HOME" "${value:2}" ;;
     *) printf '%s\n' "$value" ;;
   esac
+}
+
+ensure_agent_room_data_root() {
+  # Agent Room needs the canonical personal data root, but it must not care
+  # whether Builder or compute-governor overrides are intentionally isolated.
+  local data_root
+  if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
+    data_root="$(expand_user_path "$KITTY_DATA_ROOT")"
+    data_root="${data_root%/}"
+  else
+    local git_common_dir canonical_root
+    git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    canonical_root="$KITTY_ROOT"
+    if [[ -n "$git_common_dir" ]]; then
+      canonical_root="$(dirname "$git_common_dir")"
+    fi
+    data_root="$canonical_root/data"
+  fi
+  export KITTY_DATA_ROOT="$data_root"
 }
 
 ensure_runtime_builder_data_dir() {
@@ -987,7 +1008,10 @@ cmd_room() {
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12 || command -v python3)"
   fi
-  ensure_runtime_builder_data_dir
+  # Agent Room is coordination, not a serving-runtime operation. Its storage
+  # follows KITTY_DATA_ROOT and must remain available even when an isolated
+  # worktree overrides Builder/governor state.
+  ensure_agent_room_data_root
   PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
     "$python_bin" -m gateway.agent_room_cli "$@"
 }

@@ -241,6 +241,61 @@ def test_owner_backup_roundtrip_covers_canonical_inventory_without_secrets(tmp_p
         assert conn.execute("SELECT value FROM sentinel").fetchone() == ("monitor",)
 
 
+def test_owner_restore_replace_refuses_active_builder_queue(tmp_path, monkeypatch):
+    source_root = tmp_path / "source"
+    queue = source_root / "data" / "kittybuilder" / "builder_queue.db"
+    queue.parent.mkdir(parents=True)
+    with sqlite3.connect(queue) as conn:
+        conn.execute("CREATE TABLE sentinel (value TEXT)")
+        conn.execute("INSERT INTO sentinel VALUES ('backup')")
+    backup = kitty_backup.create_owner_backup(
+        project_root=source_root, backup_root=tmp_path / "backups", timestamp="20260817T121000Z"
+    )
+
+    target = tmp_path / "target"
+    live_queue = target / "data" / "kittybuilder" / "builder_queue.db"
+    live_queue.parent.mkdir(parents=True)
+    with sqlite3.connect(live_queue) as conn:
+        conn.execute("CREATE TABLE live (value TEXT)")
+    monkeypatch.setattr(kitty_backup, "_active_builder_processes", lambda: ["123 builder worker"])
+
+    with pytest.raises(RuntimeError, match="Builder is active"):
+        kitty_backup.restore_owner_backup(backup, target, replace=True)
+    assert live_queue.exists()
+
+
+def test_owner_restore_replace_moves_builder_queue_sidecars_aside(tmp_path, monkeypatch):
+    source_root = tmp_path / "source"
+    queue = source_root / "data" / "kittybuilder" / "builder_queue.db"
+    queue.parent.mkdir(parents=True)
+    with sqlite3.connect(queue) as conn:
+        conn.execute("CREATE TABLE sentinel (value TEXT)")
+        conn.execute("INSERT INTO sentinel VALUES ('backup')")
+    backup = kitty_backup.create_owner_backup(
+        project_root=source_root, backup_root=tmp_path / "backups", timestamp="20260817T122000Z"
+    )
+
+    target = tmp_path / "target"
+    live_queue = target / "data" / "kittybuilder" / "builder_queue.db"
+    live_queue.parent.mkdir(parents=True)
+    live_queue.write_bytes(b"old-db")
+    Path(str(live_queue) + "-wal").write_bytes(b"old-wal")
+    Path(str(live_queue) + "-shm").write_bytes(b"old-shm")
+    monkeypatch.setattr(kitty_backup, "_active_builder_processes", lambda: [])
+
+    kitty_backup.restore_owner_backup(backup, target, replace=True)
+
+    asides = list(live_queue.parent.glob("builder_queue.db.pre-restore-*"))
+    base_asides = [p for p in asides if not p.name.endswith(("-wal", "-shm"))]
+    assert len(base_asides) == 1
+    aside = base_asides[0]
+    assert aside.read_bytes() == b"old-db"
+    assert Path(str(aside) + "-wal").read_bytes() == b"old-wal"
+    assert Path(str(aside) + "-shm").read_bytes() == b"old-shm"
+    with sqlite3.connect(live_queue) as conn:
+        assert conn.execute("SELECT value FROM sentinel").fetchone() == ("backup",)
+
+
 def test_cli_restore_auto_detects_owner_data_archive(tmp_path, capsys):
     source_root = tmp_path / "source"
     kitty_dir = source_root / "data" / "kitty"

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sqlite3
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,6 +51,62 @@ OWNER_DATA_RELATIVE_PATHS = (
     "config/user_profile.json",
     "config/USER",
 )
+
+
+_BUILDER_PROCESS_MARKERS = (
+    "gateway.builder_supervisor",
+    "start_builder_supervisor.sh",
+    "kittybuilder_dsh_worker.sh",
+    "kittybuilder_dsh_reviewer.sh",
+)
+
+
+def _active_builder_processes() -> list[str]:
+    """Return live Builder supervisor/worker process lines, or fail closed."""
+    try:
+        result = subprocess.run(
+            ["ps", "-axo", "pid=,command="],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError(
+            "Cannot verify Builder is quiescent; refusing owner-data restore"
+        ) from exc
+
+    current_pid = str(os.getpid())
+    active: list[str] = []
+    for line in result.stdout.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        pid = stripped.split(None, 1)[0]
+        if pid == current_pid:
+            continue
+        if any(marker in stripped for marker in _BUILDER_PROCESS_MARKERS):
+            active.append(stripped)
+    return active
+
+
+def _prepare_builder_queue_replace(dest: Path, stamp: str) -> None:
+    """Refuse a live queue replacement and isolate its SQLite sidecars."""
+    active = _active_builder_processes()
+    if active:
+        raise RuntimeError(
+            "Kitty owner-data restore refuses to replace builder_queue.db while "
+            "Builder is active; stop Builder first (active: " + "; ".join(active) + ")"
+        )
+
+    aside = dest.parent / f"{dest.name}.pre-restore-{stamp}"
+    if aside.exists():
+        raise RuntimeError(f"Kitty restore aside already exists: {aside}")
+    if dest.exists():
+        shutil.move(str(dest), str(aside))
+    for suffix in ("-wal", "-shm"):
+        sidecar = Path(str(dest) + suffix)
+        if sidecar.exists():
+            shutil.move(str(sidecar), str(aside) + suffix)
 
 def _owner_path(project_root: Path, data_root: Path, relative: str) -> Path:
     if relative.startswith("data/"):
@@ -198,10 +256,13 @@ def restore_owner_backup(
                         f"Kitty owner-data restore target already exists: {dest} "
                         "(pass --replace to move it aside first)"
                     )
-                aside = dest.parent / f"{dest.name}.pre-restore-{stamp}"
-                if aside.exists():
-                    raise RuntimeError(f"Kitty restore aside already exists: {aside}")
-                shutil.move(str(dest), str(aside))
+                if relative == "data/kittybuilder/builder_queue.db":
+                    _prepare_builder_queue_replace(dest, stamp)
+                else:
+                    aside = dest.parent / f"{dest.name}.pre-restore-{stamp}"
+                    if aside.exists():
+                        raise RuntimeError(f"Kitty restore aside already exists: {aside}")
+                    shutil.move(str(dest), str(aside))
             dest.parent.mkdir(parents=True, exist_ok=True)
             _copy_path_sqlite_safe(source, dest)
             restored.append(dest)

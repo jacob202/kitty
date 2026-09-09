@@ -78,7 +78,7 @@ def test_status_uses_the_serving_listener_before_pidfile_metadata() -> None:
     assert block.index(listener_lookup) < block.index(pidfile_lookup)
 
 
-def test_primary_stack_classifier_distinguishes_coherent_split_and_partial() -> None:
+def test_primary_stack_classifier_distinguishes_coherent_split_partial_and_stopped() -> None:
     marker = "classify_primary_stack() {"
     assert marker in SCRIPT
     body = SCRIPT.split(marker, 1)[1].split("\n}\n", 1)[0]
@@ -96,6 +96,7 @@ def test_primary_stack_classifier_distinguishes_coherent_split_and_partial() -> 
     assert classify("/tmp/wt@abc", "/tmp/wt@abc") == "coherent"
     assert classify("/tmp/ui@abc", "/tmp/gw@def") == "split"
     assert classify("/tmp/wt@abc", "") == "partial"
+    assert classify("", "") == "stopped"
 
 
 def test_status_exposes_other_kitty_listeners_without_calling_them_stale() -> None:
@@ -173,6 +174,8 @@ def test_room_command_uses_global_agent_room_cli() -> None:
     assert "cmd_room() {" in SCRIPT
     block = SCRIPT.split("cmd_room() {", 1)[1].split("\n}\n", 1)[0]
     assert "-m gateway.agent_room_cli" in block
+    assert "ensure_agent_room_data_root" in block
+    assert "ensure_runtime_builder_data_dir" not in block
     assert 'room)      shift; cmd_room "$@" ;;' in SCRIPT
     assert "kitty room" in SCRIPT
 

@@ -114,10 +114,9 @@ def test_room_launcher_uses_canonical_data_root_from_linked_worktree(tmp_path):
     env = dict(os.environ)
     env.pop("KITTY_DATA_ROOT", None)
     env.pop("KITTY_BUILDER_DATA_DIR", None)
-    # An autouse fixture isolates the compute-governor DB for every test by
-    # setting this in the current process's real os.environ; a leaked value
-    # here would otherwise conflict with the canonical root this test derives.
-    env.pop("KITTY_COMPUTE_GOVERNOR_DB", None)
+    # Agent Room must remain usable even when a worktree intentionally isolates
+    # the compute governor independently from the canonical personal data root.
+    env["KITTY_COMPUTE_GOVERNOR_DB"] = str(tmp_path / "isolated-governor.db")
     env["PYTHON_BIN"] = str(python)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     result = subprocess.run(
