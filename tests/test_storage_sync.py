@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from gateway import db as kitty_db
-from gateway import memory, plugin_registry, storage_sync, todo_store
+from gateway import memory, plugin_registry, project_store, storage_sync, todo_store
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +30,7 @@ def _isolate(tmp_path, monkeypatch, name):
     db_file = tmp_path / f"{name}.db"
     monkeypatch.setattr(kitty_db, "KITTY_DB_FILE", db_file)
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
     return db_file
 
 

@@ -192,12 +192,12 @@ def select_todo(project_id: int, todo_id: int) -> dict[str, Any]:
         raise ProjectError(f"todo_id must be int, got {type(todo_id).__name__}")
     from gateway import todo_store
 
-    init_db()
-    todo_store.init_db()
     if Path(todo_store.TODO_DB_FILE).resolve() != Path(PROJECTS_DB_FILE).resolve():
         raise ProjectError(
             "cannot select a todo while the todo and project stores are separate databases"
         )
+    init_db()
+    todo_store.init_db()
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
         # Lock before validating either row. A validation performed before the
         # write transaction can become false while this request waits for a

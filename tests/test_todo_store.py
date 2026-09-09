@@ -334,3 +334,25 @@ class TestProgress:
         todo_store.clear()
         assert todo_store.set_progress(4242, "note") is None
         assert todo_store.set_project(4242, 1) is None
+
+
+def test_update_refuses_split_project_store_before_initializing_it(
+    monkeypatch, tmp_path
+):
+    """A redirected Todo store must never initialize the personal Project DB."""
+    split_projects = tmp_path / "separate" / "projects.db"
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", split_projects, raising=False)
+    initialized = False
+
+    def unexpected_init():
+        nonlocal initialized
+        initialized = True
+        raise AssertionError("split project store must not be initialized")
+
+    monkeypatch.setattr(project_store, "init_db", unexpected_init)
+
+    with pytest.raises(todo_store.TodoStoreError, match="separate databases"):
+        todo_store.update([{"content": "isolated"}])
+
+    assert initialized is False
+    assert not split_projects.exists()

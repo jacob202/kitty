@@ -57,16 +57,20 @@ def update(items: list[dict]) -> list[dict]:
     init_db()
     from gateway import project_store
 
+    if Path(TODO_DB_FILE).resolve() != Path(project_store.PROJECTS_DB_FILE).resolve():
+        # Selection protection is only atomic because Projects and Todos share
+        # one SQLite transaction. Refuse a split configuration before touching
+        # the Project store; silently proceeding would reintroduce the exact
+        # selected-todo loss this reconciliation prevents.
+        raise TodoStoreError(
+            "cannot safely reconcile todos while the todo and project stores are separate databases"
+        )
     try:
         project_store.init_db()
     except Exception as exc:
         raise TodoStoreError(
             "cannot reconcile the todo list without reading project selections"
         ) from exc
-    if Path(TODO_DB_FILE).resolve() != Path(project_store.PROJECTS_DB_FILE).resolve():
-        raise TodoStoreError(
-            "cannot safely reconcile todos while the todo and project stores are separate databases"
-        )
     now = time.time()
 
     with kitty_db.connect(TODO_DB_FILE) as conn:

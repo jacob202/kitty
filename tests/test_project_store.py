@@ -133,6 +133,32 @@ def todos(monkeypatch, tmp_path):
     return todo_store
 
 
+def test_selection_refuses_split_todo_store_before_initializing_projects(
+    todos, monkeypatch, tmp_path
+):
+    """A split Todo store is refused before either shared-store initializer runs."""
+    split_todos = tmp_path / "separate" / "todos.db"
+    monkeypatch.setattr(todos, "TODO_DB_FILE", split_todos, raising=False)
+    initialized: list[str] = []
+
+    def unexpected_project_init():
+        initialized.append("projects")
+        raise AssertionError("project init must not run for split stores")
+
+    def unexpected_todo_init():
+        initialized.append("todos")
+        raise AssertionError("todo init must not run for split stores")
+
+    monkeypatch.setattr(project_store, "init_db", unexpected_project_init)
+    monkeypatch.setattr(todos, "init_db", unexpected_todo_init)
+
+    with pytest.raises(project_store.ProjectError, match="separate databases"):
+        project_store.select_todo(1, 1)
+
+    assert initialized == []
+    assert not split_todos.exists()
+
+
 class TestSelectedTodo:
     """The one action the user chose outranks everything generated."""
 
