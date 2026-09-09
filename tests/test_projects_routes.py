@@ -258,3 +258,16 @@ def test_selecting_a_missing_todo_is_a_404_not_a_500(client, todos):
 
     assert response.status_code == 404
     assert "4242" in response.json()["detail"]
+
+
+def test_boolean_todo_id_is_rejected_at_the_api_boundary(client, todos):
+    """Plain `int` would coerce true to 1 and silently select todo #1."""
+    project = client.post("/projects", json={"name": "job-search", "kind": "admin"}).json()
+    todos.update([{"content": "Send the application"}])
+
+    response = client.put(
+        f"/projects/{project['id']}/selected-todo", json={"todo_id": True}
+    )
+
+    assert response.status_code == 422
+    assert client.get(f"/projects/{project['id']}/selected-todo").json()["selected_todo"] is None

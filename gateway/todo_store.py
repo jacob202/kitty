@@ -86,12 +86,42 @@ def update(items: list[dict]) -> list[dict]:
                 (content, status, active_form, position, now, matched),
             )
 
-        dropped = [row["id"] for row in existing if row["id"] not in kept]
+        # A todo a project has explicitly selected is not a suggestion, and a
+        # regenerated list that omits it is not the user removing it. Deleting
+        # it here would silently destroy the chosen action and its progress
+        # note — the exact loss this reconciliation exists to prevent. Explicit
+        # removal still works: that is `delete_by_id`.
+        protected = _protected_todo_ids()
+        dropped = [
+            row["id"]
+            for row in existing
+            if row["id"] not in kept and row["id"] not in protected
+        ]
         for todo_id in dropped:
             conn.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
         conn.commit()
 
     return get()
+
+
+def _protected_todo_ids() -> set[int]:
+    """Todo ids some project has explicitly chosen, so must not be swept away.
+
+    Asked of ``project_store`` rather than read from the table directly, so the
+    two stores stay independently redirectable. A projects store that is absent
+    or unreadable protects nothing rather than blocking every todo update.
+    """
+    try:
+        from gateway import project_store
+
+        return {
+            project["selected_todo_id"]
+            for project in project_store.list_projects()
+            if project.get("selected_todo_id") is not None
+        }
+    except Exception:
+        logger.warning("could not read project selections; no todos protected", exc_info=True)
+        return set()
 
 
 def _match_existing_todo(

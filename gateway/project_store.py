@@ -189,8 +189,20 @@ def select_todo(project_id: int, todo_id: int) -> dict[str, Any]:
         raise ProjectError(f"todo_id must be int, got {type(todo_id).__name__}")
     from gateway import todo_store
 
-    if not any(todo["id"] == todo_id for todo in todo_store.get()):
+    chosen = next((todo for todo in todo_store.get() if todo["id"] == todo_id), None)
+    if chosen is None:
         raise ProjectNotFound(f"no todo with id {todo_id}")
+    # A finished item is not a next action. Selecting one would leave the
+    # project pointing at something there is nothing left to do about.
+    if chosen["status"] == "completed":
+        raise ProjectError(f"todo {todo_id} is already completed and cannot be the next action")
+    # A todo already belonging to another project must not be quietly stolen;
+    # one with no project is adopted by the project selecting it.
+    owner = chosen.get("project_id")
+    if owner is not None and owner != project_id:
+        raise ProjectError(f"todo {todo_id} belongs to project {owner}, not {project_id}")
+    if owner is None:
+        todo_store.set_project(todo_id, project_id)
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
         conn.execute(
             "UPDATE projects SET selected_todo_id = ? WHERE id = ?", (todo_id, project_id)

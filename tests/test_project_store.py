@@ -209,3 +209,68 @@ class TestSelectedTodo:
 
         assert project["selected_todo_id"] is None
         assert project_store.selected_todo(project["id"]) is None
+
+
+class TestSelectionGuards:
+    def test_regeneration_that_omits_the_selected_todo_does_not_delete_it(self, todos):
+        """P4: new suggestions cannot replace the action the user chose."""
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        chosen = created[0]["id"]
+        project_store.select_todo(project["id"], chosen)
+        todos.set_progress(chosen, "attached the resume")
+
+        # The model regenerates a list that does not mention the chosen item.
+        todos.update([{"content": "Tidy the desk"}, {"content": "Read the news"}])
+
+        survivor = project_store.selected_todo(project["id"])
+        assert survivor is not None
+        assert survivor["id"] == chosen
+        assert survivor["progress_note"] == "attached the resume"
+
+    def test_explicit_deletion_still_removes_a_selected_todo(self, todos):
+        """Protection is against a sweep, not against the user saying delete."""
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        assert todos.delete_by_id(created[0]["id"]) is True
+        assert project_store.selected_todo(project["id"]) is None
+
+    def test_a_todo_owned_by_another_project_cannot_be_stolen(self, todos):
+        project_store.init_db()
+        mine = project_store.create(name="job-search", kind="admin")
+        theirs = project_store.create(name="benefits", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(theirs["id"], created[0]["id"])
+
+        with pytest.raises(project_store.ProjectError, match="belongs to project"):
+            project_store.select_todo(mine["id"], created[0]["id"])
+
+    def test_selecting_an_unowned_todo_adopts_it_into_the_project(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        assert project_store.selected_todo(project["id"])["project_id"] == project["id"]
+
+    def test_a_completed_todo_cannot_be_the_next_action(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        todos.complete_by_id(created[0]["id"])
+
+        with pytest.raises(project_store.ProjectError, match="already completed"):
+            project_store.select_todo(project["id"], created[0]["id"])
+
+    def test_a_boolean_is_never_treated_as_todo_id_one(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        todos.update([{"content": "Send the application"}])
+
+        with pytest.raises(project_store.ProjectError, match="must be int"):
+            project_store.select_todo(project["id"], True)

@@ -10,7 +10,7 @@ import hashlib
 import logging
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 
 from gateway import next_step, project_resume, project_store
 from gateway.push import push_to_jacob
@@ -113,7 +113,9 @@ def post_refresh(project_id: int) -> dict:
 
 
 class SelectTodoRequest(BaseModel):
-    todo_id: int
+    # StrictInt: plain `int` accepts `true` and coerces it to 1, so a malformed
+    # client could silently select todo #1.
+    todo_id: StrictInt
 
 
 @router.put("/projects/{project_id}/selected-todo")
