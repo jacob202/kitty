@@ -80,28 +80,40 @@ def test_status_uses_the_serving_listener_before_pidfile_metadata() -> None:
     assert block.index(listener_lookup) < block.index(pidfile_lookup)
 
 
-def test_pidfile_controls_listener_accepts_direct_child_of_owned_controller(tmp_path) -> None:
+def _run_pidfile_controls_listener(tmp_path: Path, controller_command: str) -> subprocess.CompletedProcess:
     pidfile = tmp_path / "litellm.pid"
     pidfile.write_text("123\n", encoding="utf-8")
     helper = _extract_function("pidfile_controls_listener")
     shell = (
+        'KITTY_ROOT=/repo\n'
         'pid_owned_by_current_checkout() { [[ "$1" == "123" ]]; }\n'
         'pid_parent() { printf "123\n"; }\n'
+        f'pid_command() {{ printf "%s\n" {controller_command!r}; }}\n'
         + helper
-        + '\npidfile_controls_listener "$1" 456\n'
+        + '\npidfile_controls_listener litellm "$1" 456\n'
     )
-    result = subprocess.run(
+    return subprocess.run(
         ["bash", "-c", shell, "bash", str(pidfile)],
         capture_output=True,
         text=True,
     )
+
+
+def test_pidfile_controls_listener_accepts_expected_litellm_controller(tmp_path) -> None:
+    result = _run_pidfile_controls_listener(tmp_path, "bash /repo/gateway/start_litellm.sh")
     assert result.returncode == 0, result.stderr
 
 
-def test_status_treats_managed_child_listener_as_owned_without_metadata_mismatch() -> None:
+def test_pidfile_controls_listener_rejects_reused_pid_with_wrong_command(tmp_path) -> None:
+    result = _run_pidfile_controls_listener(tmp_path, "bash /repo/scripts/unrelated.sh")
+    assert result.returncode != 0
+
+
+def test_status_uses_service_aware_role_for_both_listener_sections() -> None:
     block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
-    assert 'pidfile_controls_listener "$pidfile" "$found_pid"' in block
-    assert 'role="owned-current"' in block
+    assert 'listener_role_for_service "$svc" "$pidfile" "$found_pid"' in block
+    assert 'listener_role_for_service "$svc" "$RUN_DIR/$svc.pid" "$pid"' in block
+    assert 'pidfile_controls_listener "$svc" "$pidfile" "$found_pid"' in block
 
 
 def test_primary_stack_classifier_distinguishes_coherent_split_partial_and_stopped() -> None:
