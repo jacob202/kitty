@@ -25,6 +25,19 @@ GATEWAY_HOST="${GATEWAY_HOST:-127.0.0.1}"
 GATEWAY_PORT="${GATEWAY_PORT:-8000}"
 GATEWAY_RELOAD="${GATEWAY_RELOAD:-0}"
 
+record_runtime_identity() {
+  local source_sha dirty run_dir
+  source_sha="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || true)"
+  [[ -n "${source_sha}" ]] || return 0
+  dirty="$(git -C "${ROOT_DIR}" status --porcelain --untracked-files=normal 2>/dev/null || true)"
+  [[ -z "${dirty}" ]] || source_sha="dirty:${source_sha}"
+  run_dir="${ROOT_DIR}/logs/.run"
+  mkdir -p "${run_dir}"
+  printf '%s|%s|%s\n' "$$" "${ROOT_DIR}" "${source_sha}" > "${run_dir}/gateway.identity"
+}
+
+record_runtime_identity
+
 echo "Starting Kitty Gateway on ${GATEWAY_HOST}:${GATEWAY_PORT}..."
 if [[ "${GATEWAY_RELOAD}" == "1" ]]; then
   exec uvicorn gateway.app:app --host "${GATEWAY_HOST}" --port "${GATEWAY_PORT}" --reload

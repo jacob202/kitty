@@ -3,13 +3,29 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sqlite3
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
 from gateway.paths import DATA_DIR, KITTY_DATA_DIR
 from scripts import kitty_backup
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _seed_personal_db(data_kitty_dir: Path) -> Path:
+    """Create the canonical personal database an owner-data backup requires."""
+    data_kitty_dir.mkdir(parents=True, exist_ok=True)
+    db_file = data_kitty_dir / "kitty.db"
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("CREATE TABLE owner_sentinel (value TEXT)")
+        conn.execute("INSERT INTO owner_sentinel VALUES ('kitty')")
+    return db_file
 
 
 def test_create_backup_copies_files_and_sqlite_db(tmp_path):
@@ -187,7 +203,7 @@ def test_owner_backup_roundtrip_covers_canonical_inventory_without_secrets(tmp_p
         path = source_root / rel
         if path.suffix:
             path.parent.mkdir(parents=True, exist_ok=True)
-            if path.name == "web_monitors.db":
+            if path.suffix == ".db":
                 with sqlite3.connect(path) as conn:
                     conn.execute("CREATE TABLE sentinel (value TEXT)")
                     conn.execute("INSERT INTO sentinel VALUES ('monitor')")
@@ -229,6 +245,137 @@ def test_owner_backup_roundtrip_covers_canonical_inventory_without_secrets(tmp_p
         assert conn.execute("SELECT value FROM owner_sentinel").fetchone() == ("kitty",)
     with sqlite3.connect(restored_root / "data" / "web_monitors.db") as conn:
         assert conn.execute("SELECT value FROM sentinel").fetchone() == ("monitor",)
+    with sqlite3.connect(
+        restored_root / "data" / "kittybuilder" / "builder_queue.db"
+    ) as conn:
+        assert conn.execute("SELECT value FROM sentinel").fetchone() == ("monitor",)
+
+
+def test_owner_restore_replace_refuses_active_builder_queue(tmp_path, monkeypatch):
+    source_root = tmp_path / "source"
+    source_kitty = source_root / "data" / "kitty"
+    source_kitty.mkdir(parents=True)
+    (source_kitty / "owner.txt").write_text("backup-personal\n", encoding="utf-8")
+    _seed_personal_db(source_kitty)
+    queue = source_root / "data" / "kittybuilder" / "builder_queue.db"
+    queue.parent.mkdir(parents=True)
+    with sqlite3.connect(queue) as conn:
+        conn.execute("CREATE TABLE sentinel (value TEXT)")
+        conn.execute("INSERT INTO sentinel VALUES ('backup')")
+    backup = kitty_backup.create_owner_backup(
+        project_root=source_root, backup_root=tmp_path / "backups", timestamp="20260817T121000Z"
+    )
+
+    target = tmp_path / "target"
+    live_kitty = target / "data" / "kitty"
+    live_kitty.mkdir(parents=True)
+    (live_kitty / "owner.txt").write_text("live-personal\n", encoding="utf-8")
+    live_queue = target / "data" / "kittybuilder" / "builder_queue.db"
+    live_queue.parent.mkdir(parents=True)
+    with sqlite3.connect(live_queue) as conn:
+        conn.execute("CREATE TABLE live (value TEXT)")
+    monkeypatch.setattr(kitty_backup, "_active_builder_processes", lambda: ["123 builder worker"])
+
+    with pytest.raises(RuntimeError, match="Builder is active"):
+        kitty_backup.restore_owner_backup(backup, target, replace=True)
+    assert live_queue.exists()
+    assert (live_kitty / "owner.txt").read_text(encoding="utf-8") == "live-personal\n"
+    assert not list((target / "data").glob("kitty.pre-restore-*"))
+
+
+def test_owner_backup_refuses_when_the_personal_database_is_absent(tmp_path):
+    source_root = tmp_path / "source"
+    (source_root / "data" / "kitty").mkdir(parents=True)
+    (source_root / "data" / "captures").mkdir(parents=True)
+
+    with pytest.raises(RuntimeError, match="canonical personal database"):
+        kitty_backup.create_owner_backup(
+            project_root=source_root,
+            backup_root=tmp_path / "backups",
+            timestamp="20260908T120000Z",
+        )
+    assert not (tmp_path / "backups" / "20260908T120000Z").exists()
+
+
+def test_owner_restore_replace_refuses_active_builder_for_governor_store(
+    tmp_path, monkeypatch
+):
+    source_root = tmp_path / "source"
+    _seed_personal_db(source_root / "data" / "kitty")
+    governor = source_root / "data" / "compute_governor"
+    governor.mkdir(parents=True)
+    with sqlite3.connect(governor / "receipts.db") as conn:
+        conn.execute("CREATE TABLE sentinel (value TEXT)")
+        conn.execute("INSERT INTO sentinel VALUES ('backup')")
+    backup = kitty_backup.create_owner_backup(
+        project_root=source_root,
+        backup_root=tmp_path / "backups",
+        timestamp="20260908T121000Z",
+    )
+
+    # Live governor state present, queue DB absent: the old queue-only guard
+    # would have replaced this store underneath a running Builder.
+    target = tmp_path / "target"
+    live_governor = target / "data" / "compute_governor"
+    live_governor.mkdir(parents=True)
+    (live_governor / "receipts.db").write_bytes(b"live")
+
+    monkeypatch.setattr(
+        kitty_backup,
+        "_active_builder_processes",
+        lambda: ["4242 python -m gateway.builder_runner --supervise task-1"],
+    )
+    with pytest.raises(RuntimeError, match="Builder/governor state"):
+        kitty_backup.restore_owner_backup(backup, target, replace=True)
+
+    assert (live_governor / "receipts.db").read_bytes() == b"live"
+
+
+def test_active_builder_processes_detect_detached_supervisor(monkeypatch):
+    result = subprocess.CompletedProcess(
+        args=["ps"],
+        returncode=0,
+        stdout="4321 python -m gateway.builder_runner --supervise task-123\n",
+        stderr="",
+    )
+    monkeypatch.setattr(kitty_backup.subprocess, "run", lambda *args, **kwargs: result)
+
+    active = kitty_backup._active_builder_processes()
+
+    assert active == ["4321 python -m gateway.builder_runner --supervise task-123"]
+
+
+def test_owner_restore_replace_moves_builder_queue_sidecars_aside(tmp_path, monkeypatch):
+    source_root = tmp_path / "source"
+    _seed_personal_db(source_root / "data" / "kitty")
+    queue = source_root / "data" / "kittybuilder" / "builder_queue.db"
+    queue.parent.mkdir(parents=True)
+    with sqlite3.connect(queue) as conn:
+        conn.execute("CREATE TABLE sentinel (value TEXT)")
+        conn.execute("INSERT INTO sentinel VALUES ('backup')")
+    backup = kitty_backup.create_owner_backup(
+        project_root=source_root, backup_root=tmp_path / "backups", timestamp="20260817T122000Z"
+    )
+
+    target = tmp_path / "target"
+    live_queue = target / "data" / "kittybuilder" / "builder_queue.db"
+    live_queue.parent.mkdir(parents=True)
+    live_queue.write_bytes(b"old-db")
+    Path(str(live_queue) + "-wal").write_bytes(b"old-wal")
+    Path(str(live_queue) + "-shm").write_bytes(b"old-shm")
+    monkeypatch.setattr(kitty_backup, "_active_builder_processes", lambda: [])
+
+    kitty_backup.restore_owner_backup(backup, target, replace=True)
+
+    asides = list(live_queue.parent.glob("builder_queue.db.pre-restore-*"))
+    base_asides = [p for p in asides if not p.name.endswith(("-wal", "-shm"))]
+    assert len(base_asides) == 1
+    aside = base_asides[0]
+    assert aside.read_bytes() == b"old-db"
+    assert Path(str(aside) + "-wal").read_bytes() == b"old-wal"
+    assert Path(str(aside) + "-shm").read_bytes() == b"old-shm"
+    with sqlite3.connect(live_queue) as conn:
+        assert conn.execute("SELECT value FROM sentinel").fetchone() == ("backup",)
 
 
 def test_cli_restore_auto_detects_owner_data_archive(tmp_path, capsys):
@@ -236,6 +383,7 @@ def test_cli_restore_auto_detects_owner_data_archive(tmp_path, capsys):
     kitty_dir = source_root / "data" / "kitty"
     kitty_dir.mkdir(parents=True)
     (kitty_dir / "owner.txt").write_text("mine\n", encoding="utf-8")
+    _seed_personal_db(kitty_dir)
 
     backup = kitty_backup.create_owner_backup(
         project_root=source_root,
@@ -254,3 +402,129 @@ def test_cli_restore_auto_detects_owner_data_archive(tmp_path, capsys):
 
     assert (target_root / "data" / "kitty" / "owner.txt").read_text(encoding="utf-8") == "mine\n"
     assert not (target_root / "owner-data").exists()
+
+
+def test_owner_backup_external_data_root_keeps_config_anchored_to_runtime_checkout(tmp_path):
+    workspace = tmp_path / "selected-workspace"
+    kitty_dir = workspace / "data" / "kitty"
+    kitty_dir.mkdir(parents=True)
+    (kitty_dir / "note.txt").write_text("mine\n", encoding="utf-8")
+    _seed_personal_db(kitty_dir)
+
+    env = {**os.environ, "KITTY_DATA_ROOT": str(workspace / "data")}
+    backup_root = tmp_path / "backups"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "kitty_backup.py"),
+            "backup",
+            "--backup-root",
+            str(backup_root),
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    backup_dir = Path(result.stdout.strip())
+    manifest = json.loads((backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
+
+    assert manifest["source"] == str(ROOT)
+    assert (
+        backup_dir / "owner-data" / "data" / "kitty" / "note.txt"
+    ).read_text(encoding="utf-8") == "mine\n"
+    expected_preferences = (ROOT / "config" / "PREFERENCES.md").read_text(encoding="utf-8")
+    assert (
+        backup_dir / "owner-data" / "config" / "PREFERENCES.md"
+    ).read_text(encoding="utf-8") == expected_preferences
+
+
+def test_kitty_backup_launcher_maps_only_data_to_canonical_root_from_secondary_worktree(
+    tmp_path,
+):
+    """./kitty backup maps data through the canonical personal DATA_DIR while
+    checkout-owned config remains anchored to the invoking runtime ROOT."""
+    canonical_root = tmp_path / "canonical-kitty"
+    kitty_dir = canonical_root / "data" / "kitty"
+    kitty_dir.mkdir(parents=True)
+    (kitty_dir / "note.txt").write_text("mine\n", encoding="utf-8")
+    _seed_personal_db(kitty_dir)
+    (canonical_root / "config").mkdir()
+    (canonical_root / "config" / "PREFERENCES.md").write_text(
+        "pref\n", encoding="utf-8"
+    )
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    git = fake_bin / "git"
+    git.write_text(f"#!/bin/sh\necho {canonical_root}/.git\n")
+    git.chmod(0o755)
+
+    env = dict(os.environ)
+    for key in ("KITTY_DATA_ROOT", "KITTY_BUILDER_DATA_DIR", "KITTY_COMPUTE_GOVERNOR_DB"):
+        env.pop(key, None)
+    env["PYTHON_BIN"] = sys.executable
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+
+    result = subprocess.run(
+        [str(ROOT / "kitty"), "backup"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    backup_dir = Path(result.stdout.strip())
+    assert str(backup_dir).startswith(str(canonical_root / "data" / "backups" / "kitty"))
+    manifest = json.loads((backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["source"] == str(ROOT)
+    assert manifest["data_source"] == str(canonical_root / "data")
+    assert (
+        backup_dir / "owner-data" / "data" / "kitty" / "note.txt"
+    ).read_text(encoding="utf-8") == "mine\n"
+    assert (
+        backup_dir / "owner-data" / "config" / "PREFERENCES.md"
+    ).read_text(encoding="utf-8") == (ROOT / "config" / "PREFERENCES.md").read_text(encoding="utf-8")
+    assert (backup_dir / "owner-data" / "config" / "PREFERENCES.md").read_text(encoding="utf-8") != "pref\n"
+
+
+def test_owner_backup_and_default_restore_use_arbitrary_selected_data_root(tmp_path):
+    data_root = tmp_path / "isolated-data"
+    kitty_dir = data_root / "kitty"
+    kitty_dir.mkdir(parents=True)
+    (kitty_dir / "note.txt").write_text("mine\n", encoding="utf-8")
+    _seed_personal_db(kitty_dir)
+    backup_root = tmp_path / "backups"
+    env = {**os.environ, "KITTY_DATA_ROOT": str(data_root)}
+
+    backed_up = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "kitty_backup.py"), "backup",
+         "--backup-root", str(backup_root)],
+        cwd=tmp_path, env=env, capture_output=True, text=True, check=True,
+    )
+    backup_dir = Path(backed_up.stdout.strip())
+    assert (backup_dir / "owner-data" / "data" / "kitty" / "note.txt").read_text(encoding="utf-8") == "mine\n"
+    manifest = json.loads((backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["data_source"] == str(data_root)
+
+    # Prove default restore maps data/... directly back into the arbitrary
+    # selected DATA_DIR without touching checkout-owned config files.
+    restore_archive = tmp_path / "restore-archive"
+    payload = restore_archive / "owner-data" / "data" / "kitty"
+    payload.mkdir(parents=True)
+    (payload / "note.txt").write_text("restored\n", encoding="utf-8")
+    (restore_archive / "backup_manifest.json").write_text(
+        json.dumps({"mode": "owner-data", "files": ["data/kitty"]}) + "\n",
+        encoding="utf-8",
+    )
+    shutil.rmtree(data_root)
+    restored = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "kitty_backup.py"), "restore", str(restore_archive)],
+        cwd=tmp_path, env=env, capture_output=True, text=True, check=True,
+    )
+    assert restored.returncode == 0
+    assert (data_root / "kitty" / "note.txt").read_text(encoding="utf-8") == "restored\n"

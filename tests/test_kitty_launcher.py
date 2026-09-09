@@ -23,7 +23,9 @@ def test_launcher_status_understands_launchd_services() -> None:
 
     assert "launchd_pid()" in launcher
     assert "gui/$(id -u)/com.kitty.desktop.$svc" in launcher
-    assert "running via launchd" in launcher
+    assert "launchd-active" in launcher
+    assert "launchd-configured-stopped" in launcher
+    assert "launchd process alive but not listening" in launcher
 
 
 def test_launcher_install_uses_the_three_service_desktop_supervisor() -> None:
@@ -84,11 +86,12 @@ def test_launcher_status_discovers_owned_listeners_without_pidfiles(
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.count("discovered listener on") >= 2
-    assert result.stdout.count("role=owned-current") >= 2
-    assert "UI         :4000" in result.stdout
-    assert "Gateway    :8000" in result.stdout
-    assert "LiteLLM    :8001" in result.stdout
+    assert result.stdout.count("running (pid 4242; listener :") == 3
+    assert result.stdout.count("role=owned-current") >= 3
+    assert "Listeners" in result.stdout
+    assert "UI         :4000 pid=4242 role=owned-current" in result.stdout
+    assert "Gateway    :8000 pid=4242 role=owned-current" in result.stdout
+    assert "LiteLLM    :8001 pid=4242 role=owned-current" in result.stdout
     assert "not running" not in result.stdout
 
 
@@ -112,6 +115,8 @@ def test_launcher_exposes_backup_and_restore_drill() -> None:
     assert "cmd_restore_drill()" in launcher
     assert 'scripts/kitty_backup.py" backup' in launcher
     assert 'scripts/kitty_backup.py" restore-drill' in launcher
+    drill = launcher.split("cmd_restore_drill() {", 1)[1].split("\n}\n", 1)[0]
+    assert "ensure_runtime_builder_data_dir" not in drill
     assert "backup)    shift; cmd_backup" in launcher
     assert "restore-drill) shift; cmd_restore_drill" in launcher
 

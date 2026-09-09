@@ -4,20 +4,32 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sqlite3
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-from gateway.paths import DATA_DIR, KITTY_DATA_DIR, PROJECT_ROOT
+from gateway.paths import DATA_DIR, KITTY_DATA_DIR, ROOT
 
 DEFAULT_SOURCE_DIR = KITTY_DATA_DIR
 DEFAULT_BACKUP_ROOT = DATA_DIR / "backups" / "kitty"
+# Non-data owner inventory (config/...) belongs to the runtime checkout.
+# Only data/... entries are remapped through DATA_DIR/KITTY_DATA_ROOT.
+DEFAULT_OWNER_DATA_ROOT = ROOT
 
 # Explicit owner-data inventory. This intentionally excludes secrets such as
-# .env and data/gmail_token.json, and excludes Builder/execution state. Most
-# structured owner stores share data/kitty/kitty.db; the remaining entries are
-# canonical stores identified by the PAA-1 owner-memory classification audit.
+# .env and data/gmail_token.json. Most structured owner stores share
+# data/kitty/kitty.db; the remaining entries are canonical stores identified
+# by the PAA-1 owner-memory classification audit, plus Builder's durable
+# queue DB and the compute-governor and image stores.
+#
+# Deliberately excluded: the rest of data/kittybuilder/ (attempts/, runs/,
+# reports/, backups/, ...) — Builder's per-attempt execution scratch, ~10GB
+# on the canonical checkout. Only its durable queue DB is backed up here;
+# including the scratch trees is a materially larger change (backup size and
+# runtime), not a path-selection fix.
 OWNER_DATA_RELATIVE_PATHS = (
     "data/kitty",
     "data/mem0",
@@ -30,10 +42,82 @@ OWNER_DATA_RELATIVE_PATHS = (
     "data/web_monitors.db",
     "data/plugin_settings.json",
     "data/journal_entries.jsonl",
+    "data/kittybuilder/builder_queue.db",
+    "data/compute_governor",
+    "data/images",
     "config/PREFERENCES.md",
     "config/user_profile.json",
     "config/USER",
 )
+
+
+_BUILDER_PROCESS_MARKERS = (
+    "gateway.builder_supervisor",
+    "gateway.builder_runner --supervise",
+    "start_builder_supervisor.sh",
+    "kittybuilder_dsh_worker.sh",
+    "kittybuilder_dsh_reviewer.sh",
+)
+
+
+def _active_builder_processes() -> list[str]:
+    """Return live Builder supervisor/worker process lines, or fail closed."""
+    try:
+        result = subprocess.run(
+            ["ps", "-axo", "pid=,command="],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError(
+            "Cannot verify Builder is quiescent; refusing owner-data restore"
+        ) from exc
+
+    current_pid = str(os.getpid())
+    active: list[str] = []
+    for line in result.stdout.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        pid = stripped.split(None, 1)[0]
+        if pid == current_pid:
+            continue
+        if any(marker in stripped for marker in _BUILDER_PROCESS_MARKERS):
+            active.append(stripped)
+    return active
+
+
+def _assert_builder_quiescent_for_restore() -> None:
+    """Fail before replacing Builder queue or compute-governor live stores."""
+    active = _active_builder_processes()
+    if active:
+        raise RuntimeError(
+            "Kitty owner-data restore refuses to replace Builder/governor state "
+            "while Builder is active; stop Builder first (active: "
+            + "; ".join(active)
+            + ")"
+        )
+
+
+def _prepare_builder_queue_replace(dest: Path, stamp: str) -> None:
+    """Move the queue database and SQLite sidecars aside before replacement."""
+    aside = dest.parent / f"{dest.name}.pre-restore-{stamp}"
+    if aside.exists():
+        raise RuntimeError(f"Kitty restore aside already exists: {aside}")
+    if dest.exists():
+        shutil.move(str(dest), str(aside))
+    for suffix in ("-wal", "-shm"):
+        sidecar = Path(str(dest) + suffix)
+        if sidecar.exists():
+            shutil.move(str(sidecar), str(aside) + suffix)
+
+def _owner_path(project_root: Path, data_root: Path, relative: str) -> Path:
+    if relative.startswith("data/"):
+        return data_root / relative.removeprefix("data/")
+    return project_root / relative
+
+
 
 
 def create_backup(
@@ -73,9 +157,11 @@ def create_backup(
 
 
 def create_owner_backup(
-    project_root: Path = PROJECT_ROOT,
+    project_root: Path = DEFAULT_OWNER_DATA_ROOT,
     backup_root: Path = DEFAULT_BACKUP_ROOT,
     timestamp: str | None = None,
+    *,
+    data_root: Path | None = None,
 ) -> Path:
     """Back up every classified canonical owner-data path, excluding secrets.
 
@@ -87,6 +173,20 @@ def create_owner_backup(
     root = Path(project_root)
     if not root.exists() or not root.is_dir():
         raise RuntimeError(f"Kitty project root does not exist: {root}")
+    selected_data_root = (
+        Path(data_root)
+        if data_root is not None
+        else (DATA_DIR if root == DEFAULT_OWNER_DATA_ROOT else root / "data")
+    )
+    # Without the canonical personal database the archive is not a backup of
+    # Jacob's workspace: every store would be recorded "missing" and the command
+    # would still exit successfully, which is how a restore silently loses data.
+    personal_db = selected_data_root / "kitty" / "kitty.db"
+    if not personal_db.is_file():
+        raise RuntimeError(
+            "Kitty owner-data backup refuses to publish without the canonical "
+            f"personal database: {personal_db}"
+        )
 
     stamp = timestamp or _utc_stamp()
     destination = Path(backup_root) / stamp
@@ -99,7 +199,7 @@ def create_owner_backup(
     missing: list[str] = []
     try:
         for relative in OWNER_DATA_RELATIVE_PATHS:
-            source = root / relative
+            source = _owner_path(root, selected_data_root, relative)
             if not source.exists():
                 missing.append(relative)
                 continue
@@ -112,6 +212,7 @@ def create_owner_backup(
             "mode": "owner-data",
             "created_at": stamp,
             "source": str(root),
+            "data_source": str(selected_data_root),
             "files": copied,
             "missing": missing,
             "excluded_secrets": [".env", "data/gmail_token.json"],
@@ -131,10 +232,16 @@ def restore_owner_backup(
     target_root: Path,
     *,
     replace: bool = False,
+    data_root: Path | None = None,
 ) -> Path:
     """Restore an owner-data archive into a project root or fresh-install root."""
     backup = Path(backup_dir)
     target = Path(target_root)
+    selected_data_root = (
+        Path(data_root)
+        if data_root is not None
+        else (DATA_DIR if target == DEFAULT_OWNER_DATA_ROOT else target / "data")
+    )
     manifest_path = backup / "backup_manifest.json"
     if not manifest_path.is_file():
         raise RuntimeError(f"Not a Kitty backup archive (no backup_manifest.json): {backup}")
@@ -145,27 +252,46 @@ def restore_owner_backup(
     if not payload_root.is_dir():
         raise RuntimeError(f"Owner-data payload is missing: {payload_root}")
 
+    files = list(manifest.get("files", []))
+    queue_relative = "data/kittybuilder/builder_queue.db"
+    governor_relative = "data/compute_governor"
+    queue_dest = _owner_path(target, selected_data_root, queue_relative)
+    queue_sidecars = [Path(str(queue_dest) + suffix) for suffix in ("-wal", "-shm")]
+    governor_dest = _owner_path(target, selected_data_root, governor_relative)
+    # The governor store is a live WAL database too, so a running Builder can be
+    # mid-write there even when the queue DB is absent from the archive.
+    protected_live_state = (
+        queue_relative in files
+        and (queue_dest.exists() or any(path.exists() for path in queue_sidecars))
+    ) or (governor_relative in files and governor_dest.exists())
+    if replace and protected_live_state:
+        # This must happen before the restore loop moves *any* live owner data.
+        _assert_builder_quiescent_for_restore()
+
     target.mkdir(parents=True, exist_ok=True)
     stamp = _utc_stamp()
     restored: list[Path] = []
     try:
-        for relative in manifest.get("files", []):
+        for relative in files:
             if relative not in OWNER_DATA_RELATIVE_PATHS:
                 raise RuntimeError(f"Owner-data manifest contains unknown path: {relative}")
             source = payload_root / relative
             if not source.exists():
                 raise RuntimeError(f"Owner-data archive is missing declared path: {relative}")
-            dest = target / relative
+            dest = _owner_path(target, selected_data_root, relative)
             if dest.exists():
                 if not replace:
                     raise RuntimeError(
                         f"Kitty owner-data restore target already exists: {dest} "
                         "(pass --replace to move it aside first)"
                     )
-                aside = dest.parent / f"{dest.name}.pre-restore-{stamp}"
-                if aside.exists():
-                    raise RuntimeError(f"Kitty restore aside already exists: {aside}")
-                shutil.move(str(dest), str(aside))
+                if relative == "data/kittybuilder/builder_queue.db":
+                    _prepare_builder_queue_replace(dest, stamp)
+                else:
+                    aside = dest.parent / f"{dest.name}.pre-restore-{stamp}"
+                    if aside.exists():
+                        raise RuntimeError(f"Kitty restore aside already exists: {aside}")
+                    shutil.move(str(dest), str(aside))
             dest.parent.mkdir(parents=True, exist_ok=True)
             _copy_path_sqlite_safe(source, dest)
             restored.append(dest)
@@ -270,8 +396,11 @@ def restore(
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("mode") == "owner-data":
-        target_root = Path(target_dir) if target_dir is not None else PROJECT_ROOT
-        return restore_owner_backup(backup, target_root, replace=replace)
+        target_root = Path(target_dir) if target_dir is not None else DEFAULT_OWNER_DATA_ROOT
+        selected_data_root = None if target_dir is not None else DATA_DIR
+        return restore_owner_backup(
+            backup, target_root, replace=replace, data_root=selected_data_root
+        )
 
     target = Path(target_dir) if target_dir is not None else DEFAULT_SOURCE_DIR
     if target.exists() and any(target.iterdir()):
@@ -372,7 +501,7 @@ def main(argv: list[str] | None = None) -> int:
         "--target-dir",
         type=Path,
         default=None,
-        help="restore root; defaults to project root for owner-data backups and data/kitty for legacy backups",
+        help="restore root; defaults to the selected personal workspace for owner-data backups and data/kitty for legacy backups",
     )
     real_restore.add_argument(
         "--replace",

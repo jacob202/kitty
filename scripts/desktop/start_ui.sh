@@ -140,5 +140,18 @@ if [[ -d public ]]; then
   cp -R public .next/standalone/public
 fi
 
+
+record_runtime_identity() {
+  local source_sha dirty run_dir
+  source_sha="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || true)"
+  [[ -n "${source_sha}" ]] || return 0
+  dirty="$(git -C "${ROOT_DIR}" status --porcelain --untracked-files=normal 2>/dev/null || true)"
+  [[ -z "${dirty}" ]] || source_sha="dirty:${source_sha}"
+  run_dir="${ROOT_DIR}/logs/.run"
+  mkdir -p "${run_dir}"
+  printf '%s|%s|%s\n' "$$" "${ROOT_DIR}" "${source_sha}" > "${run_dir}/ui.identity"
+}
+
+record_runtime_identity
 echo "[start_ui] launching standalone Next server"
 HOSTNAME="${KITTY_UI_HOST}" PORT="${KITTY_UI_PORT}" exec node "${STANDALONE_SERVER}"
