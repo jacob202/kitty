@@ -3,6 +3,8 @@ import subprocess
 from pathlib import Path
 
 SCRIPT = Path("kitty").read_text()
+GATEWAY_START = Path("gateway/start_gateway.sh").read_text()
+UI_START = Path("scripts/desktop/start_ui.sh").read_text()
 
 
 def test_logs_only_tails_all_service_logs() -> None:
@@ -191,8 +193,10 @@ def test_agent_command_uses_shared_coordination_cli() -> None:
 
 def test_runtime_start_pins_builder_state_to_canonical_checkout() -> None:
     assert "ensure_runtime_builder_data_dir() {" in SCRIPT
-    helper = SCRIPT.split("ensure_runtime_builder_data_dir() {", 1)[1].split("\n}\n", 1)[0]
-    assert "--git-common-dir" in helper
+    resolver = _extract_function("selected_data_root")
+    helper = _extract_function("ensure_runtime_builder_data_dir")
+    assert "--git-common-dir" in resolver
+    assert 'data_root="$(selected_data_root)"' in helper
     assert "KITTY_BUILDER_DATA_DIR" in helper
     assert "KITTY_DATA_ROOT" in helper
 
@@ -245,6 +249,8 @@ def _run_workspace_resolver(
     functions = "\n".join(
         [
             _extract_function("expand_user_path"),
+            _extract_function("normalize_user_path"),
+            _extract_function("selected_data_root"),
             _extract_function("ensure_runtime_builder_data_dir"),
             _extract_function("require_existing_personal_workspace"),
         ]
@@ -275,7 +281,12 @@ def _run_workspace_resolver(
         env["PATH"] = f"{fake_bin}:{env['PATH']}"
 
     return subprocess.run(
-        ["bash", str(script)], capture_output=True, text=True, timeout=20, env=env
+        ["bash", str(script)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        env=env,
     )
 
 
@@ -315,6 +326,27 @@ def test_workspace_resolver_honors_explicit_data_root_override(tmp_path):
     assert data_root == str(isolated)
     assert builder_dir == str(isolated / "kittybuilder")
     assert governor_db == str(isolated / "compute_governor" / "receipts.db")
+
+
+def test_workspace_resolver_normalizes_relative_data_root_before_export(tmp_path):
+    selected = tmp_path / "relative-store"
+    selected.mkdir()
+
+    result = _run_workspace_resolver(
+        tmp_path,
+        {
+            "KITTY_DATA_ROOT": "relative-store",
+            "KITTY_BUILDER_DATA_DIR": "relative-store/kittybuilder",
+            "KITTY_COMPUTE_GOVERNOR_DB": "relative-store/compute_governor/receipts.db",
+        },
+        git_common_dir=None,
+    )
+
+    assert result.returncode == 0, result.stderr
+    data_root, builder_dir, governor_db = result.stdout.splitlines()
+    assert data_root == str(selected)
+    assert builder_dir == str(selected / "kittybuilder")
+    assert governor_db == str(selected / "compute_governor" / "receipts.db")
 
 
 def test_workspace_resolver_rejects_conflicting_builder_override(tmp_path):
@@ -425,9 +457,23 @@ def test_workspace_resolver_allows_explicit_empty_first_run_and_expands_tilde(tm
     assert governor == str(data_root / "compute_governor" / "receipts.db")
 
 
-def test_runtime_identity_uses_startup_record_not_mutable_checkout_head() -> None:
+def test_runtime_identity_uses_process_worktree_startup_record_not_mutable_head() -> None:
     body = _extract_function("pid_worktree_identity")
-    assert '$RUN_DIR/$svc.identity' in body
+    assert 'identity_dir="$process_root/logs/.run"' in body
     assert "rev-parse HEAD" not in body
-    assert "record_runtime_identity gateway" in SCRIPT
-    assert "record_runtime_identity ui" in SCRIPT
+    assert "gateway.identity" in GATEWAY_START
+    assert "ui.identity" in UI_START
+    assert '"$$" "${ROOT_DIR}" "${source_sha}"' in GATEWAY_START
+    assert '"$$" "${ROOT_DIR}" "${source_sha}"' in UI_START
+
+
+def test_status_current_identity_uses_dirty_aware_runtime_source() -> None:
+    block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
+    assert 'current_source_sha="$(runtime_source_sha || echo "$sha")"' in block
+    assert 'current_identity="$KITTY_ROOT@$current_source_sha"' in block
+
+
+def test_status_normalizes_workspace_overrides_before_conflict_reporting() -> None:
+    block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
+    assert 'ws_builder_override="$(normalize_user_path "$KITTY_BUILDER_DATA_DIR")"' in block
+    assert 'ws_governor_override="$(normalize_user_path "$KITTY_COMPUTE_GOVERNOR_DB")"' in block

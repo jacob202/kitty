@@ -15,11 +15,9 @@ from gateway.paths import DATA_DIR, KITTY_DATA_DIR, ROOT
 
 DEFAULT_SOURCE_DIR = KITTY_DATA_DIR
 DEFAULT_BACKUP_ROOT = DATA_DIR / "backups" / "kitty"
-# The workspace root owner-data paths are relative to. This must track the
-# SAME selection as DATA_DIR (KITTY_DATA_ROOT override, else the canonical
-# checkout) — never a literal path derived from this file's own location,
-# which is the invoking checkout and can be a secondary worktree.
-DEFAULT_OWNER_DATA_ROOT = DATA_DIR.parent if DATA_DIR.name == "data" else ROOT
+# Non-data owner inventory (config/...) belongs to the runtime checkout.
+# Only data/... entries are remapped through DATA_DIR/KITTY_DATA_ROOT.
+DEFAULT_OWNER_DATA_ROOT = ROOT
 
 # Explicit owner-data inventory. This intentionally excludes secrets such as
 # .env and data/gmail_token.json. Most structured owner stores share

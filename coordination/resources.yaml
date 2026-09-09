@@ -103,6 +103,7 @@ resources:
     - gateway/runtime_manifest.py
     - gateway/session_end_audit.py
     - gateway/skill_registry.py
+    - gateway/start_gateway.sh
     - gateway/start_litellm.sh
     - kitty
     - mcp/builder/commands.py

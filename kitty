@@ -184,13 +184,16 @@ record_runtime_identity() {
 }
 
 pid_worktree_identity() {
-  local pid="$1" cwd svc line recorded_pid root sha
+  local pid="$1" cwd svc line recorded_pid root sha process_root identity_dir
   pid_owned_by_kitty "$pid" || return 1
   cwd="$(pid_cwd "$pid")"
   [[ -n "$cwd" ]] || return 1
+  process_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -n "$process_root" ]] || return 1
+  identity_dir="$process_root/logs/.run"
   for svc in ui gateway litellm; do
-    [[ -f "$RUN_DIR/$svc.identity" ]] || continue
-    line="$(cat "$RUN_DIR/$svc.identity" 2>/dev/null || true)"
+    [[ -f "$identity_dir/$svc.identity" ]] || continue
+    line="$(cat "$identity_dir/$svc.identity" 2>/dev/null || true)"
     IFS='|' read -r recorded_pid root sha <<< "$line"
     [[ "$recorded_pid" == "$pid" && -n "$root" && -n "$sha" ]] || continue
     [[ "$cwd" == "$root" || "$cwd" == "$root/"* ]] || continue
@@ -346,23 +349,43 @@ expand_user_path() {
   esac
 }
 
+normalize_user_path() {
+  local value python_bin
+  value="$(expand_user_path "$1")"
+  if [[ "$value" != /* ]]; then
+    value="$(pwd -P)/$value"
+  fi
+  # Path normalization is launcher plumbing, not an application-runtime call.
+  # Do not use PYTHON_BIN here: tests and operator wrappers may intentionally
+  # point PYTHON_BIN at a service shim with different behavior.
+  python_bin="$(command -v python3 || true)"
+  if [[ -n "$python_bin" ]]; then
+    "$python_bin" -c 'import os,sys; print(os.path.normpath(sys.argv[1]))' "$value"
+  else
+    printf '%s\n' "$value"
+  fi
+}
+
+selected_data_root() {
+  if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
+    normalize_user_path "$KITTY_DATA_ROOT"
+    return
+  fi
+  local git_common_dir canonical_root
+  git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  canonical_root="$KITTY_ROOT"
+  if [[ -n "$git_common_dir" ]]; then
+    canonical_root="$(dirname "$git_common_dir")"
+  fi
+  printf '%s/data\n' "$canonical_root"
+}
+
 ensure_agent_room_data_root() {
   # Agent Room needs the canonical personal data root, but it must not care
   # whether Builder or compute-governor overrides are intentionally isolated.
   local data_root
-  if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
-    data_root="$(expand_user_path "$KITTY_DATA_ROOT")"
-    data_root="${data_root%/}"
-  else
-    local git_common_dir canonical_root
-    git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-    canonical_root="$KITTY_ROOT"
-    if [[ -n "$git_common_dir" ]]; then
-      canonical_root="$(dirname "$git_common_dir")"
-    fi
-    data_root="$canonical_root/data"
-  fi
-  export KITTY_DATA_ROOT="$data_root"
+  data_root="$(selected_data_root)"
+  export KITTY_DATA_ROOT="${data_root%/}"
 }
 
 ensure_runtime_builder_data_dir() {
@@ -376,25 +399,17 @@ ensure_runtime_builder_data_dir() {
   # Builder or compute-governor override that contradicts the selected root
   # is refused rather than silently splitting state across two workspaces.
   local data_root explicit_data_root=0
-  if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
-    explicit_data_root=1
-    data_root="$(expand_user_path "$KITTY_DATA_ROOT")"
-    data_root="${data_root%/}"
-  else
-    local git_common_dir canonical_root
-    git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-    canonical_root="$KITTY_ROOT"
-    if [[ -n "$git_common_dir" ]]; then
-      canonical_root="$(dirname "$git_common_dir")"
-    fi
-    data_root="$canonical_root/data"
-  fi
+  [[ -n "${KITTY_DATA_ROOT:-}" ]] && explicit_data_root=1
+  data_root="$(selected_data_root)"
+  data_root="${data_root%/}"
 
   local expected_builder_dir="${data_root}/kittybuilder"
   local expected_governor_db="${data_root}/compute_governor/receipts.db"
   local builder_override governor_override
-  builder_override="$(expand_user_path "${KITTY_BUILDER_DATA_DIR:-}")"
-  governor_override="$(expand_user_path "${KITTY_COMPUTE_GOVERNOR_DB:-}")"
+  builder_override=""
+  governor_override=""
+  [[ -z "${KITTY_BUILDER_DATA_DIR:-}" ]] || builder_override="$(normalize_user_path "$KITTY_BUILDER_DATA_DIR")"
+  [[ -z "${KITTY_COMPUTE_GOVERNOR_DB:-}" ]] || governor_override="$(normalize_user_path "$KITTY_COMPUTE_GOVERNOR_DB")"
 
   if [[ -n "$builder_override" && "${builder_override%/}" != "$expected_builder_dir" ]]; then
     echo "Error: KITTY_BUILDER_DATA_DIR conflicts with the selected personal data root." >&2
@@ -789,7 +804,9 @@ cmd_status() {
   [[ -n "$ui_pid" ]] && ui_identity="$(pid_worktree_identity "$ui_pid" || true)"
   [[ -n "$gateway_pid" ]] && gateway_identity="$(pid_worktree_identity "$gateway_pid" || true)"
   stack_state="$(classify_primary_stack "$ui_identity" "$gateway_identity")"
-  current_identity="$KITTY_ROOT@$sha"
+  local current_source_sha
+  current_source_sha="$(runtime_source_sha || echo "$sha")"
+  current_identity="$KITTY_ROOT@$current_source_sha"
 
   echo
   echo "Product runtime"
@@ -821,24 +838,17 @@ cmd_status() {
   # would make. Never fails or mutates env here — status must still print
   # when the workspace is misconfigured, so an operator can see why.
   local ws_data_root ws_builder_dir ws_governor_db ws_conflict=""
-  if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
-    ws_data_root="$(expand_user_path "$KITTY_DATA_ROOT")"
-    ws_data_root="${ws_data_root%/}"
-  else
-    local ws_git_common_dir ws_canonical_root
-    ws_git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-    ws_canonical_root="$KITTY_ROOT"
-    if [[ -n "$ws_git_common_dir" ]]; then
-      ws_canonical_root="$(dirname "$ws_git_common_dir")"
-    fi
-    ws_data_root="$ws_canonical_root/data"
-  fi
+  local ws_builder_override="" ws_governor_override=""
+  ws_data_root="$(selected_data_root)"
+  ws_data_root="${ws_data_root%/}"
   ws_builder_dir="${ws_data_root}/kittybuilder"
   ws_governor_db="${ws_data_root}/compute_governor/receipts.db"
-  if [[ -n "${KITTY_BUILDER_DATA_DIR:-}" && "${KITTY_BUILDER_DATA_DIR%/}" != "$ws_builder_dir" ]]; then
+  [[ -z "${KITTY_BUILDER_DATA_DIR:-}" ]] || ws_builder_override="$(normalize_user_path "$KITTY_BUILDER_DATA_DIR")"
+  [[ -z "${KITTY_COMPUTE_GOVERNOR_DB:-}" ]] || ws_governor_override="$(normalize_user_path "$KITTY_COMPUTE_GOVERNOR_DB")"
+  if [[ -n "$ws_builder_override" && "${ws_builder_override%/}" != "$ws_builder_dir" ]]; then
     ws_conflict="KITTY_BUILDER_DATA_DIR=$KITTY_BUILDER_DATA_DIR conflicts with expected $ws_builder_dir"
   fi
-  if [[ -n "${KITTY_COMPUTE_GOVERNOR_DB:-}" && "${KITTY_COMPUTE_GOVERNOR_DB}" != "$ws_governor_db" ]]; then
+  if [[ -n "$ws_governor_override" && "$ws_governor_override" != "$ws_governor_db" ]]; then
     [[ -n "$ws_conflict" ]] && ws_conflict="$ws_conflict; "
     ws_conflict="${ws_conflict}KITTY_COMPUTE_GOVERNOR_DB=$KITTY_COMPUTE_GOVERNOR_DB conflicts with expected $ws_governor_db"
   fi

@@ -321,20 +321,11 @@ def test_cli_restore_auto_detects_owner_data_archive(tmp_path, capsys):
     assert not (target_root / "owner-data").exists()
 
 
-def test_owner_backup_default_root_follows_selected_workspace_not_invoking_checkout(
-    tmp_path,
-):
-    """DEFAULT_OWNER_DATA_ROOT must track the selected KITTY_DATA_ROOT, never
-    this script's own file location (the invoking checkout) — that mismatch
-    is exactly what made backup/restore miss a secondary worktree's real
-    data when Kitty was invoked from anywhere but the canonical checkout.
-    """
+def test_owner_backup_external_data_root_keeps_config_anchored_to_runtime_checkout(tmp_path):
     workspace = tmp_path / "selected-workspace"
     kitty_dir = workspace / "data" / "kitty"
     kitty_dir.mkdir(parents=True)
     (kitty_dir / "note.txt").write_text("mine\n", encoding="utf-8")
-    (workspace / "config").mkdir()
-    (workspace / "config" / "PREFERENCES.md").write_text("pref\n", encoding="utf-8")
 
     env = {**os.environ, "KITTY_DATA_ROOT": str(workspace / "data")}
     backup_root = tmp_path / "backups"
@@ -347,7 +338,7 @@ def test_owner_backup_default_root_follows_selected_workspace_not_invoking_check
             "--backup-root",
             str(backup_root),
         ],
-        cwd=tmp_path,  # deliberately not the checkout — proves no cwd/__file__ reliance
+        cwd=tmp_path,
         env=env,
         capture_output=True,
         text=True,
@@ -356,21 +347,21 @@ def test_owner_backup_default_root_follows_selected_workspace_not_invoking_check
     backup_dir = Path(result.stdout.strip())
     manifest = json.loads((backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
 
-    assert manifest["source"] == str(workspace)
+    assert manifest["source"] == str(ROOT)
     assert (
         backup_dir / "owner-data" / "data" / "kitty" / "note.txt"
     ).read_text(encoding="utf-8") == "mine\n"
+    expected_preferences = (ROOT / "config" / "PREFERENCES.md").read_text(encoding="utf-8")
     assert (
         backup_dir / "owner-data" / "config" / "PREFERENCES.md"
-    ).read_text(encoding="utf-8") == "pref\n"
+    ).read_text(encoding="utf-8") == expected_preferences
 
 
-def test_kitty_backup_launcher_targets_canonical_root_from_secondary_worktree(
+def test_kitty_backup_launcher_maps_only_data_to_canonical_root_from_secondary_worktree(
     tmp_path,
 ):
-    """End-to-end: ./kitty backup, invoked with a canonical checkout elsewhere
-    on disk, must archive that canonical workspace — not data relative to
-    wherever the launcher itself happened to be invoked from."""
+    """./kitty backup maps data through the canonical personal DATA_DIR while
+    checkout-owned config remains anchored to the invoking runtime ROOT."""
     canonical_root = tmp_path / "canonical-kitty"
     kitty_dir = canonical_root / "data" / "kitty"
     kitty_dir.mkdir(parents=True)
@@ -405,10 +396,15 @@ def test_kitty_backup_launcher_targets_canonical_root_from_secondary_worktree(
     backup_dir = Path(result.stdout.strip())
     assert str(backup_dir).startswith(str(canonical_root / "data" / "backups" / "kitty"))
     manifest = json.loads((backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["source"] == str(canonical_root)
+    assert manifest["source"] == str(ROOT)
+    assert manifest["data_source"] == str(canonical_root / "data")
     assert (
         backup_dir / "owner-data" / "data" / "kitty" / "note.txt"
     ).read_text(encoding="utf-8") == "mine\n"
+    assert (
+        backup_dir / "owner-data" / "config" / "PREFERENCES.md"
+    ).read_text(encoding="utf-8") == (ROOT / "config" / "PREFERENCES.md").read_text(encoding="utf-8")
+    assert (backup_dir / "owner-data" / "config" / "PREFERENCES.md").read_text(encoding="utf-8") != "pref\n"
 
 
 def test_owner_backup_and_default_restore_use_arbitrary_selected_data_root(tmp_path):
