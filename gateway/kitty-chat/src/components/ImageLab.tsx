@@ -468,6 +468,9 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     estimateAbort.current?.abort()
     const controller = new AbortController()
     estimateAbort.current = controller
+    // Never keep a decision-relevant price from the previous route/options
+    // visible while a replacement estimate is still in flight.
+    setEstimate(null)
     setEstimateLoading(true)
     void fetch('/proxy/studio/estimate', {
       method: 'POST',
@@ -492,6 +495,15 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
       })
     return () => controller.abort()
   }, [quality, identity, count, selectedRecipeId, anchorJobId, boundCharacterId, selectedCharacter?.character_id])
+
+  useEffect(() => {
+    if (!selectedRecipeId || recipes.length === 0) return
+    const selectedRecipe = recipes.find(recipe => recipe.recipe_id === selectedRecipeId)
+    if (!selectedRecipe) return
+    const editIncompatible = Boolean(anchorJobId) && !selectedRecipe.supports_img2img
+    const createIncompatible = !anchorJobId && selectedRecipe.operation === 'img2img'
+    if (editIncompatible || createIncompatible) setSelectedRecipeId('')
+  }, [anchorJobId, recipes, selectedRecipeId])
 
   useEffect(() => {
     if (activeBatches.length === 0) return
@@ -870,26 +882,6 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         </div>
       )}
 
-      <details data-testid="image-lab-runtime-details" style={detailsStyle}>
-        <summary style={detailsSummaryStyle}>Generation details</summary>
-        <div style={detailsBodyStyle}>
-          <span>Service: {status.isError ? 'unreachable' : enginesAvailable ? 'available' : status.isPending ? 'checking' : 'unavailable'}</span>
-          <span data-testid="image-lab-estimate-details">Estimate: {estimateText}</span>
-          {estimate && (
-            <span>
-              Route: {estimate.provider}{estimate.model_id ? ` · ${estimate.model_id}` : ''} · {estimate.routing_reason}
-            </span>
-          )}
-          <span>Session: {sessionId ? 'active and restorable' : 'starts with your first generation request'}</span>
-          {sessionId && (
-            <button type="button" aria-label="Start new Image Lab session" onClick={() => void startNewSession()} disabled={busy} style={{ ...secondaryButtonStyle, alignSelf: 'flex-start' }}>
-              Start new session
-            </button>
-          )}
-          {anchorJobId && <span>Selected source job: {anchorJobId}</span>}
-        </div>
-      </details>
-
       <div
         data-testid="image-lab-workspace"
         style={{ ...workspaceStyle, ...(compact ? { gridTemplateColumns: '1fr' } : {}) }}
@@ -1227,8 +1219,11 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                 style={textareaStyle}
               />
 
-              <div style={controlsStyle}>
-                <div aria-label="image count" style={segmentedStyle}>
+              <details data-testid="image-lab-more-controls" style={moreControlsStyle}>
+                <summary style={detailsSummaryStyle}>More controls</summary>
+                <div style={detailsBodyStyle}>
+              <div style={{ ...controlsStyle, ...(compact ? { flexDirection: 'column', alignItems: 'stretch' } : {}) }}>
+                <div aria-label="image count" style={{ ...segmentedStyle, ...(compact ? { width: '100%', justifyContent: 'space-between' } : {}) }}>
                   {([1, 2, 4] as OutputCount[]).map(value => (
                     <button
                       key={value}
@@ -1243,7 +1238,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                   aria-label="generation route"
                   value={selectedRecipeId}
                   onChange={event => setSelectedRecipeId(event.target.value)}
-                  style={selectStyle}
+                  style={{ ...selectStyle, ...(compact ? { width: '100%' } : {}) }}
                 >
                   <option value="">Auto route</option>
                   {recipes.map(recipe => {
@@ -1259,19 +1254,19 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                     return <option key={recipe.recipe_id} value={recipe.recipe_id} disabled={disabled}>{recipe.display_name}{suffix}</option>
                   })}
                 </select>
-                <select aria-label="quality" value={quality} onChange={event => setQuality(event.target.value as QualityTier)} style={selectStyle}>
+                <select aria-label="quality" value={quality} onChange={event => setQuality(event.target.value as QualityTier)} style={{ ...selectStyle, ...(compact ? { width: '100%' } : {}) }}>
                   <option value="fast">Fast</option>
                   <option value="quality">Quality</option>
                   <option value="maximum">Maximum</option>
                 </select>
-                <select aria-label="identity" value={identity} onChange={event => setIdentity(event.target.value as IdentityMode)} style={selectStyle}>
+                <select aria-label="identity" value={identity} onChange={event => setIdentity(event.target.value as IdentityMode)} style={{ ...selectStyle, ...(compact ? { width: '100%' } : {}) }}>
                   <option value="creative">Creative</option>
                   <option value="balanced">Balanced</option>
                   <option value="identity_first">Identity first</option>
                 </select>
               </div>
 
-              <div data-testid="image-lab-preflight" style={{ ...preflightStyle, ...(compact ? { gridTemplateColumns: '1fr 1fr' } : {}) }}>
+              <div data-testid="image-lab-preflight" style={{ ...preflightStyle, ...(compact ? { gridTemplateColumns: '1fr' } : {}) }}>
                 <div style={preflightFactStyle}>
                   <span style={preflightLabelStyle}>Mode</span>
                   <strong style={preflightValueStyle}>{anchorJobId ? 'Edit image' : 'Create image'}</strong>
@@ -1312,11 +1307,26 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                   </div>
                 )}
               </div>
+              <span>Service: {status.isError ? 'unreachable' : enginesAvailable ? 'available' : status.isPending ? 'checking' : 'unavailable'}</span>
+              <span>Session: {sessionId ? 'active and restorable' : 'starts with your first generation request'}</span>
+              {sessionId && (
+                <button type="button" aria-label="Start new Image Lab session" onClick={() => void startNewSession()} disabled={busy} style={{ ...secondaryButtonStyle, alignSelf: 'flex-start' }}>
+                  Start new session
+                </button>
+              )}
+              {anchorJobId && <span>Selected source job: {anchorJobId}</span>}
+                </div>
+              </details>
 
               {recipesError && <div role="status" style={supportingTextStyle}>Route list unavailable: {recipesError}. Auto routing still works.</div>}
 
               <div style={{ ...actionRowStyle, ...(compact ? { alignItems: 'stretch' } : {}) }}>
                 <span data-testid="image-lab-estimate" style={estimateStyle}>{estimateText}</span>
+                <span data-testid="image-lab-per-image-estimate" style={estimateStyle}>
+                  {estimate?.per_image_estimate.cost.state === 'known' && typeof estimate.per_image_estimate.cost.usd === 'number'
+                    ? `per image ${money(estimate.per_image_estimate.cost.usd)}`
+                    : 'per-image cost unknown'}
+                </span>
                 <button
                   type="button"
                   data-testid="image-lab-send"
@@ -1584,6 +1594,10 @@ const reasonListStyle: CSSProperties = { margin: '4px 0 0', paddingLeft: 20, dis
 const detailsStyle: CSSProperties = {
   borderTop: '1px solid var(--color-separator)', borderBottom: '1px solid var(--color-separator)',
   color: 'var(--color-text-secondary)', fontSize: 13,
+}
+const moreControlsStyle: CSSProperties = {
+  ...detailsStyle, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', padding: '0 10px',
+  minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere',
 }
 const detailsSummaryStyle: CSSProperties = {
   minHeight: 44, display: 'flex', alignItems: 'center', cursor: 'pointer', color: 'var(--color-text-secondary)', fontWeight: 600,

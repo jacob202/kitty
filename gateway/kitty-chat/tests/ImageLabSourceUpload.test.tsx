@@ -27,7 +27,10 @@ function uploadResult() {
 function makeFetch() {
   return vi.fn(async (url: string, init?: RequestInit) => {
     const target = String(url)
-    if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [{ recipe_id: 'kitty_worker_img2img', display_name: 'Kitty Image Worker (edit)', provider: 'kitty_worker', operation: 'img2img', quality_tier: 'quality', supports_img2img: true, supports_characters: true, max_characters: 1, is_available: true }] }) }
+    if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [
+      { recipe_id: 'kitty_worker_img2img', display_name: 'Kitty Image Worker (edit)', provider: 'kitty_worker', operation: 'img2img', quality_tier: 'quality', supports_img2img: true, supports_characters: true, max_characters: 1, is_available: true },
+      { recipe_id: 'openai_txt_only', display_name: 'OpenAI text only', provider: 'openai', operation: 'txt2img', quality_tier: 'quality', supports_img2img: false, supports_characters: true, max_characters: 1, is_available: true },
+    ] }) }
     if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
     if (target === '/proxy/studio/sessions/imgses_1') return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', anchor_job_id: null, anchor_artifact_id: null, turns: [], jobs: [] }) }
     if (target.startsWith('/proxy/studio/batches?')) return { ok: true, status: 200, json: async () => ({ batches: [] }) }
@@ -62,6 +65,7 @@ describe('Image Lab external edit source', () => {
     vi.stubGlobal('fetch', fetchMock)
     render(<ImageLab />)
 
+    fireEvent.click(screen.getByText('More controls'))
     fireEvent.change(screen.getByRole('textbox', { name: 'Image request' }), {
       target: { value: 'change only the jacket' },
     })
@@ -78,6 +82,30 @@ describe('Image Lab external edit source', () => {
     await waitFor(() => expect(screen.getByTestId('image-lab-send')).not.toBeDisabled())
     expect(screen.getByTestId('image-lab-send')).toHaveTextContent('Generate')
     expect(route.querySelector('option[value="kitty_worker_img2img"]')).not.toBeDisabled()
+  })
+
+  it('clears a pinned text-only route when an edit source makes it incompatible', async () => {
+    const fetchMock = makeFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ImageLab />)
+
+    fireEvent.click(screen.getByText('More controls'))
+    const route = await screen.findByRole('combobox', { name: 'generation route' })
+    await waitFor(() => expect(route.querySelector('option[value="openai_txt_only"]')).not.toBeDisabled())
+    fireEvent.change(route, { target: { value: 'openai_txt_only' } })
+    expect(route).toHaveValue('openai_txt_only')
+
+    const file = new File(['image'], 'source.png', { type: 'image/png' })
+    fireEvent.change(await screen.findByLabelText('Upload source image'), { target: { files: [file] } })
+    await screen.findByRole('img', { name: 'Selected edit source' })
+
+    await waitFor(() => expect(route).toHaveValue(''))
+    expect(route.querySelector('option[value="openai_txt_only"]')).toBeDisabled()
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => {
+      if (String(url) !== '/proxy/studio/estimate') return false
+      const body = JSON.parse(String((init as RequestInit | undefined)?.body ?? '{}'))
+      return body.operation === 'img2img' && body.recipe_id === undefined
+    })).toBe(true))
   })
 
   it('uploads a source image, previews its artifact, and switches preflight to img2img', async () => {
