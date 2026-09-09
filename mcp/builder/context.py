@@ -137,52 +137,80 @@ def _latest_attempt(packet: dict[str, Any]) -> dict[str, Any] | None:
     return history[0] if history else None
 
 
-ACCEPTANCE_UNKNOWN = "unknown"
+ACCEPTANCE_NONE = "none"
+ACCEPTANCE_UNAVAILABLE = "unavailable"
 
 
 def _mission_acceptance(initiative_id: str | None) -> dict[str, Any]:
-    """Report whether the outcome was accepted, separately from Builder's task.
+    """Report the outcome-acceptance fact, separately from Builder's task.
 
-    A Mission that cannot be read is ``unknown``. It is never reported as
-    accepted: the whole point of this field is that nobody infers acceptance
-    from the absence of evidence.
+    Three answers, deliberately distinct:
+
+    - a state from the bound Mission (``unreviewed`` / ``accepted`` / ...);
+    - ``none`` — no Mission is bound to this work, so acceptance does not
+      apply to it;
+    - ``unavailable`` — the Mission store could not be read. That is an outage
+      with a cause, not the same statement as "there is nothing recorded", and
+      it is reported with the error rather than swallowed.
+
+    Never reports ``accepted`` without having read it.
     """
     if not initiative_id:
-        return {"state": ACCEPTANCE_UNKNOWN, "reviewer_id": None, "mission_id": None}
+        return {
+            "state": ACCEPTANCE_NONE,
+            "reviewer_id": None,
+            "mission_id": None,
+            "error": None,
+        }
     try:
         from gateway import memory_mission
 
         mission = memory_mission.mission_for_initiative(initiative_id)
-    except Exception:
-        return {"state": ACCEPTANCE_UNKNOWN, "reviewer_id": None, "mission_id": None}
+    except Exception as exc:
+        return {
+            "state": ACCEPTANCE_UNAVAILABLE,
+            "reviewer_id": None,
+            "mission_id": None,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
     if mission is None:
-        return {"state": ACCEPTANCE_UNKNOWN, "reviewer_id": None, "mission_id": None}
+        return {
+            "state": ACCEPTANCE_NONE,
+            "reviewer_id": None,
+            "mission_id": None,
+            "error": None,
+        }
     acceptance = mission.get("acceptance") or {}
     return {
-        "state": acceptance.get("state") or ACCEPTANCE_UNKNOWN,
+        "state": acceptance.get("state") or ACCEPTANCE_NONE,
         "reviewer_id": acceptance.get("reviewer_id"),
         "mission_id": mission.get("mission_id"),
+        "error": None,
     }
 
 
-def _outcome_complete(
+def _awaiting_acceptance(
     *, builder_done: bool, acceptance: dict[str, Any]
 ) -> tuple[bool, str | None]:
-    """Decide whether the *outcome* is complete, and say what is still open.
+    """Say whether finished Builder work is still waiting on an outcome decision.
 
-    Builder finishing its task is implementation evidence. The user's outcome
-    is complete only once that work has also been accepted. Reporting the
-    first as the second is how "it's done" gets said about work nobody has
-    agreed is done.
+    Deliberately *not* folded into ``complete``. Nothing in production records
+    an acceptance today, so gating ``complete`` on it would make that field
+    permanently false — trading a claim that overstates progress for one that
+    can never be satisfied. Instead the two facts are reported side by side and
+    the caller says the true sentence: Builder finished, nobody has accepted
+    the outcome yet.
     """
     if not builder_done:
-        return False, "the Builder task has not finished"
+        return False, None
     state = acceptance.get("state")
     if state == "accepted":
-        return True, None
-    if state == ACCEPTANCE_UNKNOWN:
-        return False, "no Mission acceptance record could be read for this work"
-    return False, f"the Mission outcome is {state}, not accepted"
+        return False, None
+    if state == ACCEPTANCE_UNAVAILABLE:
+        return True, "the Mission store could not be read to confirm acceptance"
+    if state == ACCEPTANCE_NONE:
+        return False, None
+    return True, f"the Mission outcome is {state}, not accepted"
 
 
 def work_result(
@@ -201,7 +229,7 @@ def work_result(
         initiative_id = packet.get("initiative_id")
         acceptance = _mission_acceptance(initiative_id)
         builder_done = task_state == "done"
-        complete, incomplete_because = _outcome_complete(
+        awaiting, awaiting_because = _awaiting_acceptance(
             builder_done=builder_done, acceptance=acceptance
         )
         result = {
@@ -209,10 +237,13 @@ def work_result(
             "packet_id": packet.get("packet_id"),
             "task_id": packet.get("task_id"),
             "task_state": task_state,
+            # `complete` keeps its established meaning: Builder finished its
+            # task. Outcome acceptance is the separate fact beside it.
+            "complete": builder_done,
             "builder_task_complete": builder_done,
             "mission_acceptance": acceptance,
-            "complete": complete,
-            "incomplete_because": incomplete_because,
+            "awaiting_acceptance": awaiting,
+            "awaiting_acceptance_because": awaiting_because,
             "attempt": _latest_attempt(packet),
             "publication": packet.get("publication"),
             "blocker": packet.get("blocked_reason") or packet.get("last_error"),
@@ -230,7 +261,7 @@ def work_result(
     initiative_id = initiative.get("initiative_id")
     acceptance = _mission_acceptance(initiative_id)
     builder_done = initiative.get("state") == "completed"
-    complete, incomplete_because = _outcome_complete(
+    awaiting, awaiting_because = _awaiting_acceptance(
         builder_done=builder_done, acceptance=acceptance
     )
     return receipt(
@@ -240,10 +271,11 @@ def work_result(
         next_action=initiative.get("next_packet"),
         result={
             "mission_id": initiative_id,
+            "complete": builder_done,
             "builder_task_complete": builder_done,
             "mission_acceptance": acceptance,
-            "complete": complete,
-            "incomplete_because": incomplete_because,
+            "awaiting_acceptance": awaiting,
+            "awaiting_acceptance_because": awaiting_because,
             "packets": [
                 {
                     "packet_id": packet.get("packet_id"),
@@ -399,6 +431,17 @@ def resume_context(
     if not cold_start_ok:
         state = "attention"
 
+    # This is the projection Chat reopens a job through. Without acceptance
+    # here, Builder's terminal state is the only thing Chat can show, and it
+    # gets presented as the finished user outcome.
+    acceptance = _mission_acceptance(resolved_mission)
+    builder_done = state == "done" or (initiative_work or {}).get("state") == "completed"
+    awaiting, awaiting_because = _awaiting_acceptance(
+        builder_done=builder_done, acceptance=acceptance
+    )
+    if awaiting and awaiting_because:
+        unknowns.append({"field": "outcome_acceptance", "reason": awaiting_because})
+
     return receipt(
         "resume_context",
         ok=cold_start_ok,
@@ -410,6 +453,10 @@ def resume_context(
         or "Kitty cold-start receipt is not trusted; continuity needs attention.",
         next_action=next_action,
         objective=objective,
+        builder_task_complete=builder_done,
+        mission_acceptance=acceptance,
+        awaiting_acceptance=awaiting,
+        awaiting_acceptance_because=awaiting_because,
         artifacts={
             "design": (
                 {"path": refs["design_path"], "sha": refs["design_sha"]}

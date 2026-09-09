@@ -316,12 +316,18 @@ def mission_for_initiative(
     "accepted".
     """
     initiative_id = _required_text(initiative_id, "initiative_id")
-    init_db(db_path=db_path)
+    # Deliberately no init_db(): this is the lookup a read-only result poll
+    # uses, and creating tables or indexes from a read path would mutate — and
+    # can lock — the application database just to answer a question. An absent
+    # schema is reported as unavailable rather than conjured into existence.
     with kitty_db.connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM missions WHERE builder_locator_json IS NOT NULL "
-            "ORDER BY updated_at DESC, mission_id ASC"
-        ).fetchall()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM missions WHERE builder_locator_json IS NOT NULL "
+                "ORDER BY updated_at DESC, mission_id ASC"
+            ).fetchall()
+        except sqlite3.OperationalError as exc:
+            raise MissionError(f"Mission store is unavailable: {exc}") from exc
     for row in rows:
         locator = json.loads(row["builder_locator_json"])
         if isinstance(locator, dict) and locator.get("initiative_id") == initiative_id:

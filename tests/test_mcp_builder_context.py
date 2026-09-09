@@ -228,10 +228,10 @@ def _mission(state: str, *, reviewer: str | None = "reviewer-1") -> dict:
     }
 
 
-def test_finished_builder_task_is_not_reported_as_a_finished_outcome(
+def test_finished_builder_task_reports_that_acceptance_is_still_open(
     monkeypatch: pytest.MonkeyPatch, snapshot: dict
 ) -> None:
-    """Builder finishing is implementation evidence, not user-outcome completion."""
+    """Builder finishing is implementation evidence, not user-outcome acceptance."""
     packet = snapshot["initiatives"][0]["packets"][0]
     packet["task_state"] = "done"
     monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
@@ -242,11 +242,11 @@ def test_finished_builder_task_is_not_reported_as_a_finished_outcome(
     result = context.work_result(task_id="kb_1234_abcd")["result"]
 
     assert result["builder_task_complete"] is True
-    assert result["complete"] is False
-    assert "not accepted" in result["incomplete_because"]
+    assert result["awaiting_acceptance"] is True
+    assert "not accepted" in result["awaiting_acceptance_because"]
 
 
-def test_accepted_outcome_is_the_only_thing_reported_complete(
+def test_accepted_outcome_stops_waiting_on_acceptance(
     monkeypatch: pytest.MonkeyPatch, snapshot: dict
 ) -> None:
     packet = snapshot["initiatives"][0]["packets"][0]
@@ -258,11 +258,11 @@ def test_accepted_outcome_is_the_only_thing_reported_complete(
 
     result = context.work_result(task_id="kb_1234_abcd")["result"]
 
-    assert result["complete"] is True
-    assert result["incomplete_because"] is None
+    assert result["awaiting_acceptance"] is False
+    assert result["awaiting_acceptance_because"] is None
 
 
-def test_work_with_no_bound_mission_reads_as_unknown_never_as_accepted(
+def test_work_with_no_bound_mission_reads_as_none_never_as_accepted(
     monkeypatch: pytest.MonkeyPatch, snapshot: dict
 ) -> None:
     """Absence of evidence must not be read as acceptance."""
@@ -277,12 +277,14 @@ def test_work_with_no_bound_mission_reads_as_unknown_never_as_accepted(
     result = context.work_result(task_id="kb_1234_abcd")["result"]
 
     assert result["mission_acceptance"] == {
-        "state": context.ACCEPTANCE_UNKNOWN,
+        "state": context.ACCEPTANCE_NONE,
         "reviewer_id": None,
         "mission_id": None,
+        "error": None,
     }
-    assert result["complete"] is False
-    assert "no Mission acceptance record" in result["incomplete_because"]
+    # No Mission is bound, so acceptance does not apply and nothing is waiting.
+    assert result["builder_task_complete"] is True
+    assert result["awaiting_acceptance"] is False
 
 
 def test_acceptance_lookup_reports_the_bound_mission(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -301,8 +303,9 @@ def test_acceptance_lookup_reports_the_bound_mission(monkeypatch: pytest.MonkeyP
         "state": "accepted",
         "reviewer_id": "reviewer-1",
         "mission_id": "mission_gw_1",
+        "error": None,
     }
-    assert context._mission_acceptance(None)["state"] == context.ACCEPTANCE_UNKNOWN
+    assert context._mission_acceptance(None)["state"] == context.ACCEPTANCE_NONE
 
 
 def test_initiative_level_result_applies_the_same_acceptance_gate(
@@ -317,10 +320,10 @@ def test_initiative_level_result_applies_the_same_acceptance_gate(
     result = context.work_result(mission_id="mission-1")["result"]
 
     assert result["builder_task_complete"] is True
-    assert result["complete"] is False
+    assert result["awaiting_acceptance"] is True
 
 
-def test_unreadable_mission_store_does_not_crash_the_projection(
+def test_unreadable_mission_store_is_reported_not_swallowed(
     monkeypatch: pytest.MonkeyPatch, snapshot: dict
 ) -> None:
     """A read-only projection must stay readable when the Mission store is not."""
@@ -337,6 +340,50 @@ def test_unreadable_mission_store_does_not_crash_the_projection(
 
     result = context.work_result(task_id="kb_1234_abcd")
 
+    # The projection stays readable, but an outage is reported as an outage
+    # with its cause — never as "nothing is recorded".
     assert result["ok"] is True
-    assert result["result"]["mission_acceptance"]["state"] == context.ACCEPTANCE_UNKNOWN
-    assert result["result"]["complete"] is False
+    acceptance = result["result"]["mission_acceptance"]
+    assert acceptance["state"] == context.ACCEPTANCE_UNAVAILABLE
+    assert "mission store unavailable" in acceptance["error"]
+    assert result["result"]["awaiting_acceptance"] is True
+
+
+def test_acceptance_lookup_never_creates_schema_on_a_read(tmp_path: Path) -> None:
+    """Polling a result must not mutate or lock the application database."""
+    import gateway.memory_mission as mm
+
+    empty_db = tmp_path / "kitty.db"
+    with pytest.raises(mm.MissionError, match="Mission store is unavailable"):
+        mm.mission_for_initiative("mission-1", db_path=empty_db)
+
+    # Nothing was created just by asking.
+    import sqlite3 as _sqlite3
+
+    with _sqlite3.connect(empty_db) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+    assert "missions" not in tables
+
+
+def test_resume_context_carries_acceptance_into_the_chat_projection(
+    monkeypatch: pytest.MonkeyPatch, snapshot: dict
+) -> None:
+    """Chat reopens work through resume_context, so the fact has to reach here."""
+    packet = snapshot["initiatives"][0]["packets"][0]
+    packet["task_state"] = "done"
+    monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
+    monkeypatch.setattr(context, "kitty_context", lambda: {"ok": True, "context": {}})
+    monkeypatch.setattr(context, "get_initiative", lambda *a, **k: None)
+    monkeypatch.setattr(
+        context, "_mission_acceptance", lambda _id: _mission("unreviewed")["acceptance"]
+    )
+
+    result = context.resume_context(task_id="kb_1234_abcd")
+
+    assert result["builder_task_complete"] is True
+    assert result["awaiting_acceptance"] is True
+    assert result["mission_acceptance"]["state"] == "unreviewed"
+    assert any(u["field"] == "outcome_acceptance" for u in result["unknowns"])

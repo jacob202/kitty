@@ -1,5 +1,13 @@
 # P3 + P4 completion plan — 2026-09-09
 
+> **Non-authoritative working note. Not a roadmap and not a second backlog.**
+> `docs/ROADMAP.md` remains the single active delivery backlog and the only
+> authority on sequencing and status. This file is one session's snapshot of
+> how the remaining P3/P4 work was approached. The per-checkpoint statuses
+> below were true at the moment of writing and are **not** maintained — several
+> were already changing as the work proceeded. Read delivery state from the
+> roadmap, Git, and open PRs, never from here.
+
 Base: `origin/main` at `505bdc09`. PRs #841–#844 merged.
 
 Both backends landed. What remains is the half a person can actually see, plus
