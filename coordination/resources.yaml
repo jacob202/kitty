@@ -73,6 +73,7 @@ resources:
     - gateway/project_store.py
     - gateway/routes/agent_workspace.py
     - gateway/storage_router.py
+    - gateway/storage_sync.py
     - gateway/todo_store.py
     - mcp/agent_room/**
     - tests/test_agent_room_global.py

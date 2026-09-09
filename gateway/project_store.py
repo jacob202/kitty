@@ -262,6 +262,10 @@ def selected_todo(project_id: int) -> dict[str, Any] | None:
         return None
     from gateway import todo_store
 
+    if Path(todo_store.TODO_DB_FILE).resolve() != Path(PROJECTS_DB_FILE).resolve():
+        raise ProjectError(
+            "cannot read a selected todo while the todo and project stores are separate databases"
+        )
     chosen = next((todo for todo in todo_store.get() if todo["id"] == todo_id), None)
     if chosen is None:
         _clear_selected_todo_if_current(project_id, todo_id)

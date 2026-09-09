@@ -150,7 +150,7 @@ def import_todos(payload: list[dict]) -> int:
     if not isinstance(payload, list):
         raise ValueError(f"todos payload must be a list, got {type(payload).__name__}")
     items = [dict(row) for row in payload]
-    todo_store.update(items)
+    todo_store.restore(items)
     return len(items)
 
 

@@ -123,6 +123,45 @@ def test_round_trip_preserves_todos(tmp_path, monkeypatch):
     assert {t["content"] for t in restored} == {"x", "y"}
 
 
+def test_snapshot_import_replaces_omitted_selected_todo_and_clears_dangling_pointer(
+    tmp_path, monkeypatch
+):
+    """Snapshot restore is exact replacement, not generated-list reconciliation."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    current = todo_store.update(
+        [
+            {"content": "Chosen current action"},
+            {"content": "Also current"},
+        ]
+    )
+    project_store.select_todo(project["id"], current[0]["id"])
+
+    # Restoring an older snapshot that does not contain the currently selected
+    # row must not smuggle that newer row into the restored state.
+    storage_sync.import_todos(
+        [
+            {
+                "id": 9001,
+                "content": "Only snapshot todo",
+                "status": "pending",
+                "active_form": "",
+                "sort_order": 0,
+                "progress_note": None,
+                "project_id": None,
+                "created_at": 10.0,
+                "updated_at": 11.0,
+            }
+        ]
+    )
+
+    restored = todo_store.get()
+    assert [row["content"] for row in restored] == ["Only snapshot todo"]
+    assert project_store.get(project["id"])["selected_todo_id"] is None
+
+
 def test_import_rejects_unknown_format_version():
     with pytest.raises(ValueError, match="format_version"):
         storage_sync.import_all({"format_version": 999, "stores": {}})

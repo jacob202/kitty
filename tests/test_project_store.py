@@ -133,6 +133,24 @@ def todos(monkeypatch, tmp_path):
     return todo_store
 
 
+def test_selected_todo_refuses_split_store_before_reading_or_repairing(todos, monkeypatch, tmp_path):
+    """Unavailable Todo evidence must never clear or replace a valid Project pointer."""
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    created = todos.update([{"content": "Send the application"}])
+    todo_id = created[0]["id"]
+    project_store.select_todo(project["id"], todo_id)
+
+    split_todos = tmp_path / "separate-read" / "todos.db"
+    monkeypatch.setattr(todos, "TODO_DB_FILE", split_todos, raising=False)
+
+    with pytest.raises(project_store.ProjectError, match="separate databases"):
+        project_store.selected_todo(project["id"])
+
+    assert project_store.get(project["id"])["selected_todo_id"] == todo_id
+    assert not split_todos.exists()
+
+
 def test_selection_refuses_split_todo_store_before_initializing_projects(
     todos, monkeypatch, tmp_path
 ):

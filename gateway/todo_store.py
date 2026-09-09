@@ -155,6 +155,118 @@ def update(items: list[dict]) -> list[dict]:
     return get()
 
 
+def restore(items: list[dict]) -> list[dict]:
+    """Replace Todos with snapshot state and reconcile Project pointers.
+
+    ``update()`` is intentionally generated-list reconciliation: an omitted
+    selected todo survives because model suggestions must not erase an explicit
+    user choice. Snapshot restore has the opposite contract: rows omitted from
+    the snapshot are absent after restore. Keep these two semantics explicit so
+    neither path weakens the other.
+    """
+    init_db()
+    from gateway import project_store
+
+    if Path(TODO_DB_FILE).resolve() != Path(project_store.PROJECTS_DB_FILE).resolve():
+        raise TodoStoreError(
+            "cannot safely restore todos while the todo and project stores are separate databases"
+        )
+    try:
+        project_store.init_db()
+    except Exception as exc:
+        raise TodoStoreError(
+            "cannot restore todos without reconciling project selections"
+        ) from exc
+
+    now = time.time()
+    with kitty_db.connect(TODO_DB_FILE) as conn:
+        # Serialize against select_todo()/update(). Snapshot replacement and
+        # dangling-pointer repair must be one atomic state transition.
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("DELETE FROM todos")
+        for position, item in enumerate(items):
+            status = item.get("status", "pending")
+            if status not in VALID_STATUSES:
+                status = "pending"
+            raw_id = item.get("id")
+            todo_id = raw_id if isinstance(raw_id, int) and not isinstance(raw_id, bool) else None
+            raw_order = item.get("sort_order", position)
+            sort_order = (
+                raw_order
+                if isinstance(raw_order, int) and not isinstance(raw_order, bool)
+                else position
+            )
+            raw_project = item.get("project_id")
+            project_id = (
+                raw_project
+                if isinstance(raw_project, int) and not isinstance(raw_project, bool)
+                else None
+            )
+            progress = item.get("progress_note")
+            if progress is not None:
+                progress = str(progress)
+            created_at = item.get("created_at")
+            if not isinstance(created_at, (int, float)) or isinstance(created_at, bool):
+                created_at = now
+            updated_at = item.get("updated_at")
+            if not isinstance(updated_at, (int, float)) or isinstance(updated_at, bool):
+                updated_at = now
+
+            if todo_id is None:
+                conn.execute(
+                    "INSERT INTO todos "
+                    "(content, status, active_form, sort_order, progress_note, project_id, "
+                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        str(item.get("content", "")),
+                        status,
+                        str(item.get("active_form", "")),
+                        sort_order,
+                        progress,
+                        project_id,
+                        created_at,
+                        updated_at,
+                    ),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO todos "
+                    "(id, content, status, active_form, sort_order, progress_note, project_id, "
+                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        todo_id,
+                        str(item.get("content", "")),
+                        status,
+                        str(item.get("active_form", "")),
+                        sort_order,
+                        progress,
+                        project_id,
+                        created_at,
+                        updated_at,
+                    ),
+                )
+
+        # Projects are not part of this storage_sync snapshot. Preserve a
+        # current pointer only when the restored row still proves it is this
+        # project's actionable selected todo; otherwise clear the dangling or
+        # contradictory pointer in the same transaction.
+        actionable_statuses = ("in_progress", "pending")
+        placeholders = ", ".join("?" for _ in actionable_statuses)
+        conn.execute(
+            "UPDATE projects SET selected_todo_id = NULL "
+            "WHERE selected_todo_id IS NOT NULL AND NOT EXISTS ("
+            "SELECT 1 FROM todos "
+            "WHERE todos.id = projects.selected_todo_id "
+            "AND todos.project_id = projects.id "
+            f"AND todos.status IN ({placeholders})"
+            ")",
+            actionable_statuses,
+        )
+        conn.commit()
+
+    return get()
+
+
 def _match_existing_todo(
     item: dict,
     content: str,
