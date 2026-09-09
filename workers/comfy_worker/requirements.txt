@@ -1,5 +1,7 @@
-fastapi==0.140.0
+# fastapi/uvicorn/pydantic pinned to match root requirements.txt so the worker
+# shares the same dependency tree as the gateway.
+fastapi==0.141.1
 httpx==0.28.1
 pillow==11.3.0
-pydantic==2.12.5
-uvicorn==0.44.0
+pydantic==2.13.4
+uvicorn==0.52.1

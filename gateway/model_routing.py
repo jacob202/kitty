@@ -18,8 +18,13 @@ from dataclasses import dataclass
 from typing import Any
 
 import yaml
+from dotenv import load_dotenv
 
 from gateway.paths import ROOT
+
+# Load environment once at import time. This module's resolve_model_for_message()
+# runs per-message, so dotenv must not be (re)loaded inside the hot path.
+load_dotenv()
 
 LITELLM_CONFIG = ROOT / "gateway" / "litellm_config.yaml"
 
@@ -141,13 +146,10 @@ def normalize_litellm_request_model(request_model: str | None) -> str | None:
 
 def resolve_model_for_message(message: str, *, domain: str | None = None) -> RouteDecision:
     """Classify a message into Kitty's virtual model route."""
-    from dotenv import load_dotenv
-
     from gateway.reasoning import classify_complexity
 
     classification = classify_complexity(message, domain=domain)
     if classification.tier == "deep":
-        load_dotenv()
         override = os.environ.get("KITTY_REASONING_MODEL", "").strip()
         if override:
             return RouteDecision(

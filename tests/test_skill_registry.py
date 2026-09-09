@@ -209,3 +209,39 @@ class TestInvoke:
     def test_invoke_nonexistent(self):
         result = invoke("nonexistent")
         assert "error" in result
+
+
+def test_improve_codebase_router_matches_its_advertised_requests():
+    import gateway.skill_registry as registry
+
+    registry.discover(force_refresh=True)
+    for phrase in (
+        "improve the codebase",
+        "make this better",
+        "what should I fix",
+        "review the quality",
+        "harden this",
+        "clean this up",
+    ):
+        names = [skill["name"] for skill in registry.suggest(phrase, limit=20)]
+        assert "improve-codebase" in names, phrase
+
+
+def test_invoke_expands_bounded_local_markdown_include(tmp_path, monkeypatch):
+    import gateway.skill_registry as registry
+
+    root = tmp_path / "skills"
+    skill_dir = root / "demo"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "LANGUAGE.md").write_text("# Canonical language\nshape means structure\n")
+    (skill_dir / "SKILL.md").write_text(
+        '---\nname: demo\ndescription: demo skill\n---\n\nBefore\n!`cat "${COMMANDCODE_SKILL_DIR}/LANGUAGE.md"`\nAfter\n'
+    )
+    monkeypatch.setattr(registry, "SKILL_ROOTS", [root])
+    monkeypatch.setattr(registry, "_registry", None)
+
+    result = registry.invoke("demo")
+
+    assert "# Canonical language" in result["prompt"]
+    assert "shape means structure" in result["prompt"]
+    assert "COMMANDCODE_SKILL_DIR" not in result["prompt"]

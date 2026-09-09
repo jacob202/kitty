@@ -210,4 +210,6 @@ def test_litellm_dependency_contract_is_self_consistent_and_proxy_ready() -> Non
     assert 'md.version("openai") == "2.24.0"' not in launcher
     assert "from packaging.requirements import Requirement" in launcher
     assert "import websockets" in launcher
+    assert 'installed_litellm = md.version("litellm")' in launcher
+    assert "litellm_requirement.specifier" in launcher
     assert "openai_requirement.specifier" in launcher

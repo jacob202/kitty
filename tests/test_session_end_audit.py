@@ -229,3 +229,25 @@ def test_corrupt_receipt_store_fails_loudly(tmp_path):
             receipt_store=receipts,
             signal_root=signals,
         )
+
+
+def test_matching_installed_skill_without_required_reference_fails_bundle_audit(tmp_path):
+    canonical, installed, log, receipts, signals = _paths(tmp_path)
+    reference = canonical.parent / "references/receipt-schema.md"
+    reference.parent.mkdir(parents=True)
+    reference.write_text("# receipt schema\nrequired fields\n", encoding="utf-8")
+    _write_receipt(receipts)
+    _write_signal(signals)
+
+    result = audit_session_end(
+        canonical_skill=canonical,
+        skill_candidates=[installed],
+        log_candidates=[log],
+        receipt_store=receipts,
+        signal_root=signals,
+    )
+
+    assert result.status == "unverified"
+    finding = next(item for item in result.findings if item.check == "installed_skill_bundle")
+    assert finding.status == "fail"
+    assert "missing or stale" in finding.detail

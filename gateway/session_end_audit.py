@@ -104,7 +104,14 @@ def audit_session_end(
                 f"{canonical_skill} sha256={canonical_hash}",
             )
         )
-    findings.extend(_installed_skill_findings(skill_candidates, canonical_hash))
+    canonical_reference_hash = _file_hash(
+        canonical_skill.parent / "references/receipt-schema.md"
+    )
+    findings.extend(
+        _installed_skill_findings(
+            skill_candidates, canonical_hash, canonical_reference_hash
+        )
+    )
     findings.append(_log_finding(log_candidates))
 
     receipts_path = receipt_store or Path.home() / "kb/metrics/kb-effectiveness.jsonl"
@@ -169,6 +176,7 @@ def audit_session_end(
 
     required_checks = {
         "canonical_skill",
+        "installed_skill_bundle",
         "builder_opencode_receipt",
         "receipt_completeness",
         "workflow_signal",
@@ -218,7 +226,9 @@ def _receipt_completeness_finding(receipt: dict[str, Any]) -> AuditFinding:
 
 
 def _installed_skill_findings(
-    candidates: Iterable[Path], canonical_hash: str | None
+    candidates: Iterable[Path],
+    canonical_hash: str | None,
+    canonical_reference_hash: str | None,
 ) -> list[AuditFinding]:
     findings: list[AuditFinding] = []
     for path in candidates:
@@ -226,11 +236,24 @@ def _installed_skill_findings(
         if digest is None:
             continue
         if canonical_hash is not None and digest == canonical_hash:
+            if canonical_reference_hash is not None:
+                reference = path.parent / "references/receipt-schema.md"
+                reference_hash = _file_hash(reference)
+                if reference_hash != canonical_reference_hash:
+                    findings.append(
+                        AuditFinding(
+                            "installed_skill_bundle",
+                            "fail",
+                            "installed session-end SKILL.md matches, but its required receipt schema is missing or stale",
+                            f"{reference} sha256={reference_hash or 'missing'}",
+                        )
+                    )
+                    continue
             findings.append(
                 AuditFinding(
-                    "installed_skill_copy",
+                    "installed_skill_bundle",
                     "pass",
-                    "an installed session-end copy matches the repository authority",
+                    "the installed session-end bundle matches the repository authority",
                     f"{path} sha256={digest}",
                 )
             )

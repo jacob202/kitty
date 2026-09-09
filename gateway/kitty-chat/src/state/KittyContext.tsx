@@ -63,9 +63,21 @@ function canonicalActiveView(view: string | null | undefined): string {
   return getView(resolved) ? resolved : 'home'
 }
 
-let chatCounter = 0
-function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
-function newMsgId() { return `msg-${Date.now()}-${Math.random().toString(36).slice(2)}` }
+// UUID-based ids so a page reload cannot collide with an earlier chat id.
+// randomUUID is unavailable on non-secure LAN/Tailnet HTTP origins;
+// getRandomValues remains available there and preserves collision resistance.
+function clientUuid(): string {
+  const cryptoApi = globalThis.crypto
+  if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID()
+  const bytes = new Uint8Array(16)
+  cryptoApi.getRandomValues(bytes)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+function newChatId() { return clientUuid() }
+function newMsgId() { return clientUuid() }
 
 function makeChat(color: ChatColor): Chat {
   return {
@@ -134,7 +146,9 @@ function getInitials(email?: string): string {
   return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || 'ME'
 }
 
-const USER_INITIALS = getInitials('jacobbrizinski@gmail.com')
+// Sourced from the environment so it is not a hardcoded personal address.
+// Set NEXT_PUBLIC_KITTY_USER_EMAIL to override; falls back to initials 'JB' or 'ME' when email local part is empty.
+const USER_INITIALS = getInitials(process.env.NEXT_PUBLIC_KITTY_USER_EMAIL)
 
 function latestSearchQuery(chat: Chat | null): string {
   if (!chat) return ''
