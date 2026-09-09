@@ -141,14 +141,18 @@ ACCEPTANCE_NONE = "none"
 ACCEPTANCE_UNAVAILABLE = "unavailable"
 
 
-def _mission_acceptance(initiative_id: str | None) -> dict[str, Any]:
+def _mission_acceptance(
+    initiative_id: str | None, *, expect_binding: bool = False
+) -> dict[str, Any]:
     """Report the outcome-acceptance fact, separately from Builder's task.
 
     Three answers, deliberately distinct:
 
     - a state from the bound Mission (``unreviewed`` / ``accepted`` / ...);
-    - ``none`` — no Mission is bound to this work, so acceptance does not
-      apply to it;
+    - ``none`` — no Mission is bound to direct Builder work, so acceptance
+      does not apply to it;
+    - ``unavailable`` with a binding error — a conversation-backed job was
+      expected to have a Gateway Mission, but that durable binding is missing;
     - ``unavailable`` — the Mission store could not be read. That is an outage
       with a cause, not the same statement as "there is nothing recorded", and
       it is reported with the error rather than swallowed.
@@ -174,6 +178,16 @@ def _mission_acceptance(initiative_id: str | None) -> dict[str, Any]:
             "error": f"{type(exc).__name__}: {exc}",
         }
     if mission is None:
+        if expect_binding:
+            return {
+                "state": ACCEPTANCE_UNAVAILABLE,
+                "reviewer_id": None,
+                "mission_id": None,
+                "error": (
+                    "Expected Gateway Mission binding is missing for Builder "
+                    f"initiative {initiative_id}"
+                ),
+            }
         return {
             "state": ACCEPTANCE_NONE,
             "reviewer_id": None,
@@ -207,7 +221,9 @@ def _awaiting_acceptance(
     if state == "accepted":
         return False, None
     if state == ACCEPTANCE_UNAVAILABLE:
-        return True, "the Mission store could not be read to confirm acceptance"
+        return True, acceptance.get("error") or (
+            "the Mission store could not be read to confirm acceptance"
+        )
     if state == ACCEPTANCE_NONE:
         return False, None
     return True, f"the Mission outcome is {state}, not accepted"
@@ -340,6 +356,8 @@ def _select_current_packet(work: dict[str, Any]) -> dict[str, Any] | None:
 def resume_context(
     mission_id: str | None = None,
     task_id: str | None = None,
+    *,
+    expect_mission_binding: bool = False,
 ) -> dict[str, Any]:
     """Build a compact durable handoff that does not depend on chat history."""
     kitty = kitty_context()
@@ -443,7 +461,11 @@ def resume_context(
     # This is the projection Chat reopens a job through. Without acceptance
     # here, Builder's terminal state is the only thing Chat can show, and it
     # gets presented as the finished user outcome.
-    acceptance = _mission_acceptance(resolved_mission)
+    acceptance = (
+        _mission_acceptance(resolved_mission, expect_binding=True)
+        if expect_mission_binding
+        else _mission_acceptance(resolved_mission)
+    )
     awaiting, awaiting_because = _awaiting_acceptance(
         builder_done=builder_done, acceptance=acceptance
     )

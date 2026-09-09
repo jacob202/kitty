@@ -336,19 +336,19 @@ def mission_for_initiative(
     conn = sqlite3.connect(f"{resolved.resolve().as_uri()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     try:
-        rows = conn.execute(
-            "SELECT * FROM missions WHERE builder_locator_json IS NOT NULL "
-            "ORDER BY updated_at DESC, mission_id ASC"
-        ).fetchall()
+        row = conn.execute(
+            "SELECT * FROM missions "
+            "WHERE builder_locator_json IS NOT NULL "
+            "AND CASE WHEN json_valid(builder_locator_json) "
+            "THEN json_extract(builder_locator_json, '$.initiative_id') END = ? "
+            "ORDER BY updated_at DESC, mission_id ASC LIMIT 1",
+            (initiative_id,),
+        ).fetchone()
     except sqlite3.Error as exc:
         raise MissionError(f"Mission store is unavailable: {exc}") from exc
     finally:
         conn.close()
-    for row in rows:
-        locator = json.loads(row["builder_locator_json"])
-        if isinstance(locator, dict) and locator.get("initiative_id") == initiative_id:
-            return _row_to_mission(row)
-    return None
+    return _row_to_mission(row) if row is not None else None
 
 
 def list_missions(*, db_path: Path = MISSION_DB_FILE) -> list[dict[str, Any]]:

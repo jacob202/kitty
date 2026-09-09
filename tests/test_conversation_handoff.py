@@ -448,6 +448,26 @@ def test_builder_execution_failure_is_represented_as_builder_failure(
     assert resumed["current_work"]["state"] == "failed"
 
 
+def test_conversation_resume_requires_the_gateway_mission_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chat resume must distinguish a missing expected Mission from direct MCP work."""
+    seen: dict[str, object] = {}
+
+    def fake_resume_context(**kwargs):
+        seen.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(mcp_context, "resume_context", fake_resume_context)
+
+    assert conversation_handoff.resume(mission_id="conv-1") == {"ok": True}
+    assert seen == {
+        "mission_id": "conv-1",
+        "task_id": None,
+        "expect_mission_binding": True,
+    }
+
+
 def test_paid_execution_remains_behind_existing_authorization_boundary() -> None:
     """The conversation handoff must not add its own execution path or bypass spend gating."""
     assert not hasattr(conversation_handoff, "execution_start")

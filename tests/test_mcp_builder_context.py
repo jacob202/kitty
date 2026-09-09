@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -389,6 +390,32 @@ def test_resume_context_carries_acceptance_into_the_chat_projection(
     assert any(u["field"] == "outcome_acceptance" for u in result["unknowns"])
 
 
+def test_conversation_resume_treats_missing_expected_mission_binding_as_unavailable(
+    monkeypatch: pytest.MonkeyPatch, snapshot: dict
+) -> None:
+    """A conversation job expects a Gateway Mission; missing evidence is not success."""
+    packet = snapshot["initiatives"][0]["packets"][0]
+    packet["task_state"] = "done"
+    monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
+    monkeypatch.setattr(context, "kitty_context", lambda: {"ok": True, "context": {}})
+    monkeypatch.setattr(context, "get_initiative", lambda *a, **k: None)
+
+    import gateway.memory_mission as mm
+
+    monkeypatch.setattr(mm, "mission_for_initiative", lambda _id, **_kw: None)
+
+    result = context.resume_context(
+        task_id="kb_1234_abcd", expect_mission_binding=True
+    )
+
+    assert result["builder_task_complete"] is True
+    assert result["mission_acceptance"]["state"] == context.ACCEPTANCE_UNAVAILABLE
+    assert result["awaiting_acceptance"] is True
+    assert "binding" in (result["mission_acceptance"]["error"] or "").lower()
+    assert "binding" in (result["awaiting_acceptance_because"] or "").lower()
+    assert any(u["field"] == "outcome_acceptance" for u in result["unknowns"])
+
+
 def test_cold_start_failure_does_not_unfinish_a_finished_builder_task(
     monkeypatch: pytest.MonkeyPatch, snapshot: dict
 ) -> None:
@@ -445,6 +472,40 @@ def test_acceptance_lookup_creates_no_database_file_at_all(tmp_path: Path) -> No
 
     assert not absent.exists()
     assert not absent.parent.exists()
+
+
+def test_acceptance_lookup_ignores_unrelated_malformed_locator_rows(tmp_path: Path) -> None:
+    """Lookup filters in SQLite instead of materializing/parsing every Mission."""
+    import gateway.memory_mission as mm
+
+    db_path = tmp_path / "kitty.db"
+    mm.create_mission(
+        mission_id="mission_target",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    mm.bind_builder_locator(
+        "mission_target", initiative_id="init-target", db_path=db_path
+    )
+    mm.create_mission(
+        mission_id="mission_unrelated",
+        objective="Other",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE missions SET builder_locator_json = ?, updated_at = ? WHERE mission_id = ?",
+            ("{malformed", 9_999_999_999.0, "mission_unrelated"),
+        )
+
+    found = mm.mission_for_initiative("init-target", db_path=db_path)
+
+    assert found is not None
+    assert found["mission_id"] == "mission_target"
 
 
 def test_acceptance_lookup_percent_encodes_reserved_path_characters(tmp_path: Path) -> None:
