@@ -84,6 +84,7 @@ resources:
     - gateway/llm_client.py
     - gateway/model_routing.py
     - gateway/requirements.litellm.txt
+    - gateway/routes/register.py
     - gateway/routes/runtime.py
     - gateway/runtime_manifest.py
     - kitty
