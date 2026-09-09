@@ -136,7 +136,7 @@ function getInitials(email?: string): string {
 }
 
 // Sourced from the environment so it is not a hardcoded personal address.
-// Set NEXT_PUBLIC_KITTY_USER_EMAIL to override; falls back to initials 'JB'.
+// Set NEXT_PUBLIC_KITTY_USER_EMAIL to override; falls back to initials 'JB' or 'ME' when email local part is empty.
 const USER_INITIALS = getInitials(process.env.NEXT_PUBLIC_KITTY_USER_EMAIL)
 
 function latestSearchQuery(chat: Chat | null): string {
