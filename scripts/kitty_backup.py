@@ -89,12 +89,14 @@ def _active_builder_processes() -> list[str]:
 
 
 def _assert_builder_quiescent_for_restore() -> None:
-    """Fail before any live owner-data mutation while Builder is active."""
+    """Fail before replacing Builder queue or compute-governor live stores."""
     active = _active_builder_processes()
     if active:
         raise RuntimeError(
-            "Kitty owner-data restore refuses to replace builder_queue.db while "
-            "Builder is active; stop Builder first (active: " + "; ".join(active) + ")"
+            "Kitty owner-data restore refuses to replace Builder/governor state "
+            "while Builder is active; stop Builder first (active: "
+            + "; ".join(active)
+            + ")"
         )
 
 
@@ -176,6 +178,15 @@ def create_owner_backup(
         if data_root is not None
         else (DATA_DIR if root == DEFAULT_OWNER_DATA_ROOT else root / "data")
     )
+    # Without the canonical personal database the archive is not a backup of
+    # Jacob's workspace: every store would be recorded "missing" and the command
+    # would still exit successfully, which is how a restore silently loses data.
+    personal_db = selected_data_root / "kitty" / "kitty.db"
+    if not personal_db.is_file():
+        raise RuntimeError(
+            "Kitty owner-data backup refuses to publish without the canonical "
+            f"personal database: {personal_db}"
+        )
 
     stamp = timestamp or _utc_stamp()
     destination = Path(backup_root) / stamp
@@ -243,13 +254,17 @@ def restore_owner_backup(
 
     files = list(manifest.get("files", []))
     queue_relative = "data/kittybuilder/builder_queue.db"
+    governor_relative = "data/compute_governor"
     queue_dest = _owner_path(target, selected_data_root, queue_relative)
     queue_sidecars = [Path(str(queue_dest) + suffix) for suffix in ("-wal", "-shm")]
-    if (
-        replace
-        and queue_relative in files
+    governor_dest = _owner_path(target, selected_data_root, governor_relative)
+    # The governor store is a live WAL database too, so a running Builder can be
+    # mid-write there even when the queue DB is absent from the archive.
+    protected_live_state = (
+        queue_relative in files
         and (queue_dest.exists() or any(path.exists() for path in queue_sidecars))
-    ):
+    ) or (governor_relative in files and governor_dest.exists())
+    if replace and protected_live_state:
         # This must happen before the restore loop moves *any* live owner data.
         _assert_builder_quiescent_for_restore()
 

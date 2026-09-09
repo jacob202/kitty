@@ -474,12 +474,24 @@ def test_workspace_resolver_allows_explicit_empty_first_run_and_expands_tilde(tm
 
 def test_runtime_identity_uses_process_worktree_startup_record_not_mutable_head() -> None:
     body = _extract_function("pid_worktree_identity")
-    assert 'identity_dir="$process_root/logs/.run"' in body
+    assert 'identity_file="$process_root/logs/.run/$svc.identity"' in body
     assert "rev-parse HEAD" not in body
     assert "gateway.identity" in GATEWAY_START
     assert "ui.identity" in UI_START
     assert '"$$" "${ROOT_DIR}" "${source_sha}"' in GATEWAY_START
     assert '"$$" "${ROOT_DIR}" "${source_sha}"' in UI_START
+
+
+def test_runtime_identity_reads_only_the_requested_service_record() -> None:
+    # A stale identity file from another service must never answer for this PID:
+    # after an unclean shutdown a recycled PID would otherwise report provenance
+    # for a process that never wrote that record.
+    body = _extract_function("pid_worktree_identity")
+    assert "for svc in ui gateway litellm" not in body
+    assert 'local pid="$1" svc="$2"' in body
+    block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
+    assert 'pid_worktree_identity "$ui_pid" ui' in block
+    assert 'pid_worktree_identity "$gateway_pid" gateway' in block
 
 
 def test_status_current_identity_uses_dirty_aware_runtime_source() -> None:

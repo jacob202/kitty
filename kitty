@@ -184,25 +184,26 @@ record_runtime_identity() {
 }
 
 pid_worktree_identity() {
-  local pid="$1" cwd svc line recorded_pid root sha process_root identity_dir
+  # The identity file must belong to the service actually being asked about.
+  # Accepting any service's file with a matching PID lets a stale record left
+  # by an unclean shutdown be reused by an unrelated listener that recycled
+  # that PID, which reports provenance for a process that never wrote it.
+  local pid="$1" svc="$2" cwd line recorded_pid root sha process_root identity_file
+  [[ -n "$pid" && -n "$svc" ]] || return 1
   pid_owned_by_kitty "$pid" || return 1
   cwd="$(pid_cwd "$pid")"
   [[ -n "$cwd" ]] || return 1
   process_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
   [[ -n "$process_root" ]] || return 1
-  identity_dir="$process_root/logs/.run"
-  for svc in ui gateway litellm; do
-    [[ -f "$identity_dir/$svc.identity" ]] || continue
-    line="$(cat "$identity_dir/$svc.identity" 2>/dev/null || true)"
-    IFS='|' read -r recorded_pid root sha <<< "$line"
-    [[ "$recorded_pid" == "$pid" && -n "$root" && -n "$sha" ]] || continue
-    [[ "$cwd" == "$root" || "$cwd" == "$root/"* ]] || continue
-    printf '%s@%s\n' "$root" "$sha"
-    return 0
-  done
+  identity_file="$process_root/logs/.run/$svc.identity"
   # No startup record means the listener predates this provenance mechanism or
   # was started externally. Never substitute the checkout's mutable current HEAD.
-  return 1
+  [[ -f "$identity_file" ]] || return 1
+  line="$(cat "$identity_file" 2>/dev/null || true)"
+  IFS='|' read -r recorded_pid root sha <<< "$line"
+  [[ "$recorded_pid" == "$pid" && -n "$root" && -n "$sha" ]] || return 1
+  [[ "$cwd" == "$root" || "$cwd" == "$root/"* ]] || return 1
+  printf '%s@%s\n' "$root" "$sha"
 }
 
 classify_primary_stack() {
@@ -795,8 +796,8 @@ cmd_status() {
   gateway_pid="$(listener_pids "$GATEWAY_PORT" | head -1)"
   ui_identity=""
   gateway_identity=""
-  [[ -n "$ui_pid" ]] && ui_identity="$(pid_worktree_identity "$ui_pid" || true)"
-  [[ -n "$gateway_pid" ]] && gateway_identity="$(pid_worktree_identity "$gateway_pid" || true)"
+  [[ -n "$ui_pid" ]] && ui_identity="$(pid_worktree_identity "$ui_pid" ui || true)"
+  [[ -n "$gateway_pid" ]] && gateway_identity="$(pid_worktree_identity "$gateway_pid" gateway || true)"
   stack_state="$(classify_primary_stack "$ui_identity" "$gateway_identity")"
   local current_source_sha
   current_source_sha="$(runtime_source_sha || echo "$sha")"
