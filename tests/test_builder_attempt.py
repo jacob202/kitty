@@ -488,7 +488,8 @@ class TestRunValidation:
 
         validation = updated["validation"]
         assert validation["status"] == ba.VALIDATION_PASSED
-        assert sys.executable in validation["commands"][0]["output_tail"]
+        reported = Path(validation["commands"][0]["output_tail"].strip())
+        assert reported.resolve() == Path(sys.executable).resolve()
 
     def test_runs_in_given_cwd(self, db_path: Path, tmp_path: Path):
         (tmp_path / "marker.txt").write_text("here", encoding="utf-8")
