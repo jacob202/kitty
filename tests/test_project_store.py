@@ -264,7 +264,7 @@ class TestSelectionGuards:
         created = todos.update([{"content": "Send the application"}])
         todos.complete_by_id(created[0]["id"])
 
-        with pytest.raises(project_store.ProjectError, match="already completed"):
+        with pytest.raises(project_store.ProjectError, match="is completed and cannot be"):
             project_store.select_todo(project["id"], created[0]["id"])
 
     def test_a_boolean_is_never_treated_as_todo_id_one(self, todos):
@@ -325,3 +325,60 @@ class TestSelectionStaysHonest:
         todos.set_project(created[0]["id"], theirs["id"])
 
         assert project_store.selected_todo(mine["id"]) is None
+
+
+class TestSelectionEdges:
+    def test_a_deprioritized_todo_is_not_a_next_action(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Maybe later", "status": "deprioritized"}])
+
+        with pytest.raises(project_store.ProjectError, match="deprioritized"):
+            project_store.select_todo(project["id"], created[0]["id"])
+
+    def test_deprioritizing_the_selection_clears_it(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        todos.update([{"id": created[0]["id"], "content": "Send the application",
+                       "status": "deprioritized"}])
+
+        assert project_store.selected_todo(project["id"]) is None
+
+    def test_explicitly_unassigning_the_project_clears_the_selection(self, todos):
+        """/todos/{id}/project accepts null; an unowned todo is not ours."""
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        todos.set_project(created[0]["id"], None)
+
+        assert project_store.selected_todo(project["id"]) is None
+
+    def test_a_preserved_todo_gets_a_position_of_its_own(self, todos):
+        """Duplicate sort_order would make complete(index) finish several rows."""
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        todos.update([{"content": "Tidy the desk"}, {"content": "Read the news"}])
+
+        orders = [t["sort_order"] for t in todos.get()]
+        assert len(orders) == len(set(orders)), f"duplicate sort_order: {orders}"
+        survivor = next(t for t in todos.get() if t["id"] == created[0]["id"])
+        assert survivor["sort_order"] == 2
+
+    def test_adoption_and_selection_land_together(self, todos, monkeypatch):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        chosen = project_store.selected_todo(project["id"])
+        assert chosen["project_id"] == project["id"]
+        assert project_store.get(project["id"])["selected_todo_id"] == created[0]["id"]

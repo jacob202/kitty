@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from pathlib import Path
 from typing import Any
 
 from gateway import db as kitty_db
@@ -32,6 +33,9 @@ BENEFITS_PROJECT_SEEDED_SETTING = "projects_benefits_seeded"
 _JSON_FIELDS = frozenset(
     {"paths_json", "open_questions_json", "next_actions_json", "delegable_json", "links_json"}
 )
+# Only work that can still be done is a "next action".
+ACTIONABLE_TODO_STATUSES = frozenset({"pending", "in_progress"})
+
 _UPDATABLE_FIELDS = frozenset(
     {
         "name",
@@ -194,16 +198,31 @@ def select_todo(project_id: int, todo_id: int) -> dict[str, Any]:
         raise ProjectNotFound(f"no todo with id {todo_id}")
     # A finished item is not a next action. Selecting one would leave the
     # project pointing at something there is nothing left to do about.
-    if chosen["status"] == "completed":
-        raise ProjectError(f"todo {todo_id} is already completed and cannot be the next action")
+    # `deprioritized` is equally not a next action: get_todos_text() already
+    # treats only pending and in_progress as active work.
+    if chosen["status"] not in ACTIONABLE_TODO_STATUSES:
+        raise ProjectError(
+            f"todo {todo_id} is {chosen['status']} and cannot be the next action"
+        )
     # A todo already belonging to another project must not be quietly stolen;
     # one with no project is adopted by the project selecting it.
     owner = chosen.get("project_id")
     if owner is not None and owner != project_id:
         raise ProjectError(f"todo {todo_id} belongs to project {owner}, not {project_id}")
-    if owner is None:
-        todo_store.set_project(todo_id, project_id)
+
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        if owner is None:
+            # Adoption and selection must land together. Committing ownership
+            # first through a separate connection leaves a todo adopted with no
+            # selection if the second write fails.
+            if Path(todo_store.TODO_DB_FILE) != Path(PROJECTS_DB_FILE):
+                raise ProjectError(
+                    "cannot adopt a todo while the todo and project stores are separate databases"
+                )
+            conn.execute(
+                "UPDATE todos SET project_id = ?, updated_at = ? WHERE id = ?",
+                (project_id, time.time(), todo_id),
+            )
         conn.execute(
             "UPDATE projects SET selected_todo_id = ? WHERE id = ?", (todo_id, project_id)
         )
@@ -243,11 +262,14 @@ def selected_todo(project_id: int) -> dict[str, Any] | None:
     # finished since. Both mean this project no longer has a chosen next action,
     # and returning one anyway would put another project's work — or work
     # already done — in front of the user as the thing to do next.
-    owner = chosen.get("project_id")
-    if owner is not None and owner != project_id:
+    # An existing selection must still be owned by *this* project. `owner is
+    # None` is not good enough: /todos/{id}/project accepts null, so a selected
+    # todo can be explicitly unassigned and would otherwise keep being returned
+    # as this project's chosen action.
+    if chosen.get("project_id") != project_id:
         clear_selected_todo(project_id)
         return None
-    if chosen["status"] == "completed":
+    if chosen["status"] not in ACTIONABLE_TODO_STATUSES:
         clear_selected_todo(project_id)
         return None
     return chosen

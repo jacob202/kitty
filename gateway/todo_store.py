@@ -100,6 +100,11 @@ def update(items: list[dict]) -> list[dict]:
         # it here would silently destroy the chosen action and its progress
         # note — the exact loss this reconciliation exists to prevent. Explicit
         # removal still works: that is `delete_by_id`.
+        survivors = [
+            row["id"]
+            for row in existing
+            if row["id"] not in kept and row["id"] in protected
+        ]
         dropped = [
             row["id"]
             for row in existing
@@ -107,6 +112,15 @@ def update(items: list[dict]) -> list[dict]:
         ]
         for todo_id in dropped:
             conn.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
+        # A survivor keeps its row but not its old position: incoming items were
+        # numbered from zero, so leaving it where it was creates duplicate
+        # sort_orders. `complete(index)` addresses rows by position and would
+        # then finish every row sharing one. Survivors go after the new list.
+        for offset, todo_id in enumerate(survivors):
+            conn.execute(
+                "UPDATE todos SET sort_order = ?, updated_at = ? WHERE id = ?",
+                (len(items) + offset, now, todo_id),
+            )
         conn.commit()
 
     return get()
