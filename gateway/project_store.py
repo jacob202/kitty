@@ -48,7 +48,8 @@ _UPDATABLE_FIELDS = frozenset(
 )
 _COLUMNS = (
     "id, created_at, name, kind, paths_json, status, last_touched, summary, "
-    "open_questions_json, next_actions_json, delegable_json, links_json"
+    "open_questions_json, next_actions_json, delegable_json, links_json, "
+    "selected_todo_id"
 )
 
 
@@ -172,7 +173,61 @@ def _row_to_project(row: sqlite3.Row) -> dict[str, Any]:
         "next_actions": json.loads(row["next_actions_json"]),
         "delegable": json.loads(row["delegable_json"]),
         "links": json.loads(row["links_json"]),
+        "selected_todo_id": row["selected_todo_id"],
     }
+
+
+def select_todo(project_id: int, todo_id: int) -> dict[str, Any]:
+    """Record the one action the user explicitly chose for this project.
+
+    Explicit choice outranks anything generated. `next_actions_json` and
+    `project_next_steps` are both replaceable suggestion state; this is not,
+    and regenerating either must leave it alone.
+    """
+    _require(project_id)
+    if not isinstance(todo_id, int) or isinstance(todo_id, bool):
+        raise ProjectError(f"todo_id must be int, got {type(todo_id).__name__}")
+    from gateway import todo_store
+
+    if not any(todo["id"] == todo_id for todo in todo_store.get()):
+        raise ProjectNotFound(f"no todo with id {todo_id}")
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        conn.execute(
+            "UPDATE projects SET selected_todo_id = ? WHERE id = ?", (todo_id, project_id)
+        )
+        conn.commit()
+    return _require(project_id)
+
+
+def clear_selected_todo(project_id: int) -> dict[str, Any]:
+    """Drop the explicit selection without touching the todo itself."""
+    _require(project_id)
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        conn.execute(
+            "UPDATE projects SET selected_todo_id = NULL WHERE id = ?", (project_id,)
+        )
+        conn.commit()
+    return _require(project_id)
+
+
+def selected_todo(project_id: int) -> dict[str, Any] | None:
+    """Return the chosen todo, repairing the pointer if that todo is gone.
+
+    A selection pointing at a deleted todo would otherwise surface as a
+    phantom next action. Rather than dangle, the pointer clears itself the
+    first time anyone looks.
+    """
+    project = _require(project_id)
+    todo_id = project.get("selected_todo_id")
+    if todo_id is None:
+        return None
+    from gateway import todo_store
+
+    for todo in todo_store.get():
+        if todo["id"] == todo_id:
+            return todo
+    clear_selected_todo(project_id)
+    return None
 
 
 def _seed_kitty_project_once() -> None:

@@ -118,3 +118,94 @@ def test_delete_on_fresh_database_migrates_then_returns_not_found():
     # real project whose hard deletion is deliberately unavailable.
     with pytest.raises(project_store.ProjectNotFound):
         project_store.delete(999999)
+
+
+@pytest.fixture()
+def todos(monkeypatch, tmp_path):
+    """Point the todo store at the same isolated database as projects."""
+    from gateway import todo_store
+
+    monkeypatch.setattr(todo_store, "TODO_DB_FILE", tmp_path / "kitty" / "kitty.db")
+    monkeypatch.setattr(todo_store, "TODO_DB", tmp_path / "legacy" / "todos.db")
+    return todo_store
+
+
+class TestSelectedTodo:
+    """The one action the user chose outranks everything generated."""
+
+    def test_selecting_a_todo_records_it_on_the_project(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+
+        updated = project_store.select_todo(project["id"], created[0]["id"])
+
+        assert updated["selected_todo_id"] == created[0]["id"]
+        assert project_store.selected_todo(project["id"])["content"] == "Send the application"
+
+    def test_selecting_another_todo_replaces_the_choice(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "First"}, {"content": "Second"}])
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        project_store.select_todo(project["id"], created[1]["id"])
+
+        assert project_store.selected_todo(project["id"])["content"] == "Second"
+
+    def test_regenerating_suggestions_never_disturbs_the_selection(self, todos):
+        """P4 acceptance 4: explicit priority beats generated suggestions."""
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        chosen = created[0]["id"]
+        project_store.select_todo(project["id"], chosen)
+        todos.set_progress(chosen, "attached the resume")
+
+        # The model regenerates the list and the project's mechanical actions.
+        todos.update([
+            {"content": "Tidy the desk"},
+            {"content": "Send the application"},
+            {"content": "Read the news"},
+        ])
+        project_store.update_fields(project["id"], next_actions_json=["something else"])
+
+        still = project_store.selected_todo(project["id"])
+        assert still["id"] == chosen
+        assert still["progress_note"] == "attached the resume"
+
+    def test_a_deleted_todo_clears_the_pointer_instead_of_dangling(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        todos.delete_by_id(created[0]["id"])
+
+        assert project_store.selected_todo(project["id"]) is None
+        assert project_store.get(project["id"])["selected_todo_id"] is None
+
+    def test_selecting_a_todo_that_does_not_exist_is_refused(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+
+        with pytest.raises(project_store.ProjectNotFound):
+            project_store.select_todo(project["id"], 4242)
+
+    def test_clearing_the_selection_leaves_the_todo_alone(self, todos):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+        created = todos.update([{"content": "Send the application"}])
+        project_store.select_todo(project["id"], created[0]["id"])
+
+        project_store.clear_selected_todo(project["id"])
+
+        assert project_store.selected_todo(project["id"]) is None
+        assert [t["content"] for t in todos.get()] == ["Send the application"]
+
+    def test_a_project_with_no_selection_reports_none(self):
+        project_store.init_db()
+        project = project_store.create(name="job-search", kind="admin")
+
+        assert project["selected_todo_id"] is None
+        assert project_store.selected_todo(project["id"]) is None

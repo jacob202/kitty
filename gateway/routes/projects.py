@@ -112,6 +112,32 @@ def post_refresh(project_id: int) -> dict:
     return {**refreshed, "next_step": {"ok": True, **step}}
 
 
+class SelectTodoRequest(BaseModel):
+    todo_id: int
+
+
+@router.put("/projects/{project_id}/selected-todo")
+def put_selected_todo(project_id: int, body: SelectTodoRequest) -> dict:
+    """Choose the one action for this project. Beats every generated suggestion."""
+    project = _handle(project_store.select_todo, project_id, body.todo_id)
+    from gateway.sse import broadcaster
+    broadcaster.broadcast("projects_updated")
+    return {"project": project, "selected_todo": project_store.selected_todo(project_id)}
+
+
+@router.get("/projects/{project_id}/selected-todo")
+def get_selected_todo(project_id: int) -> dict:
+    return {"selected_todo": _handle(project_store.selected_todo, project_id)}
+
+
+@router.delete("/projects/{project_id}/selected-todo")
+def delete_selected_todo(project_id: int) -> dict:
+    project = _handle(project_store.clear_selected_todo, project_id)
+    from gateway.sse import broadcaster
+    broadcaster.broadcast("projects_updated")
+    return {"project": project, "selected_todo": None}
+
+
 @router.get("/projects/{project_id}/resume")
 def get_resume(project_id: int) -> dict:
     return _handle(project_resume.resume, project_id)

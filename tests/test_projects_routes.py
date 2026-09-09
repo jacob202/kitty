@@ -219,3 +219,42 @@ def test_delete_project_refuses_hard_delete_and_points_to_archive(client):
     assert r.status_code == 409
     assert "archive" in r.json()["detail"]
     assert project_store.get(created["id"])["status"] == "active"
+
+
+@pytest.fixture
+def todos(monkeypatch, tmp_path):
+    from gateway import todo_store
+
+    monkeypatch.setattr(todo_store, "TODO_DB_FILE", tmp_path / "kitty" / "kitty.db")
+    monkeypatch.setattr(todo_store, "TODO_DB", tmp_path / "legacy" / "todos.db")
+    return todo_store
+
+
+def test_selected_todo_round_trip_through_the_routes(client, todos):
+    project = client.post("/projects", json={"name": "job-search", "kind": "admin"}).json()
+    created = todos.update([{"content": "Send the application"}])
+    todo_id = created[0]["id"]
+
+    chosen = client.put(
+        f"/projects/{project['id']}/selected-todo", json={"todo_id": todo_id}
+    )
+    assert chosen.status_code == 200
+    assert chosen.json()["selected_todo"]["content"] == "Send the application"
+
+    read_back = client.get(f"/projects/{project['id']}/selected-todo")
+    assert read_back.json()["selected_todo"]["id"] == todo_id
+
+    cleared = client.delete(f"/projects/{project['id']}/selected-todo")
+    assert cleared.json()["selected_todo"] is None
+    assert client.get(f"/projects/{project['id']}/selected-todo").json()["selected_todo"] is None
+
+
+def test_selecting_a_missing_todo_is_a_404_not_a_500(client, todos):
+    project = client.post("/projects", json={"name": "job-search", "kind": "admin"}).json()
+
+    response = client.put(
+        f"/projects/{project['id']}/selected-todo", json={"todo_id": 4242}
+    )
+
+    assert response.status_code == 404
+    assert "4242" in response.json()["detail"]
