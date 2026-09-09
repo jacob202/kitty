@@ -52,6 +52,11 @@ class ProposeRequest(BaseModel):
     title: str | None = None
     acceptance_criteria: list[str] | None = None
     validation_commands: list[str] | None = None
+    # Where the request came from. Stored on the Mission at binding so the
+    # result can be recovered without the browser holding the only copy.
+    conversation_id: str | None = None
+    message_id: str | None = None
+    project_id: int | None = None
 
 
 class ApproveRequest(BaseModel):
