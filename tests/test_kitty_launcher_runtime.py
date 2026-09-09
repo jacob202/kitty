@@ -80,6 +80,30 @@ def test_status_uses_the_serving_listener_before_pidfile_metadata() -> None:
     assert block.index(listener_lookup) < block.index(pidfile_lookup)
 
 
+def test_pidfile_controls_listener_accepts_direct_child_of_owned_controller(tmp_path) -> None:
+    pidfile = tmp_path / "litellm.pid"
+    pidfile.write_text("123\n", encoding="utf-8")
+    helper = _extract_function("pidfile_controls_listener")
+    shell = (
+        'pid_owned_by_current_checkout() { [[ "$1" == "123" ]]; }\n'
+        'pid_parent() { printf "123\n"; }\n'
+        + helper
+        + '\npidfile_controls_listener "$1" 456\n'
+    )
+    result = subprocess.run(
+        ["bash", "-c", shell, "bash", str(pidfile)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_status_treats_managed_child_listener_as_owned_without_metadata_mismatch() -> None:
+    block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
+    assert 'pidfile_controls_listener "$pidfile" "$found_pid"' in block
+    assert 'role="owned-current"' in block
+
+
 def test_primary_stack_classifier_distinguishes_coherent_split_partial_and_stopped() -> None:
     marker = "classify_primary_stack() {"
     assert marker in SCRIPT

@@ -168,6 +168,19 @@ pid_role() {
   fi
 }
 
+pid_parent() {
+  ps -o ppid= -p "$1" 2>/dev/null | tr -d '[:space:]'
+}
+
+pidfile_controls_listener() {
+  local pidfile="$1" listener_pid="$2" controller_pid
+  [[ -f "$pidfile" ]] || return 1
+  controller_pid="$(cat "$pidfile" 2>/dev/null || true)"
+  [[ "$controller_pid" =~ ^[0-9]+$ ]] || return 1
+  pid_owned_by_current_checkout "$controller_pid" || return 1
+  [[ "$(pid_parent "$listener_pid")" == "$controller_pid" ]]
+}
+
 runtime_source_sha() {
   local sha dirty
   sha="$(git -C "$KITTY_ROOT" rev-parse HEAD 2>/dev/null || true)"
@@ -766,12 +779,15 @@ cmd_status() {
     found_pid="$(listener_pids "$port" | head -1)"
     if [[ -n "$found_pid" ]]; then
       role="$(pid_role "$found_pid")"
+      if [[ "$role" == "external" ]] && pidfile_controls_listener "$pidfile" "$found_pid"; then
+        role="owned-current"
+      fi
       cwd="$(pid_cwd "$found_pid")"
       printf "  %-10s running (pid %s; listener :%s; role=%s; cwd=%s)\n" \
         "$svc" "$found_pid" "$port" "$role" "${cwd:-unknown}"
       if pid_alive "$pidfile"; then
         pidfile_pid="$(cat "$pidfile")"
-        if [[ "$pidfile_pid" != "$found_pid" ]]; then
+        if [[ "$pidfile_pid" != "$found_pid" ]] && ! pidfile_controls_listener "$pidfile" "$found_pid"; then
           printf "             metadata mismatch: pidfile=%s does not own :%s\n" "$pidfile_pid" "$port"
         fi
       fi
