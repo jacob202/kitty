@@ -934,7 +934,9 @@ cmd_agent() {
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12 || command -v python3)"
   fi
-  ensure_runtime_builder_data_dir
+  # Coordination is not a serving-runtime operation. gateway.paths already
+  # honors KITTY_DATA_ROOT, so do not force Builder/governor coherence here;
+  # isolated worktrees/tests may intentionally point those stores elsewhere.
   PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
     "$python_bin" -m gateway.agent_coordination_cli "$@"
 }

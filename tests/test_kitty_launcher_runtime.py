@@ -181,6 +181,7 @@ def test_agent_command_uses_shared_coordination_cli() -> None:
     assert "cmd_agent() {" in SCRIPT
     block = SCRIPT.split("cmd_agent() {", 1)[1].split("\n}\n", 1)[0]
     assert "-m gateway.agent_coordination_cli" in block
+    assert "ensure_runtime_builder_data_dir" not in block
     assert 'agent)     shift; cmd_agent "$@" ;;' in SCRIPT
     assert "kitty agent" in SCRIPT
 
