@@ -329,7 +329,11 @@ def mission_for_initiative(
     # reported as unavailable rather than conjured.
     if not resolved.is_file():
         raise MissionError(f"Mission store is unavailable: {resolved} does not exist")
-    conn = sqlite3.connect(f"file:{resolved}?mode=ro", uri=True)
+    # ``Path.as_uri`` percent-encodes URI-reserved characters in valid file
+    # names (for example ``?`` and ``#``). Interpolating a raw path would make
+    # SQLite parse the suffix as URI query/fragment data and open the wrong
+    # database.
+    conn = sqlite3.connect(f"{resolved.resolve().as_uri()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(

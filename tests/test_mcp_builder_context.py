@@ -445,3 +445,24 @@ def test_acceptance_lookup_creates_no_database_file_at_all(tmp_path: Path) -> No
 
     assert not absent.exists()
     assert not absent.parent.exists()
+
+
+def test_acceptance_lookup_percent_encodes_reserved_path_characters(tmp_path: Path) -> None:
+    import gateway.memory_mission as mm
+
+    db_path = tmp_path / "reserved?#" / "kitty.db"
+    mm.create_mission(
+        mission_id="mission_reserved_path",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    mm.bind_builder_locator(
+        "mission_reserved_path", initiative_id="init-reserved", db_path=db_path
+    )
+
+    found = mm.mission_for_initiative("init-reserved", db_path=db_path)
+
+    assert found is not None
+    assert found["mission_id"] == "mission_reserved_path"

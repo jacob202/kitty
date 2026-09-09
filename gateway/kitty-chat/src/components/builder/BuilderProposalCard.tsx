@@ -618,7 +618,10 @@ function ResumedBuilderJob({
       )}
 
       {found && (
-        <div style={successBox}>
+        <div
+          style={data!.awaiting_acceptance ? attentionBox : successBox}
+          data-testid={data!.awaiting_acceptance ? 'builder-job-awaiting-acceptance' : 'builder-job-status'}
+        >
           <p style={fieldStyle}>
             <strong>Mission:</strong> {data!.mission?.id}
             {data!.mission?.state ? ` — ${data!.mission.state}` : ''}
@@ -633,7 +636,11 @@ function ResumedBuilderJob({
             <p style={fieldStyle}>
               <strong>Built, not accepted yet:</strong>{' '}
               {data!.mission_acceptance?.state === 'unavailable'
-                ? 'Kitty could not check whether this outcome was accepted.'
+                ? `Kitty could not check whether this outcome was accepted${
+                    data!.mission_acceptance.error
+                      ? `: ${data!.mission_acceptance.error}`
+                      : '.'
+                  } Check Kitty status and Mission storage, then retry.`
                 : 'Builder finished this work. Nobody has accepted the result yet.'}
             </p>
           )}
@@ -738,6 +745,14 @@ const successBox: CSSProperties = {
   borderRadius: 8,
   padding: 8,
   color: '#2e7d32',
+}
+
+const attentionBox: CSSProperties = {
+  background: '#FF980011',
+  border: '1px solid #FF9800',
+  borderRadius: 8,
+  padding: 8,
+  color: '#B45309',
 }
 
 const btnBase: CSSProperties = {

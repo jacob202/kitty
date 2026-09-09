@@ -458,6 +458,31 @@ describe('BuilderProposalCard', () => {
     expect(screen.queryByText('Could not find this job in Builder.')).not.toBeInTheDocument()
   })
 
+  it('renders unaccepted work as attention and exposes the Mission-store failure cause', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-awaiting-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-awaiting-1', state: 'complete' },
+      current_work: { state: 'completed' },
+      builder_task_complete: true,
+      awaiting_acceptance: true,
+      mission_acceptance: {
+        state: 'unavailable',
+        accepted: null,
+        error: 'Mission store is locked',
+      },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const attention = await screen.findByTestId('builder-job-awaiting-acceptance')
+    expect(attention).toHaveTextContent(/Built, not accepted yet/)
+    expect(attention).toHaveTextContent(/Mission store is locked/)
+    expect(attention).toHaveTextContent(/Check Kitty status and Mission storage, then retry/)
+    expect(attention).toHaveStyle({ border: '1px solid #FF9800' })
+    expect(attention).not.toHaveStyle({ border: '1px solid #4CAF50' })
+  })
+
   it('keys resumed state per chat message, not globally', async () => {
     window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-for-message-zero')
 
