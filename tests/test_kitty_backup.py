@@ -243,6 +243,9 @@ def test_owner_backup_roundtrip_covers_canonical_inventory_without_secrets(tmp_p
 
 def test_owner_restore_replace_refuses_active_builder_queue(tmp_path, monkeypatch):
     source_root = tmp_path / "source"
+    source_kitty = source_root / "data" / "kitty"
+    source_kitty.mkdir(parents=True)
+    (source_kitty / "owner.txt").write_text("backup-personal\n", encoding="utf-8")
     queue = source_root / "data" / "kittybuilder" / "builder_queue.db"
     queue.parent.mkdir(parents=True)
     with sqlite3.connect(queue) as conn:
@@ -253,6 +256,9 @@ def test_owner_restore_replace_refuses_active_builder_queue(tmp_path, monkeypatc
     )
 
     target = tmp_path / "target"
+    live_kitty = target / "data" / "kitty"
+    live_kitty.mkdir(parents=True)
+    (live_kitty / "owner.txt").write_text("live-personal\n", encoding="utf-8")
     live_queue = target / "data" / "kittybuilder" / "builder_queue.db"
     live_queue.parent.mkdir(parents=True)
     with sqlite3.connect(live_queue) as conn:
@@ -262,6 +268,22 @@ def test_owner_restore_replace_refuses_active_builder_queue(tmp_path, monkeypatc
     with pytest.raises(RuntimeError, match="Builder is active"):
         kitty_backup.restore_owner_backup(backup, target, replace=True)
     assert live_queue.exists()
+    assert (live_kitty / "owner.txt").read_text(encoding="utf-8") == "live-personal\n"
+    assert not list((target / "data").glob("kitty.pre-restore-*"))
+
+
+def test_active_builder_processes_detect_detached_supervisor(monkeypatch):
+    result = subprocess.CompletedProcess(
+        args=["ps"],
+        returncode=0,
+        stdout="4321 python -m gateway.builder_runner --supervise task-123\n",
+        stderr="",
+    )
+    monkeypatch.setattr(kitty_backup.subprocess, "run", lambda *args, **kwargs: result)
+
+    active = kitty_backup._active_builder_processes()
+
+    assert active == ["4321 python -m gateway.builder_runner --supervise task-123"]
 
 
 def test_owner_restore_replace_moves_builder_queue_sidecars_aside(tmp_path, monkeypatch):

@@ -53,6 +53,7 @@ OWNER_DATA_RELATIVE_PATHS = (
 
 _BUILDER_PROCESS_MARKERS = (
     "gateway.builder_supervisor",
+    "gateway.builder_runner --supervise",
     "start_builder_supervisor.sh",
     "kittybuilder_dsh_worker.sh",
     "kittybuilder_dsh_reviewer.sh",
@@ -87,8 +88,8 @@ def _active_builder_processes() -> list[str]:
     return active
 
 
-def _prepare_builder_queue_replace(dest: Path, stamp: str) -> None:
-    """Refuse a live queue replacement and isolate its SQLite sidecars."""
+def _assert_builder_quiescent_for_restore() -> None:
+    """Fail before any live owner-data mutation while Builder is active."""
     active = _active_builder_processes()
     if active:
         raise RuntimeError(
@@ -96,6 +97,9 @@ def _prepare_builder_queue_replace(dest: Path, stamp: str) -> None:
             "Builder is active; stop Builder first (active: " + "; ".join(active) + ")"
         )
 
+
+def _prepare_builder_queue_replace(dest: Path, stamp: str) -> None:
+    """Move the queue database and SQLite sidecars aside before replacement."""
     aside = dest.parent / f"{dest.name}.pre-restore-{stamp}"
     if aside.exists():
         raise RuntimeError(f"Kitty restore aside already exists: {aside}")
@@ -237,11 +241,23 @@ def restore_owner_backup(
     if not payload_root.is_dir():
         raise RuntimeError(f"Owner-data payload is missing: {payload_root}")
 
+    files = list(manifest.get("files", []))
+    queue_relative = "data/kittybuilder/builder_queue.db"
+    queue_dest = _owner_path(target, selected_data_root, queue_relative)
+    queue_sidecars = [Path(str(queue_dest) + suffix) for suffix in ("-wal", "-shm")]
+    if (
+        replace
+        and queue_relative in files
+        and (queue_dest.exists() or any(path.exists() for path in queue_sidecars))
+    ):
+        # This must happen before the restore loop moves *any* live owner data.
+        _assert_builder_quiescent_for_restore()
+
     target.mkdir(parents=True, exist_ok=True)
     stamp = _utc_stamp()
     restored: list[Path] = []
     try:
-        for relative in manifest.get("files", []):
+        for relative in files:
             if relative not in OWNER_DATA_RELATIVE_PATHS:
                 raise RuntimeError(f"Owner-data manifest contains unknown path: {relative}")
             source = payload_root / relative

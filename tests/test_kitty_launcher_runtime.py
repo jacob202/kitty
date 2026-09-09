@@ -439,6 +439,21 @@ def test_workspace_resolver_rejects_implicit_empty_tracked_data_dir(tmp_path):
     assert "no established Kitty state" in result.stderr
 
 
+def test_workspace_resolver_rejects_implicit_ancillary_state_without_personal_db(tmp_path):
+    canonical = tmp_path / "ancillary-only"
+    queue = canonical / "data" / "kittybuilder" / "builder_queue.db"
+    queue.parent.mkdir(parents=True)
+    queue.touch()
+    governor = canonical / "data" / "compute_governor" / "receipts.db"
+    governor.parent.mkdir(parents=True)
+    governor.touch()
+
+    result = _run_workspace_resolver(tmp_path, {}, git_common_dir=str(canonical / ".git"))
+
+    assert result.returncode == 2
+    assert "kitty/kitty.db is missing" in result.stderr
+
+
 def test_workspace_resolver_allows_explicit_empty_first_run_and_expands_tilde(tmp_path):
     home = tmp_path / "home"
     data_root = home / "kitty-data"

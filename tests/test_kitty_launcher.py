@@ -115,6 +115,8 @@ def test_launcher_exposes_backup_and_restore_drill() -> None:
     assert "cmd_restore_drill()" in launcher
     assert 'scripts/kitty_backup.py" backup' in launcher
     assert 'scripts/kitty_backup.py" restore-drill' in launcher
+    drill = launcher.split("cmd_restore_drill() {", 1)[1].split("\n}\n", 1)[0]
+    assert "ensure_runtime_builder_data_dir" not in drill
     assert "backup)    shift; cmd_backup" in launcher
     assert "restore-drill) shift; cmd_restore_drill" in launcher
 

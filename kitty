@@ -451,17 +451,11 @@ require_existing_personal_workspace() {
   # An explicit KITTY_DATA_ROOT is the operator's opt-in path for a new/sandbox
   # workspace. The implicit canonical default, however, must contain real Kitty
   # state; tracked data/.gitkeep alone is not evidence of a personal workspace.
-  if [[ "${KITTY_DATA_ROOT_EXPLICIT:-0}" != "1" ]]; then
-    local marker found=0
-    for marker in kitty/kitty.db kittybuilder/builder_queue.db compute_governor/receipts.db; do
-      if [[ -e "$KITTY_DATA_ROOT/$marker" ]]; then found=1; break; fi
-    done
-    if [[ "$found" != "1" ]]; then
-      echo "Error: the implicit personal data root has no established Kitty state: $KITTY_DATA_ROOT" >&2
-      echo "  A tracked empty data directory is not enough to prove this is your workspace." >&2
-      echo "  For an intentional first run or sandbox, set KITTY_DATA_ROOT explicitly." >&2
-      return 1
-    fi
+  if [[ "${KITTY_DATA_ROOT_EXPLICIT:-0}" != "1" && ! -e "$KITTY_DATA_ROOT/kitty/kitty.db" ]]; then
+    echo "Error: the implicit personal data root has no established Kitty state: $KITTY_DATA_ROOT" >&2
+    echo "  The canonical personal database kitty/kitty.db is missing; ancillary Builder or governor state is not enough." >&2
+    echo "  For an intentional first run or sandbox, set KITTY_DATA_ROOT explicitly." >&2
+    return 1
   fi
 }
 
@@ -952,7 +946,8 @@ cmd_backup() {
 }
 
 cmd_restore_drill() {
-  ensure_runtime_builder_data_dir
+  # A restore drill only copies the supplied archive into a new destination.
+  # It must remain independent of live workspace/Builder override coherence.
   "$PYTHON_BIN" "$KITTY_ROOT/scripts/kitty_backup.py" restore-drill "$@"
 }
 
