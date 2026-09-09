@@ -155,3 +155,43 @@ def test_router_writes_round_trip_through_real_stores(monkeypatch, tmp_path):
 
     storage_router.clear_todos()
     assert todo_store.get() == []
+
+
+def test_set_todo_progress_records_without_completing(monkeypatch, tmp_path):
+    _isolate_todo_store(monkeypatch, tmp_path)
+    created = storage_router.replace_todos([{"content": "Call the pharmacy"}])
+    todo_id = created[0]["id"]
+
+    updated = storage_router.set_todo_progress(todo_id, "left a voicemail")
+
+    assert updated["progress_note"] == "left a voicemail"
+    assert updated["status"] == "in_progress"
+
+
+def test_set_todo_progress_survives_a_regenerated_list(monkeypatch, tmp_path):
+    """The whole point of P4: a chosen action outlives new suggestions."""
+    _isolate_todo_store(monkeypatch, tmp_path)
+    created = storage_router.replace_todos([{"content": "Call the pharmacy"}])
+    todo_id = created[0]["id"]
+    storage_router.set_todo_progress(todo_id, "left a voicemail")
+    storage_router.set_todo_project(todo_id, 5)
+
+    regenerated = storage_router.replace_todos([
+        {"content": "Draft the cover letter"},
+        {"content": "Call the pharmacy"},
+    ])
+
+    survivor = next(t for t in regenerated if t["content"] == "Call the pharmacy")
+    assert survivor["id"] == todo_id
+    assert survivor["progress_note"] == "left a voicemail"
+    assert survivor["project_id"] == 5
+
+
+def test_set_todo_progress_rejects_a_non_integer_id(monkeypatch, tmp_path):
+    _isolate_todo_store(monkeypatch, tmp_path)
+    with pytest.raises(TypeError):
+        storage_router.set_todo_progress("1", "note")
+    with pytest.raises(TypeError):
+        storage_router.set_todo_project(True, 1)
+    with pytest.raises(TypeError):
+        storage_router.set_todo_project(1, "5")
