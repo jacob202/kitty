@@ -105,6 +105,30 @@ def complete_todo(todo_id: int) -> bool:
     return result
 
 
+def set_todo_progress(todo_id: int, note: str) -> dict | None:
+    """Record where the user stopped on one todo, without completing it."""
+    if not isinstance(todo_id, int) or isinstance(todo_id, bool):
+        raise TypeError(f"todo_id must be int, got {type(todo_id).__name__}")
+    start = time.monotonic()
+    result = todo_store.set_progress(todo_id, note)
+    _emit_telemetry("todos", "progress", key=todo_id, ms=_ms_since(start))
+    return result
+
+
+def set_todo_project(todo_id: int, project_id: int | None) -> dict | None:
+    """Associate one todo with the project it belongs to."""
+    if not isinstance(todo_id, int) or isinstance(todo_id, bool):
+        raise TypeError(f"todo_id must be int, got {type(todo_id).__name__}")
+    if project_id is not None and (
+        not isinstance(project_id, int) or isinstance(project_id, bool)
+    ):
+        raise TypeError(f"project_id must be int or None, got {type(project_id).__name__}")
+    start = time.monotonic()
+    result = todo_store.set_project(todo_id, project_id)
+    _emit_telemetry("todos", "project", key=todo_id, ms=_ms_since(start))
+    return result
+
+
 def delete_todo(todo_id: int) -> bool:
     if not isinstance(todo_id, int) or isinstance(todo_id, bool):
         raise TypeError(f"todo_id must be int, got {type(todo_id).__name__}")

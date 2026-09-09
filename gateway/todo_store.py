@@ -33,35 +33,91 @@ def init_db() -> None:
 
 
 def update(items: list[dict]) -> list[dict]:
-    """Replace the entire todo list with a new set of items.
+    """Set the todo list, reconciling against what is already there.
 
-    Each item dict: {content, status?, active_form?}
-    Returns the new list with IDs assigned.
+    This used to delete every row and re-insert, which handed every item a new
+    id on each refresh. Anything holding a todo id — a project's chosen next
+    action, a recorded progress note, the completion the user just reported —
+    silently pointed at nothing afterwards.
+
+    Items are now matched to existing rows by explicit ``id`` first, then by
+    exact content, so a model regenerating the same list keeps the same
+    identities. A matched row is updated in place and keeps its id,
+    ``created_at``, ``project_id`` and progress note. Only rows the caller
+    genuinely dropped are deleted.
+
+    Each item dict: {content, status?, active_form?, id?}
+    Returns the new list.
     """
     init_db()
     now = time.time()
 
     with kitty_db.connect(TODO_DB_FILE) as conn:
-        conn.execute("DELETE FROM todos")
-        for i, item in enumerate(items):
+        existing = conn.execute(
+            "SELECT id, content FROM todos ORDER BY sort_order ASC"
+        ).fetchall()
+        by_id = {row["id"]: row for row in existing}
+        unclaimed_by_content: dict[str, list[int]] = {}
+        for row in existing:
+            unclaimed_by_content.setdefault(row["content"], []).append(row["id"])
+
+        kept: set[int] = set()
+        for position, item in enumerate(items):
             status = item.get("status", "pending")
             if status not in VALID_STATUSES:
                 status = "pending"
+            content = str(item.get("content", ""))
+            active_form = str(item.get("active_form", ""))
+
+            matched = _match_existing_todo(item, content, by_id, unclaimed_by_content, kept)
+            if matched is None:
+                conn.execute(
+                    "INSERT INTO todos "
+                    "(content, status, active_form, sort_order, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (content, status, active_form, position, now, now),
+                )
+                continue
+
+            kept.add(matched)
             conn.execute(
-                "INSERT INTO todos (content, status, active_form, sort_order, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    str(item.get("content", "")),
-                    status,
-                    str(item.get("active_form", "")),
-                    i,
-                    now,
-                    now,
-                ),
+                "UPDATE todos SET content = ?, status = ?, active_form = ?, "
+                "sort_order = ?, updated_at = ? WHERE id = ?",
+                (content, status, active_form, position, now, matched),
             )
+
+        dropped = [row["id"] for row in existing if row["id"] not in kept]
+        for todo_id in dropped:
+            conn.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
         conn.commit()
 
     return get()
+
+
+def _match_existing_todo(
+    item: dict,
+    content: str,
+    by_id: dict[int, sqlite3.Row],
+    unclaimed_by_content: dict[str, list[int]],
+    kept: set[int],
+) -> int | None:
+    """Resolve one incoming item to the row it should keep being."""
+    raw_id = item.get("id")
+    if isinstance(raw_id, int) and not isinstance(raw_id, bool):
+        if raw_id in by_id and raw_id not in kept:
+            candidates = unclaimed_by_content.get(by_id[raw_id]["content"])
+            if candidates and raw_id in candidates:
+                candidates.remove(raw_id)
+            return raw_id
+        # An id the caller invented, or one already used by an earlier item in
+        # this same payload, is not identity — fall through to content.
+
+    candidates = unclaimed_by_content.get(content)
+    while candidates:
+        candidate = candidates.pop(0)
+        if candidate not in kept:
+            return candidate
+    return None
 
 
 def get() -> list[dict]:
@@ -69,8 +125,8 @@ def get() -> list[dict]:
     init_db()
     with kitty_db.connect(TODO_DB_FILE) as conn:
         rows = conn.execute(
-            "SELECT id, content, status, active_form, sort_order, created_at, updated_at "
-            "FROM todos ORDER BY sort_order ASC"
+            "SELECT id, content, status, active_form, sort_order, progress_note, "
+            "project_id, created_at, updated_at FROM todos ORDER BY sort_order ASC"
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
 
@@ -129,6 +185,52 @@ def complete_by_id(todo_id: int) -> bool:
         return cursor.rowcount > 0
 
 
+def set_progress(todo_id: int, note: str) -> dict | None:
+    """Record where the user stopped, without claiming the item is finished.
+
+    "This is where I stopped" is a different statement from "I did this", and
+    conflating them loses the only thing that makes the action resumable. An
+    item with progress moves to ``in_progress``; clearing the note leaves the
+    status alone, because erasing a note is not abandoning the work.
+    """
+    init_db()
+    now = time.time()
+    text = note.strip() if isinstance(note, str) else ""
+    with kitty_db.connect(TODO_DB_FILE) as conn:
+        if text:
+            cursor = conn.execute(
+                "UPDATE todos SET progress_note = ?, status = 'in_progress', updated_at = ? "
+                "WHERE id = ? AND status != 'completed'",
+                (text, now, todo_id),
+            )
+        else:
+            cursor = conn.execute(
+                "UPDATE todos SET progress_note = NULL, updated_at = ? WHERE id = ?",
+                (now, todo_id),
+            )
+        conn.commit()
+        if cursor.rowcount == 0:
+            return None
+        row = conn.execute("SELECT * FROM todos WHERE id = ?", (todo_id,)).fetchone()
+    return _row_to_dict(row) if row else None
+
+
+def set_project(todo_id: int, project_id: int | None) -> dict | None:
+    """Associate one todo with the project it belongs to."""
+    init_db()
+    now = time.time()
+    with kitty_db.connect(TODO_DB_FILE) as conn:
+        cursor = conn.execute(
+            "UPDATE todos SET project_id = ?, updated_at = ? WHERE id = ?",
+            (project_id, now, todo_id),
+        )
+        conn.commit()
+        if cursor.rowcount == 0:
+            return None
+        row = conn.execute("SELECT * FROM todos WHERE id = ?", (todo_id,)).fetchone()
+    return _row_to_dict(row) if row else None
+
+
 def delete_by_id(todo_id: int) -> bool:
     """Remove one todo by DB id."""
     init_db()
@@ -156,12 +258,18 @@ def get_todos_text() -> str:
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
+    # Every caller selects the full row or names these columns explicitly. A
+    # missing one is a schema bug and should say so, not quietly read as "no
+    # progress recorded" — which is how a lost note looks exactly like a note
+    # that was never taken.
     return {
         "id": row["id"],
         "content": row["content"],
         "status": row["status"],
         "active_form": row["active_form"] or "",
         "sort_order": row["sort_order"],
+        "progress_note": row["progress_note"],
+        "project_id": row["project_id"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }

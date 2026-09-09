@@ -211,3 +211,122 @@ class TestInit:
         message = str(exc.value)
         assert str(todo_store.TODO_DB) in message
         assert str(todo_store.TODO_DB_FILE) in message
+
+
+class TestDurableIdentity:
+    """A chosen action has to survive the list being regenerated around it."""
+
+    def test_regenerating_the_same_list_keeps_ids_and_progress(self):
+        todo_store.clear()
+        created = todo_store.update([
+            {"content": "Call the pharmacy"},
+            {"content": "Book the dentist"},
+        ])
+        chosen = created[0]["id"]
+        todo_store.set_progress(chosen, "left a voicemail, waiting on a callback")
+        todo_store.set_project(chosen, 3)
+
+        # The model re-sends the same list without ids, as it does on refresh.
+        again = todo_store.update([
+            {"content": "Call the pharmacy"},
+            {"content": "Book the dentist"},
+        ])
+
+        assert [t["id"] for t in again] == [t["id"] for t in created]
+        assert again[0]["progress_note"] == "left a voicemail, waiting on a callback"
+        assert again[0]["project_id"] == 3
+        assert again[0]["created_at"] == created[0]["created_at"]
+
+    def test_an_explicit_id_keeps_identity_through_a_reword(self):
+        todo_store.clear()
+        created = todo_store.update([{"content": "Call the pharmacy"}])
+        chosen = created[0]["id"]
+        todo_store.set_progress(chosen, "on hold")
+
+        renamed = todo_store.update([
+            {"id": chosen, "content": "Call the pharmacy about the refill"}
+        ])
+
+        assert renamed[0]["id"] == chosen
+        assert renamed[0]["content"] == "Call the pharmacy about the refill"
+        assert renamed[0]["progress_note"] == "on hold"
+
+    def test_new_suggestions_around_a_chosen_item_do_not_replace_it(self):
+        todo_store.clear()
+        created = todo_store.update([{"content": "Call the pharmacy"}])
+        chosen = created[0]["id"]
+        todo_store.set_progress(chosen, "left a voicemail")
+
+        regenerated = todo_store.update([
+            {"content": "Draft the cover letter"},
+            {"content": "Call the pharmacy"},
+            {"content": "Tidy the desk"},
+        ])
+
+        survivor = next(t for t in regenerated if t["content"] == "Call the pharmacy")
+        assert survivor["id"] == chosen
+        assert survivor["progress_note"] == "left a voicemail"
+        assert survivor["sort_order"] == 1
+
+    def test_an_item_the_caller_dropped_is_removed(self):
+        todo_store.clear()
+        created = todo_store.update([{"content": "Keep me"}, {"content": "Drop me"}])
+        dropped = created[1]["id"]
+
+        remaining = todo_store.update([{"content": "Keep me"}])
+
+        assert [t["content"] for t in remaining] == ["Keep me"]
+        assert dropped not in [t["id"] for t in remaining]
+
+    def test_duplicate_content_does_not_collapse_into_one_row(self):
+        todo_store.clear()
+        created = todo_store.update([{"content": "Follow up"}, {"content": "Follow up"}])
+        assert len({t["id"] for t in created}) == 2
+
+        again = todo_store.update([{"content": "Follow up"}, {"content": "Follow up"}])
+        assert {t["id"] for t in again} == {t["id"] for t in created}
+
+    def test_an_invented_id_falls_back_to_content_instead_of_erroring(self):
+        todo_store.clear()
+        created = todo_store.update([{"content": "Call the pharmacy"}])
+
+        again = todo_store.update([{"id": 9999, "content": "Call the pharmacy"}])
+
+        assert again[0]["id"] == created[0]["id"]
+
+
+class TestProgress:
+    def test_progress_records_where_the_user_stopped_without_completing(self):
+        todo_store.clear()
+        created = todo_store.update([{"content": "Write the letter"}])
+        todo_id = created[0]["id"]
+
+        updated = todo_store.set_progress(todo_id, "got through the first paragraph")
+
+        assert updated["progress_note"] == "got through the first paragraph"
+        assert updated["status"] == "in_progress"
+
+    def test_progress_does_not_reopen_a_completed_item(self):
+        todo_store.clear()
+        created = todo_store.update([{"content": "Write the letter"}])
+        todo_id = created[0]["id"]
+        todo_store.complete_by_id(todo_id)
+
+        assert todo_store.set_progress(todo_id, "actually not done") is None
+        assert todo_store.get()[0]["status"] == "completed"
+
+    def test_clearing_a_note_does_not_abandon_the_work(self):
+        todo_store.clear()
+        created = todo_store.update([{"content": "Write the letter"}])
+        todo_id = created[0]["id"]
+        todo_store.set_progress(todo_id, "started")
+
+        cleared = todo_store.set_progress(todo_id, "")
+
+        assert cleared["progress_note"] is None
+        assert cleared["status"] == "in_progress"
+
+    def test_progress_and_project_on_a_missing_item_report_nothing(self):
+        todo_store.clear()
+        assert todo_store.set_progress(4242, "note") is None
+        assert todo_store.set_project(4242, 1) is None

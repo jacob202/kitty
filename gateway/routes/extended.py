@@ -127,6 +127,38 @@ async def todos_complete_by_id(todo_id: int):
     return {"completed": complete_todo(todo_id), "id": todo_id}
 
 
+class TodoProgressRequest(BaseModel):
+    note: str = Field(default="", max_length=2000)
+
+
+class TodoProjectRequest(BaseModel):
+    project_id: Optional[int] = None
+
+
+@router.post("/todos/{todo_id}/progress")
+async def todos_set_progress(todo_id: int, payload: TodoProgressRequest):
+    """Record where the user stopped. A different statement from completing it."""
+    from gateway.storage_router import set_todo_progress
+
+    todo = set_todo_progress(todo_id, payload.note)
+    if todo is None:
+        raise HTTPException(
+            status_code=404,
+            detail="That to-do is already finished or no longer exists.",
+        )
+    return {"todo": todo}
+
+
+@router.post("/todos/{todo_id}/project")
+async def todos_set_project(todo_id: int, payload: TodoProjectRequest):
+    from gateway.storage_router import set_todo_project
+
+    todo = set_todo_project(todo_id, payload.project_id)
+    if todo is None:
+        raise HTTPException(status_code=404, detail="That to-do no longer exists.")
+    return {"todo": todo}
+
+
 @router.delete("/todos/{todo_id}")
 async def todos_delete(todo_id: int):
     from gateway.storage_router import delete_todo

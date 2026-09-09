@@ -69,14 +69,20 @@ resources:
     - gateway/context_*.py
     - gateway/explicit_memory.py
     - gateway/memory*.py
+    - gateway/migrations/**
     - gateway/routes/agent_workspace.py
+    - gateway/storage_router.py
+    - gateway/todo_store.py
     - mcp/agent_room/**
     - tests/test_agent_room_global.py
     - tests/test_agent_room_presence.py
     - tests/test_agent_workspace.py
     - tests/test_agent_workspace_routes.py
     - tests/test_check_continuity_state.py
+    - tests/test_db.py
     - tests/test_mcp_agent_room_server.py
+    - tests/test_storage_router.py
+    - tests/test_todo_store.py
   mission:runtime:
     paths:
     - gateway/mission_runtime.py
@@ -152,6 +158,7 @@ resources:
     - gateway/kitty-chat/tests/WorkViewProjection.test.tsx
     - gateway/kitty-chat/tests/actionsContract.test.ts
     - gateway/routes/conversation_handoff.py
+    - gateway/routes/extended.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
     - tests/test_work_projection.py
