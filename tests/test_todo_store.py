@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from gateway import todo_store
+from gateway import project_store, todo_store
 
 
 @pytest.fixture(autouse=True)
@@ -13,6 +13,10 @@ def isolate_todo_store(monkeypatch, tmp_path):
     legacy_db = tmp_path / "legacy" / "todos.db"
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", phase_b_db, raising=False)
     monkeypatch.setattr(todo_store, "TODO_DB", legacy_db)
+    # Projects and todos share the canonical Kitty DB in production. Keep the
+    # isolated test store coherent too so selection-protection checks never
+    # touch the real personal database.
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", phase_b_db, raising=False)
 
 
 class TestUpdate:

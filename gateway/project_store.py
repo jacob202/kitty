@@ -188,41 +188,49 @@ def select_todo(project_id: int, todo_id: int) -> dict[str, Any]:
     `project_next_steps` are both replaceable suggestion state; this is not,
     and regenerating either must leave it alone.
     """
-    _require(project_id)
     if not isinstance(todo_id, int) or isinstance(todo_id, bool):
         raise ProjectError(f"todo_id must be int, got {type(todo_id).__name__}")
     from gateway import todo_store
 
-    chosen = next((todo for todo in todo_store.get() if todo["id"] == todo_id), None)
-    if chosen is None:
-        raise ProjectNotFound(f"no todo with id {todo_id}")
-    # A finished item is not a next action. Selecting one would leave the
-    # project pointing at something there is nothing left to do about.
-    # `deprioritized` is equally not a next action: get_todos_text() already
-    # treats only pending and in_progress as active work.
-    if chosen["status"] not in ACTIONABLE_TODO_STATUSES:
+    init_db()
+    todo_store.init_db()
+    if Path(todo_store.TODO_DB_FILE).resolve() != Path(PROJECTS_DB_FILE).resolve():
         raise ProjectError(
-            f"todo {todo_id} is {chosen['status']} and cannot be the next action"
+            "cannot select a todo while the todo and project stores are separate databases"
         )
-    # A todo already belonging to another project must not be quietly stolen;
-    # one with no project is adopted by the project selecting it.
-    owner = chosen.get("project_id")
-    if owner is not None and owner != project_id:
-        raise ProjectError(f"todo {todo_id} belongs to project {owner}, not {project_id}")
-
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        # Lock before validating either row. A validation performed before the
+        # write transaction can become false while this request waits for a
+        # concurrent selection or model refresh.
+        conn.execute("BEGIN IMMEDIATE")
+        project = conn.execute(
+            "SELECT id FROM projects WHERE id = ?", (project_id,)
+        ).fetchone()
+        if project is None:
+            raise ProjectNotFound(f"no project with id {project_id}")
+        chosen = conn.execute(
+            "SELECT id, status, project_id FROM todos WHERE id = ?", (todo_id,)
+        ).fetchone()
+        if chosen is None:
+            raise ProjectNotFound(f"no todo with id {todo_id}")
+        if chosen["status"] not in ACTIONABLE_TODO_STATUSES:
+            raise ProjectError(
+                f"todo {todo_id} is {chosen['status']} and cannot be the next action"
+            )
+        owner = chosen["project_id"]
+        if owner is not None and owner != project_id:
+            raise ProjectError(f"todo {todo_id} belongs to project {owner}, not {project_id}")
         if owner is None:
             # Adoption and selection must land together. Committing ownership
             # first through a separate connection leaves a todo adopted with no
             # selection if the second write fails.
-            if Path(todo_store.TODO_DB_FILE) != Path(PROJECTS_DB_FILE):
-                raise ProjectError(
-                    "cannot adopt a todo while the todo and project stores are separate databases"
-                )
-            conn.execute(
-                "UPDATE todos SET project_id = ?, updated_at = ? WHERE id = ?",
+            claimed = conn.execute(
+                "UPDATE todos SET project_id = ?, updated_at = ? "
+                "WHERE id = ? AND project_id IS NULL",
                 (project_id, time.time(), todo_id),
             )
+            if claimed.rowcount != 1:
+                raise ProjectError(f"todo {todo_id} changed ownership while it was selected")
         conn.execute(
             "UPDATE projects SET selected_todo_id = ? WHERE id = ?", (todo_id, project_id)
         )
@@ -256,7 +264,7 @@ def selected_todo(project_id: int) -> dict[str, Any] | None:
 
     chosen = next((todo for todo in todo_store.get() if todo["id"] == todo_id), None)
     if chosen is None:
-        clear_selected_todo(project_id)
+        _clear_selected_todo_if_current(project_id, todo_id)
         return None
     # The selection was valid when it was made; the todo can have moved or been
     # finished since. Both mean this project no longer has a chosen next action,
@@ -267,12 +275,24 @@ def selected_todo(project_id: int) -> dict[str, Any] | None:
     # todo can be explicitly unassigned and would otherwise keep being returned
     # as this project's chosen action.
     if chosen.get("project_id") != project_id:
-        clear_selected_todo(project_id)
+        _clear_selected_todo_if_current(project_id, todo_id)
         return None
     if chosen["status"] not in ACTIONABLE_TODO_STATUSES:
-        clear_selected_todo(project_id)
+        _clear_selected_todo_if_current(project_id, todo_id)
         return None
     return chosen
+
+
+def _clear_selected_todo_if_current(project_id: int, expected_todo_id: int) -> bool:
+    """Repair one stale pointer without erasing a newer explicit choice."""
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        cursor = conn.execute(
+            "UPDATE projects SET selected_todo_id = NULL "
+            "WHERE id = ? AND selected_todo_id = ?",
+            (project_id, expected_todo_id),
+        )
+        conn.commit()
+        return cursor.rowcount == 1
 
 
 def _seed_kitty_project_once() -> None:

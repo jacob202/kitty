@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
+from pathlib import Path
 
 from gateway import db as kitty_db
 from gateway.paths import DATA_DIR, KITTY_DB_FILE
@@ -54,14 +55,38 @@ def update(items: list[dict]) -> list[dict]:
     Returns the new list.
     """
     init_db()
+    from gateway import project_store
+
+    try:
+        project_store.init_db()
+    except Exception as exc:
+        raise TodoStoreError(
+            "cannot reconcile the todo list without reading project selections"
+        ) from exc
+    if Path(TODO_DB_FILE).resolve() != Path(project_store.PROJECTS_DB_FILE).resolve():
+        raise TodoStoreError(
+            "cannot safely reconcile todos while the todo and project stores are separate databases"
+        )
     now = time.time()
-    # Read project selections before opening the write transaction. Doing it
-    # inside would run the projects store's own init/migrations while this
-    # connection holds the todos table, which is how two stores deadlock each
-    # other on one database.
-    protected = _protected_todo_ids()
 
     with kitty_db.connect(TODO_DB_FILE) as conn:
+        # Protect the selection snapshot and deletion sweep with the same write
+        # transaction. select_todo() takes the same lock and revalidates after
+        # acquiring it, so neither ordering can return success with a deleted
+        # chosen action.
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            protected = {
+                row["selected_todo_id"]
+                for row in conn.execute(
+                    "SELECT selected_todo_id FROM projects "
+                    "WHERE selected_todo_id IS NOT NULL"
+                ).fetchall()
+            }
+        except sqlite3.Error as exc:
+            raise TodoStoreError(
+                "cannot reconcile the todo list without reading project selections"
+            ) from exc
         existing = conn.execute(
             "SELECT id, content FROM todos ORDER BY sort_order ASC"
         ).fetchall()
@@ -124,31 +149,6 @@ def update(items: list[dict]) -> list[dict]:
         conn.commit()
 
     return get()
-
-
-def _protected_todo_ids() -> set[int]:
-    """Todo ids some project has explicitly chosen, so must not be swept away.
-
-    Asked of ``project_store`` rather than read from the table directly, so the
-    two stores stay independently redirectable. A projects store that is absent
-    or unreadable is a refusal to reconcile, not permission to delete.
-    """
-    from gateway import project_store
-
-    try:
-        projects = project_store.list_projects()
-    except Exception as exc:
-        # Failing open here would silently delete the user's chosen action the
-        # one time the projects store is unhealthy. A todo update is always
-        # replayable; a destroyed selection and its progress note are not.
-        raise TodoStoreError(
-            "cannot reconcile the todo list without reading project selections"
-        ) from exc
-    return {
-        project["selected_todo_id"]
-        for project in projects
-        if project.get("selected_todo_id") is not None
-    }
 
 
 def _match_existing_todo(
