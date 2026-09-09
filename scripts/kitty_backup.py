@@ -9,7 +9,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from gateway.paths import DATA_DIR, KITTY_DATA_DIR
+from gateway.paths import DATA_DIR, KITTY_DATA_DIR, ROOT
 
 DEFAULT_SOURCE_DIR = KITTY_DATA_DIR
 DEFAULT_BACKUP_ROOT = DATA_DIR / "backups" / "kitty"
@@ -17,7 +17,7 @@ DEFAULT_BACKUP_ROOT = DATA_DIR / "backups" / "kitty"
 # SAME selection as DATA_DIR (KITTY_DATA_ROOT override, else the canonical
 # checkout) — never a literal path derived from this file's own location,
 # which is the invoking checkout and can be a secondary worktree.
-DEFAULT_OWNER_DATA_ROOT = DATA_DIR.parent
+DEFAULT_OWNER_DATA_ROOT = DATA_DIR.parent if DATA_DIR.name == "data" else ROOT
 
 # Explicit owner-data inventory. This intentionally excludes secrets such as
 # .env and data/gmail_token.json. Most structured owner stores share
@@ -49,6 +49,13 @@ OWNER_DATA_RELATIVE_PATHS = (
     "config/user_profile.json",
     "config/USER",
 )
+
+def _owner_path(project_root: Path, data_root: Path, relative: str) -> Path:
+    if relative.startswith("data/"):
+        return data_root / relative.removeprefix("data/")
+    return project_root / relative
+
+
 
 
 def create_backup(
@@ -91,6 +98,8 @@ def create_owner_backup(
     project_root: Path = DEFAULT_OWNER_DATA_ROOT,
     backup_root: Path = DEFAULT_BACKUP_ROOT,
     timestamp: str | None = None,
+    *,
+    data_root: Path | None = None,
 ) -> Path:
     """Back up every classified canonical owner-data path, excluding secrets.
 
@@ -102,6 +111,11 @@ def create_owner_backup(
     root = Path(project_root)
     if not root.exists() or not root.is_dir():
         raise RuntimeError(f"Kitty project root does not exist: {root}")
+    selected_data_root = (
+        Path(data_root)
+        if data_root is not None
+        else (DATA_DIR if root == DEFAULT_OWNER_DATA_ROOT else root / "data")
+    )
 
     stamp = timestamp or _utc_stamp()
     destination = Path(backup_root) / stamp
@@ -114,7 +128,7 @@ def create_owner_backup(
     missing: list[str] = []
     try:
         for relative in OWNER_DATA_RELATIVE_PATHS:
-            source = root / relative
+            source = _owner_path(root, selected_data_root, relative)
             if not source.exists():
                 missing.append(relative)
                 continue
@@ -127,6 +141,7 @@ def create_owner_backup(
             "mode": "owner-data",
             "created_at": stamp,
             "source": str(root),
+            "data_source": str(selected_data_root),
             "files": copied,
             "missing": missing,
             "excluded_secrets": [".env", "data/gmail_token.json"],
@@ -146,10 +161,16 @@ def restore_owner_backup(
     target_root: Path,
     *,
     replace: bool = False,
+    data_root: Path | None = None,
 ) -> Path:
     """Restore an owner-data archive into a project root or fresh-install root."""
     backup = Path(backup_dir)
     target = Path(target_root)
+    selected_data_root = (
+        Path(data_root)
+        if data_root is not None
+        else (DATA_DIR if target == DEFAULT_OWNER_DATA_ROOT else target / "data")
+    )
     manifest_path = backup / "backup_manifest.json"
     if not manifest_path.is_file():
         raise RuntimeError(f"Not a Kitty backup archive (no backup_manifest.json): {backup}")
@@ -170,7 +191,7 @@ def restore_owner_backup(
             source = payload_root / relative
             if not source.exists():
                 raise RuntimeError(f"Owner-data archive is missing declared path: {relative}")
-            dest = target / relative
+            dest = _owner_path(target, selected_data_root, relative)
             if dest.exists():
                 if not replace:
                     raise RuntimeError(
@@ -286,7 +307,10 @@ def restore(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("mode") == "owner-data":
         target_root = Path(target_dir) if target_dir is not None else DEFAULT_OWNER_DATA_ROOT
-        return restore_owner_backup(backup, target_root, replace=replace)
+        selected_data_root = None if target_dir is not None else DATA_DIR
+        return restore_owner_backup(
+            backup, target_root, replace=replace, data_root=selected_data_root
+        )
 
     target = Path(target_dir) if target_dir is not None else DEFAULT_SOURCE_DIR
     if target.exists() and any(target.iterdir()):

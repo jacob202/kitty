@@ -241,6 +241,7 @@ def _run_workspace_resolver(
     """
     functions = "\n".join(
         [
+            _extract_function("expand_user_path"),
             _extract_function("ensure_runtime_builder_data_dir"),
             _extract_function("require_existing_personal_workspace"),
         ]
@@ -279,7 +280,8 @@ def test_workspace_resolver_selects_canonical_root_from_secondary_worktree(tmp_p
     # Requirement 1: invoking from a secondary worktree still selects the
     # canonical personal root, not the invoking checkout's own root.
     canonical = tmp_path / "canonical-workspace"
-    (canonical / "data").mkdir(parents=True)
+    (canonical / "data" / "kitty").mkdir(parents=True)
+    (canonical / "data" / "kitty" / "kitty.db").touch()
 
     result = _run_workspace_resolver(tmp_path, {}, git_common_dir=str(canonical / ".git"))
 
@@ -389,3 +391,40 @@ def test_kitty_up_refuses_to_start_when_personal_data_root_is_missing(tmp_path):
     assert result.returncode != 0
     assert "does not exist" in result.stderr
     assert "will not silently start a fresh empty workspace" in result.stderr
+
+
+def test_workspace_resolver_rejects_implicit_empty_tracked_data_dir(tmp_path):
+    canonical = tmp_path / "empty-clone"
+    (canonical / "data").mkdir(parents=True)
+    (canonical / "data" / ".gitkeep").write_text("", encoding="utf-8")
+
+    result = _run_workspace_resolver(tmp_path, {}, git_common_dir=str(canonical / ".git"))
+
+    assert result.returncode == 2
+    assert "no established Kitty state" in result.stderr
+
+
+def test_workspace_resolver_allows_explicit_empty_first_run_and_expands_tilde(tmp_path):
+    home = tmp_path / "home"
+    data_root = home / "kitty-data"
+    data_root.mkdir(parents=True)
+
+    result = _run_workspace_resolver(
+        tmp_path,
+        {"HOME": str(home), "KITTY_DATA_ROOT": "~/kitty-data"},
+        git_common_dir=None,
+    )
+
+    assert result.returncode == 0, result.stderr
+    data, builder, governor = result.stdout.splitlines()
+    assert data == str(data_root)
+    assert builder == str(data_root / "kittybuilder")
+    assert governor == str(data_root / "compute_governor" / "receipts.db")
+
+
+def test_runtime_identity_uses_startup_record_not_mutable_checkout_head() -> None:
+    body = _extract_function("pid_worktree_identity")
+    assert '$RUN_DIR/$svc.identity' in body
+    assert "rev-parse HEAD" not in body
+    assert "record_runtime_identity gateway" in SCRIPT
+    assert "record_runtime_identity ui" in SCRIPT

@@ -168,16 +168,38 @@ pid_role() {
   fi
 }
 
+runtime_source_sha() {
+  local sha dirty
+  sha="$(git -C "$KITTY_ROOT" rev-parse HEAD 2>/dev/null || true)"
+  [[ -n "$sha" ]] || return 1
+  dirty="$(git -C "$KITTY_ROOT" status --porcelain --untracked-files=normal 2>/dev/null || true)"
+  [[ -z "$dirty" ]] || sha="dirty:$sha"
+  printf '%s\n' "$sha"
+}
+
+record_runtime_identity() {
+  local svc="$1" pid="$2" source_sha="$3"
+  [[ -n "$svc" && -n "$pid" && -n "$source_sha" ]] || return 1
+  printf '%s|%s|%s\n' "$pid" "$KITTY_ROOT" "$source_sha" > "$RUN_DIR/$svc.identity"
+}
+
 pid_worktree_identity() {
-  local pid="$1" cwd root sha
+  local pid="$1" cwd svc line recorded_pid root sha
   pid_owned_by_kitty "$pid" || return 1
   cwd="$(pid_cwd "$pid")"
   [[ -n "$cwd" ]] || return 1
-  root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
-  [[ -n "$root" ]] || return 1
-  sha="$(git -C "$root" rev-parse HEAD 2>/dev/null || true)"
-  [[ -n "$sha" ]] || return 1
-  printf '%s@%s\n' "$root" "$sha"
+  for svc in ui gateway litellm; do
+    [[ -f "$RUN_DIR/$svc.identity" ]] || continue
+    line="$(cat "$RUN_DIR/$svc.identity" 2>/dev/null || true)"
+    IFS='|' read -r recorded_pid root sha <<< "$line"
+    [[ "$recorded_pid" == "$pid" && -n "$root" && -n "$sha" ]] || continue
+    [[ "$cwd" == "$root" || "$cwd" == "$root/"* ]] || continue
+    printf '%s@%s\n' "$root" "$sha"
+    return 0
+  done
+  # No startup record means the listener predates this provenance mechanism or
+  # was started externally. Never substitute the checkout's mutable current HEAD.
+  return 1
 }
 
 classify_primary_stack() {
@@ -313,6 +335,15 @@ RESET=[0m
 
 # ── Subcommands ───────────────────────────────────────────────────────────────
 
+expand_user_path() {
+  local value="$1"
+  case "$value" in
+    "~") printf '%s\n' "$HOME" ;;
+    "~/"*) printf '%s/%s\n' "$HOME" "${value:2}" ;;
+    *) printf '%s\n' "$value" ;;
+  esac
+}
+
 ensure_runtime_builder_data_dir() {
   # Normal Kitty runtimes select ONE coherent personal workspace: app data,
   # Builder, and the compute governor all derive from the same data root, so
@@ -323,9 +354,11 @@ ensure_runtime_builder_data_dir() {
   # own root, so a secondary worktree still finds Jacob's real history. A
   # Builder or compute-governor override that contradicts the selected root
   # is refused rather than silently splitting state across two workspaces.
-  local data_root
+  local data_root explicit_data_root=0
   if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
-    data_root="${KITTY_DATA_ROOT%/}"
+    explicit_data_root=1
+    data_root="$(expand_user_path "$KITTY_DATA_ROOT")"
+    data_root="${data_root%/}"
   else
     local git_common_dir canonical_root
     git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
@@ -338,8 +371,11 @@ ensure_runtime_builder_data_dir() {
 
   local expected_builder_dir="${data_root}/kittybuilder"
   local expected_governor_db="${data_root}/compute_governor/receipts.db"
+  local builder_override governor_override
+  builder_override="$(expand_user_path "${KITTY_BUILDER_DATA_DIR:-}")"
+  governor_override="$(expand_user_path "${KITTY_COMPUTE_GOVERNOR_DB:-}")"
 
-  if [[ -n "${KITTY_BUILDER_DATA_DIR:-}" && "${KITTY_BUILDER_DATA_DIR%/}" != "$expected_builder_dir" ]]; then
+  if [[ -n "$builder_override" && "${builder_override%/}" != "$expected_builder_dir" ]]; then
     echo "Error: KITTY_BUILDER_DATA_DIR conflicts with the selected personal data root." >&2
     echo "  data root:              $data_root" >&2
     echo "  KITTY_BUILDER_DATA_DIR: $KITTY_BUILDER_DATA_DIR" >&2
@@ -347,7 +383,7 @@ ensure_runtime_builder_data_dir() {
     echo "  Set KITTY_DATA_ROOT to the workspace you mean, or unset KITTY_BUILDER_DATA_DIR — Kitty will not split Builder state from app data." >&2
     return 1
   fi
-  if [[ -n "${KITTY_COMPUTE_GOVERNOR_DB:-}" && "${KITTY_COMPUTE_GOVERNOR_DB}" != "$expected_governor_db" ]]; then
+  if [[ -n "$governor_override" && "$governor_override" != "$expected_governor_db" ]]; then
     echo "Error: KITTY_COMPUTE_GOVERNOR_DB conflicts with the selected personal data root." >&2
     echo "  data root:                $data_root" >&2
     echo "  KITTY_COMPUTE_GOVERNOR_DB: $KITTY_COMPUTE_GOVERNOR_DB" >&2
@@ -359,6 +395,7 @@ ensure_runtime_builder_data_dir() {
   export KITTY_DATA_ROOT="$data_root"
   export KITTY_BUILDER_DATA_DIR="$expected_builder_dir"
   export KITTY_COMPUTE_GOVERNOR_DB="$expected_governor_db"
+  export KITTY_DATA_ROOT_EXPLICIT="$explicit_data_root"
 }
 
 require_existing_personal_workspace() {
@@ -370,9 +407,25 @@ require_existing_personal_workspace() {
   if [[ ! -d "$KITTY_DATA_ROOT" ]]; then
     echo "Error: the selected personal data root does not exist: $KITTY_DATA_ROOT" >&2
     echo "  Kitty will not silently start a fresh empty workspace in its place." >&2
-    echo "  If this really is a first run, create it: mkdir -p \"$KITTY_DATA_ROOT\"" >&2
+    echo "  For an intentional first run or sandbox, set KITTY_DATA_ROOT explicitly and create that directory first." >&2
     echo "  Otherwise this checkout is not resolving to the workspace you expect." >&2
     return 1
+  fi
+
+  # An explicit KITTY_DATA_ROOT is the operator's opt-in path for a new/sandbox
+  # workspace. The implicit canonical default, however, must contain real Kitty
+  # state; tracked data/.gitkeep alone is not evidence of a personal workspace.
+  if [[ "${KITTY_DATA_ROOT_EXPLICIT:-0}" != "1" ]]; then
+    local marker found=0
+    for marker in kitty/kitty.db kittybuilder/builder_queue.db compute_governor/receipts.db; do
+      if [[ -e "$KITTY_DATA_ROOT/$marker" ]]; then found=1; break; fi
+    done
+    if [[ "$found" != "1" ]]; then
+      echo "Error: the implicit personal data root has no established Kitty state: $KITTY_DATA_ROOT" >&2
+      echo "  A tracked empty data directory is not enough to prove this is your workspace." >&2
+      echo "  For an intentional first run or sandbox, set KITTY_DATA_ROOT explicitly." >&2
+      return 1
+    fi
   fi
 }
 
@@ -431,10 +484,14 @@ cmd_up() {
   else
     assert_port_available "Gateway" "$GATEWAY_PORT" || return 1
     printf "  ⏳ Gateway    starting... "
+    local gateway_source_sha gateway_pid
+    gateway_source_sha="$(runtime_source_sha || echo unknown)"
     nohup bash "$KITTY_ROOT/gateway/start_gateway.sh" \
       >"$LOG_DIR/gateway.log" 2>&1 &
-    echo $! >"$RUN_DIR/gateway.pid"
-    startup_identity "Gateway" "$GATEWAY_PORT" "$!" >/dev/null
+    gateway_pid=$!
+    echo "$gateway_pid" >"$RUN_DIR/gateway.pid"
+    record_runtime_identity gateway "$gateway_pid" "$gateway_source_sha"
+    startup_identity "Gateway" "$GATEWAY_PORT" "$gateway_pid" >/dev/null
     _i=0
     while [ $_i -lt 15 ]; do
       if http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
@@ -483,13 +540,17 @@ cmd_ui() {
   if ! http_ok "http://127.0.0.1:$UI_PORT/"; then
     assert_port_available "UI" "$UI_PORT"
     echo "Starting UI on http://127.0.0.1:$UI_PORT ..."
+    local ui_source_sha ui_pid
+    ui_source_sha="$(runtime_source_sha || echo unknown)"
     KITTY_UI_PORT="$UI_PORT" \
       KITTY_GATEWAY_URL="http://127.0.0.1:$GATEWAY_PORT" \
       KITTY_UI_BIND_ALL=true \
       nohup bash "$KITTY_ROOT/scripts/desktop/start_ui.sh" \
         >"$LOG_DIR/ui.log" 2>&1 &
-    echo $! >"$RUN_DIR/ui.pid"
-    startup_identity "UI" "$UI_PORT" "$(cat "$RUN_DIR/ui.pid")"
+    ui_pid=$!
+    echo "$ui_pid" >"$RUN_DIR/ui.pid"
+    record_runtime_identity ui "$ui_pid" "$ui_source_sha"
+    startup_identity "UI" "$UI_PORT" "$ui_pid"
     _i=0
     while [ $_i -lt 30 ]; do
       if http_ok "http://127.0.0.1:$UI_PORT/"; then break; fi
@@ -554,7 +615,8 @@ cmd_down() {
     stop_pidfile "$svc"
   done
 
-  rm -f "$RUN_DIR/ui.pid" "$RUN_DIR/gateway.pid" "$RUN_DIR/litellm.pid"
+  rm -f "$RUN_DIR/ui.pid" "$RUN_DIR/gateway.pid" "$RUN_DIR/litellm.pid" \
+    "$RUN_DIR/ui.identity" "$RUN_DIR/gateway.identity" "$RUN_DIR/litellm.identity"
 }
 
 cmd_status_quick() {
@@ -739,7 +801,8 @@ cmd_status() {
   # when the workspace is misconfigured, so an operator can see why.
   local ws_data_root ws_builder_dir ws_governor_db ws_conflict=""
   if [[ -n "${KITTY_DATA_ROOT:-}" ]]; then
-    ws_data_root="${KITTY_DATA_ROOT%/}"
+    ws_data_root="$(expand_user_path "$KITTY_DATA_ROOT")"
+    ws_data_root="${ws_data_root%/}"
   else
     local ws_git_common_dir ws_canonical_root
     ws_git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"

@@ -354,3 +354,40 @@ def test_kitty_backup_launcher_targets_canonical_root_from_secondary_worktree(
     assert (
         backup_dir / "owner-data" / "data" / "kitty" / "note.txt"
     ).read_text(encoding="utf-8") == "mine\n"
+
+
+def test_owner_backup_and_default_restore_use_arbitrary_selected_data_root(tmp_path):
+    data_root = tmp_path / "isolated-data"
+    kitty_dir = data_root / "kitty"
+    kitty_dir.mkdir(parents=True)
+    (kitty_dir / "note.txt").write_text("mine\n", encoding="utf-8")
+    backup_root = tmp_path / "backups"
+    env = {**os.environ, "KITTY_DATA_ROOT": str(data_root)}
+
+    backed_up = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "kitty_backup.py"), "backup",
+         "--backup-root", str(backup_root)],
+        cwd=tmp_path, env=env, capture_output=True, text=True, check=True,
+    )
+    backup_dir = Path(backed_up.stdout.strip())
+    assert (backup_dir / "owner-data" / "data" / "kitty" / "note.txt").read_text(encoding="utf-8") == "mine\n"
+    manifest = json.loads((backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["data_source"] == str(data_root)
+
+    # Prove default restore maps data/... directly back into the arbitrary
+    # selected DATA_DIR without touching checkout-owned config files.
+    restore_archive = tmp_path / "restore-archive"
+    payload = restore_archive / "owner-data" / "data" / "kitty"
+    payload.mkdir(parents=True)
+    (payload / "note.txt").write_text("restored\n", encoding="utf-8")
+    (restore_archive / "backup_manifest.json").write_text(
+        json.dumps({"mode": "owner-data", "files": ["data/kitty"]}) + "\n",
+        encoding="utf-8",
+    )
+    shutil.rmtree(data_root)
+    restored = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "kitty_backup.py"), "restore", str(restore_archive)],
+        cwd=tmp_path, env=env, capture_output=True, text=True, check=True,
+    )
+    assert restored.returncode == 0
+    assert (data_root / "kitty" / "note.txt").read_text(encoding="utf-8") == "restored\n"
