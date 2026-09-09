@@ -61,10 +61,15 @@ requirements = [
     for line in requirements_path.read_text(encoding="utf-8").splitlines()
     if line.strip() and not line.lstrip().startswith("#")
 ]
+litellm_requirement = next(
+    requirement for requirement in requirements if requirement.name.lower() == "litellm"
+)
 openai_requirement = next(
     requirement for requirement in requirements if requirement.name.lower() == "openai"
 )
+installed_litellm = md.version("litellm")
 installed_openai = md.version("openai")
+assert installed_litellm in litellm_requirement.specifier
 assert installed_openai in openai_requirement.specifier
 PY
 }

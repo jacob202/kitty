@@ -41,6 +41,12 @@ SKILL_ROOTS: list[Path] = [
 # In-memory cache after first scan
 _registry: dict[str, dict] | None = None
 
+_LOCAL_MARKDOWN_INCLUDE = re.compile(
+    r'!`cat "\$\{COMMANDCODE_SKILL_DIR\}/([A-Za-z0-9_.-]+\.md)"`'
+)
+_MAX_LOCAL_INCLUDE_BYTES = 64 * 1024
+
+
 
 def _yaml_frontmatter_legacy(raw: str) -> dict:
     """Line-based frontmatter fallback for values that aren't valid YAML.
@@ -232,6 +238,29 @@ def suggest(message: str, limit: int = 1) -> list[dict]:
     return [s for _, s in scored[:limit]]
 
 
+def _expand_local_markdown_includes(prompt: str, skill_path: str) -> str:
+    """Expand bounded same-directory Markdown includes used by skill bundles.
+
+    The tracked skills use CommandCode's ``!`cat ...` `` syntax, but Kitty
+    injects skill prompts directly and never executes shell substitutions. Only
+    a single Markdown basename in the skill directory is accepted here; missing
+    or oversized includes fail visibly instead of leaving an inert shell token.
+    """
+    skill_dir = Path(skill_path).parent
+
+    def repl(match: re.Match[str]) -> str:
+        name = match.group(1)
+        target = skill_dir / name
+        try:
+            data = target.read_bytes()
+        except OSError:
+            return f"> Skill include unavailable: {name}"
+        if len(data) > _MAX_LOCAL_INCLUDE_BYTES:
+            return f"> Skill include too large to inject: {name}"
+        return data.decode("utf-8", errors="replace").strip()
+
+    return _LOCAL_MARKDOWN_INCLUDE.sub(repl, prompt)
+
 def invoke(name: str, context: Optional[str] = None) -> dict:
     """Prepare a skill for invocation. Returns the skill data with a rendered prompt.
 
@@ -246,6 +275,7 @@ def invoke(name: str, context: Optional[str] = None) -> dict:
 
     # Strip frontmatter for the actual prompt
     prompt = re.sub(r"^---\s*\n.*?\n---\s*\n", "", prompt, flags=re.DOTALL).strip()
+    prompt = _expand_local_markdown_includes(prompt, skill["path"])
 
     if context:
         prompt = f"{prompt}\n\nContext: {context}"

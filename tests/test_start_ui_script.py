@@ -347,3 +347,17 @@ def test_standalone_refuses_symlinked_next_ancestor(tmp_path):
     )
     assert sentinel.read_text(encoding="utf-8") == "keep"
     assert not any("node .next/standalone/server.js" in call for call in calls)
+
+
+def test_root_env_newer_than_build_triggers_rebuild_for_public_values(tmp_path):
+    root = _fake_repo(tmp_path, build_id=True)
+    _set_build_newer_than_source(root)
+    env_file = root / ".env"
+    env_file.write_text("NEXT_PUBLIC_KITTY_USER_EMAIL=test@example.com\n", encoding="utf-8")
+    os.utime(env_file, (3_000_000, 3_000_000))
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode == 0
+    assert "is newer than the last build" in result.stdout
+    assert calls[0].startswith("npm run build")

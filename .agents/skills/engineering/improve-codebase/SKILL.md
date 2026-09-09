@@ -1,6 +1,7 @@
 ---
 name: improve-codebase
 description: Triage a codebase-improvement request and route it to the right specialist skill. Use when the user says "improve the codebase", "make this better", "what should I fix", "review the quality", "harden this", "clean this up", or any broad code-improvement ask that doesn't name a specific layer. This is the entry point of the improvement family — it decides whether the highest-leverage problem is internal shape (improve-codebase-architecture), runtime failure behaviour (harden-codebase), user-facing experience (improve-daily-ux), or test trustworthiness (verify-by-mutation), then hands off. Use the specialist directly only when the user already named the layer.
+when_to_use: improve the codebase, make this better, what should I fix, review the quality, harden this, clean this up
 ---
 
 # Improve Codebase (Router)

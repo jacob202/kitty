@@ -79,6 +79,11 @@ for candidate in src public package.json package-lock.json tsconfig.json \
     build_inputs+=("${candidate}")
   fi
 done
+# Next inlines NEXT_PUBLIC_* values at build time, so a root .env change must
+# invalidate the standalone bundle just like a source-file change.
+if [[ -f "${ROOT_DIR}/.env" ]]; then
+  build_inputs+=("${ROOT_DIR}/.env")
+fi
 
 if [[ ! -f "${BUILD_STAMP}" ]]; then
   echo "[start_ui] no usable build in ${UI_DIR}/.next — building"

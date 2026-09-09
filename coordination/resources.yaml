@@ -101,6 +101,9 @@ resources:
     - gateway/routes/register.py
     - gateway/routes/runtime.py
     - gateway/runtime_manifest.py
+    - gateway/session_end_audit.py
+    - gateway/skill_registry.py
+    - gateway/start_litellm.sh
     - kitty
     - mcp/builder/commands.py
     - mcp/builder/context.py
@@ -122,6 +125,8 @@ resources:
     - tests/test_mcp_builder_context.py
     - tests/test_mcp_builder_repo_tools.py
     - tests/test_pre_push_gate.py
+    - tests/test_session_end_audit.py
+    - tests/test_skill_registry.py
     - tests/test_start_ui_script.py
   ui:action-grammar:
     paths:
