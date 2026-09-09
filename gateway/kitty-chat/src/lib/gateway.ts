@@ -2630,6 +2630,18 @@ export interface ConversationResume {
     attempt_count?: number | null
   }
   blocker?: string | null
+  /** Builder finished its task. Not the same statement as the outcome being
+   *  accepted — see `awaiting_acceptance`. */
+  builder_task_complete?: boolean | null
+  mission_acceptance?: {
+    state?: string | null
+    reviewer_id?: string | null
+    mission_id?: string | null
+    error?: string | null
+  } | null
+  /** Builder finished, but nobody has accepted the outcome yet. */
+  awaiting_acceptance?: boolean | null
+  awaiting_acceptance_because?: string | null
   pr?: {
     number?: number | null
     url?: string | null

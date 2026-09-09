@@ -423,6 +423,15 @@ def resume_context(
         }
 
     cold_start_ok = bool(kitty.get("ok"))
+    # Read Builder's own terminal fact before the cold-start receipt is allowed
+    # to overwrite `state` with "attention". Whether Builder finished its task
+    # is durable and has nothing to do with whether this session's context
+    # receipt is trusted; deriving it from the overwritten value would report a
+    # finished task as unfinished because of an unrelated failure.
+    builder_done = (
+        (current or {}).get("task_state") == "done"
+        or (initiative_work or {}).get("state") == "completed"
+    )
     state = (
         (current or {}).get("task_state")
         or (initiative_work or {}).get("state")
@@ -435,7 +444,6 @@ def resume_context(
     # here, Builder's terminal state is the only thing Chat can show, and it
     # gets presented as the finished user outcome.
     acceptance = _mission_acceptance(resolved_mission)
-    builder_done = state == "done" or (initiative_work or {}).get("state") == "completed"
     awaiting, awaiting_because = _awaiting_acceptance(
         builder_done=builder_done, acceptance=acceptance
     )

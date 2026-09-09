@@ -305,7 +305,7 @@ def missions_for_project(
 
 
 def mission_for_initiative(
-    initiative_id: str, *, db_path: Path = MISSION_DB_FILE
+    initiative_id: str, *, db_path: Path | None = None
 ) -> dict[str, Any] | None:
     """Return the Mission bound to this Builder initiative, if one is.
 
@@ -316,18 +316,30 @@ def mission_for_initiative(
     "accepted".
     """
     initiative_id = _required_text(initiative_id, "initiative_id")
-    # Deliberately no init_db(): this is the lookup a read-only result poll
-    # uses, and creating tables or indexes from a read path would mutate — and
-    # can lock — the application database just to answer a question. An absent
-    # schema is reported as unavailable rather than conjured into existence.
-    with kitty_db.connect(db_path) as conn:
-        try:
-            rows = conn.execute(
-                "SELECT * FROM missions WHERE builder_locator_json IS NOT NULL "
-                "ORDER BY updated_at DESC, mission_id ASC"
-            ).fetchall()
-        except sqlite3.OperationalError as exc:
-            raise MissionError(f"Mission store is unavailable: {exc}") from exc
+    # Resolved at call time, not bound as a default: a default argument
+    # captures MISSION_DB_FILE at import, so a runtime or test override of that
+    # module attribute would be ignored and this would read the canonical
+    # personal database instead of the one the caller selected.
+    resolved = Path(db_path) if db_path is not None else MISSION_DB_FILE
+
+    # Deliberately no init_db(), and deliberately not kitty_db.connect():
+    # connect() creates the parent directory and the database file, so a
+    # read-only result poll would bring a store into existence just by asking
+    # about it. Opened read-only by URI; an absent or unreadable store is
+    # reported as unavailable rather than conjured.
+    if not resolved.is_file():
+        raise MissionError(f"Mission store is unavailable: {resolved} does not exist")
+    conn = sqlite3.connect(f"file:{resolved}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM missions WHERE builder_locator_json IS NOT NULL "
+            "ORDER BY updated_at DESC, mission_id ASC"
+        ).fetchall()
+    except sqlite3.Error as exc:
+        raise MissionError(f"Mission store is unavailable: {exc}") from exc
+    finally:
+        conn.close()
     for row in rows:
         locator = json.loads(row["builder_locator_json"])
         if isinstance(locator, dict) and locator.get("initiative_id") == initiative_id:

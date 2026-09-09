@@ -626,6 +626,17 @@ function ResumedBuilderJob({
           {data!.current_work?.state && (
             <p style={fieldStyle}><strong>Current work:</strong> {data!.current_work.state}</p>
           )}
+          {/* Builder finishing its task is not the same statement as the
+              outcome being accepted. Showing only the first is how a job that
+              nobody has signed off reads as finished. */}
+          {data!.awaiting_acceptance && (
+            <p style={fieldStyle}>
+              <strong>Built, not accepted yet:</strong>{' '}
+              {data!.mission_acceptance?.state === 'unavailable'
+                ? 'Kitty could not check whether this outcome was accepted.'
+                : 'Builder finished this work. Nobody has accepted the result yet.'}
+            </p>
+          )}
           {data!.blocker && (
             <p style={fieldStyle}><strong>Blocked:</strong> {data!.blocker}</p>
           )}

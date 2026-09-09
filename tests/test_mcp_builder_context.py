@@ -387,3 +387,61 @@ def test_resume_context_carries_acceptance_into_the_chat_projection(
     assert result["awaiting_acceptance"] is True
     assert result["mission_acceptance"]["state"] == "unreviewed"
     assert any(u["field"] == "outcome_acceptance" for u in result["unknowns"])
+
+
+def test_cold_start_failure_does_not_unfinish_a_finished_builder_task(
+    monkeypatch: pytest.MonkeyPatch, snapshot: dict
+) -> None:
+    """Whether Builder finished is durable; an untrusted context receipt is not."""
+    packet = snapshot["initiatives"][0]["packets"][0]
+    packet["task_state"] = "done"
+    monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
+    monkeypatch.setattr(context, "get_initiative", lambda *a, **k: None)
+    monkeypatch.setattr(
+        context, "_mission_acceptance", lambda _id: _mission("unreviewed")["acceptance"]
+    )
+    # An unrelated cold-start failure overwrites `state` with "attention".
+    monkeypatch.setattr(
+        context, "kitty_context", lambda: {"ok": False, "error": "receipt stale", "context": {}}
+    )
+
+    result = context.resume_context(task_id="kb_1234_abcd")
+
+    assert result["state"] == "attention"
+    assert result["builder_task_complete"] is True
+    assert result["awaiting_acceptance"] is True
+
+
+def test_acceptance_lookup_honours_a_runtime_db_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A default argument would bind the canonical DB at import and ignore this."""
+    import gateway.memory_mission as mm
+
+    override = tmp_path / "override" / "kitty.db"
+    mm.create_mission(
+        mission_id="mission_override",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=override,
+    )
+    mm.bind_builder_locator("mission_override", initiative_id="init-1", db_path=override)
+    monkeypatch.setattr(mm, "MISSION_DB_FILE", override)
+
+    found = mm.mission_for_initiative("init-1")
+
+    assert found is not None
+    assert found["mission_id"] == "mission_override"
+
+
+def test_acceptance_lookup_creates_no_database_file_at_all(tmp_path: Path) -> None:
+    """connect() would mkdir and create the file; a read must not do either."""
+    import gateway.memory_mission as mm
+
+    absent = tmp_path / "never" / "kitty.db"
+    with pytest.raises(mm.MissionError, match="Mission store is unavailable"):
+        mm.mission_for_initiative("init-1", db_path=absent)
+
+    assert not absent.exists()
+    assert not absent.parent.exists()
