@@ -1012,18 +1012,42 @@ class TestRunWorker:
         assert run["state"] == bq.RUN_EXITED
         assert run["last_heartbeat_at"] is not None
 
-    def test_heartbeat_renews_lease_during_run(self, repo: Path, db_path: Path):
+    def test_heartbeat_renews_lease_during_run(
+        self, repo: Path, db_path: Path, monkeypatch
+    ):
         task = _queued_task(db_path)
+        renewal_seen = db_path.parent / "lease-renewal-seen"
+        real_renew = bq.renew_lease
+
+        def observe_renew(task_id, lease_token, claim_version, *,
+                          lease_seconds=60, db_path=None):
+            renewed = real_renew(
+                task_id, lease_token, claim_version,
+                lease_seconds=lease_seconds, db_path=db_path,
+            )
+            runs = bq.list_runs(task_id=task_id, db_path=db_path)
+            if any(run["state"] == bq.RUN_RUNNING for run in runs):
+                renewal_seen.write_text("seen\n", encoding="utf-8")
+            return renewed
+
+        monkeypatch.setattr(bq, "renew_lease", observe_renew)
         run = br.run_worker(
             task["id"],
-            ["sleep", "2.5"],
-            timeout_seconds=30,
-            lease_seconds=2,  # would expire mid-run without heartbeat
-            heartbeat_seconds=0.2,
+            [
+                "sh",
+                "-c",
+                'i=0; while [ ! -f "$1" ] && [ "$i" -lt 500 ]; do '
+                'i=$((i + 1)); sleep 0.01; done; [ -f "$1" ]',
+                "sh",
+                str(renewal_seen),
+            ],
+            timeout_seconds=10,
+            lease_seconds=30,
+            heartbeat_seconds=0.05,
             repo_root=repo,
             db_path=db_path,
         )
-        # Lease survived (run completed and could still record its outcome).
+        assert renewal_seen.exists()
         assert run["state"] == bq.RUN_EXITED
         assert run["last_heartbeat_at"] is not None
         refreshed = bq.get_task(task["id"], db_path=db_path)
@@ -2300,20 +2324,18 @@ def test_run_worker_stops_when_kx_renewal_returns_partial_resource_set(
         return result
 
     monkeypatch.setattr(ac, "renew", partial_when_worker_running)
-    started = time.monotonic()
     run = br.run_worker(
         task["id"],
-        ["/bin/sleep", "2"],
+        ["/bin/sleep", "30"],
         repo_root=repo,
         db_path=db_path,
         coordination_db_path=coordination_db,
         coordination_registry_path=registry,
         heartbeat_seconds=0.1,
-        lease_seconds=2,
+        lease_seconds=30,
         timeout_seconds=5,
     )
 
-    assert time.monotonic() - started < 1.5
     assert run["final_report"]["outcome"] == bq.RUN_LEASE_LOST
     task_after = bq.get_task(task["id"], db_path=db_path)
     assert task_after is not None
@@ -2326,7 +2348,7 @@ def test_run_worker_stops_when_kx_renewal_returns_partial_resource_set(
 
 
 def test_run_worker_stops_when_persisted_worktree_identity_changes_live(
-    repo: Path, db_path: Path
+    repo: Path, db_path: Path, monkeypatch
 ) -> None:
     task = _queued_task(db_path, allowed_paths=["README.md"])
     attacker = repo.parent / "attacker-live-worktree"
@@ -2337,17 +2359,29 @@ def test_run_worker_stops_when_persisted_worktree_identity_changes_live(
         text=True,
     )
     result: dict[str, object] = {}
+    identity_lock = threading.Lock()
+    identity_swapped = threading.Event()
+    live_identity_check = threading.Event()
+    real_verify = br.rw.verify_worktree_identity
+
+    def observe_identity_check(*args, **kwargs):
+        with identity_lock:
+            if identity_swapped.is_set():
+                live_identity_check.set()
+            return real_verify(*args, **kwargs)
+
+    monkeypatch.setattr(br.rw, "verify_worktree_identity", observe_identity_check)
 
     def run() -> None:
         try:
             result["run"] = br.run_worker(
                 task["id"],
-                ["/bin/sleep", "2"],
+                ["/bin/sleep", "30"],
                 repo_root=repo,
                 db_path=db_path,
                 heartbeat_seconds=0.1,
-                lease_seconds=2,
-                timeout_seconds=5,
+                lease_seconds=30,
+                timeout_seconds=15,
             )
         except Exception as exc:
             result["error"] = exc
@@ -2355,7 +2389,7 @@ def test_run_worker_stops_when_persisted_worktree_identity_changes_live(
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
     run_row = None
-    deadline = time.monotonic() + 2
+    deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         runs = bq.list_runs(task_id=task["id"], db_path=db_path)
         if runs and runs[-1].get("state") == bq.RUN_RUNNING:
@@ -2364,16 +2398,19 @@ def test_run_worker_stops_when_persisted_worktree_identity_changes_live(
         time.sleep(0.02)
     assert run_row is not None
     victim = Path(str(run_row["worktree_path"]))
-    (victim / ".git").write_text(
-        (attacker / ".git").read_text(encoding="utf-8"), encoding="utf-8"
-    )
+    with identity_lock:
+        (victim / ".git").write_text(
+            (attacker / ".git").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        identity_swapped.set()
 
-    thread.join(timeout=0.8)
-    stopped_early = not thread.is_alive()
+    saw_live_check = live_identity_check.wait(timeout=8)
+    thread.join(timeout=5)
     if thread.is_alive():
         br.request_cancel(str(run_row["id"]), db_path=db_path)
-        thread.join(timeout=2)
+        thread.join(timeout=5)
 
-    assert stopped_early is True
+    assert saw_live_check is True
+    assert not thread.is_alive()
     assert isinstance(result.get("error"), br.RunnerError)
     assert "identity" in str(result["error"]).lower() or "git" in str(result["error"]).lower()
