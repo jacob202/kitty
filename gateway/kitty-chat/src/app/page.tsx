@@ -178,6 +178,9 @@ export default function KittyChat() {
                 onStartClick: () => k.textareaRef.current?.focus(),
                 onChipClick: (chip: string) => { k.setInput(chip); k.textareaRef.current?.focus() },
                 onOpenWork: openWorkView,
+                models: k.availableModels,
+                overrideModel: k.overrideModel,
+                onOverrideModel: k.setOverrideModel,
               }}
               homeProps={{
                 preferredName: k.preferredName,

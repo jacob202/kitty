@@ -31,6 +31,11 @@ export interface BuilderProposalTask {
   initiative_id?: string
   acceptance_criteria?: string[]
   validation_commands?: string[]
+  route?: {
+    provider: string
+    model: string
+    estimated_cost_cad: number | null
+  }
 }
 
 // Some browsers (privacy mode, blocked site data, sandboxed embeds) throw on
@@ -460,6 +465,12 @@ export function BuilderProposalCard({
           <p style={fieldStyle}><strong>Objective:</strong> {draft.objective}</p>
           <p style={fieldStyle}><strong>Instructions:</strong> {draft.instructions}</p>
           <p style={fieldStyle}><strong>Allowed paths:</strong> {draft.allowed_paths.join(', ')}</p>
+          {draft.route && (
+            <p style={fieldStyle}>
+              <strong>Proposal route:</strong> {draft.route.provider} · {draft.route.model}
+              {draft.route.estimated_cost_cad !== null && <span> · est. CAD {draft.route.estimated_cost_cad.toFixed(4)}</span>}
+            </p>
+          )}
         </>
       )}
 
@@ -488,6 +499,12 @@ export function BuilderProposalCard({
           {gatewayMissionId && (
             <p style={fieldStyle}>
               <strong>Mission state:</strong> {mission.data?.status ?? proposal.gateway_mission_status ?? 'loading'}
+            </p>
+          )}
+          {draft.route && (
+            <p style={fieldStyle}>
+              <strong>Execution route:</strong> {draft.route.provider} · {draft.route.model}
+              {draft.route.estimated_cost_cad !== null && <span> · est. CAD {draft.route.estimated_cost_cad.toFixed(4)}</span>}
             </p>
           )}
           <p style={fieldStyle}><strong>Acceptance criteria:</strong></p>

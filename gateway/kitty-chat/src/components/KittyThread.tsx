@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useCallback, type CSSProperties } from 'react'
 import { ThreadPrimitive, useThreadViewport } from '@assistant-ui/react'
-import type { Message } from '@/lib/types'
+import type { Message, Model } from '@/lib/types'
 import { ChatMessage } from './ChatMessage'
 import { CatBody, type CatState } from './CrayonCat'
 
@@ -16,6 +16,9 @@ interface KittyThreadContextValue {
   retryBranches?: Record<number, Message[][]>
   onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
   onOpenWork?: () => void
+  models?: Model[]
+  overrideModel?: Model | null
+  onOverrideModel?: (m: Model | null) => void
 }
 
 const KittyThreadContext = createContext<KittyThreadContextValue>({
@@ -38,6 +41,9 @@ interface KittyThreadProps {
   onChipClick?: (text: string) => void
   onStartClick?: () => void
   onOpenWork?: () => void
+  models?: Model[]
+  overrideModel?: Model | null
+  onOverrideModel?: (m: Model | null) => void
 }
 
 export function KittyThread({
@@ -52,6 +58,9 @@ export function KittyThread({
   onChipClick,
   onStartClick,
   onOpenWork,
+  models,
+  overrideModel,
+  onOverrideModel,
 }: KittyThreadProps) {
   const ctx: KittyThreadContextValue = {
     messages,
@@ -63,6 +72,9 @@ export function KittyThread({
     retryBranches,
     onSwitchBranch,
     onOpenWork,
+    models,
+    overrideModel,
+    onOverrideModel,
   }
 
   return (
@@ -122,6 +134,9 @@ function MessageList() {
                 ? ctx.onRetry
                 : undefined
             }
+            models={ctx.models}
+            overrideModel={ctx.overrideModel}
+            onOverrideModel={ctx.onOverrideModel}
           />
         </>
       )

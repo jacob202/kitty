@@ -4,7 +4,7 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { Message, type MemoryEvidence } from '@/lib/types'
+import { Message, type MemoryEvidence, type Model } from '@/lib/types'
 import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
@@ -34,9 +34,15 @@ interface Props {
   /** Switch the app to the Work view; forwarded to an approved Builder proposal
    *  card so the chat handoff to durable job tracking is one click. */
   onOpenWork?: () => void
+  /** Available models for inline override on failed turns. */
+  models?: Model[]
+  /** Current one-shot model override for the next message. */
+  overrideModel?: Model | null
+  /** Callback to set/clear the one-shot model override. */
+  onOverrideModel?: (m: Model | null) => void
 }
 
-export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex, compact = false, branchCount = 0, totalBranches = 0, onSwitchBranch, onOpenWork }: Props) {
+export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex, compact = false, branchCount = 0, totalBranches = 0, onSwitchBranch, onOpenWork, models = [], overrideModel = null, onOverrideModel }: Props) {
   const isUser = message.role === 'user'
   const isKitty = !isUser
   const attachments = message.attachments ?? []
@@ -178,6 +184,27 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
             color: turnStatus === 'failed' ? 'var(--c-red)' : 'var(--ink-2)',
           }}>
             <span style={{ fontSize: 10 }}>{turnStatus}</span>
+          </div>
+        )}
+        {turnStatus === 'failed' && onOverrideModel && models.length > 0 && !overrideModel && (
+          <div style={{ ...actionRowStyle, gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, color: 'var(--ink-2)' }}>Try with:</span>
+            {models.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => onOverrideModel(m)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontFamily: 'var(--font-mono)', fontSize: 10,
+                  color: m.color, border: `1px solid ${m.color}`,
+                  borderRadius: 99, padding: '2px 8px',
+                  background: 'transparent', cursor: 'pointer',
+                }}
+              >
+                {m.name}
+              </button>
+            ))}
           </div>
         )}
         {showActions && (message.provider || message.requestedModel || message.model || message.toolsState || message.routing?.length) && (

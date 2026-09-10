@@ -24,23 +24,30 @@ const TodoPanel = dynamic(() => import('./TodoPanel').then((mod) => mod.TodoPane
 
 // -- view renderer --------------------------------------------------------------
 
+import { Model } from '@/lib/types'
+
+interface ChatViewProps {
+  messages: any[]
+  chatId: string
+  isStreaming: boolean
+  catState: any
+  onRetry: () => void
+  retryBranches?: Record<number, any[][]>
+  onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
+  onStartClick: () => void
+  onChipClick: (chip: string) => void
+  onOpenWork?: () => void
+  models?: Model[]
+  overrideModel?: Model | null
+  onOverrideModel?: (m: Model | null) => void
+}
+
 interface ViewRendererProps {
   view: string
   compact?: boolean
   theme?: string
   onToggleTheme?: () => void
-  chatProps?: {
-    messages: any[]
-    chatId: string
-    isStreaming: boolean
-    catState: any
-    onRetry: (id: string) => void
-    retryBranches?: Record<number, any[][]>
-    onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
-    onStartClick: () => void
-    onChipClick: (chip: string) => void
-    onOpenWork?: () => void
-  }
+  chatProps?: ChatViewProps
   homeProps?: {
     preferredName: string
     onDecideInChat: (entry: any) => void
@@ -92,7 +99,7 @@ export function ViewRenderer({
       case 'home':
         return <HomeView {...homeProps} compact={isMobile} />
       case 'chat':
-        return <ChatView {...chatProps} compact={isMobile} />
+        return <ChatView {...chatProps!} compact={isMobile} />
       case 'work':
         return <WorkView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
       case 'tasks':
