@@ -593,13 +593,11 @@ def _select_packets(
     repo_root: Path | None = None, github_truth: dict[str, Any] | None = None,
     current_main_sha: str | None = None, current_main_error: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Pick admitted packets, skipping stale/external duplicates deterministically."""
+    """Pick admitted packets by queue priority, with deterministic tie-breaking."""
     _validate_max_runs(max_runs)
-    selected: list[dict[str, Any]] = []
+    ranked: list[tuple[int, str, str, dict[str, Any]]] = []
     skipped: list[dict[str, Any]] = []
     for initiative in active_initiatives(db_path):
-        if len(selected) >= max_runs:
-            break
         packet, skip = _dispatch_candidate(str(initiative["id"]), db_path)
         if packet is None:
             skipped.append(skip)  # type: ignore[arg-type]
@@ -611,8 +609,16 @@ def _select_packets(
         if admission_skip is not None:
             skipped.append(admission_skip)
             continue
-        selected.append(packet)
-    return selected, skipped
+        task = bq.get_task(str(packet["task_id"]), db_path=db_path)
+        priority = int((task or {}).get("priority") or 0)
+        ranked.append((
+            -priority,
+            str(packet["initiative_id"]),
+            str(packet["packet_id"]),
+            packet,
+        ))
+    ranked.sort(key=lambda item: item[:3])
+    return [item[3] for item in ranked[:max_runs]], skipped
 
 
 def dispatchable_counts(

@@ -135,6 +135,29 @@ def test_tick_max_runs_bounded(repo: Path, db_path: Path) -> None:
     assert receipt["launched"][1]["initiative_id"] == "test-init-2"
 
 
+def test_tick_prefers_higher_priority_across_initiatives(
+    repo: Path, db_path: Path
+) -> None:
+    low = _packet("low")
+    low["policy"]["priority"] = 10
+    high = _packet("high")
+    high["policy"]["priority"] = 100
+    _apply(db_path, "a-low-priority", [low], repo_root=repo)
+    _apply(db_path, "z-high-priority", [high], repo_root=repo)
+    launched: list[dict[str, Any]] = []
+
+    def _fake_launch(packet: dict, **_kwargs: Any) -> dict[str, Any]:
+        launched.append(packet)
+        return {"run_id": "run-high", "status": "dispatched"}
+
+    with patch.object(bs, "_launch_run", _fake_launch):
+        receipt = bs.tick(db_path=db_path, repo_root=repo, max_runs=1)
+
+    assert len(receipt["launched"]) == 1
+    assert receipt["launched"][0]["initiative_id"] == "z-high-priority"
+    assert launched[0]["initiative_id"] == "z-high-priority"
+
+
 def test_tick_concurrent_locked(db_path: Path) -> None:
     """Concurrent tick returns locked receipt with no launches."""
     with bs.SupervisorLock(db_path):
