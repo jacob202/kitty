@@ -112,6 +112,7 @@ resources:
     - gateway/app.py
     - gateway/doctor.py
     - gateway/llm_client.py
+    - gateway/local_review.py
     - gateway/model_routing.py
     - gateway/requirements.litellm.txt
     - gateway/routes/register.py
@@ -141,6 +142,7 @@ resources:
     - tests/test_kitty_launcher.py
     - tests/test_kitty_launcher_runtime.py
     - tests/test_llm_client.py
+    - tests/test_local_review.py
     - tests/test_mcp_builder_commands.py
     - tests/test_mcp_builder_context.py
     - tests/test_mcp_builder_repo_tools.py

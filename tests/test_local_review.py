@@ -1,0 +1,404 @@
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from gateway.local_review import (
+    LocalLlamaServer,
+    ReviewFocus,
+    build_llama_server_command,
+    build_requirement_prompt,
+    detect_risk_tags,
+    model_family,
+    parse_requirement_answer,
+    review_decision,
+    run_local_review,
+)
+
+
+def test_requirement_prompt_is_neutral_and_single_purpose() -> None:
+    prompt = build_requirement_prompt("The update is atomic.", "candidate code")
+    lowered = prompt.lower()
+    assert "satisfies the single stated requirement" in lowered
+    assert "answer exactly one token" in lowered
+    assert "find bugs" not in lowered
+    assert "strict reviewer" not in lowered
+    assert "propose a fix" not in lowered
+
+
+def test_parser_fails_closed_on_verbose_or_invalid_answers() -> None:
+    assert parse_requirement_answer("YES") == "YES"
+    assert parse_requirement_answer(" no \n") == "NO"
+    assert parse_requirement_answer("UNSURE") == "UNSURE"
+    assert parse_requirement_answer("YES because it looks fine") is None
+    assert parse_requirement_answer("") is None
+
+
+def test_low_risk_review_is_advisory_clear_only_when_every_requirement_is_yes() -> None:
+    answers = iter(["YES", "YES"])
+    result = review_decision(
+        requirements=["A is true", "B is true"],
+        candidate="candidate",
+        ask=lambda _requirement, _candidate: next(answers),
+        implementation_model="deepseek-v4",
+        reviewer_model="qwen3.5-9b",
+    )
+    assert result["decision"] == "advisory_clear"
+    assert result["authoritative"] is False
+    assert [item["answer"] for item in result["requirements"]] == ["YES", "YES"]
+
+
+def test_no_unsure_or_malformed_answer_escalates_instead_of_blocking() -> None:
+    for answer in ("NO", "UNSURE", "NO because broken"):
+        result = review_decision(
+            requirements=["A is true"],
+            candidate="candidate",
+            ask=lambda _requirement, _candidate, answer=answer: answer,
+            implementation_model="deepseek-v4",
+            reviewer_model="qwen3.5-9b",
+        )
+        assert result["decision"] == "escalate"
+        assert result["requirements"][0]["answer"] in {"NO", "UNSURE", None}
+
+
+def test_high_risk_requirements_escalate_without_calling_model() -> None:
+    called = False
+
+    def ask(_requirement: str, _candidate: str) -> str:
+        nonlocal called
+        called = True
+        return "YES"
+
+    result = review_decision(
+        requirements=["Release the payment reservation before any provider call can fail."],
+        candidate="candidate",
+        ask=ask,
+        implementation_model="deepseek-v4",
+        reviewer_model="qwen3.5-9b",
+    )
+    assert result["decision"] == "escalate"
+    assert "spend" in result["risk_tags"]
+    assert called is False
+
+
+def test_explicit_high_risk_tags_and_same_model_family_escalate() -> None:
+    assert detect_risk_tags(["Rotate an API credential safely."]) == {"auth_security"}
+    assert model_family("openrouter/qwen/qwen3.5-coder") == "qwen"
+    assert model_family("deepseek-v4") == "deepseek"
+
+    result = review_decision(
+        requirements=["The parser preserves every valid row."],
+        candidate="candidate",
+        ask=lambda _requirement, _candidate: "YES",
+        explicit_risk_tags=["irreversible_external_effect"],
+        implementation_model="qwen3.5-coder",
+        reviewer_model="Qwen3.5-9B-Q3_K_M",
+    )
+    assert result["decision"] == "escalate"
+    assert "irreversible_external_effect" in result["risk_tags"]
+
+    same_family = review_decision(
+        requirements=["The parser preserves every valid row."],
+        candidate="candidate",
+        ask=lambda _requirement, _candidate: "YES",
+        implementation_model="qwen3.5-coder",
+        reviewer_model="Qwen3.5-9B-Q3_K_M",
+    )
+    assert same_family["decision"] == "escalate"
+    assert same_family["reason"] == "reviewer_not_model_family_independent"
+
+
+def test_llama_server_command_uses_verified_low_memory_settings(tmp_path) -> None:
+    model = tmp_path / "reviewer.gguf"
+    model.write_bytes(b"x")
+    command = build_llama_server_command(model, port=18080)
+    joined = " ".join(command)
+    assert "--no-mmproj" in command
+    assert "-np 1" in joined
+    assert "-c 2048" in joined
+    assert "-b 128" in joined
+    assert "-ub 64" in joined
+    assert "-fa on" in joined
+    assert "-ctk q4_0" in joined
+    assert "-ctv q4_0" in joined
+    assert "--reasoning off" in joined
+    assert "--reasoning-budget 0" in joined
+    assert "-ngl 999" in joined
+    assert "--host 127.0.0.1" in joined
+    assert "--port 18080" in joined
+
+
+def test_review_focus_unloads_only_generation_models_and_restores_them() -> None:
+    calls: list[tuple[str, str, object]] = []
+
+    def request_json(method: str, url: str, payload: object = None) -> dict:
+        calls.append((method, url, payload))
+        if method == "GET":
+            return {
+                "models": [
+                    {"name": "qwen3.5:4b", "expires_at": "2318-01-01T00:00:00Z"},
+                    {"name": "nomic-embed-text:latest", "expires_at": "2318-01-01T00:00:00Z"},
+                ]
+            }
+        return {}
+
+    with ReviewFocus(["http://127.0.0.1:11435"], request_json=request_json, managed_models={"qwen3.5:4b"}) as focus:
+        assert [model.model for model in focus.unloaded] == ["qwen3.5:4b"]
+
+    generate_calls = [call for call in calls if call[1].endswith("/api/generate")]
+    assert generate_calls[0][2] == {"model": "qwen3.5:4b", "prompt": "", "keep_alive": 0}
+    assert generate_calls[-1][2] == {"model": "qwen3.5:4b", "prompt": "", "keep_alive": -1}
+    assert all("nomic-embed-text" not in str(call[2]) for call in generate_calls)
+
+
+def test_review_focus_restores_models_even_when_review_raises() -> None:
+    calls: list[tuple[str, str, object]] = []
+
+    def request_json(method: str, url: str, payload: object = None) -> dict:
+        calls.append((method, url, payload))
+        if method == "GET":
+            return {"models": [{"name": "qwen3.5:4b", "expires_at": "2318-01-01T00:00:00Z"}]}
+        return {}
+
+    with pytest.raises(RuntimeError, match="boom"):
+        with ReviewFocus(["http://127.0.0.1:11435"], request_json=request_json, managed_models={"qwen3.5:4b"}):
+            raise RuntimeError("boom")
+
+    restores = [
+        payload
+        for method, url, payload in calls
+        if method == "POST" and url.endswith("/api/generate") and payload and payload.get("keep_alive") == -1
+    ]
+    assert restores == [{"model": "qwen3.5:4b", "prompt": "", "keep_alive": -1}]
+
+
+def test_unknown_implementation_model_cannot_receive_local_approval() -> None:
+    result = review_decision(
+        requirements=["The parser preserves every valid row."],
+        candidate="candidate",
+        ask=lambda _requirement, _candidate: "YES",
+        implementation_model=None,
+        reviewer_model="Qwen3.5-9B-Q3_K_M",
+    )
+    assert result["decision"] == "escalate"
+    assert result["reason"] == "implementation_model_unknown"
+
+
+def test_request_reviewer_label_cannot_override_actual_runtime_identity(tmp_path: Path) -> None:
+    model = tmp_path / "Qwen3.5-9B-Q3_K_M.gguf"
+    model.write_bytes(b"model")
+
+    class FakeQwenServer:
+        model_id = "Qwen3.5-9B-Q3_K_M"
+        def __init__(self, model_path: Path) -> None: self.model_path = model_path
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def ask(self, _requirement: str, _candidate: str) -> str: return "YES"
+
+    with patch("gateway.local_review.LocalLlamaServer", FakeQwenServer):
+        result = run_local_review(
+            {"requirements": ["The parser preserves rows."], "candidate": "candidate",
+             "implementation_model": "qwen3.5-coder", "reviewer_model": "deepseek-v4"},
+            model_path=model, use_focus=False,
+        )
+    assert result["decision"] != "approve"
+    assert result["reviewer_model"] == "Qwen3.5-9B-Q3_K_M"
+
+
+def test_unknown_nonempty_model_alias_cannot_establish_independence() -> None:
+    assert model_family("unknown-worker-alias") is None
+    result = review_decision(
+        requirements=["The parser preserves rows."], candidate="candidate",
+        ask=lambda *_: "YES", implementation_model="unknown-worker-alias",
+        reviewer_model="Qwen3.5-9B-Q3_K_M",
+    )
+    assert result["decision"] == "escalate"
+    assert result["reason"] == "implementation_model_family_unknown"
+
+
+def test_local_yes_is_advisory_without_trusted_promotion_gate() -> None:
+    result = review_decision(
+        requirements=["The output format is correct."],
+        candidate="import os\ndef handler(): return dict(os.environ)",
+        ask=lambda *_: "YES", implementation_model="gpt-5",
+        reviewer_model="Qwen3.5-9B-Q3_K_M", review_kind="privacy-boundary",
+    )
+    assert result["decision"] == "advisory_clear"
+    assert result["authoritative"] is False
+
+
+def test_focus_entry_failure_restores_models_already_unloaded(tmp_path: Path) -> None:
+    calls: list[tuple[str, str, object]] = []
+    def request_json(method: str, url: str, payload: object = None) -> dict:
+        calls.append((method, url, payload))
+        if method == "GET":
+            return {"models": [{"name": "model-one"}, {"name": "model-two"}]}
+        assert isinstance(payload, dict)
+        if payload["model"] == "model-two" and payload["keep_alive"] == 0:
+            raise RuntimeError("simulated second unload failure")
+        return {}
+
+    focus = ReviewFocus(
+        ["http://fake-ollama"], request_json=request_json,
+        managed_models={"model-one", "model-two"}, lock_path=tmp_path / "focus.lock",
+    )
+    with pytest.raises(RuntimeError, match="second unload"):
+        with focus:
+            raise AssertionError("body must not run")
+    restore_payloads = [
+        payload for method, url, payload in calls
+        if method == "POST" and url.endswith("/api/generate")
+        and isinstance(payload, dict) and payload.get("keep_alive") not in {0, None}
+    ]
+    assert [item["model"] for item in restore_payloads] == ["model-one"]
+
+
+def test_focus_never_unloads_unmanaged_models(tmp_path: Path) -> None:
+    calls: list[tuple[str, str, object]] = []
+    def request_json(method: str, url: str, payload: object = None) -> dict:
+        calls.append((method, url, payload))
+        if method == "GET":
+            return {"models": [{"name": "kitty-managed"}, {"name": "foreign-active"}]}
+        return {}
+
+    with ReviewFocus(
+        ["http://fake-ollama"], request_json=request_json,
+        managed_models={"kitty-managed"}, lock_path=tmp_path / "focus.lock",
+    ):
+        pass
+    unloads = [
+        payload["model"] for method, url, payload in calls
+        if method == "POST" and url.endswith("/api/generate")
+        and isinstance(payload, dict) and payload.get("keep_alive") == 0
+    ]
+    assert unloads == ["kitty-managed"]
+
+
+def test_focus_lock_prevents_two_reviewers_interleaving(tmp_path: Path) -> None:
+    lock = tmp_path / "focus.lock"
+    def request_json(method: str, _url: str, _payload: object = None) -> dict:
+        return {"models": []} if method == "GET" else {}
+
+    with ReviewFocus([], request_json=request_json, managed_models=set(), lock_path=lock):
+        with pytest.raises(RuntimeError, match="already active"):
+            with ReviewFocus([], request_json=request_json, managed_models=set(), lock_path=lock):
+                pass
+
+
+def test_incomplete_finish_reason_cannot_be_accepted() -> None:
+    server = LocalLlamaServer(Path("not-loaded.gguf"), port=18080)
+    with patch("gateway.local_review._request_json", side_effect=[
+        {"tokens": [1, 2, 3]},
+        {"choices": [{"message": {"content": "YES"}, "finish_reason": "length"}]},
+    ]):
+        with pytest.raises(RuntimeError, match="incomplete"):
+            server.ask("The parser preserves rows.", "candidate")
+
+
+def test_oversized_input_abstains_before_generation() -> None:
+    server = LocalLlamaServer(Path("not-loaded.gguf"), port=18080)
+    with patch("gateway.local_review._request_json", return_value={"tokens": list(range(1950))}) as request:
+        with pytest.raises(RuntimeError, match="too large"):
+            server.ask("The parser preserves rows.", "candidate")
+    assert request.call_count == 1
+
+
+def test_default_model_path_prefers_persistent_kitty_model_dir(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path
+    model = home / "Library/Application Support/Kitty/models/local-reviewer/Qwen3.5-9B-Q3_K_M.gguf"
+    model.parent.mkdir(parents=True)
+    model.write_bytes(b"model")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    from gateway.local_review import find_default_model_path
+    assert find_default_model_path() == model
+
+
+def test_focus_receipt_preserves_unload_history_after_restore(tmp_path: Path) -> None:
+    calls: list[tuple[str, str, object]] = []
+    def request_json(method: str, url: str, payload: object = None) -> dict:
+        calls.append((method, url, payload))
+        if method == "GET":
+            return {"models": [{"name": "kitty-managed"}]}
+        return {}
+
+    focus = ReviewFocus(
+        ["http://fake-ollama"], request_json=request_json,
+        managed_models={"kitty-managed"}, lock_path=tmp_path / "focus.lock",
+    )
+    with focus:
+        pass
+    assert [item.model for item in focus.unloaded_history] == ["kitty-managed"]
+    assert focus.pending_restore == []
+
+
+def test_missing_local_model_fails_closed_as_escalation(tmp_path: Path) -> None:
+    result = run_local_review(
+        {"requirements": ["The parser preserves rows."], "candidate": "candidate",
+         "implementation_model": "deepseek-v4"},
+        model_path=tmp_path / "missing.gguf", use_focus=False,
+    )
+    assert result["decision"] == "escalate"
+    assert result["reason"] == "local_reviewer_runtime_error"
+
+
+@pytest.mark.parametrize(
+    ("fail_model", "expected_restores"),
+    [("model-one", []), ("model-two", ["model-one"]), ("model-three", ["model-two", "model-one"])],
+)
+def test_focus_entry_unwinds_first_middle_and_last_failure(
+    tmp_path: Path, fail_model: str, expected_restores: list[str]
+) -> None:
+    calls: list[tuple[str, str, object]] = []
+    def request_json(method: str, url: str, payload: object = None) -> dict:
+        calls.append((method, url, payload))
+        if method == "GET":
+            return {"models": [{"name": name} for name in ("model-one", "model-two", "model-three")]}
+        assert isinstance(payload, dict)
+        if payload["model"] == fail_model and payload["keep_alive"] == 0:
+            raise RuntimeError(f"unload failed: {fail_model}")
+        return {}
+
+    focus = ReviewFocus(
+        ["http://fake-ollama"], request_json=request_json,
+        managed_models={"model-one", "model-two", "model-three"},
+        lock_path=tmp_path / "focus.lock",
+    )
+    with pytest.raises(RuntimeError, match="unload failed"):
+        with focus:
+            pass
+    restores = [
+        payload["model"] for method, url, payload in calls
+        if method == "POST" and url.endswith("/api/generate")
+        and isinstance(payload, dict) and payload.get("keep_alive") not in {0, None}
+    ]
+    assert restores == expected_restores
+    assert focus.pending_restore == []
+
+
+def test_focus_entry_preserves_original_and_restore_failures(tmp_path: Path) -> None:
+    def request_json(method: str, _url: str, payload: object = None) -> dict:
+        if method == "GET":
+            return {"models": [{"name": "model-one"}, {"name": "model-two"}]}
+        assert isinstance(payload, dict)
+        if payload["model"] == "model-two" and payload["keep_alive"] == 0:
+            raise RuntimeError("second unload failed")
+        if payload["model"] == "model-one" and payload["keep_alive"] != 0:
+            raise RuntimeError("restore failed")
+        return {}
+
+    focus = ReviewFocus(
+        ["http://fake-ollama"], request_json=request_json,
+        managed_models={"model-one", "model-two"}, lock_path=tmp_path / "focus.lock",
+    )
+    with pytest.raises(RuntimeError, match="second unload failed.*restore also failed.*restore failed"):
+        with focus:
+            pass
+
+
+def test_cli_focus_is_explicit_opt_in() -> None:
+    source = Path("gateway/local_review.py").read_text(encoding="utf-8")
+    assert '"--focus", action="store_true"' in source
+    assert 'use_focus=args.focus' in source
+    assert '"--managed-ollama-model", action="append"' in source
