@@ -88,6 +88,21 @@ describe('BuilderProposalCard', () => {
     expect(gateway.approveBuilderJob).not.toHaveBeenCalled()
   })
 
+  it('shows the proposal route before the user approves anything', () => {
+    const routedTask = {
+      ...task,
+      route: { provider: 'openrouter', model: 'deepseek-v4-flash', estimated_cost_cad: 0.0123 },
+    }
+
+    renderWithQueryClient(<BuilderProposalCard task={routedTask} chatId="chat-route" messageIndex={0} />)
+
+    const route = screen.getByText(/Proposal route:/).closest('p')
+    expect(route).not.toBeNull()
+    expect(route).toHaveTextContent('openrouter · deepseek-v4-flash · est. CAD 0.0123')
+    expect(gateway.proposeBuilderJob).not.toHaveBeenCalled()
+    expect(gateway.approveBuilderJob).not.toHaveBeenCalled()
+  })
+
   it('flags a malformed proposal without calling propose', () => {
     renderWithQueryClient(
       <BuilderProposalCard
@@ -424,6 +439,26 @@ describe('BuilderProposalCard', () => {
     expect(gateway.resumeBuilderJob).toHaveBeenCalledWith('conv-already-approved-1')
   })
 
+  it('does not call an in-flight Builder job paused when no other packet is eligible', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-running-in-flight')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-running-in-flight', state: 'paused' },
+      current_work: { state: 'running' },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const missionLabel = await screen.findByText(/Mission:/)
+    const missionLine = missionLabel.closest('p')
+    expect(missionLine).not.toBeNull()
+    expect(missionLine).toHaveTextContent(/in progress/)
+    expect(missionLine).not.toHaveTextContent(/paused/)
+    const currentWorkLine = screen.getByText(/Current work:/).closest('p')
+    expect(currentWorkLine).not.toBeNull()
+    expect(currentWorkLine).toHaveTextContent(/running/)
+  })
+
   it('surfaces a resume lookup failure without silently reverting to Compile', async () => {
     window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-gone-1')
     vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
@@ -456,6 +491,80 @@ describe('BuilderProposalCard', () => {
     expect(screen.getByText(/running/)).toBeInTheDocument()
     expect(screen.getByText(/continuity needs attention/)).toBeInTheDocument()
     expect(screen.queryByText('Could not find this job in Builder.')).not.toBeInTheDocument()
+  })
+
+  it('renders unaccepted work as attention and exposes the Mission-store failure cause', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-awaiting-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-awaiting-1', state: 'complete' },
+      current_work: { state: 'completed' },
+      builder_task_complete: true,
+      awaiting_acceptance: true,
+      mission_acceptance: {
+        state: 'unavailable',
+        accepted: null,
+        error: 'Mission store is locked',
+      },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const attention = await screen.findByTestId('builder-job-awaiting-acceptance')
+    expect(attention).toHaveTextContent(/Built, not accepted yet/)
+    expect(attention).toHaveTextContent(/Acceptance records are temporarily locked/)
+    expect(attention).toHaveTextContent(/Check Kitty status, then retry/)
+    expect(attention).toHaveStyle({ border: '1px solid #FF9800' })
+    expect(attention).not.toHaveStyle({ border: '1px solid #4CAF50' })
+  })
+
+  it('shows a Mission-store outage as attention while Builder is still running', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-running-degraded-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-running-degraded-1', state: 'active' },
+      current_work: { state: 'running' },
+      builder_task_complete: false,
+      awaiting_acceptance: false,
+      mission_acceptance: {
+        state: 'unavailable',
+        accepted: null,
+        error: 'Mission store is locked',
+      },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const attention = await screen.findByTestId('builder-job-acceptance-unavailable')
+    expect(attention).toHaveTextContent(/Acceptance status unavailable/)
+    expect(attention).toHaveTextContent(/Acceptance records are temporarily locked/)
+    expect(attention).toHaveStyle({ border: '1px solid #FF9800' })
+    expect(attention).not.toHaveStyle({ border: '1px solid #4CAF50' })
+    expect(screen.queryByText(/Built, not accepted yet/)).not.toBeInTheDocument()
+  })
+
+  it('never exposes raw Mission or SQLite diagnostics in the running acceptance warning', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-running-raw-outage')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-running-raw-outage', state: 'paused' },
+      current_work: { state: 'running' },
+      builder_task_complete: false,
+      awaiting_acceptance: false,
+      mission_acceptance: {
+        state: 'unavailable',
+        accepted: null,
+        error: 'MissionError: Mission store is unavailable: no such table: missions',
+      },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const attention = await screen.findByTestId('builder-job-acceptance-unavailable')
+    expect(attention).toHaveTextContent(/Acceptance records are temporarily unavailable/)
+    expect(attention).not.toHaveTextContent(/MissionError/)
+    expect(attention).not.toHaveTextContent(/no such table/)
+    expect(attention).not.toHaveTextContent(/missions/)
   })
 
   it('keys resumed state per chat message, not globally', async () => {

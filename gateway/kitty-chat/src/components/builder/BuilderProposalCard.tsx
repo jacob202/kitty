@@ -31,6 +31,11 @@ export interface BuilderProposalTask {
   initiative_id?: string
   acceptance_criteria?: string[]
   validation_commands?: string[]
+  route?: {
+    provider: string
+    model: string
+    estimated_cost_cad: number | null
+  }
 }
 
 // Some browsers (privacy mode, blocked site data, sandboxed embeds) throw on
@@ -73,6 +78,12 @@ function friendlyMutationError(err: unknown, fallback: string): string {
     return 'Could not reach the Kitty gateway — check that it is running, then try again.'
   }
   return message
+}
+
+function friendlyAcceptanceUnavailable(error: string | null | undefined): string {
+  if (error && /\blocked\b/i.test(error)) return 'Acceptance records are temporarily locked.'
+  if (error && /binding.*missing|missing.*binding/i.test(error)) return 'The acceptance record is missing.'
+  return 'Acceptance records are temporarily unavailable.'
 }
 
 interface PendingApprovalCheckpoint {
@@ -460,6 +471,12 @@ export function BuilderProposalCard({
           <p style={fieldStyle}><strong>Objective:</strong> {draft.objective}</p>
           <p style={fieldStyle}><strong>Instructions:</strong> {draft.instructions}</p>
           <p style={fieldStyle}><strong>Allowed paths:</strong> {draft.allowed_paths.join(', ')}</p>
+          {draft.route && (
+            <p style={fieldStyle}>
+              <strong>Proposal route:</strong> {draft.route.provider} · {draft.route.model}
+              {draft.route.estimated_cost_cad !== null && <span> · est. CAD {draft.route.estimated_cost_cad.toFixed(4)}</span>}
+            </p>
+          )}
         </>
       )}
 
@@ -488,6 +505,12 @@ export function BuilderProposalCard({
           {gatewayMissionId && (
             <p style={fieldStyle}>
               <strong>Mission state:</strong> {mission.data?.status ?? proposal.gateway_mission_status ?? 'loading'}
+            </p>
+          )}
+          {draft.route && (
+            <p style={fieldStyle}>
+              <strong>Execution route:</strong> {draft.route.provider} · {draft.route.model}
+              {draft.route.estimated_cost_cad !== null && <span> · est. CAD {draft.route.estimated_cost_cad.toFixed(4)}</span>}
             </p>
           )}
           <p style={fieldStyle}><strong>Acceptance criteria:</strong></p>
@@ -597,6 +620,19 @@ function ResumedBuilderJob({
   // is false for an unrelated reason. Gate on the mission id, not on `ok`, so
   // a cold-start hiccup never hides real job status behind a raw error.
   const found = Boolean(data?.mission?.id)
+  const acceptanceUnavailable = data?.mission_acceptance?.state === 'unavailable'
+  const missionState = data?.mission?.state
+  const currentWorkState = data?.current_work?.state
+  const displayedMissionState = missionState === 'paused'
+    && ['claimed', 'running', 'pr_opened', 'awaiting_review'].includes(currentWorkState ?? '')
+    ? 'in progress'
+    : missionState
+  const needsAttention = Boolean(data?.awaiting_acceptance || acceptanceUnavailable)
+  const statusTestId = data?.awaiting_acceptance
+    ? 'builder-job-awaiting-acceptance'
+    : acceptanceUnavailable
+      ? 'builder-job-acceptance-unavailable'
+      : 'builder-job-status'
 
   return (
     <div style={cardStyle}>
@@ -618,13 +654,37 @@ function ResumedBuilderJob({
       )}
 
       {found && (
-        <div style={successBox}>
+        <div
+          style={needsAttention ? attentionBox : successBox}
+          data-testid={statusTestId}
+        >
           <p style={fieldStyle}>
             <strong>Mission:</strong> {data!.mission?.id}
-            {data!.mission?.state ? ` — ${data!.mission.state}` : ''}
+            {displayedMissionState ? ` — ${displayedMissionState}` : ''}
           </p>
           {data!.current_work?.state && (
             <p style={fieldStyle}><strong>Current work:</strong> {data!.current_work.state}</p>
+          )}
+          {/* Builder finishing its task is not the same statement as the
+              outcome being accepted. Showing only the first is how a job that
+              nobody has signed off reads as finished. */}
+          {data!.awaiting_acceptance && (
+            <p style={fieldStyle}>
+              <strong>Built, not accepted yet:</strong>{' '}
+              {data!.mission_acceptance?.state === 'unavailable'
+                ? `Kitty could not check whether this outcome was accepted. ${friendlyAcceptanceUnavailable(
+                    data!.mission_acceptance.error,
+                  )} Check Kitty status, then retry.`
+                : 'Builder finished this work. Nobody has accepted the result yet.'}
+            </p>
+          )}
+          {acceptanceUnavailable && !data!.awaiting_acceptance && (
+            <p style={fieldStyle}>
+              <strong>Acceptance status unavailable:</strong>{' '}
+              Kitty could not check whether this outcome was accepted.{' '}
+              {friendlyAcceptanceUnavailable(data!.mission_acceptance?.error)}{' '}
+              Check Kitty status, then retry.
+            </p>
           )}
           {data!.blocker && (
             <p style={fieldStyle}><strong>Blocked:</strong> {data!.blocker}</p>
@@ -727,6 +787,14 @@ const successBox: CSSProperties = {
   borderRadius: 8,
   padding: 8,
   color: '#2e7d32',
+}
+
+const attentionBox: CSSProperties = {
+  background: '#FF980011',
+  border: '1px solid #FF9800',
+  borderRadius: 8,
+  padding: 8,
+  color: '#B45309',
 }
 
 const btnBase: CSSProperties = {

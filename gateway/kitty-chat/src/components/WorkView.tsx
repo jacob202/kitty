@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { BuilderProposalCard, readPendingBuilderProposalTask, type BuilderProposalTask } from '@/components/builder/BuilderProposalCard'
 import { useCompileBuilderProposal } from '@/lib/queries'
+import { type BuilderCompileResult } from '@/lib/gateway'
 import {
   useBuilderAction,
   usePreflight,
@@ -131,6 +132,7 @@ function WorkBuilderRequest() {
   const [error, setError] = useState<string | null>(null)
   const [preparing, setPreparing] = useState(false)
   const [proposalKey, setProposalKey] = useState(0)
+  const [compileRoute, setCompileRoute] = useState<BuilderCompileResult['route'] | null>(null)
   const compileProposal = useCompileBuilderProposal()
 
   useEffect(() => {
@@ -155,6 +157,7 @@ function WorkBuilderRequest() {
     setPreparing(true)
     setError(null)
     setProposal(null)
+    setCompileRoute(null)
     try {
       const result = await compileProposal.mutateAsync({
         request: trimmed,
@@ -166,6 +169,7 @@ function WorkBuilderRequest() {
       }
       setProposalKey(value => value + 1)
       setProposal(result.task)
+      setCompileRoute(result.route ?? null)
     } catch (err) {
       const message = err instanceof Error ? err.message : ''
       setError(
@@ -221,10 +225,16 @@ function WorkBuilderRequest() {
           {error} Your request is still here. The default proposal route does not spend credits. Trying your saved provider route may use credits; it applies only to this proposal and does not change your saved provider preference.
         </div>
       )}
+      {compileRoute && (
+        <div style={routeInfoStyle}>
+          <strong>Proposal route:</strong> {compileRoute.provider} · {compileRoute.model}
+          {compileRoute.estimated_cost_cad !== null && <span> · est. CAD {compileRoute.estimated_cost_cad.toFixed(4)}</span>}
+        </div>
+      )}
       {proposal && (
         <BuilderProposalCard
           key={proposalKey}
-          task={proposal}
+          task={{ ...proposal, route: compileRoute ?? undefined }}
           chatId="work-builder-request"
           messageIndex={proposalKey}
           recoveryStorageKey={WORK_BUILDER_PENDING_STORAGE_KEY}
@@ -370,6 +380,8 @@ const stateLabelStyle: CSSProperties = { fontFamily: 'var(--font-body)', fontSiz
 const evidenceRowStyle: CSSProperties = { display: 'flex', gap: '4px 12px', flexWrap: 'wrap', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-muted)' }
 const preflightBannerStyle: CSSProperties = { display: 'flex', gap: '4px 10px', flexWrap: 'wrap', alignItems: 'center', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', padding: '8px 10px', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-secondary)', background: 'var(--color-surface-elevated)' }
 const preflightErrorStyle: CSSProperties = { ...preflightBannerStyle, color: 'var(--color-warning)' }
+
+const routeInfoStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-surface-elevated)', padding: '6px 10px', borderRadius: 'var(--r-control)', border: '1px solid var(--color-separator)' }
 
 const WORK_DETAIL_LABELS: Record<string, string> = {
   shadow_run_complete: 'The previous Builder run completed; this item remains blocked.',

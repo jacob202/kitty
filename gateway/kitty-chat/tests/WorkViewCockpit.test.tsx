@@ -100,6 +100,22 @@ describe('WorkView recovery cockpit', () => {
     expect(screen.getByText(/execution route and spend are shown by Builder/i)).toBeInTheDocument()
   })
 
+  it('shows the compiler route returned for this exact proposal', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({
+      ok: true,
+      task: { objective: 'Add the proof file', instructions: 'Add it.', allowed_paths: ['rc0-builder-proof.txt'] },
+      route: { provider: 'openrouter', model: 'deepseek-v4-flash', estimated_cost_cad: 0.0123 },
+    })
+    useCompileBuilderProposal.mockReturnValue({ mutateAsync, isPending: false })
+    render(<WorkView isMobile={false} />)
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ask Builder for work' }), { target: { value: 'Add the proof file.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare Builder proposal' }))
+
+    const route = await screen.findByText(/Proposal route:/)
+    expect(route.closest('div')).toHaveTextContent('openrouter · deepseek-v4-flash · est. CAD 0.0123')
+  })
+
   it('keeps a failed Work request editable and offers an inline retry', async () => {
     const mutateAsync = vi.fn().mockRejectedValue(new Error('The selected provider is unavailable.'))
     useCompileBuilderProposal.mockReturnValue({ mutateAsync, isPending: false })
