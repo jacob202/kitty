@@ -49,6 +49,15 @@ plain language and say why. Recorded in `config/PREFERENCES.md` 2026-08-29.
 
 ## Sequence
 
+**2026-09-10 reconciliation:** the mission identity and historical approval below
+are preserved. Current implementation order is the
+[return program](plans/kitty-return-program-20260910.md) under
+[ROADMAP](ROADMAP.md): recover current candidates → durable result/reuse → exact
+running BUILDER-001 vertical and recovery → value checkpoint → Home/Chat depth,
+IMAGE-001 and remaining primary journeys. Earlier “Done” entries are historical
+delivery claims, not proof of today's stopped runtime or acceptance of unmerged
+candidates. Reverify them where the first vertical depends on them.
+
 1. **REC-001 — one trustworthy baseline.** *Done.* Local `main` reconciled onto
    `origin/main`; the running UI's build source is provable and self-heals when
    it is not.
@@ -83,9 +92,14 @@ plain language and say why. Recorded in `config/PREFERENCES.md` 2026-08-29.
 - Reuse the existing memory, work, artifact, action, session, and provider
   systems. Do not build a parallel model registry, queue, artifact store, or
   frontend state machine to make the UI easier.
-- Builder may run unattended on its schedule. It may not push, open a PR, merge,
-  provision paid infrastructure, or alter credentials without Jacob's explicit
-  approval.
+- Builder may run unattended only after current admission, side-effect-free
+  selection, runtime/data-root identity and provider readiness are proven. The
+  broken scheduled launcher remains off until that gate passes. Jacob's
+  task-branch publication authorization permits an approved task's own non-main
+  branch push and draft PR; it does not permit merge/main push, destructive
+  actions, credential/environment changes, new paid calls or broader scope.
+  The stored spend ceiling limits authorized spending; it is not fresh spend
+  authorization. Required publication/security review remains in force.
 - User-facing copy carries no packet IDs, ports, env vars, raw HTTP status,
   stack traces, or internal service names.
 - Pending, skipped, stale, or self-authored review evidence is unverified.

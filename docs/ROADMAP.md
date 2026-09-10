@@ -2,12 +2,35 @@
 
 **Target:** public-release *quality* for Jacob, not a public distribution release
 **Active mission:** [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md) — `KITTY-RECOVERY-001`
-**Last reconciled:** 2026-09-03
+**Last reconciled:** 2026-09-10
 **Planning posture:** living and reviewable; packet existence does not activate execution
 
 This is Kitty's existing roadmap authority, but it is deliberately a **living delivery guide**, not a frozen product contract. It may be reordered, split, or simplified when current runtime evidence changes. Higher-level architecture/decision authority still wins, and only explicitly approved/owned packets become execution work.
 
 The finish line in this roadmap is narrower than an actual public launch: Kitty should feel as complete, trustworthy, coherent, recoverable, responsive, and polished as software we would be comfortable releasing publicly **for Jacob's real use**. Work whose only purpose is distributing Kitty to strangers is parked separately and must not delay this target.
+
+## Current delivery slice — return program
+
+The [2026-09-10 return program](plans/kitty-return-program-20260910.md) is the
+current execution sequence within this roadmap. It reconciles the reviewed
+whole-product integration with existing candidates and Jacob's external AI
+workflow. Its [lane ledger](plans/kitty-return-program/lane-ledger.md) preserves
+exact work; its [dispatch guide](plans/kitty-return-program/dispatch.md) supplies
+worker prompts and authority boundaries. These detail this roadmap rather than
+creating another roadmap or execution queue.
+
+Do now: mirror the external execution contract independently; recover the
+existing runtime/Work/project candidates; persist and reuse one real result;
+prove Chat → Mission → Work → result → Library → Chat, including interruption
+and recovery. Then run the measured value/adoption checkpoint before Home/Chat
+depth, IMAGE-001 and broader companion work. This order takes precedence over
+the older phase list below where they differ. The phases remain the release
+quality coverage and candidate inventory, not a bulk activation order.
+
+Builder scheduled launching remains off pending current admission, dry
+selection, candidate/runtime identity and provider proof. Existing queue
+curation and foreign-file recovery must not be repeated. No product outcome is
+newly marked complete by this planning reconciliation.
 
 ## What “release-quality for Jacob” means
 
