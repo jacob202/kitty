@@ -270,10 +270,14 @@ def test_delivery_doctrine_has_fast_inner_loop_and_frozen_candidate_boundary() -
     testing = " ".join(_read("TESTING.md").lower().split())
 
     assert "targeted checks during implementation" in agents
-    assert "draft pull request" in agents
-    assert "frozen candidate" in agents
-    assert "mark the pull request ready" in agents
+    assert "ordinary implementation stays local" in agents
+    assert "draft prs are exceptional" in agents
+    assert "ready pr is the publication boundary" in agents
+    assert "may run concurrently on a ready pr" in agents
+    assert "do not claim review happened after ci" in agents
     assert "independent review runs against the frozen candidate" in verified
-    assert "a reviewer finding reopens the candidate" in verified
+    assert "same exact sha" in verified
     assert "do not run the full local parity gate after every intermediate push" in testing
-    assert "github's ready-pr checks are the authoritative full delivery gate" in testing
+    assert "ordinary iteration does not need a pr" in testing
+    assert "can run concurrently" in testing
+    assert "documentation must not claim that ordering until the workflow enforces it" in testing
