@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -137,6 +138,119 @@ def _latest_attempt(packet: dict[str, Any]) -> dict[str, Any] | None:
     return history[0] if history else None
 
 
+ACCEPTANCE_NONE = "none"
+ACCEPTANCE_UNAVAILABLE = "unavailable"
+
+
+def _mission_acceptance(
+    initiative_id: str | None, *, expect_binding: bool = False
+) -> dict[str, Any]:
+    """Report the outcome-acceptance fact, separately from Builder's task.
+
+    Three answers, deliberately distinct:
+
+    - a state from the bound Mission (``unreviewed`` / ``accepted`` / ...);
+    - ``none`` — no Mission is bound to direct Builder work, so acceptance
+      does not apply to it;
+    - ``unavailable`` with a binding error — a conversation-backed job was
+      expected to have a Gateway Mission, but that durable binding is missing;
+    - ``unavailable`` — the Mission store could not be read. That is an outage
+      with a cause, not the same statement as "there is nothing recorded", and
+      it is reported with the error rather than swallowed.
+
+    Never reports ``accepted`` without having read it.
+    """
+    if not initiative_id:
+        return {
+            "state": ACCEPTANCE_NONE,
+            "reviewer_id": None,
+            "mission_id": None,
+            "error": None,
+        }
+    try:
+        from gateway import memory_mission
+
+        mission = memory_mission.mission_for_initiative(initiative_id)
+    except Exception as exc:
+        # An existing but not-yet-initialized application database is also a
+        # legitimate pre-Mission state for direct MCP work. Restrict this to
+        # SQLite's exact missing-table failure; corrupt, locked, and unreadable
+        # stores must remain explicit outages.
+        cause = exc.__cause__
+        absent_store = (
+            isinstance(exc, memory_mission.MissionError)
+            and cause is None
+            and str(exc).endswith(" does not exist")
+        )
+        missing_schema = (
+            isinstance(cause, sqlite3.OperationalError)
+            and str(cause) == "no such table: missions"
+        )
+        if not expect_binding and (absent_store or missing_schema):
+            return {
+                "state": ACCEPTANCE_NONE,
+                "reviewer_id": None,
+                "mission_id": None,
+                "error": None,
+            }
+        return {
+            "state": ACCEPTANCE_UNAVAILABLE,
+            "reviewer_id": None,
+            "mission_id": None,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+    if mission is None:
+        if expect_binding:
+            return {
+                "state": ACCEPTANCE_UNAVAILABLE,
+                "reviewer_id": None,
+                "mission_id": None,
+                "error": (
+                    "Expected Gateway Mission binding is missing for Builder "
+                    f"initiative {initiative_id}"
+                ),
+            }
+        return {
+            "state": ACCEPTANCE_NONE,
+            "reviewer_id": None,
+            "mission_id": None,
+            "error": None,
+        }
+    acceptance = mission.get("acceptance") or {}
+    return {
+        "state": acceptance.get("state") or ACCEPTANCE_NONE,
+        "reviewer_id": acceptance.get("reviewer_id"),
+        "mission_id": mission.get("mission_id"),
+        "error": None,
+    }
+
+
+def _awaiting_acceptance(
+    *, builder_done: bool, acceptance: dict[str, Any]
+) -> tuple[bool, str | None]:
+    """Say whether finished Builder work is still waiting on an outcome decision.
+
+    Deliberately *not* folded into ``complete``. Nothing in production records
+    an acceptance today, so gating ``complete`` on it would make that field
+    permanently false — trading a claim that overstates progress for one that
+    can never be satisfied. Instead the two facts are reported side by side and
+    the caller says the true sentence: Builder finished, nobody has accepted
+    the outcome yet.
+    """
+    if not builder_done:
+        return False, None
+    state = acceptance.get("state")
+    if state == "accepted":
+        return False, None
+    if state == ACCEPTANCE_UNAVAILABLE:
+        return True, acceptance.get("error") or (
+            "the Mission store could not be read to confirm acceptance"
+        )
+    if state == ACCEPTANCE_NONE:
+        return False, None
+    return True, f"the Mission outcome is {state}, not accepted"
+
+
 def work_result(
     mission_id: str | None = None,
     task_id: str | None = None,
@@ -150,12 +264,24 @@ def work_result(
     if task_id or (isinstance(work, dict) and "task_id" in work):
         packet = work
         task_state = packet.get("task_state")
+        initiative_id = packet.get("initiative_id")
+        acceptance = _mission_acceptance(initiative_id)
+        builder_done = task_state == "done"
+        awaiting, awaiting_because = _awaiting_acceptance(
+            builder_done=builder_done, acceptance=acceptance
+        )
         result = {
-            "mission_id": packet.get("initiative_id"),
+            "mission_id": initiative_id,
             "packet_id": packet.get("packet_id"),
             "task_id": packet.get("task_id"),
             "task_state": task_state,
-            "complete": task_state == "done",
+            # `complete` keeps its established meaning: Builder finished its
+            # task. Outcome acceptance is the separate fact beside it.
+            "complete": builder_done,
+            "builder_task_complete": builder_done,
+            "mission_acceptance": acceptance,
+            "awaiting_acceptance": awaiting,
+            "awaiting_acceptance_because": awaiting_because,
             "attempt": _latest_attempt(packet),
             "publication": packet.get("publication"),
             "blocker": packet.get("blocked_reason") or packet.get("last_error"),
@@ -170,14 +296,24 @@ def work_result(
 
     initiative = work
     packets = initiative.get("packets") or []
+    initiative_id = initiative.get("initiative_id")
+    acceptance = _mission_acceptance(initiative_id)
+    builder_done = initiative.get("state") == "completed"
+    awaiting, awaiting_because = _awaiting_acceptance(
+        builder_done=builder_done, acceptance=acceptance
+    )
     return receipt(
         "work_result",
         ok=True,
         state=initiative.get("state"),
         next_action=initiative.get("next_packet"),
         result={
-            "mission_id": initiative.get("initiative_id"),
-            "complete": initiative.get("state") == "completed",
+            "mission_id": initiative_id,
+            "complete": builder_done,
+            "builder_task_complete": builder_done,
+            "mission_acceptance": acceptance,
+            "awaiting_acceptance": awaiting,
+            "awaiting_acceptance_because": awaiting_because,
             "packets": [
                 {
                     "packet_id": packet.get("packet_id"),
@@ -242,6 +378,8 @@ def _select_current_packet(work: dict[str, Any]) -> dict[str, Any] | None:
 def resume_context(
     mission_id: str | None = None,
     task_id: str | None = None,
+    *,
+    expect_mission_binding: bool = False,
 ) -> dict[str, Any]:
     """Build a compact durable handoff that does not depend on chat history."""
     kitty = kitty_context()
@@ -325,6 +463,15 @@ def resume_context(
         }
 
     cold_start_ok = bool(kitty.get("ok"))
+    # Read Builder's own terminal fact before the cold-start receipt is allowed
+    # to overwrite `state` with "attention". Whether Builder finished its task
+    # is durable and has nothing to do with whether this session's context
+    # receipt is trusted; deriving it from the overwritten value would report a
+    # finished task as unfinished because of an unrelated failure.
+    builder_done = (
+        (current or {}).get("task_state") == "done"
+        or (initiative_work or {}).get("state") == "completed"
+    )
     state = (
         (current or {}).get("task_state")
         or (initiative_work or {}).get("state")
@@ -332,6 +479,20 @@ def resume_context(
     )
     if not cold_start_ok:
         state = "attention"
+
+    # This is the projection Chat reopens a job through. Without acceptance
+    # here, Builder's terminal state is the only thing Chat can show, and it
+    # gets presented as the finished user outcome.
+    acceptance = (
+        _mission_acceptance(resolved_mission, expect_binding=True)
+        if expect_mission_binding
+        else _mission_acceptance(resolved_mission)
+    )
+    awaiting, awaiting_because = _awaiting_acceptance(
+        builder_done=builder_done, acceptance=acceptance
+    )
+    if awaiting and awaiting_because:
+        unknowns.append({"field": "outcome_acceptance", "reason": awaiting_because})
 
     return receipt(
         "resume_context",
@@ -344,6 +505,10 @@ def resume_context(
         or "Kitty cold-start receipt is not trusted; continuity needs attention.",
         next_action=next_action,
         objective=objective,
+        builder_task_complete=builder_done,
+        mission_acceptance=acceptance,
+        awaiting_acceptance=awaiting,
+        awaiting_acceptance_because=awaiting_because,
         artifacts={
             "design": (
                 {"path": refs["design_path"], "sha": refs["design_sha"]}

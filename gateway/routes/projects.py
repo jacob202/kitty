@@ -10,7 +10,7 @@ import hashlib
 import logging
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 
 from gateway import next_step, project_resume, project_store
 from gateway.push import push_to_jacob
@@ -110,6 +110,34 @@ def post_refresh(project_id: int) -> dict:
     from gateway.sse import broadcaster
     broadcaster.broadcast("projects_updated")
     return {**refreshed, "next_step": {"ok": True, **step}}
+
+
+class SelectTodoRequest(BaseModel):
+    # StrictInt: plain `int` accepts `true` and coerces it to 1, so a malformed
+    # client could silently select todo #1.
+    todo_id: StrictInt
+
+
+@router.put("/projects/{project_id}/selected-todo")
+def put_selected_todo(project_id: int, body: SelectTodoRequest) -> dict:
+    """Choose the one action for this project. Beats every generated suggestion."""
+    project = _handle(project_store.select_todo, project_id, body.todo_id)
+    from gateway.sse import broadcaster
+    broadcaster.broadcast("projects_updated")
+    return {"project": project, "selected_todo": project_store.selected_todo(project_id)}
+
+
+@router.get("/projects/{project_id}/selected-todo")
+def get_selected_todo(project_id: int) -> dict:
+    return {"selected_todo": _handle(project_store.selected_todo, project_id)}
+
+
+@router.delete("/projects/{project_id}/selected-todo")
+def delete_selected_todo(project_id: int) -> dict:
+    project = _handle(project_store.clear_selected_todo, project_id)
+    from gateway.sse import broadcaster
+    broadcaster.broadcast("projects_updated")
+    return {"project": project, "selected_todo": None}
 
 
 @router.get("/projects/{project_id}/resume")

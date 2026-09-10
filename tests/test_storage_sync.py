@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from gateway import db as kitty_db
-from gateway import memory, plugin_registry, storage_sync, todo_store
+from gateway import memory, plugin_registry, project_store, storage_sync, todo_store
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +30,7 @@ def _isolate(tmp_path, monkeypatch, name):
     db_file = tmp_path / f"{name}.db"
     monkeypatch.setattr(kitty_db, "KITTY_DB_FILE", db_file)
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
     return db_file
 
 
@@ -120,6 +121,92 @@ def test_round_trip_preserves_todos(tmp_path, monkeypatch):
     assert counts["todos"] == 2
     restored = todo_store.get()
     assert {t["content"] for t in restored} == {"x", "y"}
+
+
+def test_snapshot_import_replaces_omitted_selected_todo_and_clears_dangling_pointer(
+    tmp_path, monkeypatch
+):
+    """Snapshot restore is exact replacement, not generated-list reconciliation."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    current = todo_store.update(
+        [
+            {"content": "Chosen current action"},
+            {"content": "Also current"},
+        ]
+    )
+    project_store.select_todo(project["id"], current[0]["id"])
+
+    # Restoring an older snapshot that does not contain the currently selected
+    # row must not smuggle that newer row into the restored state.
+    storage_sync.import_todos(
+        [
+            {
+                "id": 9001,
+                "content": "Only snapshot todo",
+                "status": "pending",
+                "active_form": "",
+                "sort_order": 0,
+                "progress_note": None,
+                "project_id": None,
+                "created_at": 10.0,
+                "updated_at": 11.0,
+            }
+        ]
+    )
+
+    restored = todo_store.get()
+    assert [row["content"] for row in restored] == ["Only snapshot todo"]
+    assert project_store.get(project["id"])["selected_todo_id"] is None
+
+
+def test_snapshot_import_rejects_duplicate_sort_orders_before_replacing_todos(
+    tmp_path, monkeypatch
+):
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    todo_store.update([{"content": "Keep current state"}])
+    before = todo_store.get()
+
+    with pytest.raises(todo_store.TodoStoreError, match="duplicate sort_order 4"):
+        storage_sync.import_todos(
+            [
+                {"content": "First snapshot todo", "sort_order": 4},
+                {"content": "Second snapshot todo", "sort_order": 4},
+            ]
+        )
+
+    assert todo_store.get() == before
+
+
+def test_snapshot_import_rejects_missing_project_owner_before_replacing_todos(
+    tmp_path, monkeypatch
+):
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    todo_store.update([{"content": "Keep current state"}])
+    before = todo_store.get()
+    missing_project_id = (
+        max(project["id"] for project in project_store.list_projects()) + 100
+    )
+
+    with pytest.raises(
+        todo_store.TodoStoreError,
+        match=rf"unknown project_id.*{missing_project_id}",
+    ):
+        storage_sync.import_todos(
+            [
+                {
+                    "content": "Snapshot todo with a missing owner",
+                    "sort_order": 0,
+                    "project_id": missing_project_id,
+                }
+            ]
+        )
+
+    assert todo_store.get() == before
 
 
 def test_import_rejects_unknown_format_version():

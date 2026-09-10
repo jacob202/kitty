@@ -70,8 +70,10 @@ resources:
     - gateway/explicit_memory.py
     - gateway/memory*.py
     - gateway/migrations/**
+    - gateway/project_store.py
     - gateway/routes/agent_workspace.py
     - gateway/storage_router.py
+    - gateway/storage_sync.py
     - gateway/todo_store.py
     - mcp/agent_room/**
     - tests/test_agent_room_global.py
@@ -81,7 +83,10 @@ resources:
     - tests/test_check_continuity_state.py
     - tests/test_db.py
     - tests/test_mcp_agent_room_server.py
+    - tests/test_project_store.py
+    - tests/test_projects_routes.py
     - tests/test_storage_router.py
+    - tests/test_storage_sync.py
     - tests/test_todo_store.py
   mission:runtime:
     paths:
@@ -159,6 +164,7 @@ resources:
     - gateway/kitty-chat/tests/actionsContract.test.ts
     - gateway/routes/conversation_handoff.py
     - gateway/routes/extended.py
+    - gateway/routes/projects.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
     - tests/test_work_projection.py

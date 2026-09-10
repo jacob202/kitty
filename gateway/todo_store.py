@@ -15,11 +15,16 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
+from pathlib import Path
 
 from gateway import db as kitty_db
 from gateway.paths import DATA_DIR, KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.todo_store")
+
+
+class TodoStoreError(RuntimeError):
+    """Raised when a todo operation cannot proceed safely."""
 
 TODO_DB = DATA_DIR / "todos.db"
 TODO_DB_FILE = KITTY_DB_FILE
@@ -50,9 +55,42 @@ def update(items: list[dict]) -> list[dict]:
     Returns the new list.
     """
     init_db()
+    from gateway import project_store
+
+    if Path(TODO_DB_FILE).resolve() != Path(project_store.PROJECTS_DB_FILE).resolve():
+        # Selection protection is only atomic because Projects and Todos share
+        # one SQLite transaction. Refuse a split configuration before touching
+        # the Project store; silently proceeding would reintroduce the exact
+        # selected-todo loss this reconciliation prevents.
+        raise TodoStoreError(
+            "cannot safely reconcile todos while the todo and project stores are separate databases"
+        )
+    try:
+        project_store.init_db()
+    except Exception as exc:
+        raise TodoStoreError(
+            "cannot reconcile the todo list without reading project selections"
+        ) from exc
     now = time.time()
 
     with kitty_db.connect(TODO_DB_FILE) as conn:
+        # Protect the selection snapshot and deletion sweep with the same write
+        # transaction. select_todo() takes the same lock and revalidates after
+        # acquiring it, so neither ordering can return success with a deleted
+        # chosen action.
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            protected = {
+                row["selected_todo_id"]
+                for row in conn.execute(
+                    "SELECT selected_todo_id FROM projects "
+                    "WHERE selected_todo_id IS NOT NULL"
+                ).fetchall()
+            }
+        except sqlite3.Error as exc:
+            raise TodoStoreError(
+                "cannot reconcile the todo list without reading project selections"
+            ) from exc
         existing = conn.execute(
             "SELECT id, content FROM todos ORDER BY sort_order ASC"
         ).fetchall()
@@ -86,9 +124,179 @@ def update(items: list[dict]) -> list[dict]:
                 (content, status, active_form, position, now, matched),
             )
 
-        dropped = [row["id"] for row in existing if row["id"] not in kept]
+        # A todo a project has explicitly selected is not a suggestion, and a
+        # regenerated list that omits it is not the user removing it. Deleting
+        # it here would silently destroy the chosen action and its progress
+        # note — the exact loss this reconciliation exists to prevent. Explicit
+        # removal still works: that is `delete_by_id`.
+        survivors = [
+            row["id"]
+            for row in existing
+            if row["id"] not in kept and row["id"] in protected
+        ]
+        dropped = [
+            row["id"]
+            for row in existing
+            if row["id"] not in kept and row["id"] not in protected
+        ]
         for todo_id in dropped:
             conn.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
+        # A survivor keeps its row but not its old position: incoming items were
+        # numbered from zero, so leaving it where it was creates duplicate
+        # sort_orders. `complete(index)` addresses rows by position and would
+        # then finish every row sharing one. Survivors go after the new list.
+        for offset, todo_id in enumerate(survivors):
+            conn.execute(
+                "UPDATE todos SET sort_order = ?, updated_at = ? WHERE id = ?",
+                (len(items) + offset, now, todo_id),
+            )
+        conn.commit()
+
+    return get()
+
+
+def restore(items: list[dict]) -> list[dict]:
+    """Replace Todos with snapshot state and reconcile Project pointers.
+
+    ``update()`` is intentionally generated-list reconciliation: an omitted
+    selected todo survives because model suggestions must not erase an explicit
+    user choice. Snapshot restore has the opposite contract: rows omitted from
+    the snapshot are absent after restore. Keep these two semantics explicit so
+    neither path weakens the other.
+    """
+    init_db()
+    from gateway import project_store
+
+    if Path(TODO_DB_FILE).resolve() != Path(project_store.PROJECTS_DB_FILE).resolve():
+        raise TodoStoreError(
+            "cannot safely restore todos while the todo and project stores are separate databases"
+        )
+    try:
+        project_store.init_db()
+    except Exception as exc:
+        raise TodoStoreError(
+            "cannot restore todos without reconciling project selections"
+        ) from exc
+
+    sort_orders: list[int] = []
+    seen_sort_orders: set[int] = set()
+    referenced_project_ids: set[int] = set()
+    for position, item in enumerate(items):
+        raw_order = item.get("sort_order", position)
+        sort_order = (
+            raw_order
+            if isinstance(raw_order, int) and not isinstance(raw_order, bool)
+            else position
+        )
+        if sort_order in seen_sort_orders:
+            raise TodoStoreError(
+                f"cannot restore todos with duplicate sort_order {sort_order}"
+            )
+        seen_sort_orders.add(sort_order)
+        sort_orders.append(sort_order)
+
+        raw_project = item.get("project_id")
+        if isinstance(raw_project, int) and not isinstance(raw_project, bool):
+            referenced_project_ids.add(raw_project)
+
+    now = time.time()
+    with kitty_db.connect(TODO_DB_FILE) as conn:
+        # Serialize against select_todo()/update(). Snapshot replacement and
+        # dangling-pointer repair must be one atomic state transition.
+        conn.execute("BEGIN IMMEDIATE")
+        if referenced_project_ids:
+            try:
+                available_project_ids = {
+                    row["id"]
+                    for row in conn.execute("SELECT id FROM projects").fetchall()
+                }
+            except sqlite3.Error as exc:
+                raise TodoStoreError(
+                    "cannot restore todos without reading available projects"
+                ) from exc
+            missing_project_ids = sorted(
+                referenced_project_ids - available_project_ids
+            )
+            if missing_project_ids:
+                missing = ", ".join(
+                    str(project_id) for project_id in missing_project_ids
+                )
+                raise TodoStoreError(
+                    f"cannot restore todos with unknown project_id values: {missing}"
+                )
+        conn.execute("DELETE FROM todos")
+        for item, sort_order in zip(items, sort_orders, strict=True):
+            status = item.get("status", "pending")
+            if status not in VALID_STATUSES:
+                status = "pending"
+            raw_id = item.get("id")
+            todo_id = raw_id if isinstance(raw_id, int) and not isinstance(raw_id, bool) else None
+            raw_project = item.get("project_id")
+            project_id = (
+                raw_project
+                if isinstance(raw_project, int) and not isinstance(raw_project, bool)
+                else None
+            )
+            progress = item.get("progress_note")
+            if progress is not None:
+                progress = str(progress)
+            created_at = item.get("created_at")
+            if not isinstance(created_at, (int, float)) or isinstance(created_at, bool):
+                created_at = now
+            updated_at = item.get("updated_at")
+            if not isinstance(updated_at, (int, float)) or isinstance(updated_at, bool):
+                updated_at = now
+
+            if todo_id is None:
+                conn.execute(
+                    "INSERT INTO todos "
+                    "(content, status, active_form, sort_order, progress_note, project_id, "
+                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        str(item.get("content", "")),
+                        status,
+                        str(item.get("active_form", "")),
+                        sort_order,
+                        progress,
+                        project_id,
+                        created_at,
+                        updated_at,
+                    ),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO todos "
+                    "(id, content, status, active_form, sort_order, progress_note, project_id, "
+                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        todo_id,
+                        str(item.get("content", "")),
+                        status,
+                        str(item.get("active_form", "")),
+                        sort_order,
+                        progress,
+                        project_id,
+                        created_at,
+                        updated_at,
+                    ),
+                )
+
+        # Projects are not part of this storage_sync snapshot. Preserve a
+        # current pointer only when the restored row still proves it is this
+        # project's actionable selected todo; otherwise clear the dangling or
+        # contradictory pointer in the same transaction.
+        actionable_statuses = ("in_progress", "pending")
+        placeholders = ", ".join("?" for _ in actionable_statuses)
+        conn.execute(
+            "UPDATE projects SET selected_todo_id = NULL "
+            "WHERE selected_todo_id IS NOT NULL AND NOT EXISTS ("
+            "SELECT 1 FROM todos "
+            "WHERE todos.id = projects.selected_todo_id "
+            "AND todos.project_id = projects.id "
+            f"AND todos.status IN ({placeholders})"
+            ")",
+            actionable_statuses,
+        )
         conn.commit()
 
     return get()
