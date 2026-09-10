@@ -270,8 +270,7 @@ class ReviewFocus:
 
     def _restore_unloaded(self) -> list[str]:
         errors: list[str] = []
-        while self._pending_restore:
-            residency = self._pending_restore.pop()
+        for residency in reversed(tuple(self._pending_restore)):
             try:
                 self.request_json(
                     "POST",
@@ -280,6 +279,8 @@ class ReviewFocus:
                 )
             except Exception as exc:
                 errors.append(f"{residency.model}@{residency.base_url}: {exc}")
+                continue
+            self._pending_restore.remove(residency)
         return errors
 
     def __enter__(self) -> "ReviewFocus":
@@ -300,13 +301,13 @@ class ReviewFocus:
                         model=name,
                         keep_alive=_restore_keep_alive(model.get("expires_at")),
                     )
+                    self._pending_restore.append(residency)
                     self.request_json(
                         "POST",
                         f"{base_url}/api/generate",
                         {"model": name, "prompt": "", "keep_alive": 0},
                     )
                     self.unloaded.append(residency)
-                    self._pending_restore.append(residency)
             return self
         except Exception as exc:
             restore_errors = self._restore_unloaded()
@@ -364,8 +365,6 @@ def find_default_model_path() -> Path:
 
 def _model_sha256(path: Path) -> str:
     resolved = path.expanduser().resolve()
-    if re.fullmatch(r"[0-9a-f]{64}", resolved.name):
-        return resolved.name
     digest = hashlib.sha256()
     with resolved.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -252,7 +253,7 @@ def test_focus_entry_failure_restores_models_already_unloaded(tmp_path: Path) ->
         if method == "POST" and url.endswith("/api/generate")
         and isinstance(payload, dict) and payload.get("keep_alive") not in {0, None}
     ]
-    assert [item["model"] for item in restore_payloads] == ["model-one"]
+    assert [item["model"] for item in restore_payloads] == ["model-two", "model-one"]
 
 
 def test_focus_never_unloads_unmanaged_models(tmp_path: Path) -> None:
@@ -345,7 +346,7 @@ def test_missing_local_model_fails_closed_as_escalation(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("fail_model", "expected_restores"),
-    [("model-one", []), ("model-two", ["model-one"]), ("model-three", ["model-two", "model-one"])],
+    [("model-one", ["model-one"]), ("model-two", ["model-two", "model-one"]), ("model-three", ["model-three", "model-two", "model-one"])],
 )
 def test_focus_entry_unwinds_first_middle_and_last_failure(
     tmp_path: Path, fail_model: str, expected_restores: list[str]
@@ -402,3 +403,34 @@ def test_cli_focus_is_explicit_opt_in() -> None:
     assert '"--focus", action="store_true"' in source
     assert 'use_focus=args.focus' in source
     assert '"--managed-ollama-model", action="append"' in source
+
+
+def test_ambiguous_unload_timeout_conservatively_restores_original_residency(tmp_path: Path) -> None:
+    resident = {"managed"}
+    calls: list[dict] = []
+    def request_json(method: str, _url: str, payload: object = None) -> dict:
+        if method == "GET":
+            return {"models": [{"name": name} for name in sorted(resident)]}
+        assert isinstance(payload, dict)
+        calls.append(payload.copy())
+        if payload["keep_alive"] == 0:
+            resident.discard(payload["model"])
+            raise RuntimeError("transport timed out after unload applied")
+        resident.add(payload["model"])
+        return {}
+    focus = ReviewFocus(["http://fake"], request_json=request_json, managed_models={"managed"}, lock_path=tmp_path / "focus.lock")
+    with pytest.raises(RuntimeError, match="timed out"):
+        with focus:
+            pass
+    assert resident == {"managed"}
+    assert any(call.get("keep_alive") != 0 for call in calls)
+    assert focus.pending_restore == []
+
+
+def test_model_sha256_hashes_bytes_even_when_filename_looks_content_addressed(tmp_path: Path) -> None:
+    from gateway.local_review import _model_sha256
+    model = tmp_path / ("a" * 64)
+    model.write_bytes(b"not-the-named-digest")
+    actual = hashlib.sha256(b"not-the-named-digest").hexdigest()
+    assert _model_sha256(model) == actual
+    assert _model_sha256(model) != model.name
