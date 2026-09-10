@@ -33,4 +33,4 @@ The lead challenged the former memory-first order against the actual unfinished 
 
 ## Final validation
 
-Pending frozen candidate and formal review. This record must be updated before closeout with targeted documentation checks, the exact reviewed SHA/content manifest, findings and repair evidence, PR/publication status, unavailable evidence, and a verdict against A1–A6. No code/runtime acceptance is claimed.
+The first frozen candidate was commit `1d0fdaac352ffbc1f3da6c48ee6a1876c3edbb97` on PR #851. Fresh checks before publication passed: repository pre-push style, types and tests; `tests/test_documentation_authority.py` was 18/18; and 14/14 local Markdown links resolved. The canonical paid PR reviewer then reviewed that exact commit with DeepSeek V4 Flash and reported `No actionable findings in this diff`; the `agent-review` check passed in 45 seconds and `policy-gate` passed. This closeout update changes only this evidence record and the outcome-contract completion record. Final exact-head acceptance is the external PR review evidence produced after this metadata-only synchronization; no code/runtime acceptance is claimed.
