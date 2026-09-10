@@ -363,6 +363,7 @@ class TestRunWorker:
     def test_dsh_run_self_publishes_presence_lifecycle(self, repo: Path, db_path: Path, monkeypatch):
         task = _queued_task(db_path)
         calls: list[tuple[str, str]] = []
+        heartbeat_seen = db_path.parent / "presence-heartbeat-seen"
 
         def check_in(**kwargs):
             calls.append(("checkin", kwargs["session_id"]))
@@ -371,6 +372,7 @@ class TestRunWorker:
         def heartbeat(session_id, participant_id):
             calls.append(("heartbeat", session_id))
             assert participant_id == "dsh"
+            heartbeat_seen.write_text("seen\n", encoding="utf-8")
             return {"session_id": session_id}
 
         def checkout(session_id, participant_id):
@@ -382,9 +384,18 @@ class TestRunWorker:
         monkeypatch.setattr(br.agent_workspace, "heartbeat", heartbeat)
         monkeypatch.setattr(br.agent_workspace, "checkout", checkout)
 
+        # Keep the real child alive until the behavior under test emits a heartbeat.
+        # The previous fixed 250 ms sleep raced parent-side setup/descheduling on CI.
         run = br.run_worker(
             task["id"],
-            ["sh", "-c", "sleep 0.25"],
+            [
+                "sh",
+                "-c",
+                'i=0; while [ ! -f "$1" ] && [ "$i" -lt 500 ]; do '
+                'i=$((i + 1)); sleep 0.01; done; [ -f "$1" ]',
+                "sh",
+                str(heartbeat_seen),
+            ],
             worker="dsh-free",
             model="openrouter/free",
             timeout_seconds=10,
