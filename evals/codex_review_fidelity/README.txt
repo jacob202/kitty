@@ -85,9 +85,20 @@ A chunk that cannot be parsed is recorded in `chunk_errors` and surfaced by `sco
 `provenance.chunk_errors`. Always read that count alongside recall: a run with parse errors
 is a failed measurement, not a candidate that found nothing.
 
-In practice, prefer a candidate that answers directly. Testing found that a heavy reasoning
-model on a large diff would exhaust even a 16000-token budget on narration and never emit
-the array, leaving only recorded chunk errors.
+In practice, prefer a capable candidate that answers directly. Attempts with free-tier
+hosted models did not yield a usable measurement, and the failure modes are recorded here
+so the next run does not repeat them:
+
+- A heavy reasoning model (`nvidia/nemotron-3-super-120b-a12b:free`) narrated 17K chars of
+  chain-of-thought and never emitted an array at a 4096 budget. At 16000 it still narrated
+  past the answer. At 32000 on the smallest unit it returned a 690-char reply whose final
+  array was `[0]`, which is not a findings list and was refused.
+- `poolside/laguna-s-2.1:free` returned the literal string `None` for three units and was
+  rate-limited (HTTP 429) on two others.
+
+Every one of those outcomes is reported as a `chunk_error`, never as a low-recall candidate,
+which is the reason the guards above exist. Do not read a free-tier run as evidence about
+review quality in either direction.
 
 ## How scoring works
 
