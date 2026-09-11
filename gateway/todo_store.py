@@ -178,6 +178,60 @@ def restore(items: list[dict]) -> list[dict]:
             "cannot restore todos without reconciling project selections"
         ) from exc
 
+    sort_orders, _seen_ids, referenced_project_ids = _plan_restore(items)
+
+    now = time.time()
+    with kitty_db.connect(TODO_DB_FILE) as conn:
+        # Serialize against select_todo()/update(). Snapshot replacement and
+        # dangling-pointer repair must be one atomic state transition.
+        conn.execute("BEGIN IMMEDIATE")
+        _write_restore(conn, items, sort_orders, referenced_project_ids, now)
+        conn.commit()
+
+    return get()
+
+
+def validate_restore(
+    items: list[dict], *, future_project_ids: frozenset[int] | None = None
+) -> None:
+    """Prove ``restore`` can write this payload, changing nothing.
+
+    ``storage_sync`` writes other stores before Todos, so a payload that only
+    fails at insert time would leave them committed against a rejected
+    snapshot. The dry run executes the real statements — including the id and
+    project-id binding — inside a transaction that is always rolled back.
+
+    ``future_project_ids`` names the project rows the snapshot's own Projects
+    store will have created by the time Todos restore runs. Those owners are
+    staged as placeholder rows inside the rolled-back transaction so the check
+    sees the state restore will actually see, rather than the pre-import one.
+    """
+    init_db()
+    from gateway import project_store
+
+    if Path(TODO_DB_FILE).resolve() != Path(project_store.PROJECTS_DB_FILE).resolve():
+        raise TodoStoreError(
+            "cannot safely restore todos while the todo and project stores are separate databases"
+        )
+    sort_orders, _seen_ids, referenced_project_ids = _plan_restore(items)
+    now = time.time()
+    with kitty_db.connect(TODO_DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            if future_project_ids:
+                staged = sorted(referenced_project_ids & set(future_project_ids))
+                if staged:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO projects (id, name, kind) VALUES (?, ?, ?)",
+                        [(project_id, f"pending-restore-{project_id}", "admin") for project_id in staged],
+                    )
+            _write_restore(conn, items, sort_orders, referenced_project_ids, now)
+        finally:
+            conn.rollback()
+
+
+def _plan_restore(items: list[dict]) -> tuple[list[int], set[int], set[int]]:
+    """Validate a todos payload and return the plan the write path needs."""
     sort_orders: list[int] = []
     seen_sort_orders: set[int] = set()
     seen_ids: set[int] = set()
@@ -218,108 +272,111 @@ def restore(items: list[dict]) -> list[dict]:
         if isinstance(raw_project, int) and not isinstance(raw_project, bool):
             referenced_project_ids.add(raw_project)
 
-    now = time.time()
-    with kitty_db.connect(TODO_DB_FILE) as conn:
-        # Serialize against select_todo()/update(). Snapshot replacement and
-        # dangling-pointer repair must be one atomic state transition.
-        conn.execute("BEGIN IMMEDIATE")
-        if referenced_project_ids:
-            try:
-                available_project_ids = {
-                    row["id"]
-                    for row in conn.execute("SELECT id FROM projects").fetchall()
-                }
-            except sqlite3.Error as exc:
-                raise TodoStoreError(
-                    "cannot restore todos without reading available projects"
-                ) from exc
-            missing_project_ids = sorted(
-                referenced_project_ids - available_project_ids
-            )
-            if missing_project_ids:
-                missing = ", ".join(
-                    str(project_id) for project_id in missing_project_ids
-                )
-                raise TodoStoreError(
-                    f"cannot restore todos with unknown project_id values: {missing}"
-                )
-        conn.execute("DELETE FROM todos")
-        for item, sort_order in zip(items, sort_orders, strict=True):
-            status = item.get("status", "pending")
-            if status not in VALID_STATUSES:
-                status = "pending"
-            raw_id = item.get("id")
-            todo_id = raw_id if isinstance(raw_id, int) and not isinstance(raw_id, bool) else None
-            raw_project = item.get("project_id")
-            project_id = (
-                raw_project
-                if isinstance(raw_project, int) and not isinstance(raw_project, bool)
-                else None
-            )
-            progress = item.get("progress_note")
-            if progress is not None:
-                progress = str(progress)
-            created_at = item.get("created_at")
-            if not isinstance(created_at, (int, float)) or isinstance(created_at, bool):
-                created_at = now
-            updated_at = item.get("updated_at")
-            if not isinstance(updated_at, (int, float)) or isinstance(updated_at, bool):
-                updated_at = now
+    return sort_orders, seen_ids, referenced_project_ids
 
-            if todo_id is None:
-                conn.execute(
-                    "INSERT INTO todos "
-                    "(content, status, active_form, sort_order, progress_note, project_id, "
-                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        str(item.get("content", "")),
-                        status,
-                        str(item.get("active_form", "")),
-                        sort_order,
-                        progress,
-                        project_id,
-                        created_at,
-                        updated_at,
-                    ),
-                )
-            else:
-                conn.execute(
-                    "INSERT INTO todos "
-                    "(id, content, status, active_form, sort_order, progress_note, project_id, "
-                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        todo_id,
-                        str(item.get("content", "")),
-                        status,
-                        str(item.get("active_form", "")),
-                        sort_order,
-                        progress,
-                        project_id,
-                        created_at,
-                        updated_at,
-                    ),
-                )
 
-        # storage_sync restores projects before todos, so a pointer can only be
-        # dangling because the referenced todo is absent from the snapshot or no
-        # longer actionable. Preserve it only when the restored row still proves
-        # it is this project's actionable selected todo; otherwise clear the
-        # dangling or contradictory pointer in the same transaction.
-        actionable_statuses = ("in_progress", "pending")
-        placeholders = ", ".join("?" for _ in actionable_statuses)
-        conn.execute(
-            "UPDATE projects SET selected_todo_id = NULL "
-            "WHERE selected_todo_id IS NOT NULL AND NOT EXISTS ("
-            "SELECT 1 FROM todos "
-            "WHERE todos.id = projects.selected_todo_id "
-            "AND todos.project_id = projects.id "
-            f"AND todos.status IN ({placeholders})"
-            ")",
-            actionable_statuses,
+def _write_restore(
+    conn: sqlite3.Connection,
+    items: list[dict],
+    sort_orders: list[int],
+    referenced_project_ids: set[int],
+    now: float,
+) -> None:
+    """Write the planned snapshot state. Caller owns the transaction."""
+    if referenced_project_ids:
+        try:
+            available_project_ids = {
+                row["id"]
+                for row in conn.execute("SELECT id FROM projects").fetchall()
+            }
+        except sqlite3.Error as exc:
+            raise TodoStoreError(
+                "cannot restore todos without reading available projects"
+            ) from exc
+        missing_project_ids = sorted(
+            referenced_project_ids - available_project_ids
         )
-        conn.commit()
+        if missing_project_ids:
+            missing = ", ".join(
+                str(project_id) for project_id in missing_project_ids
+            )
+            raise TodoStoreError(
+                f"cannot restore todos with unknown project_id values: {missing}"
+            )
+    conn.execute("DELETE FROM todos")
+    for item, sort_order in zip(items, sort_orders, strict=True):
+        status = item.get("status", "pending")
+        if status not in VALID_STATUSES:
+            status = "pending"
+        raw_id = item.get("id")
+        todo_id = raw_id if isinstance(raw_id, int) and not isinstance(raw_id, bool) else None
+        raw_project = item.get("project_id")
+        project_id = (
+            raw_project
+            if isinstance(raw_project, int) and not isinstance(raw_project, bool)
+            else None
+        )
+        progress = item.get("progress_note")
+        if progress is not None:
+            progress = str(progress)
+        created_at = item.get("created_at")
+        if not isinstance(created_at, (int, float)) or isinstance(created_at, bool):
+            created_at = now
+        updated_at = item.get("updated_at")
+        if not isinstance(updated_at, (int, float)) or isinstance(updated_at, bool):
+            updated_at = now
 
-    return get()
+        if todo_id is None:
+            conn.execute(
+                "INSERT INTO todos "
+                "(content, status, active_form, sort_order, progress_note, project_id, "
+                "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    str(item.get("content", "")),
+                    status,
+                    str(item.get("active_form", "")),
+                    sort_order,
+                    progress,
+                    project_id,
+                    created_at,
+                    updated_at,
+                ),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO todos "
+                "(id, content, status, active_form, sort_order, progress_note, project_id, "
+                "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    todo_id,
+                    str(item.get("content", "")),
+                    status,
+                    str(item.get("active_form", "")),
+                    sort_order,
+                    progress,
+                    project_id,
+                    created_at,
+                    updated_at,
+                ),
+            )
+
+    # storage_sync restores projects before todos, so a pointer can only be
+    # dangling because the referenced todo is absent from the snapshot or no
+    # longer actionable. Preserve it only when the restored row still proves
+    # it is this project's actionable selected todo; otherwise clear the
+    # dangling or contradictory pointer in the same transaction.
+    actionable_statuses = ("in_progress", "pending")
+    placeholders = ", ".join("?" for _ in actionable_statuses)
+    conn.execute(
+        "UPDATE projects SET selected_todo_id = NULL "
+        "WHERE selected_todo_id IS NOT NULL AND NOT EXISTS ("
+        "SELECT 1 FROM todos "
+        "WHERE todos.id = projects.selected_todo_id "
+        "AND todos.project_id = projects.id "
+        f"AND todos.status IN ({placeholders})"
+        ")",
+        actionable_statuses,
+    )
 
 
 def _match_existing_todo(

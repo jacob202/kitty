@@ -379,21 +379,77 @@ def _validate_todo_owners_against_destination(todos: list[Any]) -> None:
         )
 
 
-def _validate_project_restore(projects: list[Any]) -> None:
-    """Fail before any write if Projects cannot be replaced without breaking refs.
+def _validate_memories(payload: list[Any]) -> None:
+    """Reject memory records the importer cannot accept.
 
-    Projects restore before Todos and after Memories/Journal, so a Projects
-    payload that only fails on a foreign-key dependent would leave the earlier
-    stores committed against a rejected snapshot. The owning store answers the
-    question with a rolled-back dry run, and its error is reported as the
-    snapshot error the caller already handles.
+    Memories live in an external backend that cannot share one transaction with
+    the SQLite stores, so a record that fails mid-import cannot be rolled back.
+    The importer's only shape failure is a non-dict record; the text is read
+    defensively, so anything else is the backend's own outage, not the
+    snapshot's.
     """
-    from gateway import project_store
+    for record in payload:
+        if not isinstance(record, dict):
+            raise ValueError(f"memory record must be a dict, got {type(record).__name__}")
+        for field in ("memory", "text"):
+            value = record.get(field)
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"memory {field} must be a string")
 
+
+def _validate_real_writes(stores: dict[str, Any]) -> None:
+    """Dry-run every store that writes before a later one could fail.
+
+    ``_IMPORTERS`` runs Memories, Journal, Projects, Todos, then plugin
+    settings. Hand-written type checks cannot stay in step with what the real
+    statements accept, so each owning store is asked to execute its own write
+    path in a transaction that is always rolled back. Any failure rejects the
+    whole snapshot before a single row is committed.
+    """
+    from gateway import journal_store, project_store, todo_store
+
+    memories = stores.get("memories")
+    if isinstance(memories, list):
+        _reject_if_unrestorable("memories", lambda: _validate_memories(memories))
+
+    journal_entries = stores.get("journal_entries")
+    if isinstance(journal_entries, list):
+        _reject_if_unrestorable(
+            "journal_entries",
+            lambda: journal_store.validate_records(journal_entries),
+        )
+
+    projects = stores.get("projects")
+    if isinstance(projects, list):
+        _reject_if_unrestorable(
+            "projects", lambda: project_store.validate_restore(projects)
+        )
+
+    todos = stores.get("todos")
+    if isinstance(todos, list):
+        future_ids = None
+        if isinstance(projects, list):
+            future_ids = frozenset(
+                item["id"]
+                for item in projects
+                if isinstance(item, dict)
+                and isinstance(item.get("id"), int)
+                and not isinstance(item.get("id"), bool)
+            )
+        _reject_if_unrestorable(
+            "todos",
+            lambda: todo_store.validate_restore(todos, future_project_ids=future_ids),
+        )
+
+
+def _reject_if_unrestorable(name: str, validate: Callable[[], None]) -> None:
+    """Turn any dry-run failure into the snapshot rejection the caller expects."""
     try:
-        project_store.validate_restore(projects)
-    except project_store.ProjectError as exc:
-        raise ValueError(str(exc)) from exc
+        validate()
+    except Exception as exc:
+        # Any non-snapshot exception is still the caller's reject signal, but
+        # the original failure stays attached as the cause.
+        raise ValueError(f"snapshot {name} cannot be restored: {exc}") from exc
 
 
 def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
@@ -421,10 +477,7 @@ def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
     # rather than importing earlier stores and then aborting at a later one.
     _validate_snapshot_payloads(stores)
     _validate_snapshot_references(stores)
-    # Projects and Todos are validated independently: a projects store with no
-    # todos must not skip the reference preflight above.
-    if isinstance(stores.get("projects"), list):
-        _validate_project_restore(stores["projects"])
+    _validate_real_writes(stores)
     counts: dict[str, int] = {}
     for key, importer in _IMPORTERS.items():
         if key in stores:
