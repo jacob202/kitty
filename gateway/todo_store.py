@@ -180,6 +180,7 @@ def restore(items: list[dict]) -> list[dict]:
 
     sort_orders: list[int] = []
     seen_sort_orders: set[int] = set()
+    seen_ids: set[int] = set()
     referenced_project_ids: set[int] = set()
     for position, item in enumerate(items):
         raw_order = item.get("sort_order", position)
@@ -194,6 +195,20 @@ def restore(items: list[dict]) -> list[dict]:
             )
         seen_sort_orders.add(sort_order)
         sort_orders.append(sort_order)
+
+        # A non-integer id must fail loud. Coercing it to None would allocate a
+        # new identity, and any project selecting the original id would have
+        # that pointer silently cleared — the same destructive-loss shape as a
+        # malformed project_id.
+        raw_id = item.get("id")
+        if raw_id is not None and (
+            not isinstance(raw_id, int) or isinstance(raw_id, bool)
+        ):
+            raise TodoStoreError("todo id must be an integer or null")
+        if isinstance(raw_id, int) and not isinstance(raw_id, bool):
+            if raw_id in seen_ids:
+                raise TodoStoreError(f"cannot restore todos with duplicate id {raw_id}")
+            seen_ids.add(raw_id)
 
         raw_project = item.get("project_id")
         if raw_project is not None and (

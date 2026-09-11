@@ -356,3 +356,36 @@ def test_update_refuses_split_project_store_before_initializing_it(
 
     assert initialized is False
     assert not split_projects.exists()
+
+
+def test_restore_rejects_non_integer_todo_id_before_writing():
+    """A non-integer id must fail loud, never be silently reallocated."""
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    todo = todo_store.update([{"content": "Chosen next action", "status": "pending"}])[0]
+    todo_store.set_project(todo["id"], project["id"])
+    project_store.select_todo(project["id"], todo["id"])
+    before = todo_store.get()
+
+    with pytest.raises(
+        todo_store.TodoStoreError, match="todo id must be an integer or null"
+    ):
+        todo_store.restore([{**before[0], "id": str(before[0]["id"])}])
+
+    assert todo_store.get() == before
+    assert project_store.get(project["id"])["selected_todo_id"] == todo["id"]
+
+
+def test_restore_rejects_duplicate_todo_ids_before_writing():
+    todo_store.update([{"content": "Keep current state"}])
+    before = todo_store.get()
+
+    with pytest.raises(todo_store.TodoStoreError, match="duplicate id 42"):
+        todo_store.restore(
+            [
+                {"id": 42, "content": "first", "sort_order": 0},
+                {"id": 42, "content": "second", "sort_order": 1},
+            ]
+        )
+
+    assert todo_store.get() == before
