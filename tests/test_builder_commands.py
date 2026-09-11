@@ -8,6 +8,7 @@ from gateway.builder_commands import (
     command_publish,
     command_reconcile_merges,
     command_recover_stale,
+    command_register_result,
     command_requeue,
     command_resume,
     command_run_validation,
@@ -59,6 +60,7 @@ class TestCommandHandlersRegistered:
             "run_validation",
             "publish",
             "recover_stale",
+            "register_result",
             "reconcile_merges",
         }
 
@@ -187,6 +189,24 @@ class TestDirectPythonAuthorities:
         result = command_recover_stale(actor="test")
         assert result.ok is True
         assert result.evidence["total"] == 2
+
+    def test_register_result_retries_saved_artifact_without_worker_execution(self, monkeypatch):
+        called = {}
+
+        def fake_register(task_id, *, cleanup_after_success=False):
+            called.update(task_id=task_id, cleanup_after_success=cleanup_after_success)
+            return {"state": "ready", "artifact_id": "builder_result_task-1_attempt-7"}
+
+        monkeypatch.setattr(
+            "gateway.builder_commands.register_saved_result_artifact",
+            fake_register,
+        )
+        result = command_register_result("task-1", actor="test")
+
+        assert result.ok is True
+        assert called == {"task_id": "task-1", "cleanup_after_success": True}
+        assert result.evidence["state"] == "ready"
+        assert result.evidence["artifact_id"] == "builder_result_task-1_attempt-7"
 
     def test_reconcile_calls_merge_detector_directly(self, monkeypatch):
         monkeypatch.setattr(

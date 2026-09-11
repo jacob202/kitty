@@ -25,6 +25,7 @@ from gateway.builder_initiative import (
     pause_initiative,
     resume_initiative,
 )
+from gateway.builder_loop import register_saved_result_artifact
 from gateway.builder_publish import PublishError, publish_task
 from gateway.builder_queue import TaskNotFoundError as QueueTaskNotFoundError
 from gateway.builder_queue import detect_merged_prs, recover_durable_issues
@@ -56,6 +57,7 @@ _COMMAND_ARGUMENTS: dict[str, frozenset[str]] = {
     "run_validation": frozenset({"task_id", "actor", "reason"}),
     "publish": frozenset({"task_id", "actor", "reason"}),
     "recover_stale": frozenset({"actor", "expected_version"}),
+    "register_result": frozenset({"task_id", "actor", "reason"}),
     "reconcile_merges": frozenset({"actor"}),
 }
 
@@ -442,6 +444,45 @@ def command_recover_stale(
     )
 
 
+def command_register_result(
+    task_id: str,
+    *,
+    actor: str,
+    reason: str = "retry saved result registration from cockpit",
+) -> CommandResult:
+    """Register an already-completed saved result without rerunning its worker."""
+    try:
+        result = register_saved_result_artifact(
+            task_id, cleanup_after_success=True
+        )
+    except Exception as exc:
+        logger.warning("result registration retry %s failed: %s", task_id, exc)
+        return CommandResult(
+            ok=False,
+            action="register_result",
+            task_id=task_id,
+            error="Saved result could not be registered. Refresh Work and try again.",
+        )
+
+    _emit_event(
+        "command_completed",
+        {
+            "command": "register_result",
+            "task_id": task_id,
+            "actor": actor,
+            "reason": reason,
+            "artifact_id": result.get("artifact_id"),
+        },
+    )
+    return CommandResult(
+        ok=True,
+        action="register_result",
+        task_id=task_id,
+        detail="saved Builder result registered",
+        evidence=result,
+    )
+
+
 def command_reconcile_merges(
     *,
     actor: str,
@@ -474,5 +515,6 @@ COMMAND_HANDLERS: dict[str, Any] = {
     "run_validation": command_run_validation,
     "publish": command_publish,
     "recover_stale": command_recover_stale,
+    "register_result": command_register_result,
     "reconcile_merges": command_reconcile_merges,
 }

@@ -246,6 +246,73 @@ def test_snapshot_exposes_bounded_attempt_evidence_and_omits_unsafe_fields(tmp_p
     }
 
 
+def test_result_artifact_event_survives_reload_and_later_generic_events(tmp_path: Path):
+    db_path, _repo, task_id = _apply_manifest(tmp_path)
+    attempt = ba.start_attempt(INITIATIVE_ID, PACKET_ID, db_path=db_path)
+    ba.close_attempt(attempt["id"], ba.ATTEMPT_SUCCEEDED, db_path=db_path)
+    artifact_id = f"builder_result_{task_id}_attempt-{attempt['id']}"
+    bq.append_event(
+        task_id,
+        "result_artifact_registered",
+        payload={
+            "attempt_id": attempt["id"],
+            "state": "ready",
+            "artifact_id": artifact_id,
+            "kind": "builder_result",
+            "media_type": "text/plain",
+        },
+        db_path=db_path,
+    )
+    # A later generic event must not erase the durable result projection.
+    bq.append_event(
+        task_id,
+        "operator_note",
+        payload={"reason": "later event"},
+        db_path=db_path,
+    )
+
+    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+
+    assert packet["attempt_history"][0]["result_artifact"] == {
+        "state": "ready",
+        "artifact_id": artifact_id,
+        "kind": "builder_result",
+        "media_type": "text/plain",
+    }
+    assert packet["last_event"]["type"] == "operator_note"
+
+
+def test_result_registration_failure_projects_retryable_reason_without_raw_error(tmp_path: Path):
+    db_path, _repo, task_id = _apply_manifest(tmp_path)
+    attempt = ba.start_attempt(INITIATIVE_ID, PACKET_ID, db_path=db_path)
+    ba.close_attempt(attempt["id"], ba.ATTEMPT_SUCCEEDED, db_path=db_path)
+    artifact_id = f"builder_result_{task_id}_attempt-{attempt['id']}"
+    bq.append_event(
+        task_id,
+        "result_artifact_registration_failed",
+        payload={
+            "attempt_id": attempt["id"],
+            "state": "unavailable",
+            "artifact_id": artifact_id,
+            "reason": "Saved result is waiting for artifact registration.",
+            "error": {"sha256": "a" * 64, "length": 99},
+            "storage_uri": "/private/unsafe/result.patch",
+        },
+        db_path=db_path,
+    )
+
+    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    result = packet["attempt_history"][0]["result_artifact"]
+    assert result == {
+        "state": "unavailable",
+        "artifact_id": artifact_id,
+        "reason": "Saved result is waiting for artifact registration.",
+    }
+    assert "/private/unsafe" not in json.dumps(result)
+    assert "sha256" not in result
+    assert packet["projection"]["next_action"] == "register_result"
+
+
 def test_crashed_attempt_does_not_consume_retry_budget(tmp_path: Path):
     db_path, _repo, _task_id = _apply_manifest(tmp_path)
     crashed = ba.start_attempt(INITIATIVE_ID, PACKET_ID, db_path=db_path)

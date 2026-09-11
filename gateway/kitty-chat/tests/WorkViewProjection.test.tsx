@@ -278,6 +278,34 @@ describe('WorkView projection', () => {
     expect(screen.getByText('Saved result is waiting for artifact registration.')).toBeVisible()
   })
 
+  it('retries only saved result registration instead of rerunning completed work', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      counts: { total: 1, active: 0, paused: 0, failed: 0, blocked: 1, completed: 0, ready: 0, waiting: 0 },
+      items: [{
+        ...base,
+        state: 'blocked',
+        current_packet: { ...base.current_packet, task_state: 'blocked' },
+        next_action: 'register_result',
+        evidence: {
+          approval: { state: 'unavailable' },
+          result: { state: 'unavailable', artifact_id: 'builder_result_kb_123_attempt-42', reason: 'Saved result is waiting for artifact registration.' },
+        },
+      }],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry saving result' }))
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'register_result', task_id: 'kb_123' }),
+      expect.anything(),
+    )
+    expect(mutate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'requeue' }),
+      expect.anything(),
+    )
+  })
+
   it('interprets Builder timestamps without a timezone as UTC', () => {
     const base = snapshot().items[0]
     renderSnapshot({

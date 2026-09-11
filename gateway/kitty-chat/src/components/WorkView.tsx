@@ -394,6 +394,7 @@ const WORK_DETAIL_LABELS: Record<string, string> = {
   run_timeout: 'The last Builder run timed out.',
   worker_failed: 'The Builder worker failed.',
   recover: 'Recovery is available.',
+  register_result: 'The work finished, but saving its reusable result needs another try.',
   claim: 'Ready for Builder to claim.',
   exhausted: 'Automatic attempts are exhausted.',
   cancelled: 'Work was cancelled.',
@@ -420,6 +421,14 @@ export function rowAction(item: GatewayWorkItem, builderRunning: boolean, schedu
     case 'recover':
       if (!taskId) return { kind: 'none', explanation: 'Kitty cannot retry this — Builder did not record which job it belongs to.' }
       return { kind: 'command', label: 'Try again', command: { action: 'requeue', task_id: taskId, reason: 'Retried from Work' } }
+    case 'register_result':
+      if (!taskId) return { kind: 'none', explanation: 'Kitty cannot retry saving this result — Builder did not record which job it belongs to.' }
+      return {
+        kind: 'command',
+        label: 'Retry saving result',
+        command: { action: 'register_result', task_id: taskId, reason: 'Retried saved result registration from Work' },
+        note: 'The work already finished. Kitty will retry saving the existing result without rerunning Builder.',
+      }
     case 'exhausted': {
       const packetId = item.current_packet?.id ?? item.source.packet_id
       if (!packetId) return { kind: 'none', explanation: 'Kitty cannot allow another try — Builder did not record which packet used its retry budget.' }
@@ -441,7 +450,7 @@ const START_BUILDER_CONFIRM =
   'Run ready work now? This starts one global Builder pass and may start up to two Builder runs. Execution routes and any spend remain subject to current Builder routing and spend policy.'
 
 function canCancel(item: GatewayWorkItem): boolean {
-  const terminal = item.next_action === 'cancelled' || item.next_action === 'done' || item.state === 'completed'
+  const terminal = item.next_action === 'cancelled' || item.next_action === 'done' || item.next_action === 'register_result' || item.state === 'completed'
   const taskState = item.current_packet?.task_state ?? null
   const commandRejectsState = taskState === 'running' || taskState === 'pr_opened'
   return !terminal && !commandRejectsState && Boolean(item.current_packet?.task_id)
@@ -584,11 +593,13 @@ function ResultArtifactAction({ item, isMobile }: { item: GatewayWorkItem; isMob
   const result = evidenceRecord(item.evidence.result)
   const state = evidenceScalar(result?.state)
   const artifactId = evidenceScalar(result?.artifact_id)
-  const ready = state === 'ready' && Boolean(artifactId)
-  const [open, setOpen] = useState(false)
-  const artifact = useArtifact(artifactId ?? '', open && ready)
+  if (state !== 'ready' || !artifactId) return null
+  return <ReadyResultArtifactAction artifactId={artifactId} isMobile={isMobile} />
+}
 
-  if (!ready) return null
+function ReadyResultArtifactAction({ artifactId, isMobile }: { artifactId: string; isMobile: boolean }) {
+  const [open, setOpen] = useState(false)
+  const artifact = useArtifact(artifactId, open)
   return (
     <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>
       <button type="button" onClick={() => setOpen(true)} style={secondaryActionStyle}>Open result</button>

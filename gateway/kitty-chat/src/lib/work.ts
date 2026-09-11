@@ -353,7 +353,7 @@ export interface BuilderCommandResult {
 }
 
 export interface BuilderCommand {
-  action: 'requeue' | 'grant_attempt' | 'cancel' | 'resume' | 'pause'
+  action: 'requeue' | 'grant_attempt' | 'cancel' | 'resume' | 'pause' | 'register_result'
   task_id?: string
   packet_id?: string
   initiative_id?: string
