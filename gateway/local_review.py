@@ -21,6 +21,17 @@ from typing import Any, Callable, Iterable, Sequence
 
 DEFAULT_REVIEWER_MODEL = "Qwen3.5-9B-Q3_K_M"
 DEFAULT_OLLAMA_URLS = ("http://127.0.0.1:11434", "http://127.0.0.1:11435")
+METAL_RUNTIME_PROFILE = "metal_calibrated_v1"
+CPU_SHADOW_RUNTIME_PROFILE = "cpu_shadow_v1"
+DEFAULT_RUNTIME_PROFILE = METAL_RUNTIME_PROFILE
+_RUNTIME_PROFILE_GPU_LAYERS = {
+    METAL_RUNTIME_PROFILE: 999,
+    CPU_SHADOW_RUNTIME_PROFILE: 0,
+}
+_RUNTIME_PROFILE_REQUEST_TIMEOUT_S = {
+    METAL_RUNTIME_PROFILE: 45.0,
+    CPU_SHADOW_RUNTIME_PROFILE: 120.0,
+}
 VALID_ANSWERS = {"YES", "NO", "UNSURE"}
 MAX_PROMPT_TOKENS = 1900
 DEFAULT_FOCUS_LOCK = Path(tempfile.gettempdir()) / "kitty-local-review-focus.lock"
@@ -146,15 +157,11 @@ def review_decision(
     }
 
 
-def build_llama_server_command(model_path: Path, *, port: int) -> list[str]:
-    if not model_path.exists():
-        raise FileNotFoundError(model_path)
-    executable = shutil.which("llama-server") or "llama-server"
+def _runtime_inference_flags(runtime_profile: str) -> list[str]:
+    gpu_layers = _RUNTIME_PROFILE_GPU_LAYERS.get(runtime_profile)
+    if gpu_layers is None:
+        raise ValueError(f"unknown local review runtime profile: {runtime_profile}")
     return [
-        executable,
-        "-m", str(model_path),
-        "--host", "127.0.0.1",
-        "--port", str(port),
         "--no-mmproj",
         "-np", "1",
         "-c", "2048",
@@ -165,7 +172,32 @@ def build_llama_server_command(model_path: Path, *, port: int) -> list[str]:
         "-ctv", "q4_0",
         "--reasoning", "off",
         "--reasoning-budget", "0",
-        "-ngl", "999",
+        "-ngl", str(gpu_layers),
+    ]
+
+
+def _runtime_request_timeout(runtime_profile: str) -> float:
+    timeout = _RUNTIME_PROFILE_REQUEST_TIMEOUT_S.get(runtime_profile)
+    if timeout is None:
+        raise ValueError(f"unknown local review runtime profile: {runtime_profile}")
+    return timeout
+
+
+def build_llama_server_command(
+    model_path: Path,
+    *,
+    port: int,
+    runtime_profile: str = DEFAULT_RUNTIME_PROFILE,
+) -> list[str]:
+    if not model_path.exists():
+        raise FileNotFoundError(model_path)
+    executable = shutil.which("llama-server") or "llama-server"
+    return [
+        executable,
+        "-m", str(model_path),
+        "--host", "127.0.0.1",
+        "--port", str(port),
+        *_runtime_inference_flags(runtime_profile),
     ]
 
 
@@ -223,6 +255,34 @@ def _restore_keep_alive(expires_at: str | None) -> int | str:
     return f"{max(1, math.ceil(seconds))}s"
 
 
+class ReviewExecutionLock:
+    """Exclusive ownership of the local reviewer runtime, independent of focus mode."""
+
+    def __init__(self, lock_path: Path = DEFAULT_FOCUS_LOCK) -> None:
+        self.lock_path = lock_path
+        self._handle: Any = None
+
+    def __enter__(self) -> "ReviewExecutionLock":
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = self.lock_path.open("a+")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            handle.close()
+            raise RuntimeError("local review runtime is already active") from exc
+        self._handle = handle
+        return self
+
+    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> bool:
+        if self._handle is not None:
+            try:
+                fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
+            finally:
+                self._handle.close()
+                self._handle = None
+        return False
+
+
 class ReviewFocus:
     def __init__(
         self,
@@ -231,11 +291,13 @@ class ReviewFocus:
         request_json: Callable[[str, str, object], dict[str, Any]] = _ollama_request_json,
         managed_models: Iterable[str] = (),
         lock_path: Path = DEFAULT_FOCUS_LOCK,
+        acquire_lock: bool = True,
     ) -> None:
         self.ollama_urls = tuple(url.rstrip("/") for url in ollama_urls)
         self.request_json = request_json
         self.managed_models = frozenset(str(item) for item in managed_models)
         self.lock_path = lock_path
+        self.acquire_lock = acquire_lock
         self.unloaded: list[OllamaResidency] = []
         self._pending_restore: list[OllamaResidency] = []
         self.unavailable: list[dict[str, str]] = []
@@ -250,6 +312,8 @@ class ReviewFocus:
         return list(self._pending_restore)
 
     def _acquire_lock(self) -> None:
+        if not self.acquire_lock:
+            return
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
         handle = self.lock_path.open("a+")
         try:
@@ -372,14 +436,29 @@ def _model_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def reviewer_fingerprint(model_path: Path, model_id: str) -> dict[str, str]:
+def reviewer_fingerprint(
+    model_path: Path,
+    model_id: str,
+    *,
+    runtime_profile: str = DEFAULT_RUNTIME_PROFILE,
+    request_timeout: float | None = None,
+) -> dict[str, str]:
     resolved = model_path.expanduser().resolve()
+    inference_flags = _runtime_inference_flags(runtime_profile)
+    effective_timeout = (
+        _runtime_request_timeout(runtime_profile)
+        if request_timeout is None
+        else float(request_timeout)
+    )
     return {
         "model_id": model_id,
         "model_family": model_family(model_id) or model_family(resolved.name) or "unknown",
         "model_path": str(resolved),
         "model_sha256": _model_sha256(resolved),
         "runtime": "llama.cpp",
+        "runtime_profile": runtime_profile,
+        "inference_flags": " ".join(inference_flags),
+        "request_timeout_s": f"{effective_timeout:g}",
     }
 
 
@@ -390,15 +469,29 @@ class LocalLlamaServer:
         *,
         port: int | None = None,
         startup_timeout: float = 75.0,
-        request_timeout: float = 45.0,
+        request_timeout: float | None = None,
+        runtime_profile: str = DEFAULT_RUNTIME_PROFILE,
+        deadline_monotonic: float | None = None,
     ) -> None:
+        _runtime_inference_flags(runtime_profile)
+        profile_timeout = _runtime_request_timeout(runtime_profile)
         self.model_path = model_path
         self.port = port or _free_port()
         self.startup_timeout = startup_timeout
-        self.request_timeout = request_timeout
+        self.request_timeout = profile_timeout if request_timeout is None else float(request_timeout)
+        self.runtime_profile = runtime_profile
+        self.deadline_monotonic = deadline_monotonic
         self.process: subprocess.Popen[bytes] | None = None
         self.log_path: Path | None = None
         self.model_id = DEFAULT_REVIEWER_MODEL
+
+    def _bounded_timeout(self, cap: float) -> float:
+        if self.deadline_monotonic is None:
+            return cap
+        remaining = self.deadline_monotonic - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("local review aggregate wall budget exhausted")
+        return max(0.01, min(cap, remaining))
 
     @property
     def base_url(self) -> str:
@@ -410,12 +503,16 @@ class LocalLlamaServer:
         log = tempfile.NamedTemporaryFile(prefix="kitty-local-review-", suffix=".log", delete=False)
         self.log_path = Path(log.name)
         self.process = subprocess.Popen(
-            build_llama_server_command(self.model_path, port=self.port),
+            build_llama_server_command(
+                self.model_path, port=self.port, runtime_profile=self.runtime_profile
+            ),
             stdout=log,
             stderr=subprocess.STDOUT,
         )
         log.close()
         deadline = time.monotonic() + self.startup_timeout
+        if self.deadline_monotonic is not None:
+            deadline = min(deadline, self.deadline_monotonic)
         last_error = "server did not answer"
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
@@ -441,7 +538,7 @@ class LocalLlamaServer:
             "POST",
             f"{self.base_url}/tokenize",
             {"content": prompt, "add_special": True},
-            timeout=min(self.request_timeout, 10.0),
+            timeout=self._bounded_timeout(min(self.request_timeout, 10.0)),
         )
         tokens = tokenized.get("tokens")
         if not isinstance(tokens, list):
@@ -460,7 +557,7 @@ class LocalLlamaServer:
                 "max_tokens": 4,
                 "stream": False,
             },
-            timeout=self.request_timeout,
+            timeout=self._bounded_timeout(self.request_timeout),
         )
         try:
             choice = response["choices"][0]
@@ -475,7 +572,12 @@ class LocalLlamaServer:
         return content
 
     def fingerprint(self) -> dict[str, str]:
-        return reviewer_fingerprint(self.model_path, self.model_id)
+        return reviewer_fingerprint(
+            self.model_path,
+            self.model_id,
+            runtime_profile=self.runtime_profile,
+            request_timeout=self.request_timeout,
+        )
 
     def _log_tail(self) -> str:
         if self.log_path is None or not self.log_path.exists():
@@ -506,6 +608,8 @@ def run_local_review(
     ollama_urls: Sequence[str] = DEFAULT_OLLAMA_URLS,
     managed_ollama_models: Iterable[str] = (),
     focus_lock_path: Path = DEFAULT_FOCUS_LOCK,
+    runtime_profile: str = DEFAULT_RUNTIME_PROFILE,
+    max_wall_seconds: float | None = None,
 ) -> dict[str, Any]:
     requirements = [str(item) for item in request.get("requirements") or []]
     candidate = str(request.get("candidate") or "")
@@ -517,6 +621,13 @@ def run_local_review(
         raise ValueError("at least one review requirement is required")
     if not candidate.strip():
         raise ValueError("candidate evidence is required")
+    if max_wall_seconds is not None and max_wall_seconds <= 0:
+        raise ValueError("max_wall_seconds must be positive")
+    wall_deadline = (
+        time.monotonic() + float(max_wall_seconds)
+        if max_wall_seconds is not None
+        else None
+    )
 
     risk_tags = sorted(detect_risk_tags(requirements) | set(explicit_tags))
     base_result: dict[str, Any] = {
@@ -548,13 +659,18 @@ def run_local_review(
             ollama_urls,
             managed_models=managed_ollama_models,
             lock_path=focus_lock_path,
+            acquire_lock=False,
         )
         if use_focus
         else None
     )
 
     def execute() -> dict[str, Any]:
-        with LocalLlamaServer(selected_model_path) as server:
+        with LocalLlamaServer(
+            selected_model_path,
+            runtime_profile=runtime_profile,
+            deadline_monotonic=wall_deadline,
+        ) as server:
             result = review_decision(
                 requirements=requirements,
                 candidate=candidate,
@@ -567,22 +683,25 @@ def run_local_review(
             fingerprint = (
                 server.fingerprint()
                 if hasattr(server, "fingerprint")
-                else reviewer_fingerprint(selected_model_path, server.model_id)
+                else reviewer_fingerprint(
+                    selected_model_path, server.model_id, runtime_profile=runtime_profile
+                )
             )
             result["reviewer_fingerprint"] = fingerprint
             result["implementation_provenance"] = "untrusted_request_metadata"
             return result
 
     try:
-        if focus is None:
-            return execute()
-        with focus:
-            result = execute()
-        result["focus"] = {
-            "unloaded": [item.model for item in focus.unloaded_history],
-            "unavailable": focus.unavailable,
-        }
-        return result
+        with ReviewExecutionLock(focus_lock_path):
+            if focus is None:
+                return execute()
+            with focus:
+                result = execute()
+            result["focus"] = {
+                "unloaded": [item.model for item in focus.unloaded_history],
+                "unavailable": focus.unavailable,
+            }
+            return result
     except (RuntimeError, OSError) as exc:
         return base_result | {
             "decision": "escalate",

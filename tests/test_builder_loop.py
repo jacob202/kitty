@@ -2744,6 +2744,385 @@ def test_default_review_budget_is_four_minutes():
     assert bl.DEFAULT_REVIEW_TIMEOUT == 240
 
 
+
+def test_local_shadow_review_is_bound_and_cannot_replace_authoritative_review(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    _apply(db_path, max_attempts=1, repo_root=repo)
+    captured: dict[str, object] = {}
+
+    def fake_local_review(request, **kwargs):
+        captured["request"] = request
+        captured["kwargs"] = kwargs
+        return {
+            "contract_version": 1,
+            "authoritative": False,
+            "review_kind": "code",
+            "reviewer_model": "Qwen3.5-9B-Q3_K_M",
+            "risk_tags": [],
+            "requirements": [
+                {"requirement": "done.txt exists", "answer": "YES"}
+            ],
+            "decision": "advisory_clear",
+            "reason": "all_requirements_locally_clear_shadow_only",
+            "reviewer_fingerprint": {
+                "model_id": "Qwen3.5-9B-Q3_K_M",
+                "model_family": "qwen",
+                "model_sha256": "f" * 64,
+                "runtime": "llama.cpp",
+                "runtime_profile": "cpu_shadow_v1",
+                "inference_flags": "--reasoning off -ngl 0",
+                "request_timeout_s": "120",
+            },
+            "implementation_provenance": "untrusted_request_metadata",
+        }
+
+    monkeypatch.setenv("KITTYBUILDER_LOCAL_REVIEW_SHADOW", "1")
+    monkeypatch.setenv("KITTYBUILDER_LOCAL_REVIEW_MANAGED_OLLAMA_MODELS", "phi3:mini")
+    monkeypatch.setattr(bl, "run_local_review", fake_local_review, raising=False)
+    monkeypatch.setattr(
+        bl,
+        "_trusted_local_implementation_model",
+        lambda **_kwargs: (
+            "openrouter/deepseek/deepseek-v4-flash",
+            "builder_controlled_dsh_adapter",
+        ),
+    )
+    rejecting_reviewer = _script(
+        tmp_path,
+        "rejecting-reviewer.sh",
+        'cat > "$KB_REVIEW_RESULT_PATH" <<\'EOF\'\n'
+        '{"contract_version":1,"verdict":"request_changes","summary":"no"}\nEOF\n',
+    )
+
+    result = bl.run_packet(
+        INITIATIVE,
+        PACKET,
+        worker_command=_good_worker(tmp_path),
+        review_command=rejecting_reviewer,
+        model="openrouter/deepseek/deepseek-v4-flash",
+        provider="openrouter",
+        repo_root=repo,
+        db_path=db_path,
+        governor_risk_class="routine",
+    )
+
+    assert result["outcome"] == bl.LOOP_EXHAUSTED
+    request = captured["request"]
+    assert isinstance(request, dict)
+    assert request["requirements"] == ["done.txt exists"]
+    assert request["implementation_model"] == "openrouter/deepseek/deepseek-v4-flash"
+    assert request["risk_tags"] == []
+    assert "runtime_profile" not in request
+    assert captured["kwargs"] == {
+        "use_focus": False,
+        "managed_ollama_models": [],
+        "runtime_profile": "cpu_shadow_v1",
+        "max_wall_seconds": bl.LOCAL_SHADOW_MAX_WALL_SECONDS,
+    }
+    assert "done.txt" in request["candidate"]
+    manifest = json.loads(
+        Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    shadow = manifest["local_review_shadow"]
+    assert shadow["authoritative"] is False
+    assert shadow["decision"] == "advisory_clear"
+    assert shadow["binding"]["diff_sha256"] == manifest["review_context"]["diff_sha256"]
+    assert shadow["binding"]["implementation_model"] == "openrouter/deepseek/deepseek-v4-flash"
+    assert shadow["binding"]["implementation_provenance"] == "builder_controlled_dsh_adapter"
+    assert shadow["reviewer_fingerprint"]["runtime_profile"] == "cpu_shadow_v1"
+    assert shadow["reviewer_fingerprint"]["inference_flags"] == "--reasoning off -ngl 0"
+    assert shadow["reviewer_fingerprint"]["request_timeout_s"] == "120"
+    assert shadow["requirements"] == [
+        {"sha256": bl._sha256_text("done.txt exists"), "answer": "YES"}
+    ]
+    assert "done.txt exists" not in json.dumps(shadow)
+    assert shadow["learning"]["adjudication_status"] == "pending"
+    assert shadow["learning"]["authoritative_review"]["verdict"] == "request_changes"
+    assert manifest["review"]["verdict"] == "request_changes"
+    shadow_events = [
+        event
+        for event in bq.list_events(result["task_id"], db_path=db_path)
+        if event["type"] == "local_review_shadow_recorded"
+    ]
+    assert len(shadow_events) == 1
+    assert shadow_events[0]["payload"]["counts_toward_authoritative_review"] is False
+    assert shadow_events[0]["payload"]["adjudication_status"] == "pending"
+
+
+@pytest.mark.parametrize(
+    ("decision", "reason"),
+    [
+        ("escalate", "local_reviewer_runtime_error"),
+        ("escalate", "local_reviewer_not_clear"),
+    ],
+)
+def test_local_shadow_failure_never_blocks_authoritative_fallback(
+    repo: Path,
+    db_path: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    decision: str,
+    reason: str,
+):
+    _apply(db_path, max_attempts=1, repo_root=repo)
+    monkeypatch.setenv("KITTYBUILDER_LOCAL_REVIEW_SHADOW", "1")
+    monkeypatch.setattr(
+        bl,
+        "_trusted_local_implementation_model",
+        lambda **_kwargs: (
+            "openrouter/deepseek/deepseek-v4-flash",
+            "builder_controlled_dsh_adapter",
+        ),
+    )
+    monkeypatch.setattr(
+        bl,
+        "run_local_review",
+        lambda *_args, **_kwargs: {
+            "contract_version": 1,
+            "authoritative": False,
+            "decision": decision,
+            "reason": reason,
+            "review_kind": "code",
+            "reviewer_model": None,
+            "risk_tags": [],
+            "requirements": [],
+            "implementation_provenance": "untrusted_request_metadata",
+        },
+        raising=False,
+    )
+
+    result = bl.run_packet(
+        INITIATIVE,
+        PACKET,
+        worker_command=_good_worker(tmp_path),
+        review_command=_approve_reviewer(tmp_path),
+        model="openrouter/deepseek/deepseek-v4-flash",
+        provider="openrouter",
+        repo_root=repo,
+        db_path=db_path,
+    )
+
+    assert result["outcome"] == bl.LOOP_SUCCEEDED
+    manifest = json.loads(
+        Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    assert manifest["local_review_shadow"]["decision"] == decision
+    assert manifest["local_review_shadow"]["reason"] == reason
+    assert manifest["review"]["verdict"] == "approve"
+
+
+
+@pytest.mark.parametrize("mode", ["exception", "malformed"])
+def test_local_shadow_runtime_exception_or_malformed_result_escalates_only(
+    repo: Path,
+    db_path: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+):
+    _apply(db_path, max_attempts=1, repo_root=repo)
+    monkeypatch.setenv("KITTYBUILDER_LOCAL_REVIEW_SHADOW", "1")
+    monkeypatch.setattr(
+        bl,
+        "_trusted_local_implementation_model",
+        lambda **_kwargs: (
+            "openrouter/deepseek/deepseek-v4-flash",
+            "builder_controlled_dsh_adapter",
+        ),
+    )
+
+    def broken_local_review(*_args, **_kwargs):
+        if mode == "exception":
+            raise TimeoutError("synthetic local timeout")
+        return {"authoritative": True, "decision": "approve"}
+
+    monkeypatch.setattr(bl, "run_local_review", broken_local_review, raising=False)
+    result = bl.run_packet(
+        INITIATIVE,
+        PACKET,
+        worker_command=_good_worker(tmp_path),
+        review_command=_approve_reviewer(tmp_path),
+        model="openrouter/deepseek/deepseek-v4-flash",
+        provider="openrouter",
+        repo_root=repo,
+        db_path=db_path,
+    )
+    manifest = json.loads(
+        Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    assert result["outcome"] == bl.LOOP_SUCCEEDED
+    assert manifest["review"]["verdict"] == "approve"
+    assert manifest["local_review_shadow"]["authoritative"] is False
+    expected = (
+        "local_reviewer_runtime_error"
+        if mode == "exception"
+        else "local_reviewer_malformed_result"
+    )
+    assert manifest["local_review_shadow"]["decision"] == "escalate"
+    assert manifest["local_review_shadow"]["reason"] == expected
+
+def test_local_shadow_high_risk_and_unknown_model_escalate_before_inference(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("KITTYBUILDER_LOCAL_REVIEW_SHADOW", "1")
+    _apply(db_path, max_attempts=1, repo_root=repo)
+    first = bl.run_packet(
+        INITIATIVE,
+        PACKET,
+        worker_command=_good_worker(tmp_path),
+        review_command=_approve_reviewer(tmp_path),
+        model="openrouter/deepseek/deepseek-v4-flash",
+        provider="openrouter",
+        repo_root=repo,
+        db_path=db_path,
+        governor_risk_class="risky",
+    )
+    first_manifest = json.loads(
+        Path(first["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    assert first["outcome"] == bl.LOOP_SUCCEEDED
+    assert first_manifest["local_review_shadow"]["decision"] == "escalate"
+    assert first_manifest["local_review_shadow"]["reason"] == "high_risk_requires_strong_review"
+
+    other_db = tmp_path / "unknown-model" / "builder_queue.db"
+    ba.init_db(other_db)
+    _apply(other_db, max_attempts=1, repo_root=repo)
+    second = bl.run_packet(
+        INITIATIVE,
+        PACKET,
+        worker_command=_good_worker(tmp_path),
+        review_command=_approve_reviewer(tmp_path),
+        model=None,
+        provider=None,
+        repo_root=repo,
+        db_path=other_db,
+    )
+    second_manifest = json.loads(
+        Path(second["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    assert second["outcome"] == bl.LOOP_SUCCEEDED
+    assert second_manifest["local_review_shadow"]["decision"] == "escalate"
+    assert second_manifest["local_review_shadow"]["reason"] == "implementation_model_unknown"
+
+
+def test_local_shadow_is_opt_in(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    _apply(db_path, max_attempts=1, repo_root=repo)
+    monkeypatch.delenv("KITTYBUILDER_LOCAL_REVIEW_SHADOW", raising=False)
+    monkeypatch.setattr(
+        bl,
+        "run_local_review",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("shadow ran")),
+        raising=False,
+    )
+    result = bl.run_packet(
+        INITIATIVE,
+        PACKET,
+        worker_command=_good_worker(tmp_path),
+        review_command=_approve_reviewer(tmp_path),
+        model="openrouter/deepseek/deepseek-v4-flash",
+        provider="openrouter",
+        repo_root=repo,
+        db_path=db_path,
+    )
+    assert result["outcome"] == bl.LOOP_SUCCEEDED
+    manifest = json.loads(
+        Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    assert "local_review_shadow" not in manifest
+
+
+
+def test_local_shadow_budget_reserves_authoritative_review_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = 1000.0
+    monkeypatch.setattr(bl.time, "monotonic", lambda: now)
+    assert bl._local_shadow_budget_available(
+        deadline_monotonic=now + bl.DEFAULT_REVIEW_TIMEOUT + bl.LOCAL_SHADOW_MAX_WALL_SECONDS,
+        review_timeout_seconds=bl.DEFAULT_REVIEW_TIMEOUT,
+    ) is True
+    assert bl._local_shadow_budget_available(
+        deadline_monotonic=now + bl.DEFAULT_REVIEW_TIMEOUT + bl.LOCAL_SHADOW_MAX_WALL_SECONDS - 0.01,
+        review_timeout_seconds=bl.DEFAULT_REVIEW_TIMEOUT,
+    ) is False
+
+
+def test_local_shadow_candidate_rejects_large_untracked_file_before_read(repo: Path, tmp_path: Path) -> None:
+    path = repo / "huge.txt"
+    path.write_bytes(b"x" * (bl.LOCAL_SHADOW_MAX_CANDIDATE_BYTES + 1))
+    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    with pytest.raises(bl.LoopError, match="candidate exceeds byte limit"):
+        bl._local_shadow_candidate(repo, base)
+
+
+def test_local_shadow_only_trusts_model_from_controlled_dsh_adapter() -> None:
+    custom = bl._trusted_local_implementation_model(
+        worker_command=["bash", "worker.sh"],
+        adapter_env={"KITTYBUILDER_MODEL": "openrouter/deepseek/deepseek-v4-flash"},
+        model="openrouter/deepseek/deepseek-v4-flash",
+    )
+    assert custom == (None, "implementation_model_unverified")
+    canonical_worker = Path(bl.__file__).resolve().parents[1] / "scripts" / "kittybuilder_dsh_worker.sh"
+    assert bl._trusted_local_implementation_model(
+        worker_command=["bash", "/tmp/kittybuilder_dsh_worker.sh"],
+        adapter_env={"KITTYBUILDER_MODEL": "openrouter/deepseek/deepseek-v4-flash"},
+        model="openrouter/deepseek/deepseek-v4-flash",
+    ) == (None, "implementation_model_unverified")
+    trusted = bl._trusted_local_implementation_model(
+        worker_command=["bash", str(canonical_worker)],
+        adapter_env={"KITTYBUILDER_MODEL": "openrouter/deepseek/deepseek-v4-flash"},
+        model="openrouter/deepseek/deepseek-v4-flash",
+    )
+    assert trusted == (
+        "openrouter/deepseek/deepseek-v4-flash",
+        "builder_controlled_dsh_adapter",
+    )
+
+
+def test_local_shadow_malformed_clear_is_downgraded_to_escalate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        bl,
+        "_local_shadow_candidate",
+        lambda *_args, **_kwargs: "diff --git a/a.py b/a.py\n+safe = True\n",
+    )
+    monkeypatch.setattr(
+        bl,
+        "run_local_review",
+        lambda *_args, **_kwargs: {
+            "authoritative": False,
+            "decision": "advisory_clear",
+            "reason": "fake clear",
+            "requirements": [],
+            "reviewer_fingerprint": None,
+            "risk_tags": [],
+        },
+    )
+    receipt = bl._run_local_shadow_review(
+        worktree=tmp_path,
+        packet_contract={"acceptance_criteria": ["safe"]},
+        cumulative={"base_sha": "a"*40, "review_sha": "b"*40, "diff_sha256": "c"*64, "changed_paths": ["a.py"]},
+        implementation_model="openrouter/deepseek/deepseek-v4-flash",
+        implementation_provenance="builder_controlled_dsh_adapter",
+        governor_risk_class="routine",
+    )
+    assert receipt["decision"] == "escalate"
+    assert receipt["reason"] == "local_reviewer_malformed_result"
+
+
+def test_local_shadow_sensitive_scope_escalates_without_inference(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(bl, "run_local_review", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("inference ran")))
+    receipt = bl._run_local_shadow_review(
+        worktree=tmp_path,
+        packet_contract={"acceptance_criteria": ["All declared tests pass."]},
+        cumulative={"base_sha": "a"*40, "review_sha": "b"*40, "diff_sha256": "c"*64, "changed_paths": ["gateway/auth.py"]},
+        implementation_model="openrouter/deepseek/deepseek-v4-flash",
+        implementation_provenance="builder_controlled_dsh_adapter",
+        governor_risk_class="routine",
+    )
+    assert receipt["decision"] == "escalate"
+    assert "builder_sensitive_scope" in receipt["risk_tags"]
+
 def test_governor_dispatch_preserves_paid_risk_class():
     dispatch = bl._governor_dispatch(
         INITIATIVE, PACKET, base_sha="a" * 40, risk_class="risky"

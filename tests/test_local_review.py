@@ -8,6 +8,7 @@ import pytest
 
 from gateway.local_review import (
     LocalLlamaServer,
+    ReviewExecutionLock,
     ReviewFocus,
     build_llama_server_command,
     build_requirement_prompt,
@@ -131,6 +132,48 @@ def test_llama_server_command_uses_verified_low_memory_settings(tmp_path) -> Non
     assert "--port 18080" in joined
 
 
+def test_cpu_shadow_runtime_profile_is_explicit_and_fingerprinted(tmp_path: Path) -> None:
+    model = tmp_path / "reviewer.gguf"
+    model.write_bytes(b"profile-test-model")
+
+    metal = build_llama_server_command(
+        model, port=18080, runtime_profile="metal_calibrated_v1"
+    )
+    cpu = build_llama_server_command(
+        model, port=18081, runtime_profile="cpu_shadow_v1"
+    )
+    assert metal[metal.index("-ngl") + 1] == "999"
+    assert cpu[cpu.index("-ngl") + 1] == "0"
+
+    from gateway.local_review import reviewer_fingerprint
+
+    metal_fp = reviewer_fingerprint(
+        model, "Qwen3.5-9B-Q3_K_M", runtime_profile="metal_calibrated_v1"
+    )
+    cpu_fp = reviewer_fingerprint(
+        model, "Qwen3.5-9B-Q3_K_M", runtime_profile="cpu_shadow_v1"
+    )
+    assert metal_fp["runtime_profile"] == "metal_calibrated_v1"
+    assert cpu_fp["runtime_profile"] == "cpu_shadow_v1"
+    assert metal_fp["inference_flags"] != cpu_fp["inference_flags"]
+    assert "-ngl 999" in metal_fp["inference_flags"]
+    assert "-ngl 0" in cpu_fp["inference_flags"]
+    assert metal_fp["request_timeout_s"] == "45"
+    assert cpu_fp["request_timeout_s"] == "120"
+
+    metal_server = LocalLlamaServer(model, runtime_profile="metal_calibrated_v1")
+    cpu_server = LocalLlamaServer(model, runtime_profile="cpu_shadow_v1")
+    assert metal_server.request_timeout == 45.0
+    assert cpu_server.request_timeout == 120.0
+
+
+def test_unknown_runtime_profile_is_rejected_before_server_start(tmp_path: Path) -> None:
+    model = tmp_path / "reviewer.gguf"
+    model.write_bytes(b"x")
+    with pytest.raises(ValueError, match="unknown local review runtime profile"):
+        build_llama_server_command(model, port=18080, runtime_profile="caller-controlled")
+
+
 def test_review_focus_unloads_only_generation_models_and_restores_them() -> None:
     calls: list[tuple[str, str, object]] = []
 
@@ -191,9 +234,13 @@ def test_request_reviewer_label_cannot_override_actual_runtime_identity(tmp_path
     model = tmp_path / "Qwen3.5-9B-Q3_K_M.gguf"
     model.write_bytes(b"model")
 
+    seen_profiles: list[str] = []
+
     class FakeQwenServer:
         model_id = "Qwen3.5-9B-Q3_K_M"
-        def __init__(self, model_path: Path) -> None: self.model_path = model_path
+        def __init__(self, model_path: Path, *, runtime_profile: str, deadline_monotonic=None) -> None:
+            self.model_path = model_path
+            seen_profiles.append(runtime_profile)
         def __enter__(self): return self
         def __exit__(self, *args): return False
         def ask(self, _requirement: str, _candidate: str) -> str: return "YES"
@@ -201,9 +248,11 @@ def test_request_reviewer_label_cannot_override_actual_runtime_identity(tmp_path
     with patch("gateway.local_review.LocalLlamaServer", FakeQwenServer):
         result = run_local_review(
             {"requirements": ["The parser preserves rows."], "candidate": "candidate",
-             "implementation_model": "qwen3.5-coder", "reviewer_model": "deepseek-v4"},
+             "implementation_model": "qwen3.5-coder", "reviewer_model": "deepseek-v4",
+             "runtime_profile": "cpu_shadow_v1"},
             model_path=model, use_focus=False,
         )
+    assert seen_profiles == ["metal_calibrated_v1"]
     assert result["decision"] != "approve"
     assert result["reviewer_model"] == "Qwen3.5-9B-Q3_K_M"
 
@@ -434,3 +483,37 @@ def test_model_sha256_hashes_bytes_even_when_filename_looks_content_addressed(tm
     actual = hashlib.sha256(b"not-the-named-digest").hexdigest()
     assert _model_sha256(model) == actual
     assert _model_sha256(model) != model.name
+
+
+def test_execution_lock_serializes_review_even_without_focus(tmp_path: Path) -> None:
+    model = tmp_path / "Qwen3.5-9B-Q3_K_M.gguf"
+    model.write_bytes(b"model")
+    lock_path = tmp_path / "review.lock"
+    with ReviewExecutionLock(lock_path):
+        result = run_local_review(
+            {
+                "requirements": ["The parser preserves rows."],
+                "candidate": "candidate",
+                "implementation_model": "deepseek-v4",
+            },
+            model_path=model,
+            use_focus=False,
+            focus_lock_path=lock_path,
+            runtime_profile="cpu_shadow_v1",
+        )
+    assert result["decision"] == "escalate"
+    assert result["reason"] == "local_reviewer_runtime_error"
+    assert "already active" in result["error"]
+
+
+def test_zero_wall_budget_fails_before_model_start(tmp_path: Path) -> None:
+    model = tmp_path / "Qwen3.5-9B-Q3_K_M.gguf"
+    model.write_bytes(b"model")
+    with pytest.raises(ValueError, match="max_wall_seconds"):
+        run_local_review(
+            {"requirements": ["safe"], "candidate": "candidate", "implementation_model": "deepseek-v4"},
+            model_path=model,
+            use_focus=False,
+            runtime_profile="cpu_shadow_v1",
+            max_wall_seconds=0,
+        )
