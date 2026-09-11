@@ -56,6 +56,29 @@ def test_trust_bearing_paths_are_sensitive(path: str) -> None:
     assert pr_scope.classify([path]).sensitive is True, path
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "gateway/compute_governor.py",
+        "gateway/paid_review_admission.py",
+        "config/compute_governor.json",
+        "config/providers.json",
+        "gateway/builder_loop.py",
+        "gateway/builder_queue.py",
+        "gateway/builder_queue_leases.py",
+        "gateway/builder_runner.py",
+        "gateway/builder_supervisor.py",
+        "gateway/builder_execution_boundary.py",
+        "gateway/builder_identity.py",
+        "gateway/builder_contract_gate.py",
+    ],
+)
+def test_spend_and_builder_authority_surfaces_are_sensitive(path: str) -> None:
+    scope = pr_scope.classify([path])
+    assert scope.sensitive is True, path
+    assert scope.risky_files == (path,)
+
+
 def test_the_classifier_itself_is_sensitive_scope() -> None:
     """A classifier that could be edited without review would be the trust hole."""
     violations = pr_policy.evaluate_policy(

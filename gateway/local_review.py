@@ -23,6 +23,9 @@ DEFAULT_REVIEWER_MODEL = "Qwen3.5-9B-Q3_K_M"
 DEFAULT_OLLAMA_URLS = ("http://127.0.0.1:11434", "http://127.0.0.1:11435")
 METAL_RUNTIME_PROFILE = "metal_calibrated_v1"
 CPU_SHADOW_RUNTIME_PROFILE = "cpu_shadow_v1"
+CPU_SHADOW_MODEL_SHA256 = "8fed90306e4f019e2bf35f3766470b7bc59ea1a9dae00f5ceb20b43cb5514393"
+CPU_SHADOW_LLAMA_SERVER_SHA256 = "8939a1cf8a4e9a5cc18d6cd4d2d55440b48f8a44db00abe459a28d837ea051f7"
+CPU_SHADOW_LLAMA_SERVER_VERSION = "version: 0.4.0 (build 10809, commit 5266f24da)"
 DEFAULT_RUNTIME_PROFILE = METAL_RUNTIME_PROFILE
 _RUNTIME_PROFILE_GPU_LAYERS = {
     METAL_RUNTIME_PROFILE: 999,
@@ -188,10 +191,16 @@ def build_llama_server_command(
     *,
     port: int,
     runtime_profile: str = DEFAULT_RUNTIME_PROFILE,
+    executable_path: Path | None = None,
 ) -> list[str]:
     if not model_path.exists():
         raise FileNotFoundError(model_path)
-    executable = shutil.which("llama-server") or "llama-server"
+    if executable_path is not None:
+        executable = str(executable_path.expanduser().resolve())
+        if not Path(executable).exists():
+            raise FileNotFoundError(executable)
+    else:
+        executable = shutil.which("llama-server") or "llama-server"
     return [
         executable,
         "-m", str(model_path),
@@ -427,13 +436,55 @@ def find_default_model_path() -> Path:
     )
 
 
-def _model_sha256(path: Path) -> str:
+def _remaining_wall_seconds(deadline_monotonic: float | None) -> float | None:
+    if deadline_monotonic is None:
+        return None
+    remaining = deadline_monotonic - time.monotonic()
+    if remaining <= 0:
+        raise RuntimeError("local review aggregate wall budget exhausted")
+    return remaining
+
+
+def _model_sha256(path: Path, *, deadline_monotonic: float | None = None) -> str:
     resolved = path.expanduser().resolve()
     digest = hashlib.sha256()
     with resolved.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            _remaining_wall_seconds(deadline_monotonic)
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _cpu_shadow_artifact_identity(
+    model_path: Path, *, deadline_monotonic: float | None
+) -> dict[str, str]:
+    model_sha256 = _model_sha256(model_path, deadline_monotonic=deadline_monotonic)
+    if model_sha256 != CPU_SHADOW_MODEL_SHA256:
+        raise RuntimeError(
+            "CPU shadow calibrated model SHA-256 mismatch: "
+            f"expected {CPU_SHADOW_MODEL_SHA256}, got {model_sha256}"
+        )
+
+    executable = shutil.which("llama-server")
+    if executable is None:
+        raise FileNotFoundError("llama-server is not installed")
+    executable_path = Path(executable).expanduser().resolve()
+    executable_sha256 = _model_sha256(
+        executable_path, deadline_monotonic=deadline_monotonic
+    )
+    if executable_sha256 != CPU_SHADOW_LLAMA_SERVER_SHA256:
+        raise RuntimeError(
+            "CPU shadow calibrated llama-server SHA-256 mismatch: "
+            f"expected {CPU_SHADOW_LLAMA_SERVER_SHA256}, got {executable_sha256}"
+        )
+
+    version = CPU_SHADOW_LLAMA_SERVER_VERSION
+    return {
+        "model_sha256": model_sha256,
+        "runtime_executable": str(executable_path),
+        "runtime_executable_sha256": executable_sha256,
+        "runtime_version": version,
+    }
 
 
 def reviewer_fingerprint(
@@ -442,6 +493,8 @@ def reviewer_fingerprint(
     *,
     runtime_profile: str = DEFAULT_RUNTIME_PROFILE,
     request_timeout: float | None = None,
+    model_sha256: str | None = None,
+    runtime_identity: dict[str, str] | None = None,
 ) -> dict[str, str]:
     resolved = model_path.expanduser().resolve()
     inference_flags = _runtime_inference_flags(runtime_profile)
@@ -454,11 +507,12 @@ def reviewer_fingerprint(
         "model_id": model_id,
         "model_family": model_family(model_id) or model_family(resolved.name) or "unknown",
         "model_path": str(resolved),
-        "model_sha256": _model_sha256(resolved),
+        "model_sha256": model_sha256 or _model_sha256(resolved),
         "runtime": "llama.cpp",
         "runtime_profile": runtime_profile,
         "inference_flags": " ".join(inference_flags),
         "request_timeout_s": f"{effective_timeout:g}",
+        **(runtime_identity or {}),
     }
 
 
@@ -472,6 +526,7 @@ class LocalLlamaServer:
         request_timeout: float | None = None,
         runtime_profile: str = DEFAULT_RUNTIME_PROFILE,
         deadline_monotonic: float | None = None,
+        executable_path: Path | None = None,
     ) -> None:
         _runtime_inference_flags(runtime_profile)
         profile_timeout = _runtime_request_timeout(runtime_profile)
@@ -481,6 +536,7 @@ class LocalLlamaServer:
         self.request_timeout = profile_timeout if request_timeout is None else float(request_timeout)
         self.runtime_profile = runtime_profile
         self.deadline_monotonic = deadline_monotonic
+        self.executable_path = executable_path.expanduser().resolve() if executable_path else None
         self.process: subprocess.Popen[bytes] | None = None
         self.log_path: Path | None = None
         self.model_id = DEFAULT_REVIEWER_MODEL
@@ -498,13 +554,16 @@ class LocalLlamaServer:
         return f"http://127.0.0.1:{self.port}"
 
     def __enter__(self) -> "LocalLlamaServer":
-        if shutil.which("llama-server") is None:
+        if self.executable_path is None and shutil.which("llama-server") is None:
             raise FileNotFoundError("llama-server is not installed")
         log = tempfile.NamedTemporaryFile(prefix="kitty-local-review-", suffix=".log", delete=False)
         self.log_path = Path(log.name)
         self.process = subprocess.Popen(
             build_llama_server_command(
-                self.model_path, port=self.port, runtime_profile=self.runtime_profile
+                self.model_path,
+                port=self.port,
+                runtime_profile=self.runtime_profile,
+                executable_path=self.executable_path,
             ),
             stdout=log,
             stderr=subprocess.STDOUT,
@@ -648,7 +707,7 @@ def run_local_review(
 
     try:
         selected_model_path = model_path or find_default_model_path()
-    except OSError as exc:
+    except (RuntimeError, OSError) as exc:
         return base_result | {
             "decision": "escalate",
             "reason": "local_reviewer_runtime_error",
@@ -666,10 +725,22 @@ def run_local_review(
     )
 
     def execute() -> dict[str, Any]:
+        runtime_identity = (
+            _cpu_shadow_artifact_identity(
+                selected_model_path, deadline_monotonic=wall_deadline
+            )
+            if runtime_profile == CPU_SHADOW_RUNTIME_PROFILE
+            else None
+        )
         with LocalLlamaServer(
             selected_model_path,
             runtime_profile=runtime_profile,
             deadline_monotonic=wall_deadline,
+            executable_path=(
+                Path(runtime_identity["runtime_executable"])
+                if runtime_identity is not None
+                else None
+            ),
         ) as server:
             result = review_decision(
                 requirements=requirements,
@@ -681,10 +752,20 @@ def run_local_review(
                 review_kind=review_kind,
             )
             fingerprint = (
-                server.fingerprint()
-                if hasattr(server, "fingerprint")
-                else reviewer_fingerprint(
-                    selected_model_path, server.model_id, runtime_profile=runtime_profile
+                reviewer_fingerprint(
+                    selected_model_path,
+                    server.model_id,
+                    runtime_profile=runtime_profile,
+                    model_sha256=(runtime_identity or {}).get("model_sha256"),
+                    runtime_identity=runtime_identity,
+                )
+                if runtime_identity is not None
+                else (
+                    server.fingerprint()
+                    if hasattr(server, "fingerprint")
+                    else reviewer_fingerprint(
+                        selected_model_path, server.model_id, runtime_profile=runtime_profile
+                    )
                 )
             )
             result["reviewer_fingerprint"] = fingerprint

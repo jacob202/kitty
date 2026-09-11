@@ -181,3 +181,7 @@ resources:
     - tests/test_conversation_handoff_routes.py
     - tests/test_library_chat_001.py
     - tests/test_work_projection.py
+  review:scope-classification:
+    paths:
+    - scripts/pr_scope.py
+    - tests/test_pr_scope.py

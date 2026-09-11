@@ -32,7 +32,6 @@ import json
 import logging
 import math
 import os
-import re
 import shlex
 import subprocess
 import tempfile
@@ -68,7 +67,13 @@ from gateway.builder_runner import (
     worktree_head,
     worktree_path,
 )
-from gateway.local_review import CPU_SHADOW_RUNTIME_PROFILE, run_local_review
+from gateway.local_review import (
+    CPU_SHADOW_LLAMA_SERVER_SHA256,
+    CPU_SHADOW_LLAMA_SERVER_VERSION,
+    CPU_SHADOW_MODEL_SHA256,
+    CPU_SHADOW_RUNTIME_PROFILE,
+    run_local_review,
+)
 from gateway.paths import BUILDER_QUEUE_DB
 from scripts import pr_scope
 
@@ -1428,30 +1433,54 @@ def _local_shadow_enabled() -> bool:
     }
 
 
+def _local_shadow_deadline(
+    *,
+    deadline_monotonic: float | None,
+    review_timeout_seconds: int,
+) -> float | None:
+    """Return one absolute shadow deadline while reserving authoritative review time."""
+    now = time.monotonic()
+    local_deadline = now + LOCAL_SHADOW_MAX_WALL_SECONDS
+    if deadline_monotonic is None:
+        return local_deadline
+    latest_safe_deadline = deadline_monotonic - review_timeout_seconds
+    if latest_safe_deadline - now < LOCAL_SHADOW_MAX_WALL_SECONDS:
+        return None
+    return min(local_deadline, latest_safe_deadline)
+
+
 def _local_shadow_budget_available(
     *,
     deadline_monotonic: float | None,
     review_timeout_seconds: int,
 ) -> bool:
-    """Run shadow only when its full budget fits ahead of authoritative review."""
+    """Compatibility predicate for whether a full shadow window fits safely."""
+    return (
+        _local_shadow_deadline(
+            deadline_monotonic=deadline_monotonic,
+            review_timeout_seconds=review_timeout_seconds,
+        )
+        is not None
+    )
+
+
+def _remaining_local_shadow_seconds(deadline_monotonic: float | None) -> float:
     if deadline_monotonic is None:
-        return True
+        return LOCAL_SHADOW_MAX_WALL_SECONDS
     remaining = deadline_monotonic - time.monotonic()
-    return remaining >= review_timeout_seconds + LOCAL_SHADOW_MAX_WALL_SECONDS
+    if remaining <= 0:
+        raise LoopError("local-review shadow wall budget exhausted")
+    return min(LOCAL_SHADOW_MAX_WALL_SECONDS, remaining)
 
 
 def _strict_dsh_builder_worker(worker_command: list[str] | None) -> bool:
     canonical = (Path(__file__).resolve().parents[1] / "scripts" / "kittybuilder_dsh_worker.sh").resolve()
-    for part in worker_command or []:
-        candidate = Path(part).expanduser()
-        if candidate.name != canonical.name:
-            continue
-        try:
-            if candidate.resolve() == canonical:
-                return True
-        except OSError:
-            continue
-    return False
+    if not worker_command or len(worker_command) != 2 or worker_command[0] != "bash":
+        return False
+    try:
+        return Path(worker_command[1]).expanduser().resolve() == canonical
+    except OSError:
+        return False
 
 
 def _trusted_local_implementation_model(
@@ -1469,8 +1498,14 @@ def _trusted_local_implementation_model(
     return model, "builder_controlled_dsh_adapter"
 
 
-def _local_shadow_candidate(worktree: Path, base_sha: str) -> str:
-    """Capture bounded complete text evidence since base without large RAM materialization."""
+def _local_shadow_candidate(
+    worktree: Path,
+    base_sha: str,
+    *,
+    deadline_monotonic: float | None = None,
+) -> str:
+    """Capture bounded complete text evidence under the shadow's aggregate deadline."""
+    diff_timeout = min(30.0, _remaining_local_shadow_seconds(deadline_monotonic))
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
         completed = subprocess.run(
             [
@@ -1485,9 +1520,10 @@ def _local_shadow_candidate(worktree: Path, base_sha: str) -> str:
             cwd=worktree,
             stdout=stdout_file,
             stderr=stderr_file,
-            timeout=30,
+            timeout=max(0.01, diff_timeout),
             check=False,
         )
+        _remaining_local_shadow_seconds(deadline_monotonic)
         stderr_file.seek(0)
         stderr = stderr_file.read(600).decode("utf-8", errors="replace").strip()
         if completed.returncode != 0:
@@ -1514,6 +1550,7 @@ def _local_shadow_candidate(worktree: Path, base_sha: str) -> str:
     total_bytes = len(tracked_bytes)
     root = worktree.resolve()
     for relative in sorted(item for item in untracked_raw.split("\0") if item):
+        _remaining_local_shadow_seconds(deadline_monotonic)
         path = (worktree / relative).resolve()
         if not path.is_relative_to(root) or not path.is_file():
             raise LoopError(f"local-review untracked candidate path is unsafe: {relative!r}")
@@ -1529,6 +1566,7 @@ def _local_shadow_candidate(worktree: Path, base_sha: str) -> str:
                 f"{relative!r}"
             )
         content = path.read_bytes()
+        _remaining_local_shadow_seconds(deadline_monotonic)
         if b"\x00" in content:
             raise LoopError(f"local-review untracked candidate is binary: {relative!r}")
         try:
@@ -1576,6 +1614,8 @@ def _local_shadow_receipt(
                 "runtime_profile",
                 "inference_flags",
                 "request_timeout_s",
+                "runtime_executable_sha256",
+                "runtime_version",
             )
             if fingerprint.get(key) is not None
         }
@@ -1625,11 +1665,18 @@ def _well_formed_local_clear(raw: dict[str, Any], requirements: list[str]) -> bo
         "runtime_profile",
         "inference_flags",
         "request_timeout_s",
+        "runtime_executable_sha256",
+        "runtime_version",
     )
     if any(not fp.get(field) for field in required_fields):
         return False
-    digest = str(fp.get("model_sha256"))
-    return bool(re.fullmatch(r"[0-9a-f]{64}", digest))
+    return (
+        fp.get("model_sha256") == CPU_SHADOW_MODEL_SHA256
+        and fp.get("runtime") == "llama.cpp"
+        and fp.get("runtime_profile") == CPU_SHADOW_RUNTIME_PROFILE
+        and fp.get("runtime_executable_sha256") == CPU_SHADOW_LLAMA_SERVER_SHA256
+        and fp.get("runtime_version") == CPU_SHADOW_LLAMA_SERVER_VERSION
+    )
 
 
 def _run_local_shadow_review(
@@ -1640,6 +1687,7 @@ def _run_local_shadow_review(
     implementation_model: str | None,
     implementation_provenance: str,
     governor_risk_class: str,
+    deadline_monotonic: float | None = None,
 ) -> dict[str, Any]:
     requirements = [str(item) for item in packet_contract.get("acceptance_criteria") or []]
     risk_tags = [] if governor_risk_class == "routine" else [f"builder_risk:{governor_risk_class}"]
@@ -1661,7 +1709,11 @@ def _run_local_shadow_review(
                 "requirements": [],
             }
         else:
-            candidate = _local_shadow_candidate(worktree, cumulative["base_sha"])
+            candidate = _local_shadow_candidate(
+                worktree,
+                cumulative["base_sha"],
+                deadline_monotonic=deadline_monotonic,
+            )
             if not candidate.strip():
                 raise LoopError("local-review candidate is empty")
             raw = run_local_review(
@@ -1675,8 +1727,9 @@ def _run_local_shadow_review(
                 use_focus=False,
                 managed_ollama_models=[],
                 runtime_profile=CPU_SHADOW_RUNTIME_PROFILE,
-                max_wall_seconds=LOCAL_SHADOW_MAX_WALL_SECONDS,
+                max_wall_seconds=_remaining_local_shadow_seconds(deadline_monotonic),
             )
+            _remaining_local_shadow_seconds(deadline_monotonic)
     except Exception:
         raw = {
             "contract_version": 1,
@@ -3209,10 +3262,11 @@ def run_packet(
                     adapter_env=effective_adapter_env,
                     model=model,
                 )
-                if _local_shadow_budget_available(
+                shadow_deadline = _local_shadow_deadline(
                     deadline_monotonic=deadline_monotonic,
                     review_timeout_seconds=review_timeout_seconds,
-                ):
+                )
+                if shadow_deadline is not None:
                     shadow = _run_local_shadow_review(
                         worktree=review_worktree,
                         packet_contract=packet_contract,
@@ -3220,6 +3274,7 @@ def run_packet(
                         implementation_model=trusted_model,
                         implementation_provenance=implementation_provenance,
                         governor_risk_class=governor_risk_class,
+                        deadline_monotonic=shadow_deadline,
                     )
                 else:
                     shadow = _skipped_local_shadow_receipt(

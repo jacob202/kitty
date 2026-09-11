@@ -48,6 +48,11 @@ RISK_PATTERNS = (
     re.compile(r"^gateway/.*secret", re.I),
     re.compile(r"^gateway/action_(?:queue|grants)\.py$"),
     re.compile(r"^gateway/routes/actions\.py$"),
+    re.compile(r"^config/(?:compute_governor|providers)\.json$"),
+    re.compile(r"^gateway/(?:compute_governor|paid_review_admission|model_routing)\.py$"),
+    re.compile(
+        r"^gateway/builder_(?:loop|queue(?:_.*)?|runner|supervisor|execution_boundary|identity|contract_gate)\.py$"
+    ),
     re.compile(r"^gateway/builder_(?:publish|pr_janitor)\.py$"),
     re.compile(r"^scripts/purge_.*\.py$"),
     re.compile(r"^.*\.env(?:\..*)?$"),

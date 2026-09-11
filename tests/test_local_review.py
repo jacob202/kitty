@@ -132,6 +132,19 @@ def test_llama_server_command_uses_verified_low_memory_settings(tmp_path) -> Non
     assert "--port 18080" in joined
 
 
+def test_llama_server_command_can_pin_verified_executable(tmp_path: Path) -> None:
+    model = tmp_path / "reviewer.gguf"
+    model.write_bytes(b"x")
+    executable = tmp_path / "llama-server"
+    executable.write_bytes(b"runtime")
+
+    command = build_llama_server_command(
+        model, port=18080, executable_path=executable
+    )
+
+    assert command[0] == str(executable.resolve())
+
+
 def test_cpu_shadow_runtime_profile_is_explicit_and_fingerprinted(tmp_path: Path) -> None:
     model = tmp_path / "reviewer.gguf"
     model.write_bytes(b"profile-test-model")
@@ -165,6 +178,192 @@ def test_cpu_shadow_runtime_profile_is_explicit_and_fingerprinted(tmp_path: Path
     cpu_server = LocalLlamaServer(model, runtime_profile="cpu_shadow_v1")
     assert metal_server.request_timeout == 45.0
     assert cpu_server.request_timeout == 120.0
+
+
+def test_cpu_shadow_profile_pins_calibrated_model_and_llama_runtime() -> None:
+    import gateway.local_review as local_review
+
+    assert getattr(local_review, "CPU_SHADOW_MODEL_SHA256", None) == (
+        "8fed90306e4f019e2bf35f3766470b7bc59ea1a9dae00f5ceb20b43cb5514393"
+    )
+    assert getattr(local_review, "CPU_SHADOW_LLAMA_SERVER_SHA256", None) == (
+        "8939a1cf8a4e9a5cc18d6cd4d2d55440b48f8a44db00abe459a28d837ea051f7"
+    )
+    assert getattr(local_review, "CPU_SHADOW_LLAMA_SERVER_VERSION", None) == (
+        "version: 0.4.0 (build 10809, commit 5266f24da)"
+    )
+
+
+def test_cpu_shadow_profile_rejects_unpinned_model_before_inference(tmp_path: Path) -> None:
+    model = tmp_path / "Qwen3.5-9B-Q3_K_M.gguf"
+    model.write_bytes(b"wrong-model-bytes")
+
+    result = run_local_review(
+        {
+            "requirements": ["The parser preserves valid rows."],
+            "candidate": "candidate",
+            "implementation_model": "deepseek-v4",
+        },
+        model_path=model,
+        use_focus=False,
+        runtime_profile="cpu_shadow_v1",
+    )
+
+    assert result["decision"] == "escalate"
+    assert result["reason"] == "local_reviewer_runtime_error"
+    assert "calibrated model SHA-256" in result["error"]
+
+
+def test_cpu_shadow_profile_rejects_unpinned_llama_binary_before_inference(
+    tmp_path: Path,
+) -> None:
+    import gateway.local_review as local_review
+
+    model = tmp_path / "Qwen3.5-9B-Q3_K_M.gguf"
+    model.write_bytes(b"stand-in-calibrated-model")
+    fake_llama = tmp_path / "llama-server"
+    fake_llama.write_bytes(b"wrong-runtime-binary")
+    expected_model_sha = hashlib.sha256(model.read_bytes()).hexdigest()
+
+    class FakeQwenServer:
+        model_id = "Qwen3.5-9B-Q3_K_M"
+
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def ask(self, _requirement: str, _candidate: str) -> str:
+            return "YES"
+
+        def fingerprint(self) -> dict[str, str]:
+            return {}
+
+    with (
+        patch.object(local_review, "CPU_SHADOW_MODEL_SHA256", expected_model_sha, create=True),
+        patch("gateway.local_review.shutil.which", return_value=str(fake_llama)),
+        patch("gateway.local_review.LocalLlamaServer", FakeQwenServer),
+    ):
+        result = run_local_review(
+            {
+                "requirements": ["The parser preserves valid rows."],
+                "candidate": "candidate",
+                "implementation_model": "deepseek-v4",
+            },
+            model_path=model,
+            use_focus=False,
+            runtime_profile="cpu_shadow_v1",
+        )
+
+    assert result["decision"] == "escalate"
+    assert result["reason"] == "local_reviewer_runtime_error"
+    assert "calibrated llama-server SHA-256" in result["error"]
+
+
+def test_cpu_shadow_profile_executes_the_verified_runtime_path(tmp_path: Path) -> None:
+    import gateway.local_review as local_review
+
+    model = tmp_path / "Qwen3.5-9B-Q3_K_M.gguf"
+    model.write_bytes(b"stand-in-calibrated-model")
+    fake_llama = tmp_path / "llama-server"
+    fake_llama.write_bytes(b"stand-in-calibrated-runtime")
+    model_sha = hashlib.sha256(model.read_bytes()).hexdigest()
+    runtime_sha = hashlib.sha256(fake_llama.read_bytes()).hexdigest()
+    seen_executables: list[Path | None] = []
+
+    class FakeQwenServer:
+        model_id = "Qwen3.5-9B-Q3_K_M"
+
+        def __init__(self, *args, executable_path=None, **kwargs) -> None:
+            seen_executables.append(executable_path)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def ask(self, _requirement: str, _candidate: str) -> str:
+            return "YES"
+
+    with (
+        patch.object(local_review, "CPU_SHADOW_MODEL_SHA256", model_sha),
+        patch.object(local_review, "CPU_SHADOW_LLAMA_SERVER_SHA256", runtime_sha),
+        patch("gateway.local_review.shutil.which", return_value=str(fake_llama)),
+        patch("gateway.local_review.LocalLlamaServer", FakeQwenServer),
+    ):
+        result = run_local_review(
+            {
+                "requirements": ["The parser preserves valid rows."],
+                "candidate": "candidate",
+                "implementation_model": "deepseek-v4",
+            },
+            model_path=model,
+            use_focus=False,
+            runtime_profile="cpu_shadow_v1",
+        )
+
+    assert result["decision"] == "advisory_clear"
+    assert seen_executables == [fake_llama.resolve()]
+
+
+def test_cpu_shadow_profile_receipts_pinned_runtime_without_executing_binary(
+    tmp_path: Path,
+) -> None:
+    import gateway.local_review as local_review
+
+    model = tmp_path / "Qwen3.5-9B-Q3_K_M.gguf"
+    model.write_bytes(b"stand-in-calibrated-model")
+    fake_llama = tmp_path / "llama-server"
+    fake_llama.write_bytes(b"stand-in-calibrated-runtime")
+    model_sha = hashlib.sha256(model.read_bytes()).hexdigest()
+    runtime_sha = hashlib.sha256(fake_llama.read_bytes()).hexdigest()
+
+    class FakeQwenServer:
+        model_id = "Qwen3.5-9B-Q3_K_M"
+
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def ask(self, _requirement: str, _candidate: str) -> str:
+            return "YES"
+
+    with (
+        patch.object(local_review, "CPU_SHADOW_MODEL_SHA256", model_sha),
+        patch.object(local_review, "CPU_SHADOW_LLAMA_SERVER_SHA256", runtime_sha),
+        patch.object(
+            local_review, "CPU_SHADOW_LLAMA_SERVER_VERSION", "test-calibrated-version"
+        ),
+        patch("gateway.local_review.shutil.which", return_value=str(fake_llama)),
+        patch("gateway.local_review.subprocess.run", side_effect=AssertionError("must not execute runtime")),
+        patch("gateway.local_review.LocalLlamaServer", FakeQwenServer),
+    ):
+        result = run_local_review(
+            {
+                "requirements": ["The parser preserves valid rows."],
+                "candidate": "candidate",
+                "implementation_model": "deepseek-v4",
+            },
+            model_path=model,
+            use_focus=False,
+            runtime_profile="cpu_shadow_v1",
+        )
+
+    assert result["decision"] == "advisory_clear"
+    fingerprint = result["reviewer_fingerprint"]
+    assert fingerprint["model_sha256"] == model_sha
+    assert fingerprint["runtime_executable_sha256"] == runtime_sha
+    assert fingerprint["runtime_version"] == "test-calibrated-version"
 
 
 def test_unknown_runtime_profile_is_rejected_before_server_start(tmp_path: Path) -> None:
@@ -238,7 +437,14 @@ def test_request_reviewer_label_cannot_override_actual_runtime_identity(tmp_path
 
     class FakeQwenServer:
         model_id = "Qwen3.5-9B-Q3_K_M"
-        def __init__(self, model_path: Path, *, runtime_profile: str, deadline_monotonic=None) -> None:
+        def __init__(
+            self,
+            model_path: Path,
+            *,
+            runtime_profile: str,
+            deadline_monotonic=None,
+            executable_path=None,
+        ) -> None:
             self.model_path = model_path
             seen_profiles.append(runtime_profile)
         def __enter__(self): return self

@@ -2768,11 +2768,13 @@ def test_local_shadow_review_is_bound_and_cannot_replace_authoritative_review(
             "reviewer_fingerprint": {
                 "model_id": "Qwen3.5-9B-Q3_K_M",
                 "model_family": "qwen",
-                "model_sha256": "f" * 64,
+                "model_sha256": bl.CPU_SHADOW_MODEL_SHA256,
                 "runtime": "llama.cpp",
                 "runtime_profile": "cpu_shadow_v1",
                 "inference_flags": "--reasoning off -ngl 0",
                 "request_timeout_s": "120",
+                "runtime_executable_sha256": bl.CPU_SHADOW_LLAMA_SERVER_SHA256,
+                "runtime_version": bl.CPU_SHADOW_LLAMA_SERVER_VERSION,
             },
             "implementation_provenance": "untrusted_request_metadata",
         }
@@ -2814,12 +2816,11 @@ def test_local_shadow_review_is_bound_and_cannot_replace_authoritative_review(
     assert request["implementation_model"] == "openrouter/deepseek/deepseek-v4-flash"
     assert request["risk_tags"] == []
     assert "runtime_profile" not in request
-    assert captured["kwargs"] == {
-        "use_focus": False,
-        "managed_ollama_models": [],
-        "runtime_profile": "cpu_shadow_v1",
-        "max_wall_seconds": bl.LOCAL_SHADOW_MAX_WALL_SECONDS,
-    }
+    kwargs = captured["kwargs"]
+    assert kwargs["use_focus"] is False
+    assert kwargs["managed_ollama_models"] == []
+    assert kwargs["runtime_profile"] == "cpu_shadow_v1"
+    assert 0 < kwargs["max_wall_seconds"] <= bl.LOCAL_SHADOW_MAX_WALL_SECONDS
     assert "done.txt" in request["candidate"]
     manifest = json.loads(
         Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
@@ -3078,6 +3079,152 @@ def test_local_shadow_only_trusts_model_from_controlled_dsh_adapter() -> None:
         "openrouter/deepseek/deepseek-v4-flash",
         "builder_controlled_dsh_adapter",
     )
+
+
+def test_local_shadow_rejects_inert_or_wrapped_canonical_worker_commands() -> None:
+    canonical = str(
+        (Path(bl.__file__).resolve().parents[1] / "scripts" / "kittybuilder_dsh_worker.sh").resolve()
+    )
+    env = {"KITTYBUILDER_MODEL": "openrouter/deepseek/deepseek-v4-flash"}
+    model = "openrouter/deepseek/deepseek-v4-flash"
+
+    for command in (
+        ["python3", "evil.py", canonical],
+        ["echo", canonical],
+        [canonical],
+        ["/bin/bash", canonical],
+        ["bash", canonical, "extra"],
+    ):
+        assert bl._trusted_local_implementation_model(
+            worker_command=command, adapter_env=env, model=model
+        ) == (None, "implementation_model_unverified")
+
+    assert bl._trusted_local_implementation_model(
+        worker_command=["bash", canonical], adapter_env=env, model=model
+    ) == (model, "builder_controlled_dsh_adapter")
+
+
+def test_local_shadow_uses_one_deadline_across_candidate_capture_and_inference(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(bl.time, "monotonic", lambda: clock["now"])
+    deadline = bl._local_shadow_deadline(
+        deadline_monotonic=1000.0 + bl.DEFAULT_REVIEW_TIMEOUT + bl.LOCAL_SHADOW_MAX_WALL_SECONDS,
+        review_timeout_seconds=bl.DEFAULT_REVIEW_TIMEOUT,
+    )
+    assert deadline == 1000.0 + bl.LOCAL_SHADOW_MAX_WALL_SECONDS
+
+    def capture_candidate(_worktree: Path, _base_sha: str, *, deadline_monotonic: float | None = None) -> str:
+        assert deadline_monotonic == deadline
+        clock["now"] += 25.0
+        return "diff --git a/a.py b/a.py\n+safe = True\n"
+
+    observed: dict[str, float] = {}
+
+    def fake_review(*_args, **kwargs):
+        observed["max_wall_seconds"] = kwargs["max_wall_seconds"]
+        return {
+            "authoritative": False,
+            "decision": "escalate",
+            "reason": "local_reviewer_not_clear",
+            "requirements": [],
+            "risk_tags": [],
+        }
+
+    monkeypatch.setattr(bl, "_local_shadow_candidate", capture_candidate)
+    monkeypatch.setattr(bl, "run_local_review", fake_review)
+    receipt = bl._run_local_shadow_review(
+        worktree=tmp_path,
+        packet_contract={"acceptance_criteria": ["safe"]},
+        cumulative={
+            "base_sha": "a" * 40,
+            "review_sha": "b" * 40,
+            "diff_sha256": "c" * 64,
+            "changed_paths": ["a.py"],
+        },
+        implementation_model="openrouter/deepseek/deepseek-v4-flash",
+        implementation_provenance="builder_controlled_dsh_adapter",
+        governor_risk_class="routine",
+        deadline_monotonic=deadline,
+    )
+    assert receipt["decision"] == "escalate"
+    assert observed["max_wall_seconds"] == pytest.approx(65.0)
+
+
+def test_local_shadow_candidate_stops_when_aggregate_deadline_expires(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    clock = {"now": 10.0}
+    monkeypatch.setattr(bl.time, "monotonic", lambda: clock["now"])
+
+    def fake_run(*_args, timeout: float, **_kwargs):
+        assert timeout == pytest.approx(0.05)
+        clock["now"] = 10.06
+        return subprocess.CompletedProcess([], 0)
+
+    monkeypatch.setattr(bl.subprocess, "run", fake_run)
+    with pytest.raises(bl.LoopError, match="wall budget exhausted"):
+        bl._local_shadow_candidate(
+            tmp_path, "a" * 40, deadline_monotonic=10.05
+        )
+
+
+def test_local_shadow_clear_requires_pinned_cpu_calibration_identity() -> None:
+    requirement = "safe"
+    fingerprint = {
+        "model_id": "Qwen3.5-9B-Q3_K_M",
+        "model_family": "qwen",
+        "model_sha256": "a" * 64,
+        "runtime": "llama.cpp",
+        "runtime_profile": "cpu_shadow_v1",
+        "inference_flags": "--reasoning off -ngl 0",
+        "request_timeout_s": "120",
+        "runtime_executable_sha256": "b" * 64,
+        "runtime_version": "wrong-build",
+    }
+    raw = {
+        "authoritative": False,
+        "decision": "advisory_clear",
+        "requirements": [{"requirement": requirement, "answer": "YES"}],
+        "reviewer_fingerprint": fingerprint,
+    }
+    assert bl._well_formed_local_clear(raw, [requirement]) is False
+
+    fingerprint["model_sha256"] = bl.CPU_SHADOW_MODEL_SHA256
+    fingerprint["runtime_executable_sha256"] = bl.CPU_SHADOW_LLAMA_SERVER_SHA256
+    fingerprint["runtime_version"] = bl.CPU_SHADOW_LLAMA_SERVER_VERSION
+    assert bl._well_formed_local_clear(raw, [requirement]) is True
+
+
+def test_local_shadow_spend_and_builder_authority_scope_escalates_without_inference(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        bl,
+        "run_local_review",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("inference ran")),
+    )
+    for changed_path in (
+        "gateway/compute_governor.py",
+        "gateway/paid_review_admission.py",
+        "gateway/builder_queue.py",
+    ):
+        receipt = bl._run_local_shadow_review(
+            worktree=tmp_path,
+            packet_contract={"acceptance_criteria": ["All declared tests pass."]},
+            cumulative={
+                "base_sha": "a" * 40,
+                "review_sha": "b" * 40,
+                "diff_sha256": "c" * 64,
+                "changed_paths": [changed_path],
+            },
+            implementation_model="openrouter/deepseek/deepseek-v4-flash",
+            implementation_provenance="builder_controlled_dsh_adapter",
+            governor_risk_class="routine",
+        )
+        assert receipt["decision"] == "escalate", changed_path
+        assert "builder_sensitive_scope" in receipt["risk_tags"], changed_path
 
 
 def test_local_shadow_malformed_clear_is_downgraded_to_escalate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
