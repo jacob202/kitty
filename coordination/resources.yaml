@@ -30,12 +30,14 @@ resources:
     - gateway/builder_commands.py
     - gateway/builder_loop.py
     - gateway/builder_queue.py
+    - gateway/builder_status.py
     - gateway/builder_supervisor.py
     - tests/test_builder_commands.py
     - tests/test_builder_loop.py
     - tests/test_builder_publication_infrastructure.py
     - tests/test_builder_queue.py
     - tests/test_builder_run.py
+    - tests/test_builder_status.py
     - tests/test_builder_supervisor.py
   docs:roadmap:
     paths:
@@ -148,6 +150,7 @@ resources:
     paths:
     - gateway/_work_projection_item.py
     - gateway/conversation_handoff.py
+    - gateway/kitty-chat/src/components/LibraryView.tsx
     - gateway/kitty-chat/src/components/WorkView.tsx
     - gateway/kitty-chat/src/components/builder/BuilderProposalCard.tsx
     - gateway/kitty-chat/src/components/chat/ActionCard.tsx
@@ -159,12 +162,16 @@ resources:
     - gateway/kitty-chat/src/state/KittyContext.tsx
     - gateway/kitty-chat/tests/ActionCard.test.tsx
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
+    - gateway/kitty-chat/tests/LibraryView.test.tsx
     - gateway/kitty-chat/tests/WorkViewActions.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx
     - gateway/kitty-chat/tests/WorkViewProjection.test.tsx
     - gateway/kitty-chat/tests/actionsContract.test.ts
+    - gateway/routes/chats.py
+    - gateway/routes/completions.py
     - gateway/routes/conversation_handoff.py
     - gateway/routes/extended.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
+    - tests/test_library_chat_001.py
     - tests/test_work_projection.py

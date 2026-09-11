@@ -13,8 +13,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import artifact_store
-from gateway import chat_lifecycle
+from gateway import artifact_store, chat_lifecycle
 from gateway import db as kitty_db
 from gateway.routes import chats as chats_route
 from gateway.routes import completions as completions_route
