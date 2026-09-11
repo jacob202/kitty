@@ -359,6 +359,62 @@ def test_mission_lookup_reads_wal_without_creating_source_shm(tmp_path: Path) ->
         writer.close()
 
 
+def test_repeat_lookup_reuses_the_snapshot_until_the_store_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unchanged store is not re-copied, and a change is never missed.
+
+    The resume projection polls this lookup every few seconds per open proposal
+    card, so re-snapshotting the whole application database on every poll is
+    wasted work — but the reuse must not become a second source of truth.
+    """
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission_cache",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "mission_cache",
+        initiative_id="init-cache",
+        task_id="kb_task_1",
+        db_path=db_path,
+    )
+
+    copies = {"count": 0}
+    real_copy2 = shutil.copy2
+
+    def _counting_copy2(source, target, *args, **kwargs):
+        copies["count"] += 1
+        return real_copy2(source, target, *args, **kwargs)
+
+    monkeypatch.setattr(memory_mission.shutil, "copy2", _counting_copy2)
+
+    first = memory_mission.mission_for_initiative("init-cache", db_path=db_path)
+    after_first = copies["count"]
+    assert first is not None
+    assert after_first > 0
+
+    second = memory_mission.mission_for_initiative("init-cache", db_path=db_path)
+    assert copies["count"] == after_first
+    assert second is not None
+    assert second["mission_id"] == first["mission_id"]
+
+    # A real change must invalidate the reuse.
+    memory_mission.set_plan(
+        "mission_cache",
+        plan_ref="plan@new",
+        plan_digest="d" * 64,
+        db_path=db_path,
+    )
+    third = memory_mission.mission_for_initiative("init-cache", db_path=db_path)
+    assert copies["count"] > after_first
+    assert third is not None
+    assert third["plan"]["ref"] == "plan@new"
+
+
 def test_mission_for_initiative_is_none_for_unbound_work(tmp_path: Path) -> None:
     """No Mission is 'unknown', which callers must not read as accepted."""
     db_path = tmp_path / "kitty.db"

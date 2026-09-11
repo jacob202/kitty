@@ -7,11 +7,14 @@ their existing authoritative state.
 
 from __future__ import annotations
 
+import copy
 import json
 import shutil
 import sqlite3
 import tempfile
+import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -306,6 +309,43 @@ def missions_for_project(
     return [_row_to_mission(row) for row in rows]
 
 
+def _store_fingerprint(path: Path) -> tuple[int, int, int, int] | None:
+    """Identity of one database file as the snapshot copy sees it."""
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return None
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+
+
+# Reading committed WAL rows without opening the authoritative database means
+# copying the whole application database, and the resume projection polls this
+# lookup every few seconds per open proposal card. Repeat polls of an unchanged
+# store would re-copy the entire file each time, so the last consistent read is
+# reused while the source fingerprint is byte-identical. This is a cache of a
+# read, never a second source of truth: any change to the main database or its
+# WAL yields a different key and forces a fresh snapshot.
+_SNAPSHOT_CACHE: "OrderedDict[tuple[Any, ...], dict[str, Any] | None]" = OrderedDict()
+_SNAPSHOT_CACHE_LIMIT = 8
+_SNAPSHOT_CACHE_LOCK = threading.Lock()
+
+
+def _cached_mission(key: tuple[Any, ...]) -> tuple[bool, dict[str, Any] | None]:
+    with _SNAPSHOT_CACHE_LOCK:
+        if key not in _SNAPSHOT_CACHE:
+            return False, None
+        _SNAPSHOT_CACHE.move_to_end(key)
+        return True, copy.deepcopy(_SNAPSHOT_CACHE[key])
+
+
+def _remember_mission(key: tuple[Any, ...], mission: dict[str, Any] | None) -> None:
+    with _SNAPSHOT_CACHE_LOCK:
+        _SNAPSHOT_CACHE[key] = copy.deepcopy(mission)
+        _SNAPSHOT_CACHE.move_to_end(key)
+        while len(_SNAPSHOT_CACHE) > _SNAPSHOT_CACHE_LIMIT:
+            _SNAPSHOT_CACHE.popitem(last=False)
+
+
 def mission_for_initiative(
     initiative_id: str, *, db_path: Path | None = None
 ) -> dict[str, Any] | None:
@@ -338,20 +378,21 @@ def mission_for_initiative(
     # have not yet been checkpointed. The SHM file is deliberately omitted:
     # SQLite may rebuild it beside the private snapshot without touching Kitty.
     wal = Path(f"{resolved}-wal")
-
-    def _fingerprint(path: Path) -> tuple[int, int, int, int] | None:
-        try:
-            stat = path.stat()
-        except FileNotFoundError:
-            return None
-        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+    # A poll of an unchanged store must not re-copy the whole database. The key
+    # is the exact pair of fingerprints the snapshot loop already proves stable,
+    # so any real change misses the cache and takes a fresh snapshot.
+    cached, mission = _cached_mission(
+        (initiative_id, str(resolved), _store_fingerprint(resolved), _store_fingerprint(wal))
+    )
+    if cached:
+        return mission
 
     try:
         with tempfile.TemporaryDirectory(prefix="kitty-mission-read-") as temp_dir:
             snapshot = Path(temp_dir) / "kitty.db"
             snapshot_wal = Path(f"{snapshot}-wal")
             for _attempt in range(3):
-                before = (_fingerprint(resolved), _fingerprint(wal))
+                before = (_store_fingerprint(resolved), _store_fingerprint(wal))
                 if before[0] is None:
                     raise MissionError(
                         f"Mission store is unavailable: {resolved} does not exist"
@@ -366,7 +407,7 @@ def mission_for_initiative(
                     # A checkpoint can remove/reset the WAL while copying. Retry
                     # rather than combine files from two different DB states.
                     continue
-                after = (_fingerprint(resolved), _fingerprint(wal))
+                after = (_store_fingerprint(resolved), _store_fingerprint(wal))
                 if before == after:
                     break
             else:
@@ -393,7 +434,9 @@ def mission_for_initiative(
         raise
     except (OSError, sqlite3.Error) as exc:
         raise MissionError(f"Mission store is unavailable: {exc}") from exc
-    return _row_to_mission(row) if row is not None else None
+    mission = _row_to_mission(row) if row is not None else None
+    _remember_mission((initiative_id, str(resolved), *after), mission)
+    return mission
 
 
 def list_missions(*, db_path: Path = MISSION_DB_FILE) -> list[dict[str, Any]]:
