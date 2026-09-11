@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from gateway import artifact_store
+from gateway import chat_lifecycle
 from gateway import db as kitty_db
 from gateway.routes import chats as chats_route
 from gateway.routes import completions as completions_route
@@ -23,6 +24,7 @@ from gateway.routes import completions as completions_route
 def chat_client(monkeypatch, tmp_path):
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(artifact_store, "ARTIFACTS_DB_FILE", db_file)
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
     artifact_store.init_db()
 
     app = FastAPI()
@@ -80,6 +82,32 @@ class TestUseInChat:
             "media_type": "text/plain",
             "size": artifact["size_bytes"],
         }
+
+    def test_builder_result_attachment_survives_chat_ledger_reload(self, chat_client, tmp_path):
+        artifact = _register_builder_result(tmp_path)
+        handle = chat_lifecycle.start_turn(
+            conversation_id="builder-result-reload",
+            project_id=1,
+            title="Review saved result",
+            user_message_id="user-result-1",
+            user_text="Review the saved result",
+            manifest_revision="test-revision",
+            requested_model="kitty-default",
+            attachment_ids=[artifact["id"]],
+        )
+        chat_lifecycle.finish_turn(
+            handle, status="succeeded", assistant_text="Reviewed.", resolved_model="kitty-default"
+        )
+
+        response = chat_client.get("/chats/builder-result-reload/messages")
+        assert response.status_code == 200, response.text
+        user_message = next(message for message in response.json()["messages"] if message["role"] == "user")
+        assert user_message["attachments"] == [{
+            "id": artifact["id"],
+            "display_name": "result.patch",
+            "media_type": "text/plain",
+            "size": artifact["size_bytes"],
+        }]
 
     def test_ready_jpeg_and_webp_are_supported(self, chat_client, tmp_path):
         for name, mime in (("a.jpg", "image/jpeg"), ("a.webp", "image/webp")):
