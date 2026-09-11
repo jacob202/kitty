@@ -42,6 +42,7 @@ from typing import Any
 
 import httpx
 
+from gateway import artifact_store
 from gateway import builder_attempt as ba
 from gateway import builder_contract_gate as bcg
 from gateway import builder_execution_boundary as beb
@@ -49,6 +50,7 @@ from gateway import builder_identity as bid
 from gateway import builder_initiative as bi
 from gateway import builder_pr_janitor as bj
 from gateway import builder_queue as bq
+from gateway import builder_scope as bs
 from gateway import compute_governor as cg
 from gateway.builder_brief import default_branch_name
 from gateway.builder_context import build_context_manifest, write_run_manifest
@@ -1166,6 +1168,248 @@ def _cumulative_evidence(worktree: Path, base_sha: str) -> dict[str, Any]:
         "diff_sha256": worktree_diff_sha256(worktree, base_sha),
         "changed_paths": worktree_changed_paths(worktree, base_sha),
     }
+
+
+_RESULT_KIND = "builder_result"
+_RESULT_MEDIA_TYPE = "text/plain"
+_RESULT_UNAVAILABLE_REASON = "Saved result is waiting for artifact registration."
+
+
+def _result_artifact_id(task_id: str, attempt_id: int) -> str:
+    return f"builder_result_{task_id}_attempt-{attempt_id}"
+
+
+def _result_path_is_sensitive(path: str) -> bool:
+    """Keep credential-bearing paths out of reusable result patches."""
+    parts = [part.lower() for part in path.split("/")]
+    name = parts[-1]
+    if name == ".env" or (name.startswith(".env.") and name != ".env.example"):
+        return True
+    if name in {
+        ".npmrc", ".pypirc", ".netrc",
+        "credentials.json", "gmail_token.json", "token.json",
+        "id_rsa", "id_ed25519",
+    }:
+        return True
+    if name.endswith((".pem", ".key", ".p12", ".pfx")):
+        return True
+    if name.startswith(("credentials.", "client_secret", "private_key", "secret_key")):
+        return True
+    return any(part in {".git", ".ssh", "secrets"} for part in parts)
+
+
+def _reviewed_result_paths(changed_paths: list[str]) -> tuple[list[str], list[str]]:
+    included: list[str] = []
+    excluded: list[str] = []
+    for raw in changed_paths:
+        path = bs.normalize_allowed_path(raw)
+        if path == "done.txt" or bs.is_expected_residue(path) or _result_path_is_sensitive(path):
+            excluded.append(path)
+        else:
+            included.append(path)
+    return included, excluded
+
+
+def _write_reviewed_result_patch(
+    worktree: Path,
+    result_path: Path,
+    cumulative: dict[str, Any],
+) -> dict[str, Any]:
+    """Persist only the already-reviewed product diff, never runner residue."""
+    base_sha = str(cumulative.get("base_sha") or "")
+    review_sha = str(cumulative.get("review_sha") or "")
+    diff_sha256 = str(cumulative.get("diff_sha256") or "")
+    changed_paths = cumulative.get("changed_paths")
+    if not base_sha or not review_sha or not diff_sha256 or not isinstance(changed_paths, list):
+        raise LoopError("cumulative result evidence is incomplete")
+    if worktree_head(worktree) != review_sha:
+        raise LoopError("cannot persist result: worktree HEAD moved after review")
+    if worktree_diff_sha256(worktree, base_sha) != diff_sha256:
+        raise LoopError("cannot persist result: worktree diff moved after review")
+
+    included, excluded = _reviewed_result_paths([str(path) for path in changed_paths])
+    patch = b""
+    if included:
+        proc = subprocess.run(
+            ["git", "diff", "--binary", "--no-ext-diff", base_sha, review_sha, "--", *included],
+            cwd=worktree,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        if proc.returncode != 0:
+            detail = proc.stderr.decode(errors="replace").strip() or "no output"
+            raise LoopError(f"cannot persist reviewed result patch: {detail}")
+        patch = proc.stdout
+    result_path.write_bytes(patch)
+    return {
+        "included_paths": included,
+        "excluded_paths": excluded,
+        "sha256": hashlib.sha256(patch).hexdigest(),
+        "size_bytes": len(patch),
+    }
+
+
+def _verify_saved_result_patch(result_path: Path, evidence: dict[str, Any]) -> None:
+    """Fail closed if a saved patch moved after its reviewed manifest was written."""
+    expected_sha = evidence.get("sha256")
+    expected_size = evidence.get("size_bytes")
+    if not isinstance(expected_sha, str) or len(expected_sha) != 64:
+        raise LoopError("saved result manifest is missing patch integrity evidence")
+    if isinstance(expected_size, bool) or not isinstance(expected_size, int) or expected_size < 0:
+        raise LoopError("saved result manifest is missing patch size evidence")
+    try:
+        content = result_path.read_bytes()
+    except OSError as exc:
+        raise LoopError(f"saved result patch is unreadable: {exc}") from exc
+    if len(content) != expected_size or hashlib.sha256(content).hexdigest() != expected_sha:
+        raise LoopError("saved result patch no longer matches reviewed result evidence")
+
+
+def _register_result_artifact(
+    *,
+    task_id: str,
+    attempt_id: int,
+    initiative_id: str,
+    packet_id: str,
+    project_id: int,
+    result_path: Path,
+    cumulative: dict[str, Any],
+    path_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    artifact_id = _result_artifact_id(task_id, attempt_id)
+    artifact = artifact_store.register_file(
+        result_path,
+        kind=_RESULT_KIND,
+        media_type=_RESULT_MEDIA_TYPE,
+        project_id=project_id,
+        created_by="builder",
+        source_ref=f"builder:{task_id}:attempt:{attempt_id}",
+        artifact_id=artifact_id,
+        metadata={
+            "initiative_id": initiative_id,
+            "packet_id": packet_id,
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "base_sha": cumulative["base_sha"],
+            "review_sha": cumulative["review_sha"],
+            "diff_sha256": cumulative["diff_sha256"],
+            "included_paths": list(path_evidence.get("included_paths") or []),
+            "excluded_paths": list(path_evidence.get("excluded_paths") or []),
+            "result_patch_sha256": path_evidence.get("sha256"),
+            "result_patch_size_bytes": path_evidence.get("size_bytes"),
+        },
+    )
+    return {
+        "state": "ready",
+        "artifact_id": artifact["id"],
+        "kind": artifact["kind"],
+        "media_type": artifact["media_type"],
+    }
+
+
+def _append_result_artifact_event(
+    task_id: str,
+    *,
+    attempt_id: int,
+    result_artifact: dict[str, Any],
+    db_path: Path | None,
+) -> None:
+    event_type = (
+        "result_artifact_registered"
+        if result_artifact.get("state") == "ready"
+        else "result_artifact_registration_failed"
+    )
+    payload = {"attempt_id": attempt_id, **result_artifact}
+    bq.append_event(task_id, event_type, payload=payload, db_path=db_path)
+
+
+def _result_registration_context(task_id: str, db_path: Path | None) -> dict[str, Any]:
+    ba.init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT a.id AS attempt_id, a.initiative_id, a.packet_id, i.project_id
+            FROM packet_attempts a
+            INNER JOIN initiatives i ON i.id = a.initiative_id
+            WHERE a.task_id = ? AND a.outcome = ?
+            ORDER BY a.attempt_no DESC, a.id DESC
+            LIMIT 1
+            """,
+            (task_id, ba.ATTEMPT_SUCCEEDED),
+        ).fetchone()
+        if row is None:
+            raise LoopError(f"task {task_id} has no succeeded attempt with a saved result")
+        return dict(row)
+    finally:
+        conn.close()
+
+
+def register_saved_result_artifact(
+    task_id: str,
+    *,
+    repo_root: Path | None = None,
+    db_path: Path | None = None,
+    cleanup_after_success: bool = False,
+) -> dict[str, Any]:
+    """Retry ArtifactStore registration from durable result evidence only."""
+    context = _result_registration_context(task_id, db_path)
+    attempt_id = int(context["attempt_id"])
+    attempt_dir = _attempt_dir(task_id, attempt_id, db_path)
+    manifest_path = attempt_dir / "run-manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise LoopError(f"saved result manifest is unavailable: {exc}") from exc
+    cumulative = manifest.get("cumulative")
+    review = manifest.get("review")
+    if manifest.get("outcome") != "succeeded" or not isinstance(cumulative, dict):
+        raise LoopError("saved result manifest is not a completed packet result")
+    if not isinstance(review, dict) or review.get("verdict") != "approve":
+        raise LoopError("saved result is not bound to an approving review")
+
+    result_path = attempt_dir / "result.patch"
+    recorded_patch = manifest.get("result_patch")
+    if result_path.is_file():
+        if not isinstance(recorded_patch, dict):
+            raise LoopError("saved result manifest is missing patch integrity evidence")
+        _verify_saved_result_patch(result_path, recorded_patch)
+        path_evidence = dict(recorded_patch)
+    else:
+        worktree = worktree_path(task_id, repo_root=repo_root)
+        if not worktree.exists():
+            raise LoopError("saved result patch is missing and its reviewed worktree is unavailable")
+        path_evidence = _write_reviewed_result_patch(worktree, result_path, cumulative)
+        if isinstance(recorded_patch, dict):
+            if (
+                path_evidence.get("sha256") != recorded_patch.get("sha256")
+                or path_evidence.get("size_bytes") != recorded_patch.get("size_bytes")
+            ):
+                raise LoopError("recovered result patch no longer matches reviewed result evidence")
+        else:
+            manifest["result_patch"] = path_evidence
+            write_run_manifest(manifest_path, manifest)
+
+    result = _register_result_artifact(
+        task_id=task_id,
+        attempt_id=attempt_id,
+        initiative_id=str(context["initiative_id"]),
+        packet_id=str(context["packet_id"]),
+        project_id=int(context["project_id"]),
+        result_path=result_path,
+        cumulative=cumulative,
+        path_evidence=path_evidence,
+    )
+    _append_result_artifact_event(
+        task_id, attempt_id=attempt_id, result_artifact=result, db_path=db_path
+    )
+
+    if cleanup_after_success:
+        worktree = worktree_path(task_id, repo_root=repo_root)
+        if worktree.exists() and (worktree / "done.txt").is_file():
+            remove_worktree(task_id, repo_root=repo_root, discard_done_marker=True)
+    return result
 
 
 def _read_contract(path: Path, kind: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -2764,20 +3008,81 @@ def run_packet(
             # repair attempts), while each attempt's run record keeps its own
             # retry-local delta.
             task_worktree = worktree_path(task_id, repo_root=repo_root)
-            manifest["cumulative"] = _cumulative_evidence(
-                task_worktree, base_sha
-            )
+            cumulative = _cumulative_evidence(task_worktree, base_sha)
+            manifest["cumulative"] = cumulative
             manifest["outcome"] = "succeeded"
+
+            # Only the reviewed-success path produces a reusable Builder result.
+            # Validation-only callers retain their historical cleanup behavior;
+            # they have no independent review boundary to bind a result to.
+            result_artifact: dict[str, Any] | None = None
+            if review_command:
+                review_evidence = manifest.get("review") or {}
+                if (
+                    review_evidence.get("review_sha") != cumulative["review_sha"]
+                    or review_evidence.get("diff_sha256") != cumulative["diff_sha256"]
+                ):
+                    raise LoopError("final result no longer matches the approving review")
+                project_id = initiative_contract.get("project_id")
+                if isinstance(project_id, bool) or not isinstance(project_id, int) or project_id <= 0:
+                    raise LoopError("initiative project identity is unavailable for result registration")
+                result_patch = attempt_dir / "result.patch"
+                try:
+                    path_evidence = _write_reviewed_result_patch(
+                        task_worktree, result_patch, cumulative
+                    )
+                    manifest["result_patch"] = path_evidence
+                except (OSError, LoopError) as exc:
+                    result_artifact = {
+                        "state": "unavailable",
+                        "artifact_id": _result_artifact_id(task_id, attempt_id),
+                        "reason": "Saved result could not be persisted; the completed worktree was retained.",
+                        "error": _text_evidence(str(exc)),
+                    }
+                else:
+                    try:
+                        result_artifact = _register_result_artifact(
+                            task_id=task_id,
+                            attempt_id=attempt_id,
+                            initiative_id=initiative_id,
+                            packet_id=packet_id,
+                            project_id=project_id,
+                            result_path=result_patch,
+                            cumulative=cumulative,
+                            path_evidence=path_evidence,
+                        )
+                    except Exception as exc:
+                        result_artifact = {
+                            "state": "unavailable",
+                            "artifact_id": _result_artifact_id(task_id, attempt_id),
+                            "reason": _RESULT_UNAVAILABLE_REASON,
+                            "error": _text_evidence(str(exc)),
+                        }
+                entry["result_artifact"] = result_artifact
+                manifest["result_artifact"] = result_artifact
+                _append_result_artifact_event(
+                    task_id,
+                    attempt_id=attempt_id,
+                    result_artifact=result_artifact,
+                    db_path=db_path,
+                )
+
             write_run_manifest(manifest_path, manifest)
             _close_bound_attempt(
                 attempt, lease, ba.ATTEMPT_SUCCEEDED, db_path=db_path
             )
             entry["outcome"] = ba.ATTEMPT_SUCCEEDED
 
-            # A worker's done marker is the explicit handoff boundary. Remove
-            # only after every success gate passes; failed or interrupted work
-            # must remain available for inspection and recovery.
-            if (task_worktree / "done.txt").is_file():
+            # A worker's done marker is the explicit handoff boundary. Never
+            # discard the only recoverable copy when durable result persistence
+            # or registration failed after otherwise-completed work.
+            if result_artifact is not None and result_artifact.get("state") != "ready":
+                entry["worktree_cleanup"] = (
+                    "kept_result_registration_failed"
+                    if (attempt_dir / "result.patch").is_file()
+                    else "kept_result_persistence_failed"
+                )
+            elif (task_worktree / "done.txt").is_file():
                 remove_worktree(
                     task_id, repo_root=repo_root, discard_done_marker=True
                 )

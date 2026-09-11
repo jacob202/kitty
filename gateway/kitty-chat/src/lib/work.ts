@@ -150,6 +150,9 @@ function isEvidence(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value)) return false
   return (
     isEvidenceField(value, 'approval', 'state', isNullableString)
+    && isEvidenceField(value, 'result', 'state', isNullableString)
+    && isEvidenceField(value, 'result', 'artifact_id', isNullableString)
+    && isEvidenceField(value, 'result', 'reason', isNullableString)
     && isEvidenceField(value, 'review', 'verdict', isNullableString)
     && isEvidenceField(value, 'review', 'summary', isNullableString)
     && isEvidenceField(value, 'validation', 'status', isNullableString)
@@ -350,7 +353,7 @@ export interface BuilderCommandResult {
 }
 
 export interface BuilderCommand {
-  action: 'requeue' | 'grant_attempt' | 'cancel' | 'resume' | 'pause'
+  action: 'requeue' | 'grant_attempt' | 'cancel' | 'resume' | 'pause' | 'register_result'
   task_id?: string
   packet_id?: string
   initiative_id?: string

@@ -733,10 +733,11 @@ export function useArtifacts(limit = 100) {
   })
 }
 
-export function useArtifact(artifactId: string) {
+export function useArtifact(artifactId: string, enabled = true) {
   return useQuery({
     queryKey: ['artifacts', 'one', artifactId],
     queryFn: () => fetchArtifact(artifactId),
+    enabled: enabled && Boolean(artifactId),
     staleTime: 30_000,
     retry: false,
   })

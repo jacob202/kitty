@@ -27,6 +27,7 @@ def _project_work_item(initiative):
         "blocker": blocker,
         "next_action": _bounded_reason((current_packet or {}).get("projection", {}).get("next_action")),
         "evidence": {
+            "result": (current_attempt or {}).get("result_artifact"),
             "validation": (current_attempt or {}).get("validation"),
             "review": (current_attempt or {}).get("review"),
             "publication": publication,

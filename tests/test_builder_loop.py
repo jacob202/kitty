@@ -17,6 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from gateway import agent_coordination as ac
+from gateway import artifact_store
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
@@ -68,6 +69,7 @@ def isolated_loop_kx(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("KITTY_DATA_ROOT", str(kitty_data_root))
     monkeypatch.setenv("KITTY_COORDINATION_DB_PATH", str(coordination_db))
     monkeypatch.setenv("KITTY_COORDINATION_REGISTRY_PATH", str(registry))
+    monkeypatch.setattr(artifact_store, "ARTIFACTS_DB_FILE", workspace_db)
 
 
 def _apply(db_path: Path, *, max_attempts: int = 2,
@@ -410,6 +412,22 @@ class TestRunPacket:
         assert "fine" not in json.dumps(manifest)
         assert entry["worktree_cleanup"] == "removed"
         assert not (repo / ".worktrees" / "kittybuilder" / task_id).exists()
+        result_patch = manifest_path.parent / "result.patch"
+        assert result_patch.exists()
+        # done.txt is runner residue, not the reviewed product result. This
+        # default fixture changes only done.txt, so the cumulative result is
+        # intentionally an empty but durable patch.
+        assert result_patch.read_bytes() == b""
+        result_artifact = entry["result_artifact"]
+        assert result_artifact["state"] == "ready"
+        registered = artifact_store.get_artifact(result_artifact["artifact_id"])
+        assert registered is not None
+        assert registered["storage_uri"] == str(result_patch.resolve())
+        assert registered["media_type"] == "text/plain"
+        assert registered["project_id"] == 1
+        assert registered["metadata"]["base_sha"] == manifest["cumulative"]["base_sha"]
+        assert registered["metadata"]["review_sha"] == manifest["cumulative"]["review_sha"]
+        assert registered["metadata"]["diff_sha256"] == manifest["cumulative"]["diff_sha256"]
 
         attempt = ba.get_attempt(entry["attempt_id"], db_path=db_path)
         assert attempt["outcome"] == "succeeded"
@@ -417,6 +435,107 @@ class TestRunPacket:
         assert attempt["review"]["verdict"] == "approve"
         # Shadow mode: the task ends blocked for the operator/KB-S4.
         assert bq.get_task(task_id, db_path=db_path)["state"] == bq.BLOCKED
+
+    def test_result_registration_failure_preserves_patch_and_retry_does_not_rerun_worker(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        task_id = _apply(
+            db_path,
+            allowed_paths=["done.txt", "product.txt"],
+            repo_root=repo,
+        )
+        worker = _script(
+            tmp_path,
+            "result_worker.sh",
+            "echo product-change > product.txt\n"
+            "echo ok > done.txt\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        real_register = artifact_store.register_file
+        calls = []
+
+        def fail_registration(*args, **kwargs):
+            calls.append("failed")
+            raise artifact_store.ArtifactError("synthetic registration outage")
+
+        monkeypatch.setattr(artifact_store, "register_file", fail_registration)
+        first = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=worker,
+            review_command=_approve_reviewer(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+
+        assert first["outcome"] == bl.LOOP_SUCCEEDED
+        entry = first["attempts"][0]
+        assert entry["result_artifact"]["state"] == "unavailable"
+        assert entry["worktree_cleanup"] == "kept_result_registration_failed"
+        attempt_dir = db_path.parent / "attempts" / task_id / str(entry["attempt_id"])
+        patch_path = attempt_dir / "result.patch"
+        assert patch_path.is_file()
+        patch_text = patch_path.read_text()
+        assert "product.txt" in patch_text
+        assert "done.txt" not in patch_text
+        assert (repo / ".worktrees" / "kittybuilder" / task_id).exists()
+        assert ba.get_attempt(entry["attempt_id"], db_path=db_path)["outcome"] == ba.ATTEMPT_SUCCEEDED
+        assert len(calls) == 1
+
+        monkeypatch.setattr(artifact_store, "register_file", real_register)
+        original_patch = patch_path.read_bytes()
+        patch_path.write_text("tampered after review\n", encoding="utf-8")
+        with pytest.raises(bl.LoopError, match="no longer matches reviewed result evidence"):
+            bl.register_saved_result_artifact(
+                task_id, repo_root=repo, db_path=db_path, cleanup_after_success=True
+            )
+        patch_path.write_bytes(original_patch)
+
+        retried = bl.register_saved_result_artifact(
+            task_id, repo_root=repo, db_path=db_path, cleanup_after_success=True
+        )
+        assert retried["state"] == "ready"
+        assert retried["artifact_id"] == entry["result_artifact"]["artifact_id"]
+        assert not (repo / ".worktrees" / "kittybuilder" / task_id).exists()
+        # Registration retry consumes saved evidence only; no second worker
+        # attempt was created.
+        assert len(ba.list_attempts(INITIATIVE, PACKET, db_path=db_path)) == 1
+
+        repeated = bl.register_saved_result_artifact(
+            task_id, repo_root=repo, db_path=db_path, cleanup_after_success=True
+        )
+        assert repeated["artifact_id"] == retried["artifact_id"]
+        assert len(ba.list_attempts(INITIATIVE, PACKET, db_path=db_path)) == 1
+
+    def test_reviewed_result_paths_exclude_runner_residue_and_credentials(self):
+        included, excluded = bl._reviewed_result_paths([
+            "gateway/app.py",
+            ".env.example",
+            "done.txt",
+            ".claude/STATE.md",
+            ".kittybuilder-bundle-7.json",
+            ".env",
+            ".env.local",
+            ".npmrc",
+            ".pypirc",
+            ".netrc",
+            "secrets/client.pem",
+            "config/private.key",
+            "data/gmail_token.json",
+        ])
+
+        assert included == ["gateway/app.py", ".env.example"]
+        assert excluded == [
+            "done.txt",
+            ".claude/STATE.md",
+            ".kittybuilder-bundle-7.json",
+            ".env",
+            ".env.local",
+            ".npmrc",
+            ".pypirc",
+            ".netrc",
+            "secrets/client.pem",
+            "config/private.key",
+            "data/gmail_token.json",
+        ]
 
     def test_validation_only_when_no_reviewer(
         self, repo: Path, db_path: Path, tmp_path: Path

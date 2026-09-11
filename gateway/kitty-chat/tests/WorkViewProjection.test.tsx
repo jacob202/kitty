@@ -2,16 +2,17 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, useCompileBuilderProposal, mutate } = vi.hoisted(() => ({
+const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, useCompileBuilderProposal, useArtifact, mutate } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(),
   usePreflight: vi.fn(),
   useSupervisor: vi.fn(),
   useBuilderAction: vi.fn(),
   useCompileBuilderProposal: vi.fn(),
+  useArtifact: vi.fn(),
   mutate: vi.fn(),
 }))
 vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction }))
-vi.mock('../src/lib/queries', () => ({ useCompileBuilderProposal }))
+vi.mock('../src/lib/queries', () => ({ useCompileBuilderProposal, useArtifact }))
 
 function supervisor(overrides: Record<string, unknown> = {}) {
   return {
@@ -69,11 +70,13 @@ describe('WorkView projection', () => {
     useBuilderAction.mockReset()
     useCompileBuilderProposal.mockReset()
     useCompileBuilderProposal.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+    useArtifact.mockReset()
+    useArtifact.mockReturnValue({ data: undefined, isPending: false, isError: false, error: null })
     mutate.mockReset()
     useSupervisor.mockReturnValue({ data: supervisor(), isPending: false, isError: false, error: null })
     useBuilderAction.mockReturnValue({ mutate, isPending: false })
   })
-  afterEach(cleanup)
+  afterEach(() => { vi.unstubAllGlobals(); cleanup() })
 
   it('renders Gateway work truth', () => {
     renderSnapshot()
@@ -221,6 +224,86 @@ describe('WorkView projection', () => {
     expect(screen.getByText('publication checks passed')).toBeVisible()
     expect(screen.getByText('publication merged')).toBeVisible()
     expect(screen.getByText('merged Aug 21, 2026')).toBeVisible()
+  })
+
+  it('shows a durable result independently and opens the canonical artifact canvas', async () => {
+    const base = snapshot().items[0]
+    useArtifact.mockImplementation((artifactId: string, enabled = true) => ({
+      data: enabled && artifactId === 'builder_result_kb_123_attempt-42' ? {
+        id: artifactId, project_id: 1, kind: 'builder_result', media_type: 'text/plain',
+        display_name: 'result.patch', state: 'ready', size_bytes: 32, created_at: 1789090000,
+        created_by: 'builder', metadata: { base_sha: 'a'.repeat(40), review_sha: 'b'.repeat(40) }, error: null,
+      } : undefined,
+      isPending: false, isError: false, error: null,
+    }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('diff --git a/file b/file\n+result', {
+      status: 200, headers: { 'Content-Type': 'text/plain' },
+    })))
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        evidence: {
+          approval: { state: 'unavailable' },
+          result: { state: 'ready', artifact_id: 'builder_result_kb_123_attempt-42' },
+        },
+      }],
+    })
+
+    expect(screen.getByText('Result available')).toBeVisible()
+    expect(screen.queryByText('Review evidence available')).not.toBeInTheDocument()
+    expect(screen.queryByText('Publication evidence available')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /open result/i }))
+    expect(await screen.findByRole('dialog', { name: 'result.patch' })).toBeVisible()
+    expect(await screen.findByText(/diff --git a\/file b\/file/)).toBeVisible()
+    vi.unstubAllGlobals()
+  })
+
+  it('does not advertise an unavailable result as available', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        evidence: {
+          approval: { state: 'unavailable' },
+          result: { state: 'unavailable', reason: 'Saved result is waiting for artifact registration.' },
+        },
+      }],
+    })
+    expect(screen.queryByText('Result available')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /open result/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Details'))
+    expect(screen.getByText('result unavailable')).toBeVisible()
+    expect(screen.getByText('Saved result is waiting for artifact registration.')).toBeVisible()
+  })
+
+  it('retries only saved result registration instead of rerunning completed work', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      counts: { total: 1, active: 0, paused: 0, failed: 0, blocked: 1, completed: 0, ready: 0, waiting: 0 },
+      items: [{
+        ...base,
+        state: 'blocked',
+        current_packet: { ...base.current_packet, task_state: 'blocked' },
+        next_action: 'register_result',
+        evidence: {
+          approval: { state: 'unavailable' },
+          result: { state: 'unavailable', artifact_id: 'builder_result_kb_123_attempt-42', reason: 'Saved result is waiting for artifact registration.' },
+        },
+      }],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry saving result' }))
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'register_result', task_id: 'kb_123' }),
+      expect.anything(),
+    )
+    expect(mutate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'requeue' }),
+      expect.anything(),
+    )
   })
 
   it('interprets Builder timestamps without a timezone as UTC', () => {

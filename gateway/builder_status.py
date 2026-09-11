@@ -25,7 +25,7 @@ SCHEMA_VERSION = 2
 CONTROL_PLANE_SUMMARY_VERSION = 1
 ATTEMPT_HISTORY_LIMIT = 10
 REVIEW_FINDING_LIMIT = 5
-SNAPSHOT_QUERY_COUNT = 10
+SNAPSHOT_QUERY_COUNT = 11
 _MESSAGE_CAP = 500
 _OBJECTIVE_CAP = 1200
 _PATH_PATTERN = re.compile(r"(?<![A-Za-z0-9_])/(?:[^\s/]+/)+[^\s/]+")
@@ -138,6 +138,7 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
         runs = _index_rows(_read_latest_runs(conn), "task_id")
         publications = _index_rows(_read_latest_publications(conn), "task_id")
         events = _index_rows(_read_latest_events(conn), "task_id")
+        result_events = _index_rows(_read_latest_result_events(conn), "task_id")
         decisions = _index_rows(_read_latest_decisions(conn), "task_id")
         pr_advisories = _index_rows(_read_latest_pr_advisories(conn), "task_id")
 
@@ -152,6 +153,7 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
                     run_row=runs.get(str(row["task_id"])),
                     publication_row=publications.get(str(row["task_id"])),
                     event_row=events.get(str(row["task_id"])),
+                    result_event_row=result_events.get(str(row["task_id"])),
                     decision_row=decisions.get(str(row["task_id"])),
                     pr_advisory_row=pr_advisories.get(str(row["task_id"])),
                 )
@@ -330,6 +332,7 @@ def _build_initiative_projection(
     runs = _index_rows(_read_latest_runs(conn), "task_id")
     publications = _index_rows(_read_latest_publications(conn), "task_id")
     events = _index_rows(_read_latest_events(conn), "task_id")
+    result_events = _index_rows(_read_latest_result_events(conn), "task_id")
     decisions = _index_rows(_read_latest_decisions(conn), "task_id")
 
     packet_models: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -343,6 +346,7 @@ def _build_initiative_projection(
                 run_row=runs.get(str(row["task_id"])),
                 publication_row=publications.get(str(row["task_id"])),
                 event_row=events.get(str(row["task_id"])),
+                result_event_row=result_events.get(str(row["task_id"])),
                 decision_row=decisions.get(str(row["task_id"])),
             )
         )
@@ -493,6 +497,30 @@ def _read_latest_events(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def _read_latest_result_events(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Return the latest durable result-registration event per task."""
+    return conn.execute(
+        """
+        WITH ranked AS (
+            SELECT e.id, e.task_id, e.type, e.payload_json, e.created_at,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY e.task_id
+                       ORDER BY e.id DESC
+                   ) AS row_rank
+            FROM events e
+            INNER JOIN initiative_packets p ON p.task_id = e.task_id
+            WHERE e.type IN (
+                'result_artifact_registered',
+                'result_artifact_registration_failed'
+            )
+        )
+        SELECT * FROM ranked
+        WHERE row_rank = 1
+        ORDER BY task_id ASC
+        """
+    ).fetchall()
+
+
 def _read_latest_decisions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         """
@@ -631,6 +659,7 @@ def _packet_model(
     run_row: sqlite3.Row | None,
     publication_row: sqlite3.Row | None,
     event_row: sqlite3.Row | None,
+    result_event_row: sqlite3.Row | None,
     decision_row: sqlite3.Row | None,
     pr_advisory_row: sqlite3.Row | None = None,
 ) -> dict[str, Any]:
@@ -651,6 +680,19 @@ def _packet_model(
         attempt, attempt_issues = _attempt_projection(attempt_row)
         attempt_history.append(attempt)
         issues.extend(attempt_issues)
+
+    result_artifact, result_issues = _result_artifact_projection(result_event_row)
+    issues.extend(result_issues)
+    if result_artifact is not None:
+        result_attempt_id = result_artifact.pop("_attempt_id", None)
+        matched = False
+        for attempt in attempt_history:
+            if attempt.get("id") == result_attempt_id:
+                attempt["result_artifact"] = result_artifact
+                matched = True
+                break
+        if not matched:
+            issues.append("result artifact references an attempt outside the available history")
 
     attempt_count = int(attempt_rows[0]["attempt_count"]) if attempt_rows else 0
     used = int(attempt_rows[0]["budget_used"] or 0) if attempt_rows else 0
@@ -1001,6 +1043,17 @@ def _derive_next_action(packet: dict[str, Any]) -> str | None:
         return "unavailable"
     if packet.get("cancellation") is not None or packet.get("task_state") == bq.CANCELLED:
         return "cancelled"
+    attempts = packet.get("attempt_history") or []
+    latest_attempt = attempts[0] if attempts and isinstance(attempts[0], dict) else {}
+    result_artifact = latest_attempt.get("result_artifact") or {}
+    if (
+        latest_attempt.get("outcome") == ba.ATTEMPT_SUCCEEDED
+        and isinstance(result_artifact, dict)
+        and result_artifact.get("state") == "unavailable"
+    ):
+        # Completed work must never be rerun merely because ArtifactStore
+        # registration failed. Retry only the saved-result registration.
+        return "register_result"
     exhausted = (packet.get("budget") or {}).get("exhausted")
     if exhausted is True:
         return "exhausted"
@@ -1215,6 +1268,45 @@ def _recovery_actions(
             )
 
     return actions
+
+
+def _result_artifact_projection(
+    row: sqlite3.Row | None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Project only safe durable result facts; never storage paths/raw errors."""
+    if row is None:
+        return None, []
+    payload, issue = _decode_optional_object(row["payload_json"], "result artifact event")
+    issues = [issue] if issue else []
+    if payload is None:
+        return None, issues
+
+    attempt_id = payload.get("attempt_id")
+    if isinstance(attempt_id, bool) or not isinstance(attempt_id, int):
+        issues.append("result artifact event is missing a valid attempt_id")
+        return None, issues
+    state = _known_string(payload, "state")
+    if state not in {"ready", "unavailable"}:
+        issues.append("result artifact event has an unknown state")
+        state = None
+    artifact_id = _safe_message(payload.get("artifact_id"), cap=220)
+    if artifact_id is None:
+        issues.append("result artifact event is missing artifact_id")
+    result: dict[str, Any] = {
+        "_attempt_id": attempt_id,
+        "state": state,
+        "artifact_id": artifact_id,
+    }
+    kind = _safe_message(payload.get("kind"), cap=80)
+    media_type = _safe_message(payload.get("media_type"), cap=120)
+    reason = _safe_message(payload.get("reason"), cap=320)
+    if kind is not None:
+        result["kind"] = kind
+    if media_type is not None:
+        result["media_type"] = media_type
+    if reason is not None:
+        result["reason"] = reason
+    return result, issues
 
 
 def _event_projection(

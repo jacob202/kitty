@@ -171,6 +171,41 @@ describe('LibraryView artifact truth', () => {
     expect(setActiveView).toHaveBeenCalledWith('chat')
   })
 
+  it('stages a saved Builder result into chat with the same artifact identity', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/proxy/chats/use-in-chat')) {
+        return new Response(JSON.stringify({
+          id: 'artifact_builder_result', display_name: 'result.patch',
+          media_type: 'text/plain', size: 321,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.includes('/proxy/artifacts')) {
+        return new Response(JSON.stringify({ artifacts: [{
+          id: 'artifact_builder_result', project_id: 1, kind: 'builder_result', media_type: 'text/plain',
+          display_name: 'result.patch', state: 'ready', size_bytes: 321,
+          created_at: 1787259000, created_by: 'kittybuilder', conversation_id: null,
+          metadata: { task_id: 'task-1', attempt_id: 3 }, error: null,
+        }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    }))
+
+    renderLibrary()
+    const action = await screen.findByRole('button', { name: /use result\.patch in chat/i })
+    expect(action).toBeEnabled()
+    fireEvent.click(action)
+
+    expect(await screen.findByText('result.patch')).toBeInTheDocument()
+    expect(setAttachments).toHaveBeenCalledTimes(1)
+    const updater = setAttachments.mock.calls[0]?.[0]
+    expect(typeof updater).toBe('function')
+    expect((updater as (items: unknown[]) => unknown[])([])).toEqual([{
+      id: 'artifact_builder_result', display_name: 'result.patch', media_type: 'text/plain', size: 321,
+    }])
+    expect(setActiveView).toHaveBeenCalledWith('chat')
+  })
+
   // A ready PNG passes the row's own gate, so only the gateway can reject it.
   // Its reason is written for a person and must survive to the screen intact.
   it('shows the gateway reason when a ready image cannot be resolved', async () => {
@@ -277,7 +312,7 @@ describe('LibraryView artifact truth', () => {
 
     const pdf = await screen.findByRole('button', { name: /use notes\.pdf in chat unavailable/i })
     expect(pdf).toBeDisabled()
-    expect(screen.getByText(/only images can be attached/i)).toBeInTheDocument()
+    expect(screen.getByText(/only supported images and saved Builder results/i)).toBeInTheDocument()
 
     const processing = screen.getByRole('button', { name: /use new-camera-reference\.png in chat unavailable/i })
     expect(processing).toBeDisabled()

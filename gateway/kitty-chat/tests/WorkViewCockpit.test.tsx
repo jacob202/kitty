@@ -6,7 +6,8 @@ const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, useCompi
   useWorkSnapshot: vi.fn(), usePreflight: vi.fn(), useSupervisor: vi.fn(), useBuilderAction: vi.fn(), useCompileBuilderProposal: vi.fn(), streamChat: vi.fn(),
 }))
 vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction }))
-vi.mock('../src/lib/queries', () => ({ useCompileBuilderProposal }))
+vi.mock('../src/lib/queries', () => ({
+  useArtifact: () => ({ data: undefined, isPending: false, isError: false, error: null }), useCompileBuilderProposal }))
 vi.mock('../src/lib/chat-client', () => ({
   streamChat,
   friendlyChatError: (error: unknown) => ({ kind: 'routing', userMessage: error instanceof Error ? error.message : 'routing failed' }),
