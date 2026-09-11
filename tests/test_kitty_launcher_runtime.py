@@ -80,6 +80,152 @@ def test_status_uses_the_serving_listener_before_pidfile_metadata() -> None:
     assert block.index(listener_lookup) < block.index(pidfile_lookup)
 
 
+def _run_pidfile_controls_listener(tmp_path: Path, controller_command: str) -> subprocess.CompletedProcess:
+    pidfile = tmp_path / "litellm.pid"
+    pidfile.write_text("123\n", encoding="utf-8")
+    helper = (
+        _extract_function("controller_is_canonical_litellm")
+        + _extract_function("pidfile_controls_listener")
+    )
+    shell = (
+        'KITTY_ROOT=/repo\n'
+        'pid_owned_by_current_checkout() { [[ "$1" == "123" ]]; }\n'
+        'pid_parent() { printf "123\n"; }\n'
+        f'pid_command() {{ printf "%s\n" {controller_command!r}; }}\n'
+        + helper
+        + '\npidfile_controls_listener litellm "$1" 456\n'
+    )
+    return subprocess.run(
+        ["bash", "-c", shell, "bash", str(pidfile)],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_pidfile_controls_listener_accepts_expected_litellm_controller(tmp_path) -> None:
+    result = _run_pidfile_controls_listener(tmp_path, "bash /repo/gateway/start_litellm.sh")
+    assert result.returncode == 0, result.stderr
+
+
+def test_pidfile_controls_listener_rejects_reused_pid_with_wrong_command(tmp_path) -> None:
+    result = _run_pidfile_controls_listener(tmp_path, "bash /repo/scripts/unrelated.sh")
+    assert result.returncode != 0
+
+
+def _run_launchd_controls_listener(
+    launch_pid: str,
+    parent: str,
+    controller_command: str,
+    owned: bool = True,
+) -> subprocess.CompletedProcess:
+    helper = (
+        _extract_function("controller_is_canonical_litellm")
+        + _extract_function("launchd_controls_listener")
+    )
+    shell = (
+        'KITTY_ROOT=/repo\n'
+        f'launchd_pid() {{ printf "%s\\n" {launch_pid!r}; }}\n'
+        f'pid_owned_by_current_checkout() {{ return {0 if owned else 1}; }}\n'
+        f'pid_parent() {{ printf "%s\\n" {parent!r}; }}\n'
+        f'pid_command() {{ printf "%s\\n" {controller_command!r}; }}\n'
+        + helper
+        + '\nlaunchd_controls_listener litellm 456\n'
+    )
+    return subprocess.run(["bash", "-c", shell], capture_output=True, text=True)
+
+
+def test_launchd_controls_listener_accepts_install_launcher_without_pidfile() -> None:
+    # `./kitty install` runs /bin/bash <root>/gateway/start_litellm.sh under
+    # launchd and never writes logs/.run/litellm.pid.
+    result = _run_launchd_controls_listener(
+        "123", "123", "/bin/bash /repo/gateway/start_litellm.sh"
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_launchd_controls_listener_rejects_unrelated_child_job_or_command() -> None:
+    wrong_parent = _run_launchd_controls_listener(
+        "123", "999", "/bin/bash /repo/gateway/start_litellm.sh"
+    )
+    assert wrong_parent.returncode != 0
+
+    wrong_command = _run_launchd_controls_listener(
+        "123", "123", "/bin/bash /repo/scripts/unrelated.sh"
+    )
+    assert wrong_command.returncode != 0
+
+    no_job = _run_launchd_controls_listener(
+        "", "123", "/bin/bash /repo/gateway/start_litellm.sh"
+    )
+    assert no_job.returncode != 0
+
+    foreign_owner = _run_launchd_controls_listener(
+        "123", "123", "/bin/bash /repo/gateway/start_litellm.sh", owned=False
+    )
+    assert foreign_owner.returncode != 0
+
+
+def _run_listener_role_for_service(
+    svc: str, launch_pid: str, parent: str, controller_command: str
+) -> str:
+    helpers = "".join(
+        _extract_function(name)
+        for name in (
+            "controller_is_canonical_litellm",
+            "pidfile_controls_listener",
+            "launchd_controls_listener",
+            "listener_role_for_service",
+        )
+    )
+    shell = (
+        'KITTY_ROOT=/repo\n'
+        'pid_role() { printf "external\n"; }\n'
+        'pid_owned_by_current_checkout() { return 0; }\n'
+        f'launchd_pid() {{ printf "%s\\n" {launch_pid!r}; }}\n'
+        f'pid_parent() {{ printf "%s\\n" {parent!r}; }}\n'
+        f'pid_command() {{ printf "%s\\n" {controller_command!r}; }}\n'
+        + helpers
+        # No pidfile exists: this is the launchd install path.
+        + f'\nlistener_role_for_service {svc} /nonexistent/litellm.pid 456\n'
+    )
+    result = subprocess.run(["bash", "-c", shell], capture_output=True, text=True, check=True)
+    return result.stdout.strip()
+
+
+def test_listener_role_uses_launchd_controller_without_a_pidfile() -> None:
+    """Both status sections classify the launchd-owned LiteLLM listener.
+
+    `./kitty install` never writes logs/.run/litellm.pid, so the role seam must
+    fall through to the launchd controller instead of reporting `external`.
+    """
+    assert (
+        _run_listener_role_for_service(
+            "litellm", "123", "123", "/bin/bash /repo/gateway/start_litellm.sh"
+        )
+        == "owned-current"
+    )
+    # A different parent, a different service, or a foreign checkout stays external.
+    assert (
+        _run_listener_role_for_service(
+            "litellm", "123", "999", "/bin/bash /repo/gateway/start_litellm.sh"
+        )
+        == "external"
+    )
+    assert (
+        _run_listener_role_for_service(
+            "ui", "123", "123", "/bin/bash /repo/gateway/start_litellm.sh"
+        )
+        == "external"
+    )
+
+
+def test_status_uses_service_aware_role_for_both_listener_sections() -> None:
+    block = SCRIPT.split("cmd_status() {", 1)[1].split("\n}\n\ncmd_", 1)[0]
+    assert 'listener_role_for_service "$svc" "$pidfile" "$found_pid"' in block
+    assert 'listener_role_for_service "$svc" "$RUN_DIR/$svc.pid" "$pid"' in block
+    assert 'pidfile_controls_listener "$svc" "$pidfile" "$found_pid"' in block
+
+
 def test_primary_stack_classifier_distinguishes_coherent_split_partial_and_stopped() -> None:
     marker = "classify_primary_stack() {"
     assert marker in SCRIPT

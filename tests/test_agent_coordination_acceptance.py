@@ -471,6 +471,19 @@ def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
         ), path
 
 
+def test_registry_keeps_projects_route_with_its_regression_test() -> None:
+    """A Builder fix to the projects endpoint must resolve to one resource.
+
+    The route and its regression test were registered under different semantic
+    resources, so a properly tested change to this endpoint spanned two
+    ownership fences instead of one.
+    """
+    resources = agent_coordination.resolve_paths_to_resources(
+        ["gateway/routes/projects.py", "tests/test_projects_routes.py"],
+        registry_path=TRACKED_REGISTRY,
+    )
+    assert resources == ["memory:continuity"]
+
 
 def test_registry_covers_mission_runtime_and_automation_execution() -> None:
     runtime_paths = [

@@ -168,6 +168,61 @@ pid_role() {
   fi
 }
 
+pid_parent() {
+  ps -o ppid= -p "$1" 2>/dev/null | tr -d '[:space:]'
+}
+
+# LiteLLM intentionally keeps a repo-owned wrapper alive while the proxy
+# listener runs as its direct child outside the checkout. Require the exact
+# canonical launcher command so a stale pidfile plus PID reuse cannot bless an
+# unrelated child process as Kitty-owned. `./kitty up` records the wrapper as
+# `bash <path>`; `./kitty install` runs it under launchd as `/bin/bash <path>`.
+controller_is_canonical_litellm() {
+  local controller_pid="$1" controller_command
+  controller_command="$(pid_command "$controller_pid")"
+  case "$controller_command" in
+    "bash $KITTY_ROOT/gateway/start_litellm.sh"|"/bin/bash $KITTY_ROOT/gateway/start_litellm.sh") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+pidfile_controls_listener() {
+  local svc="$1" pidfile="$2" listener_pid="$3" controller_pid
+  [[ -f "$pidfile" ]] || return 1
+  controller_pid="$(cat "$pidfile" 2>/dev/null || true)"
+  [[ "$controller_pid" =~ ^[0-9]+$ ]] || return 1
+  pid_owned_by_current_checkout "$controller_pid" || return 1
+  [[ "$(pid_parent "$listener_pid")" == "$controller_pid" ]] || return 1
+  [[ "$svc" == "litellm" ]] || return 1
+  controller_is_canonical_litellm "$controller_pid"
+}
+
+# The supported `./kitty install` path starts LiteLLM under launchd and never
+# writes logs/.run/litellm.pid, so the pidfile controller above cannot see it.
+# Reuse the existing launchd authority as an alternative verified controller
+# rather than adding a second launcher: its pid is the repo-owned wrapper and
+# the proxy listener is its direct child.
+launchd_controls_listener() {
+  local svc="$1" listener_pid="$2" launch_pid
+  [[ "$svc" == "litellm" ]] || return 1
+  launch_pid="$(launchd_pid "$svc" || true)"
+  [[ "$launch_pid" =~ ^[0-9]+$ ]] || return 1
+  pid_owned_by_current_checkout "$launch_pid" || return 1
+  [[ "$(pid_parent "$listener_pid")" == "$launch_pid" ]] || return 1
+  controller_is_canonical_litellm "$launch_pid"
+}
+
+listener_role_for_service() {
+  local svc="$1" pidfile="$2" listener_pid="$3" role
+  role="$(pid_role "$listener_pid")"
+  if [[ "$role" == "external" ]] \
+    && { pidfile_controls_listener "$svc" "$pidfile" "$listener_pid" \
+      || launchd_controls_listener "$svc" "$listener_pid"; }; then
+    role="owned-current"
+  fi
+  printf '%s\n' "$role"
+}
+
 runtime_source_sha() {
   local sha dirty
   sha="$(git -C "$KITTY_ROOT" rev-parse HEAD 2>/dev/null || true)"
@@ -765,13 +820,13 @@ cmd_status() {
     pidfile="$RUN_DIR/$svc.pid"
     found_pid="$(listener_pids "$port" | head -1)"
     if [[ -n "$found_pid" ]]; then
-      role="$(pid_role "$found_pid")"
+      role="$(listener_role_for_service "$svc" "$pidfile" "$found_pid")"
       cwd="$(pid_cwd "$found_pid")"
       printf "  %-10s running (pid %s; listener :%s; role=%s; cwd=%s)\n" \
         "$svc" "$found_pid" "$port" "$role" "${cwd:-unknown}"
       if pid_alive "$pidfile"; then
         pidfile_pid="$(cat "$pidfile")"
-        if [[ "$pidfile_pid" != "$found_pid" ]]; then
+        if [[ "$pidfile_pid" != "$found_pid" ]] && ! pidfile_controls_listener "$svc" "$pidfile" "$found_pid"; then
           printf "             metadata mismatch: pidfile=%s does not own :%s\n" "$pidfile_pid" "$port"
         fi
       fi
@@ -883,13 +938,16 @@ cmd_status() {
   echo "Listeners"
   echo "─────────"
   local spec label pids
-  for spec in "UI:$UI_PORT" "Gateway:$GATEWAY_PORT" "LiteLLM:$LITELLM_PORT"; do
-    label="${spec%%:*}"
+  for spec in "ui:UI:$UI_PORT" "gateway:Gateway:$GATEWAY_PORT" "litellm:LiteLLM:$LITELLM_PORT"; do
+    svc="${spec%%:*}"
+    label="${spec#*:}"
+    label="${label%%:*}"
     port="${spec##*:}"
     pids="$(listener_pids "$port")"
     if [[ -n "$pids" ]]; then
       for pid in $pids; do
-        printf "  %-10s :%s pid=%s role=%s cwd=%s\n" "$label" "$port" "$pid" "$(pid_role "$pid")" "$(pid_cwd "$pid")"
+        role="$(listener_role_for_service "$svc" "$RUN_DIR/$svc.pid" "$pid")"
+        printf "  %-10s :%s pid=%s role=%s cwd=%s\n" "$label" "$port" "$pid" "$role" "$(pid_cwd "$pid")"
       done
     else
       printf "  %-10s :%s free\n" "$label" "$port"

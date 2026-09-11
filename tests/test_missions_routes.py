@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -271,3 +273,157 @@ def test_unbound_missions_report_no_origin_rather_than_a_guess(client: TestClien
         json={"objective": "No origin", "definition_of_done": ["done"]},
     )
     assert created.json()["origin"] is None
+
+
+def test_mission_for_initiative_finds_the_bound_mission(tmp_path: Path) -> None:
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission_bound",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "mission_bound", initiative_id="conv-initiative-1", db_path=db_path
+    )
+
+    found = memory_mission.mission_for_initiative("conv-initiative-1", db_path=db_path)
+
+    assert found is not None
+    assert found["mission_id"] == "mission_bound"
+    assert found["acceptance"]["state"] == "unreviewed"
+
+
+def test_mission_lookup_does_not_create_sidecars_for_clean_wal_database(tmp_path: Path) -> None:
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission_clean_wal",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "mission_clean_wal", initiative_id="init-clean-wal", db_path=db_path
+    )
+    wal = Path(f"{db_path}-wal")
+    shm = Path(f"{db_path}-shm")
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        checkpoint = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+    assert checkpoint is not None and checkpoint[0] == 0
+    wal.unlink(missing_ok=True)
+    shm.unlink(missing_ok=True)
+
+    found = memory_mission.mission_for_initiative("init-clean-wal", db_path=db_path)
+
+    assert found is not None
+    assert found["mission_id"] == "mission_clean_wal"
+    assert not wal.exists()
+    assert not shm.exists()
+
+
+def test_mission_lookup_reads_wal_without_creating_source_shm(tmp_path: Path) -> None:
+    source = tmp_path / "source.db"
+    memory_mission.create_mission(
+        mission_id="mission_live_wal",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=source,
+    )
+    writer = sqlite3.connect(source)
+    try:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute(
+            "UPDATE missions SET builder_locator_json = ? WHERE mission_id = ?",
+            ('{"initiative_id":"init-live-wal"}', "mission_live_wal"),
+        )
+        writer.commit()
+        source_wal = Path(f"{source}-wal")
+        assert source_wal.exists()
+
+        snapshot = tmp_path / "snapshot.db"
+        shutil.copy2(source, snapshot)
+        shutil.copy2(source_wal, Path(f"{snapshot}-wal"))
+        snapshot_shm = Path(f"{snapshot}-shm")
+        assert not snapshot_shm.exists()
+
+        found = memory_mission.mission_for_initiative("init-live-wal", db_path=snapshot)
+
+        assert found is not None
+        assert found["mission_id"] == "mission_live_wal"
+        assert not snapshot_shm.exists()
+    finally:
+        writer.close()
+
+
+def test_repeat_lookup_reuses_the_snapshot_until_the_store_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unchanged store is not re-copied, and a change is never missed.
+
+    The resume projection polls this lookup every few seconds per open proposal
+    card, so re-snapshotting the whole application database on every poll is
+    wasted work — but the reuse must not become a second source of truth.
+    """
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission_cache",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        "mission_cache",
+        initiative_id="init-cache",
+        task_id="kb_task_1",
+        db_path=db_path,
+    )
+
+    copies = {"count": 0}
+    real_copy2 = shutil.copy2
+
+    def _counting_copy2(source, target, *args, **kwargs):
+        copies["count"] += 1
+        return real_copy2(source, target, *args, **kwargs)
+
+    monkeypatch.setattr(memory_mission.shutil, "copy2", _counting_copy2)
+
+    first = memory_mission.mission_for_initiative("init-cache", db_path=db_path)
+    after_first = copies["count"]
+    assert first is not None
+    assert after_first > 0
+
+    second = memory_mission.mission_for_initiative("init-cache", db_path=db_path)
+    assert copies["count"] == after_first
+    assert second is not None
+    assert second["mission_id"] == first["mission_id"]
+
+    # A real change must invalidate the reuse.
+    memory_mission.set_plan(
+        "mission_cache",
+        plan_ref="plan@new",
+        plan_digest="d" * 64,
+        db_path=db_path,
+    )
+    third = memory_mission.mission_for_initiative("init-cache", db_path=db_path)
+    assert copies["count"] > after_first
+    assert third is not None
+    assert third["plan"]["ref"] == "plan@new"
+
+
+def test_mission_for_initiative_is_none_for_unbound_work(tmp_path: Path) -> None:
+    """No Mission is 'unknown', which callers must not read as accepted."""
+    db_path = tmp_path / "kitty.db"
+    memory_mission.create_mission(
+        mission_id="mission_unbound",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+
+    assert memory_mission.mission_for_initiative("no-such-initiative", db_path=db_path) is None

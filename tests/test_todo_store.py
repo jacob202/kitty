@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from gateway import todo_store
+from gateway import project_store, todo_store
 
 
 @pytest.fixture(autouse=True)
@@ -13,6 +13,10 @@ def isolate_todo_store(monkeypatch, tmp_path):
     legacy_db = tmp_path / "legacy" / "todos.db"
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", phase_b_db, raising=False)
     monkeypatch.setattr(todo_store, "TODO_DB", legacy_db)
+    # Projects and todos share the canonical Kitty DB in production. Keep the
+    # isolated test store coherent too so selection-protection checks never
+    # touch the real personal database.
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", phase_b_db, raising=False)
 
 
 class TestUpdate:
@@ -330,3 +334,58 @@ class TestProgress:
         todo_store.clear()
         assert todo_store.set_progress(4242, "note") is None
         assert todo_store.set_project(4242, 1) is None
+
+
+def test_update_refuses_split_project_store_before_initializing_it(
+    monkeypatch, tmp_path
+):
+    """A redirected Todo store must never initialize the personal Project DB."""
+    split_projects = tmp_path / "separate" / "projects.db"
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", split_projects, raising=False)
+    initialized = False
+
+    def unexpected_init():
+        nonlocal initialized
+        initialized = True
+        raise AssertionError("split project store must not be initialized")
+
+    monkeypatch.setattr(project_store, "init_db", unexpected_init)
+
+    with pytest.raises(todo_store.TodoStoreError, match="separate databases"):
+        todo_store.update([{"content": "isolated"}])
+
+    assert initialized is False
+    assert not split_projects.exists()
+
+
+def test_restore_rejects_non_integer_todo_id_before_writing():
+    """A non-integer id must fail loud, never be silently reallocated."""
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    todo = todo_store.update([{"content": "Chosen next action", "status": "pending"}])[0]
+    todo_store.set_project(todo["id"], project["id"])
+    project_store.select_todo(project["id"], todo["id"])
+    before = todo_store.get()
+
+    with pytest.raises(
+        todo_store.TodoStoreError, match="todo id must be an integer or null"
+    ):
+        todo_store.restore([{**before[0], "id": str(before[0]["id"])}])
+
+    assert todo_store.get() == before
+    assert project_store.get(project["id"])["selected_todo_id"] == todo["id"]
+
+
+def test_restore_rejects_duplicate_todo_ids_before_writing():
+    todo_store.update([{"content": "Keep current state"}])
+    before = todo_store.get()
+
+    with pytest.raises(todo_store.TodoStoreError, match="duplicate id 42"):
+        todo_store.restore(
+            [
+                {"id": 42, "content": "first", "sort_order": 0},
+                {"id": 42, "content": "second", "sort_order": 1},
+            ]
+        )
+
+    assert todo_store.get() == before

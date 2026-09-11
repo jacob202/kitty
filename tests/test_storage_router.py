@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gateway import plugin_registry, storage_router, todo_store
+from gateway import plugin_registry, project_store, storage_router, todo_store
 
 
 def _isolate_todo_store(monkeypatch, tmp_path):
@@ -12,6 +12,7 @@ def _isolate_todo_store(monkeypatch, tmp_path):
     legacy_db = tmp_path / "legacy" / "todos.db"
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", phase_b_db)
     monkeypatch.setattr(todo_store, "TODO_DB", legacy_db)
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", phase_b_db, raising=False)
 
 
 def _isolate_plugin_registry(monkeypatch, tmp_path):

@@ -33,7 +33,12 @@ from gateway.paths import DATA_DIR
 
 logger = logging.getLogger("kitty.storage_sync")
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
+# Every earlier version stays importable: the v1 -> v2 change only added the
+# `projects` store, so an existing backup must not become un-restorable after a
+# later bump. A v1 snapshot simply cannot carry user-created projects, so a todo
+# owned by one fails loud rather than silently losing its owner.
+_ACCEPTED_FORMAT_VERSIONS = frozenset(range(1, FORMAT_VERSION + 1))
 EXPORT_FILENAME = "kitty-storage-export.json"
 
 
@@ -58,6 +63,49 @@ def export_todos() -> list[dict]:
     return todo_store.get()
 
 
+def export_projects() -> list[dict]:
+    from gateway import project_store
+
+    return project_store.list_projects()
+
+
+def export_projects_and_todos() -> tuple[list[dict], list[dict]]:
+    """Read Projects and Todos as one coherent snapshot.
+
+    A project's ``selected_todo_id`` and a todo's owning ``project_id`` are one
+    cross-table state. Reading them through separate connections can capture a
+    selection or reassignment that landed between the two reads, exporting a
+    state that never existed — and importing it would silently restore without
+    the user's chosen action. One deferred read transaction sees a single WAL
+    snapshot of both tables and does not block writers.
+    """
+    from gateway import project_store
+
+    if Path(project_store.PROJECTS_DB_FILE).resolve() != Path(todo_store.TODO_DB_FILE).resolve():
+        raise ValueError(
+            "cannot export projects and todos coherently while the project and "
+            "todo stores are separate databases"
+        )
+    project_store.init_db()
+    todo_store.init_db()
+    with kitty_db.connect(todo_store.TODO_DB_FILE) as conn:
+        conn.execute("BEGIN")
+        projects = [
+            project_store._row_to_project(row)
+            for row in conn.execute(
+                f"SELECT {project_store._COLUMNS} FROM projects ORDER BY id ASC"
+            ).fetchall()
+        ]
+        todos = [
+            todo_store._row_to_dict(row)
+            for row in conn.execute(
+                "SELECT id, content, status, active_form, sort_order, progress_note, "
+                "project_id, created_at, updated_at FROM todos ORDER BY sort_order ASC"
+            ).fetchall()
+        ]
+    return projects, todos
+
+
 def export_plugin_settings() -> dict[str, bool]:
     return plugin_registry._load_db_settings()
 
@@ -69,13 +117,15 @@ def export_preferences() -> dict:
 
 def export_all() -> dict[str, Any]:
     """Return a JSON-serializable snapshot of every migrated store."""
+    projects, todos = export_projects_and_todos()
     return {
         "format_version": FORMAT_VERSION,
         "exported_at": _iso_now(),
         "stores": {
             "memories": export_memories(),
             "journal_entries": export_journal_entries(),
-            "todos": export_todos(),
+            "projects": projects,
+            "todos": todos,
             "plugin_settings": export_plugin_settings(),
             "preferences": export_preferences(),
         },
@@ -146,11 +196,23 @@ def import_journal_entries(payload: list[dict]) -> int:
     return added
 
 
+def import_projects(payload: list[dict]) -> int:
+    from gateway import project_store
+
+    if not isinstance(payload, list):
+        raise ValueError(f"projects payload must be a list, got {type(payload).__name__}")
+    items = [dict(row) for row in payload]
+    try:
+        return project_store.restore(items)
+    except project_store.ProjectError as exc:
+        raise ValueError(str(exc)) from exc
+
+
 def import_todos(payload: list[dict]) -> int:
     if not isinstance(payload, list):
         raise ValueError(f"todos payload must be a list, got {type(payload).__name__}")
     items = [dict(row) for row in payload]
-    todo_store.update(items)
+    todo_store.restore(items)
     return len(items)
 
 
@@ -178,10 +240,160 @@ def import_preferences(payload: dict) -> int:
 _IMPORTERS: dict[str, Callable[..., int]] = {
     "memories": import_memories,
     "journal_entries": import_journal_entries,
+    # Projects must land before todos: todo_store.restore() validates every
+    # todo's project_id against the destination projects table, so a todo
+    # owned by a user-created project can only round-trip if that project is
+    # materialized first.
+    "projects": import_projects,
     "todos": import_todos,
     "plugin_settings": import_plugin_settings,
     "preferences": import_preferences,
 }
+
+_REQUIRED_PAYLOAD_TYPES: dict[str, type] = {
+    "memories": list,
+    "journal_entries": list,
+    "projects": list,
+    "todos": list,
+    "plugin_settings": dict,
+    "preferences": dict,
+}
+
+
+def _validate_snapshot_payloads(stores: dict[str, Any]) -> None:
+    """Reject a wrongly-shaped store payload before any store is written.
+
+    ``_IMPORTERS`` writes in declaration order, so a payload shape error raised
+    by a later importer would otherwise follow successful writes by earlier
+    ones. Every importer's top-level shape check is therefore applied up front.
+    """
+    for key, expected in _REQUIRED_PAYLOAD_TYPES.items():
+        if key not in stores:
+            continue
+        payload = stores[key]
+        if not isinstance(payload, expected):
+            raise ValueError(
+                f"{key} payload must be a {expected.__name__}, "
+                f"got {type(payload).__name__}"
+            )
+
+
+def _validate_snapshot_references(stores: dict[str, Any]) -> None:
+    """Reject an un-restorable snapshot before any store is written.
+
+    ``_IMPORTERS`` restores memories, journal entries, and projects ahead of
+    todos, so a todo payload that only fails inside ``todo_store.restore`` would
+    leave those earlier stores committed against a rejected snapshot. Every
+    precondition restore enforces is therefore checked here first.
+
+    The cross-store reference check needs a ``projects`` store. A v1 snapshot
+    has none, so its todos are validated only for internal shape here and are
+    checked against the destination by ``todo_store.restore`` instead.
+    """
+    todos = stores.get("todos")
+    if todos is None:
+        return
+    if not isinstance(todos, list):
+        raise ValueError(f"todos payload must be a list, got {type(todos).__name__}")
+
+    projects = stores.get("projects")
+    project_ids: set[int] | None = None
+    if isinstance(projects, list):
+        project_ids = set()
+        for item in projects:
+            if not isinstance(item, dict):
+                continue
+            raw_id = item.get("id")
+            if isinstance(raw_id, int) and not isinstance(raw_id, bool):
+                project_ids.add(raw_id)
+
+    seen_ids: set[int] = set()
+    seen_sort_orders: set[int] = set()
+    missing: set[int] = set()
+    for position, item in enumerate(todos):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"snapshot todo record must be a JSON object, got {type(item).__name__}"
+            )
+        raw_id = item.get("id")
+        if raw_id is not None:
+            if not isinstance(raw_id, int) or isinstance(raw_id, bool):
+                raise ValueError("snapshot todo id must be an integer or null")
+            if raw_id in seen_ids:
+                raise ValueError(f"duplicate todo id {raw_id} in snapshot")
+            seen_ids.add(raw_id)
+        raw_order = item.get("sort_order", position)
+        sort_order = (
+            raw_order
+            if isinstance(raw_order, int) and not isinstance(raw_order, bool)
+            else position
+        )
+        if sort_order in seen_sort_orders:
+            raise ValueError(
+                f"cannot restore todos with duplicate sort_order {sort_order}"
+            )
+        seen_sort_orders.add(sort_order)
+        raw_project = item.get("project_id")
+        if raw_project is None:
+            continue
+        if not isinstance(raw_project, int) or isinstance(raw_project, bool):
+            raise ValueError("snapshot todo project_id must be an integer or null")
+        if project_ids is not None and raw_project not in project_ids:
+            missing.add(raw_project)
+    if missing:
+        raise ValueError(
+            "snapshot todos reference project ids absent from snapshot projects: "
+            f"{sorted(missing)}"
+        )
+    if project_ids is None:
+        # No projects store means the destination keeps its own rows, so an
+        # owner can only be validated against this database.
+        _validate_todo_owners_against_destination(todos)
+
+
+def _validate_todo_owners_against_destination(todos: list[Any]) -> None:
+    """Reject snapshot todos whose owner does not exist in this database.
+
+    A v1 snapshot carries no ``projects`` store, so the cross-store check above
+    cannot see its owners and ``todo_store.restore`` would be the first to
+    notice — after Memories and Journal are already committed. Checking the
+    destination here fails the whole snapshot before any write.
+    """
+    referenced: set[int] = set()
+    for item in todos:
+        if not isinstance(item, dict):
+            continue
+        raw_project = item.get("project_id")
+        if isinstance(raw_project, int) and not isinstance(raw_project, bool):
+            referenced.add(raw_project)
+    if not referenced:
+        return
+    from gateway import project_store
+
+    available = {project["id"] for project in project_store.list_projects()}
+    missing = sorted(referenced - available)
+    if missing:
+        raise ValueError(
+            "snapshot todos reference project ids absent from the destination: "
+            f"{missing}"
+        )
+
+
+def _validate_project_restore(projects: list[Any]) -> None:
+    """Fail before any write if Projects cannot be replaced without breaking refs.
+
+    Projects restore before Todos and after Memories/Journal, so a Projects
+    payload that only fails on a foreign-key dependent would leave the earlier
+    stores committed against a rejected snapshot. The owning store answers the
+    question with a rolled-back dry run, and its error is reported as the
+    snapshot error the caller already handles.
+    """
+    from gateway import project_store
+
+    try:
+        project_store.validate_restore(projects)
+    except project_store.ProjectError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
@@ -194,20 +406,29 @@ def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
     if not isinstance(snapshot, dict):
         raise ValueError("snapshot must be a JSON object")
     version = snapshot.get("format_version")
-    if version != FORMAT_VERSION:
+    if version not in _ACCEPTED_FORMAT_VERSIONS:
         raise ValueError(
-            f"unsupported format_version {version!r}; this build understands {FORMAT_VERSION}"
+            f"unsupported format_version {version!r}; this build understands "
+            f"{sorted(_ACCEPTED_FORMAT_VERSIONS)}"
         )
     stores = snapshot.get("stores")
     if not isinstance(stores, dict):
         raise ValueError("snapshot.stores must be a JSON object")
+    unknown = set(stores) - set(_IMPORTERS)
+    if unknown:
+        raise ValueError(f"unknown store keys in snapshot: {sorted(unknown)}")
+    # Fail before writing anything when the snapshot is internally inconsistent,
+    # rather than importing earlier stores and then aborting at a later one.
+    _validate_snapshot_payloads(stores)
+    _validate_snapshot_references(stores)
+    # Projects and Todos are validated independently: a projects store with no
+    # todos must not skip the reference preflight above.
+    if isinstance(stores.get("projects"), list):
+        _validate_project_restore(stores["projects"])
     counts: dict[str, int] = {}
     for key, importer in _IMPORTERS.items():
         if key in stores:
             counts[key] = importer(stores[key])
-    unknown = set(stores) - set(_IMPORTERS)
-    if unknown:
-        raise ValueError(f"unknown store keys in snapshot: {sorted(unknown)}")
     return counts
 
 

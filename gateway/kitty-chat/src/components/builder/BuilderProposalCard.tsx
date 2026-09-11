@@ -31,6 +31,11 @@ export interface BuilderProposalTask {
   initiative_id?: string
   acceptance_criteria?: string[]
   validation_commands?: string[]
+  route?: {
+    provider: string
+    model: string
+    estimated_cost_cad: number | null
+  }
 }
 
 // Some browsers (privacy mode, blocked site data, sandboxed embeds) throw on
@@ -73,6 +78,35 @@ function friendlyMutationError(err: unknown, fallback: string): string {
     return 'Could not reach the Kitty gateway — check that it is running, then try again.'
   }
   return message
+}
+
+function friendlyAcceptanceUnavailable(error: string | null | undefined): string {
+  if (error && /\blocked\b/i.test(error)) return 'Acceptance records are temporarily locked.'
+  if (error && /binding.*missing|missing.*binding/i.test(error)) return 'The acceptance record is missing.'
+  return 'Acceptance records are temporarily unavailable.'
+}
+
+/** Resume found Builder's durable job but its Gateway Mission binding is still
+ * missing. That is not "resolved": the pending approval checkpoint is the only
+ * way to reconcile it, so it must survive this reload. */
+function missingMissionBinding(
+  data: { mission_acceptance?: { state?: string | null; error?: string | null } | null } | undefined,
+): boolean {
+  return data?.mission_acceptance?.state === 'unavailable'
+    && /binding.*missing|missing.*binding/i.test(data.mission_acceptance.error ?? '')
+}
+
+/** True only when the receipt positively proves the expected Builder binding.
+ *
+ * A Mission-store outage, a missing acceptance field, or any other unproven
+ * answer is not resolution. `missingMissionBinding` only recognizes the
+ * "binding missing" wording, so treating every other unavailable reason as
+ * resolved would throw away the only payload that can reconcile the approval. */
+function missionBindingConfirmed(
+  data: { mission_acceptance?: { state?: string | null } | null } | undefined,
+): boolean {
+  const state = data?.mission_acceptance?.state
+  return typeof state === 'string' && state !== 'unavailable'
 }
 
 interface PendingApprovalCheckpoint {
@@ -260,6 +294,9 @@ export function BuilderProposalCard({
   const [pendingApproval, setPendingApproval] = useState<ConversationApproveRequest | null>(null)
   const [proposalIdentity, setProposalIdentity] = useState<string | null>(null)
   const resume = useResumeBuilderJob(resumedMissionId)
+  const bindingMissing = missingMissionBinding(resume.data)
+  const bindingConfirmed = missionBindingConfirmed(resume.data)
+  const acceptanceUnavailable = resume.data?.mission_acceptance?.state === 'unavailable'
   const gatewayMissionId = proposal?.gateway_mission_id
     || pendingApproval?.gateway_mission_id
     || (resumedMissionId ? `gateway-conversation:${resumedMissionId}` : null)
@@ -274,12 +311,21 @@ export function BuilderProposalCard({
   }, [storageKey])
 
   useEffect(() => {
-    if (pendingApproval && resumedMissionId && resume.data?.mission?.id === resumedMissionId) {
+    if (
+      pendingApproval
+      && resumedMissionId
+      && resume.data?.mission?.id === resumedMissionId
+      // Finding the Builder job is not the same as resolving its Mission
+      // binding. Clearing here unless the receipt positively proves the
+      // binding would throw away the only payload that can reconcile it —
+      // including when the Mission store is unavailable for any other reason.
+      && bindingConfirmed
+    ) {
       if (persistResolvedMission) safeStorage.set(storageKey, resumedMissionId)
       else safeStorage.remove(storageKey)
       setPendingApproval(null)
     }
-  }, [pendingApproval, persistResolvedMission, resume.data?.mission?.id, resumedMissionId, storageKey])
+  }, [bindingConfirmed, pendingApproval, persistResolvedMission, resume.data?.mission?.id, resumedMissionId, storageKey])
 
   const retryPendingApproval = () => {
     if (!pendingApproval || !resumedMissionId) return
@@ -290,6 +336,10 @@ export function BuilderProposalCard({
           else safeStorage.remove(storageKey)
           setPendingApproval(null)
           setResumedMissionId(data.mission_id)
+        } else if (data.state === 'recovery_required' && data.error_code === 'mission_binding_failed') {
+          // Reconciliation can fail repeatedly while Mission is unavailable.
+          // Keep the exact nonce-bound approval checkpoint so another retry
+          // cannot compile or approve a duplicate job.
         } else {
           safeStorage.remove(storageKey)
           setPendingApproval(null)
@@ -300,13 +350,16 @@ export function BuilderProposalCard({
   }
 
   if (resumedMissionId) {
-    if (pendingApproval && resume.data?.error_code === 'work_not_found') {
+    // Any unproven acceptance — not only the "binding missing" wording — must
+    // keep offering the exact replay, so route every unavailable reason here.
+    if (pendingApproval && (resume.data?.error_code === 'work_not_found' || bindingMissing || acceptanceUnavailable)) {
       return (
         <PendingApprovalRecovery
           task={draft}
           missionId={resumedMissionId}
           approve={approve}
           onRetry={retryPendingApproval}
+          bindingMissing={bindingMissing}
         />
       )
     }
@@ -460,6 +513,12 @@ export function BuilderProposalCard({
           <p style={fieldStyle}><strong>Objective:</strong> {draft.objective}</p>
           <p style={fieldStyle}><strong>Instructions:</strong> {draft.instructions}</p>
           <p style={fieldStyle}><strong>Allowed paths:</strong> {draft.allowed_paths.join(', ')}</p>
+          {draft.route && (
+            <p style={fieldStyle}>
+              <strong>Proposal route:</strong> {draft.route.provider} · {draft.route.model}
+              {draft.route.estimated_cost_cad !== null && <span> · est. CAD {draft.route.estimated_cost_cad.toFixed(4)}</span>}
+            </p>
+          )}
         </>
       )}
 
@@ -488,6 +547,12 @@ export function BuilderProposalCard({
           {gatewayMissionId && (
             <p style={fieldStyle}>
               <strong>Mission state:</strong> {mission.data?.status ?? proposal.gateway_mission_status ?? 'loading'}
+            </p>
+          )}
+          {draft.route && (
+            <p style={fieldStyle}>
+              <strong>Proposal route:</strong> {draft.route.provider} · {draft.route.model}
+              {draft.route.estimated_cost_cad !== null && <span> · est. CAD {draft.route.estimated_cost_cad.toFixed(4)}</span>}
             </p>
           )}
           <p style={fieldStyle}><strong>Acceptance criteria:</strong></p>
@@ -551,11 +616,13 @@ function PendingApprovalRecovery({
   missionId,
   approve,
   onRetry,
+  bindingMissing = false,
 }: {
   task: BuilderProposalTask
   missionId: string
   approve: ReturnType<typeof useApproveBuilderJob>
   onRetry: () => void
+  bindingMissing?: boolean
 }) {
   return (
     <div style={cardStyle}>
@@ -564,8 +631,10 @@ function PendingApprovalRecovery({
         <span style={titleStyle}>{task.title || task.objective}</span>
       </div>
       <div style={warningBox}>
-        Kitty could not confirm whether the approval receipt arrived. Builder has no durable job for {missionId} yet.
-        Retry the same approved version to reconcile it safely; Kitty will not compile a second job.
+        {bindingMissing
+          ? `Builder has a durable job for ${missionId}, but its Mission binding is still missing.`
+          : `Kitty could not confirm whether the approval receipt arrived. Builder has no durable job for ${missionId} yet.`}
+        {' '}Retry the same approved version to reconcile it safely; Kitty will not compile a second job.
       </div>
       {approve.isError && (
         <span style={errorText}>{friendlyMutationError(approve.error, 'Could not reconcile the Builder approval.')}</span>
@@ -597,6 +666,19 @@ function ResumedBuilderJob({
   // is false for an unrelated reason. Gate on the mission id, not on `ok`, so
   // a cold-start hiccup never hides real job status behind a raw error.
   const found = Boolean(data?.mission?.id)
+  const acceptanceUnavailable = data?.mission_acceptance?.state === 'unavailable'
+  const missionState = data?.mission?.state
+  const currentWorkState = data?.current_work?.state
+  const displayedMissionState = missionState === 'paused'
+    && ['claimed', 'running', 'pr_opened', 'awaiting_review'].includes(currentWorkState ?? '')
+    ? 'in progress'
+    : missionState
+  const needsAttention = Boolean(data?.awaiting_acceptance || acceptanceUnavailable)
+  const statusTestId = data?.awaiting_acceptance
+    ? 'builder-job-awaiting-acceptance'
+    : acceptanceUnavailable
+      ? 'builder-job-acceptance-unavailable'
+      : 'builder-job-status'
 
   return (
     <div style={cardStyle}>
@@ -618,13 +700,39 @@ function ResumedBuilderJob({
       )}
 
       {found && (
-        <div style={successBox}>
+        <div
+          style={needsAttention ? attentionBox : successBox}
+          data-testid={statusTestId}
+        >
           <p style={fieldStyle}>
             <strong>Mission:</strong> {data!.mission?.id}
-            {data!.mission?.state ? ` — ${data!.mission.state}` : ''}
+            {displayedMissionState ? ` — ${displayedMissionState}` : ''}
           </p>
           {data!.current_work?.state && (
             <p style={fieldStyle}><strong>Current work:</strong> {data!.current_work.state}</p>
+          )}
+          {/* Builder finishing its task is not the same statement as the
+              outcome being accepted. Showing only the first is how a job that
+              nobody has signed off reads as finished. */}
+          {data!.awaiting_acceptance && (
+            <p style={fieldStyle}>
+              <strong>Built, not accepted yet:</strong>{' '}
+              {data!.mission_acceptance?.state === 'unavailable'
+                ? `Kitty could not check whether this outcome was accepted. ${friendlyAcceptanceUnavailable(
+                    data!.mission_acceptance.error,
+                  )} Check Kitty status, then retry.`
+                : data!.mission_acceptance?.state === 'rejected'
+                  ? 'A reviewer rejected this outcome. Revise the work before it can be accepted.'
+                  : 'Builder finished this work. Nobody has accepted the result yet.'}
+            </p>
+          )}
+          {acceptanceUnavailable && !data!.awaiting_acceptance && (
+            <p style={fieldStyle}>
+              <strong>Acceptance status unavailable:</strong>{' '}
+              Kitty could not check whether this outcome was accepted.{' '}
+              {friendlyAcceptanceUnavailable(data!.mission_acceptance?.error)}{' '}
+              Check Kitty status, then retry.
+            </p>
           )}
           {data!.blocker && (
             <p style={fieldStyle}><strong>Blocked:</strong> {data!.blocker}</p>
@@ -727,6 +835,14 @@ const successBox: CSSProperties = {
   borderRadius: 8,
   padding: 8,
   color: '#2e7d32',
+}
+
+const attentionBox: CSSProperties = {
+  background: '#FF980011',
+  border: '1px solid #FF9800',
+  borderRadius: 8,
+  padding: 8,
+  color: '#B45309',
 }
 
 const btnBase: CSSProperties = {

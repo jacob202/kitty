@@ -88,6 +88,36 @@ describe('BuilderProposalCard', () => {
     expect(gateway.approveBuilderJob).not.toHaveBeenCalled()
   })
 
+  it('shows the proposal route before the user approves anything', () => {
+    const routedTask = {
+      ...task,
+      route: { provider: 'openrouter', model: 'deepseek-v4-flash', estimated_cost_cad: 0.0123 },
+    }
+
+    renderWithQueryClient(<BuilderProposalCard task={routedTask} chatId="chat-route" messageIndex={0} />)
+
+    const route = screen.getByText(/Proposal route:/).closest('p')
+    expect(route).not.toBeNull()
+    expect(route).toHaveTextContent('openrouter · deepseek-v4-flash · est. CAD 0.0123')
+    expect(gateway.proposeBuilderJob).not.toHaveBeenCalled()
+    expect(gateway.approveBuilderJob).not.toHaveBeenCalled()
+  })
+
+  it('never relabels proposal routing as the Builder execution route', async () => {
+    const routedTask = {
+      ...task,
+      route: { provider: 'openrouter', model: 'deepseek-v4-flash', estimated_cost_cad: 0.0123 },
+    }
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+
+    renderWithQueryClient(<BuilderProposalCard task={routedTask} chatId="chat-route-prepared" messageIndex={0} />)
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+
+    expect(await screen.findByText('Approve')).toBeInTheDocument()
+    expect(screen.queryByText(/Execution route:/)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Proposal route:/).length).toBeGreaterThan(0)
+  })
+
   it('flags a malformed proposal without calling propose', () => {
     renderWithQueryClient(
       <BuilderProposalCard
@@ -424,6 +454,26 @@ describe('BuilderProposalCard', () => {
     expect(gateway.resumeBuilderJob).toHaveBeenCalledWith('conv-already-approved-1')
   })
 
+  it('does not call an in-flight Builder job paused when no other packet is eligible', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-running-in-flight')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-running-in-flight', state: 'paused' },
+      current_work: { state: 'running' },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const missionLabel = await screen.findByText(/Mission:/)
+    const missionLine = missionLabel.closest('p')
+    expect(missionLine).not.toBeNull()
+    expect(missionLine).toHaveTextContent(/in progress/)
+    expect(missionLine).not.toHaveTextContent(/paused/)
+    const currentWorkLine = screen.getByText(/Current work:/).closest('p')
+    expect(currentWorkLine).not.toBeNull()
+    expect(currentWorkLine).toHaveTextContent(/running/)
+  })
+
   it('surfaces a resume lookup failure without silently reverting to Compile', async () => {
     window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-gone-1')
     vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
@@ -456,6 +506,80 @@ describe('BuilderProposalCard', () => {
     expect(screen.getByText(/running/)).toBeInTheDocument()
     expect(screen.getByText(/continuity needs attention/)).toBeInTheDocument()
     expect(screen.queryByText('Could not find this job in Builder.')).not.toBeInTheDocument()
+  })
+
+  it('renders unaccepted work as attention and exposes the Mission-store failure cause', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-awaiting-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-awaiting-1', state: 'complete' },
+      current_work: { state: 'completed' },
+      builder_task_complete: true,
+      awaiting_acceptance: true,
+      mission_acceptance: {
+        state: 'unavailable',
+        accepted: null,
+        error: 'Mission store is locked',
+      },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const attention = await screen.findByTestId('builder-job-awaiting-acceptance')
+    expect(attention).toHaveTextContent(/Built, not accepted yet/)
+    expect(attention).toHaveTextContent(/Acceptance records are temporarily locked/)
+    expect(attention).toHaveTextContent(/Check Kitty status, then retry/)
+    expect(attention).toHaveStyle({ border: '1px solid #FF9800' })
+    expect(attention).not.toHaveStyle({ border: '1px solid #4CAF50' })
+  })
+
+  it('shows a Mission-store outage as attention while Builder is still running', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-running-degraded-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-running-degraded-1', state: 'active' },
+      current_work: { state: 'running' },
+      builder_task_complete: false,
+      awaiting_acceptance: false,
+      mission_acceptance: {
+        state: 'unavailable',
+        accepted: null,
+        error: 'Mission store is locked',
+      },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const attention = await screen.findByTestId('builder-job-acceptance-unavailable')
+    expect(attention).toHaveTextContent(/Acceptance status unavailable/)
+    expect(attention).toHaveTextContent(/Acceptance records are temporarily locked/)
+    expect(attention).toHaveStyle({ border: '1px solid #FF9800' })
+    expect(attention).not.toHaveStyle({ border: '1px solid #4CAF50' })
+    expect(screen.queryByText(/Built, not accepted yet/)).not.toBeInTheDocument()
+  })
+
+  it('never exposes raw Mission or SQLite diagnostics in the running acceptance warning', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-running-raw-outage')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-running-raw-outage', state: 'paused' },
+      current_work: { state: 'running' },
+      builder_task_complete: false,
+      awaiting_acceptance: false,
+      mission_acceptance: {
+        state: 'unavailable',
+        accepted: null,
+        error: 'MissionError: Mission store is unavailable: no such table: missions',
+      },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const attention = await screen.findByTestId('builder-job-acceptance-unavailable')
+    expect(attention).toHaveTextContent(/Acceptance records are temporarily unavailable/)
+    expect(attention).not.toHaveTextContent(/MissionError/)
+    expect(attention).not.toHaveTextContent(/no such table/)
+    expect(attention).not.toHaveTextContent(/missions/)
   })
 
   it('keys resumed state per chat message, not globally', async () => {
@@ -547,6 +671,9 @@ describe('BuilderProposalCard', () => {
       ok: true,
       mission: { id: preparedProposal.mission_id, state: 'active' },
       current_work: { state: 'queued' },
+      // The receipt proves the binding resolved only by reporting a real
+      // acceptance state; an unavailable one would mean it is still unproven.
+      mission_acceptance: { state: 'unreviewed', mission_id: 'mission_gateway_1' },
     })
 
     const first = renderWithQueryClient(
@@ -585,6 +712,210 @@ describe('BuilderProposalCard', () => {
     await waitFor(() => expect(window.localStorage.getItem('kitty.builder-proposal.work.pending')).toBeNull())
     expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
     expect(gateway.approveBuilderJob).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the pending approval retry while the Mission binding is still missing after reload', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'active' },
+      current_work: { state: 'queued' },
+      awaiting_acceptance: true,
+      awaiting_acceptance_because: 'Expected Gateway Mission binding is missing',
+      mission_acceptance: {
+        state: 'unavailable',
+        error: `Expected Gateway Mission binding is missing for Builder initiative ${preparedProposal.mission_id}`,
+      },
+    })
+
+    const first = renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={1}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledOnce())
+
+    // Reload: Builder's durable job is found, but its Gateway Mission binding
+    // is not. The exact approval payload is the only way to reconcile that.
+    first.unmount()
+    vi.mocked(gateway.resumeBuilderJob).mockClear()
+    renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={2}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Retry same approval' })).toBeInTheDocument()
+    await screen.findByText(/Mission binding is still missing/)
+    const checkpoint = JSON.parse(
+      window.localStorage.getItem('kitty.builder-proposal.work.pending') as string,
+    )
+    expect(checkpoint).toMatchObject({
+      version: 1,
+      state: 'pending',
+      missionId: preparedProposal.mission_id,
+      approval: {
+        expected_manifest_sha: preparedProposal.manifest_sha256,
+        approval_nonce: preparedProposal.approval_nonce,
+        confirmed: true,
+      },
+    })
+    expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the checkpoint when the Mission store is unavailable for another reason', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'active' },
+      current_work: { state: 'queued' },
+      awaiting_acceptance: true,
+      awaiting_acceptance_because: 'the Mission store could not be read',
+      mission_acceptance: {
+        state: 'unavailable',
+        error: 'MissionError: Mission store is unavailable: database changed while snapshotting',
+      },
+    })
+
+    const first = renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={1}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledOnce())
+    first.unmount()
+
+    renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={2}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+
+    // The store outage is not proof the binding resolved. The exact checkpoint
+    // is the only way to reconcile the approval once the store recovers.
+    expect(await screen.findByRole('button', { name: 'Retry same approval' })).toBeInTheDocument()
+    const checkpoint = JSON.parse(
+      window.localStorage.getItem('kitty.builder-proposal.work.pending') as string,
+    )
+    expect(checkpoint).toMatchObject({
+      version: 1,
+      state: 'pending',
+      missionId: preparedProposal.mission_id,
+      approval: {
+        expected_manifest_sha: preparedProposal.manifest_sha256,
+        approval_nonce: preparedProposal.approval_nonce,
+        confirmed: true,
+      },
+    })
+  })
+
+  it('retains the exact checkpoint after a repeated Mission binding reconciliation failure', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'active' },
+      current_work: { state: 'queued' },
+      awaiting_acceptance: true,
+      awaiting_acceptance_because: 'Expected Gateway Mission binding is missing',
+      mission_acceptance: {
+        state: 'unavailable',
+        error: `Expected Gateway Mission binding is missing for Builder initiative ${preparedProposal.mission_id}`,
+      },
+    })
+
+    const first = renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={1}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledOnce())
+    first.unmount()
+
+    vi.mocked(gateway.approveBuilderJob).mockResolvedValue({
+      ok: false,
+      state: 'recovery_required',
+      error_code: 'mission_binding_failed',
+      mission_id: preparedProposal.mission_id,
+    })
+    renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={2}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+
+    const retry = await screen.findByRole('button', { name: 'Retry same approval' })
+    fireEvent.click(retry)
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('button', { name: 'Retry same approval' })).toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem('kitty.builder-proposal.work.pending') as string)).toMatchObject({
+      state: 'pending',
+      missionId: preparedProposal.mission_id,
+      approval: {
+        expected_manifest_sha: preparedProposal.manifest_sha256,
+        approval_nonce: preparedProposal.approval_nonce,
+        confirmed: true,
+      },
+    })
+  })
+
+  it('renders a rejected outcome as rejected instead of nobody-has-accepted', async () => {
+    window.localStorage.setItem(
+      'kitty.builder-proposal.chat-rejected.0',
+      preparedProposal.mission_id as string,
+    )
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'complete' },
+      current_work: { state: 'completed' },
+      builder_task_complete: true,
+      awaiting_acceptance: true,
+      awaiting_acceptance_because: 'the Mission outcome is rejected, not accepted',
+      mission_acceptance: { state: 'rejected', reviewer_id: 'reviewer-1', error: null },
+    })
+
+    renderWithQueryClient(
+      <BuilderProposalCard task={task} chatId="chat-rejected" messageIndex={0} />,
+    )
+
+    const status = await screen.findByTestId('builder-job-awaiting-acceptance')
+    expect(status).toHaveTextContent(/rejected/i)
+    expect(status).not.toHaveTextContent(/Nobody has accepted the result yet/)
   })
 
 })

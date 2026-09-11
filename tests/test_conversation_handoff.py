@@ -394,6 +394,51 @@ def test_resume_context_recovers_job_without_original_transcript(repo: Path) -> 
     assert resumed["artifacts"]["plan"]["path"].startswith("docs/superpowers/plans/")
 
 
+def test_chat_resume_missing_expected_mission_binding_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chat-originated completed work must not erase missing acceptance truth."""
+    snapshot = {
+        "schema_version": 2,
+        "integrity": {"state": "complete", "partial_packets": 0, "total_packets": 1},
+        "queue": {"done": 1},
+        "initiatives": [{
+            "initiative_id": "conv-missing-mission-binding",
+            "title": "Recovered chat work",
+            "state": "completed",
+            "pause_reason": None,
+            "next_packet": None,
+            "packets": [{
+                "initiative_id": "conv-missing-mission-binding",
+                "packet_id": "packet-1",
+                "title": "Recovered chat work",
+                "objective": "Preserve truthful acceptance on reload",
+                "task_id": "kb_missing_binding",
+                "task_state": "done",
+                "attempt_history": [],
+                "publication": None,
+                "projection": {"next_action": "Inspect the completed work."},
+            }],
+        }],
+    }
+    monkeypatch.setattr(mcp_context, "_status_snapshot", lambda: snapshot)
+    monkeypatch.setattr(
+        mcp_context, "kitty_context",
+        lambda: {"ok": True, "context": {"git": {}, "unknowns": []}},
+    )
+    monkeypatch.setattr(
+        mcp_context, "get_initiative",
+        lambda mission_id, db_path=None: snapshot["initiatives"][0],
+    )
+    monkeypatch.setattr(memory_mission, "mission_for_initiative", lambda _initiative_id: None)
+
+    resumed = conversation_handoff.resume(mission_id="conv-missing-mission-binding")
+
+    assert resumed["builder_task_complete"] is True
+    assert resumed["mission_acceptance"]["state"] == "unavailable"
+    assert resumed["awaiting_acceptance"] is True
+    assert "missing" in resumed["awaiting_acceptance_because"].lower()
+
 def test_builder_execution_failure_is_represented_as_builder_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

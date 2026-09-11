@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from pathlib import Path
 from typing import Any
 
 from gateway import db as kitty_db
@@ -32,6 +33,9 @@ BENEFITS_PROJECT_SEEDED_SETTING = "projects_benefits_seeded"
 _JSON_FIELDS = frozenset(
     {"paths_json", "open_questions_json", "next_actions_json", "delegable_json", "links_json"}
 )
+# Only work that can still be done is a "next action".
+ACTIONABLE_TODO_STATUSES = frozenset({"pending", "in_progress"})
+
 _UPDATABLE_FIELDS = frozenset(
     {
         "name",
@@ -48,7 +52,8 @@ _UPDATABLE_FIELDS = frozenset(
 )
 _COLUMNS = (
     "id, created_at, name, kind, paths_json, status, last_touched, summary, "
-    "open_questions_json, next_actions_json, delegable_json, links_json"
+    "open_questions_json, next_actions_json, delegable_json, links_json, "
+    "selected_todo_id"
 )
 
 
@@ -151,6 +156,131 @@ def delete(project_id: int) -> None:
     )
 
 
+def restore(items: list[dict[str, Any]]) -> int:
+    """Replace Projects with snapshot state.
+
+    Snapshot restore has the opposite contract to ``update_fields``: rows
+    omitted from the snapshot are absent afterwards. ``delete()``'s archive-only
+    policy governs user-initiated deletion, not wholesale snapshot replacement,
+    which is the same precedent ``todo_store.restore`` sets for Todos. Todos are
+    restored immediately after this in the same ``storage_sync`` pass, so a
+    ``selected_todo_id`` that is dangling only because its todo has not landed
+    yet is reconciled there rather than rejected here.
+    """
+    init_db()
+    rows, seen_ids = _restore_rows(items)
+
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        # Update snapshot projects in place so foreign-key dependents keep the
+        # same parent row. Only projects omitted from the snapshot are deleted.
+        # If an omitted project is still referenced, SQLite rejects that delete
+        # and the transaction rolls back rather than corrupting dependent state.
+        conn.execute("BEGIN IMMEDIATE")
+        conn.executemany(
+            "INSERT INTO projects (id, created_at, name, kind, paths_json, status, "
+            "last_touched, summary, open_questions_json, next_actions_json, delegable_json, "
+            "links_json, selected_todo_id) "
+            "VALUES (?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "created_at=excluded.created_at, name=excluded.name, kind=excluded.kind, "
+            "paths_json=excluded.paths_json, status=excluded.status, "
+            "last_touched=excluded.last_touched, summary=excluded.summary, "
+            "open_questions_json=excluded.open_questions_json, "
+            "next_actions_json=excluded.next_actions_json, delegable_json=excluded.delegable_json, "
+            "links_json=excluded.links_json, selected_todo_id=excluded.selected_todo_id",
+            rows,
+        )
+        try:
+            _delete_omitted_projects(conn, seen_ids)
+        except sqlite3.IntegrityError as exc:
+            conn.rollback()
+            raise _omitted_referenced_error() from exc
+        conn.commit()
+    return len(rows)
+
+
+def _restore_rows(items: list[dict[str, Any]]) -> tuple[list[tuple[Any, ...]], set[int]]:
+    """Validate a projects payload and shape it for restore, or raise."""
+    if not isinstance(items, list):
+        raise ProjectError(f"projects payload must be a list, got {type(items).__name__}")
+
+    rows: list[tuple[Any, ...]] = []
+    seen_ids: set[int] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise ProjectError(f"project record must be a dict, got {type(item).__name__}")
+        raw_id = item.get("id")
+        if not isinstance(raw_id, int) or isinstance(raw_id, bool):
+            raise ProjectError("project records must carry an integer id to restore")
+        if raw_id in seen_ids:
+            raise ProjectError(f"duplicate project id {raw_id} in snapshot")
+        seen_ids.add(raw_id)
+        # A malformed owner must fail loud. Writing it raw lets Todo restore
+        # reconcile the pointer away and report a successful import, which
+        # silently drops the project's explicitly chosen action.
+        raw_selected = item.get("selected_todo_id")
+        if raw_selected is not None and (
+            not isinstance(raw_selected, int) or isinstance(raw_selected, bool)
+        ):
+            raise ProjectError("project selected_todo_id must be an integer or null")
+        created_at = item.get("created_at")
+        rows.append(
+            (
+                raw_id,
+                created_at if isinstance(created_at, str) and created_at else None,
+                str(item.get("name", "")),
+                str(item.get("kind", "")),
+                json.dumps(item.get("paths") or []),
+                str(item.get("status") or "active"),
+                item.get("last_touched"),
+                str(item.get("summary") or ""),
+                json.dumps(item.get("open_questions") or []),
+                json.dumps(item.get("next_actions") or []),
+                json.dumps(item.get("delegable") or []),
+                json.dumps(item.get("links") or []),
+                raw_selected,
+            )
+        )
+    return rows, seen_ids
+
+
+def _delete_omitted_projects(conn: sqlite3.Connection, snapshot_ids: set[int]) -> None:
+    """Delete only projects absent from the snapshot. Raises on a live reference."""
+    existing_ids = {row["id"] for row in conn.execute("SELECT id FROM projects")}
+    stale_ids = sorted(existing_ids - snapshot_ids)
+    if not stale_ids:
+        return
+    placeholders = ",".join("?" for _ in stale_ids)
+    conn.execute(f"DELETE FROM projects WHERE id IN ({placeholders})", stale_ids)
+
+
+def _omitted_referenced_error() -> ProjectError:
+    return ProjectError(
+        "cannot remove snapshot-omitted projects while they are still referenced"
+    )
+
+
+def validate_restore(items: list[dict[str, Any]]) -> None:
+    """Prove ``restore`` can replace Projects without breaking a reference.
+
+    ``storage_sync`` writes other stores before Projects, so a payload that only
+    fails on a foreign-key dependent would leave those earlier stores committed
+    against a rejected snapshot. This runs the same omit-delete preconditions in
+    a transaction that is always rolled back, so callers can fail before any
+    store is written while nothing here persists.
+    """
+    init_db()
+    _, seen_ids = _restore_rows(items)
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            _delete_omitted_projects(conn, seen_ids)
+        except sqlite3.IntegrityError as exc:
+            raise _omitted_referenced_error() from exc
+        finally:
+            conn.rollback()
+
+
 def _require(project_id: int) -> dict[str, Any]:
     project = get(project_id)
     if project is None:
@@ -172,7 +302,126 @@ def _row_to_project(row: sqlite3.Row) -> dict[str, Any]:
         "next_actions": json.loads(row["next_actions_json"]),
         "delegable": json.loads(row["delegable_json"]),
         "links": json.loads(row["links_json"]),
+        "selected_todo_id": row["selected_todo_id"],
     }
+
+
+def select_todo(project_id: int, todo_id: int) -> dict[str, Any]:
+    """Record the one action the user explicitly chose for this project.
+
+    Explicit choice outranks anything generated. `next_actions_json` and
+    `project_next_steps` are both replaceable suggestion state; this is not,
+    and regenerating either must leave it alone.
+    """
+    if not isinstance(todo_id, int) or isinstance(todo_id, bool):
+        raise ProjectError(f"todo_id must be int, got {type(todo_id).__name__}")
+    from gateway import todo_store
+
+    if Path(todo_store.TODO_DB_FILE).resolve() != Path(PROJECTS_DB_FILE).resolve():
+        raise ProjectError(
+            "cannot select a todo while the todo and project stores are separate databases"
+        )
+    init_db()
+    todo_store.init_db()
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        # Lock before validating either row. A validation performed before the
+        # write transaction can become false while this request waits for a
+        # concurrent selection or model refresh.
+        conn.execute("BEGIN IMMEDIATE")
+        project = conn.execute(
+            "SELECT id FROM projects WHERE id = ?", (project_id,)
+        ).fetchone()
+        if project is None:
+            raise ProjectNotFound(f"no project with id {project_id}")
+        chosen = conn.execute(
+            "SELECT id, status, project_id FROM todos WHERE id = ?", (todo_id,)
+        ).fetchone()
+        if chosen is None:
+            raise ProjectNotFound(f"no todo with id {todo_id}")
+        if chosen["status"] not in ACTIONABLE_TODO_STATUSES:
+            raise ProjectError(
+                f"todo {todo_id} is {chosen['status']} and cannot be the next action"
+            )
+        owner = chosen["project_id"]
+        if owner is not None and owner != project_id:
+            raise ProjectError(f"todo {todo_id} belongs to project {owner}, not {project_id}")
+        if owner is None:
+            # Adoption and selection must land together. Committing ownership
+            # first through a separate connection leaves a todo adopted with no
+            # selection if the second write fails.
+            claimed = conn.execute(
+                "UPDATE todos SET project_id = ?, updated_at = ? "
+                "WHERE id = ? AND project_id IS NULL",
+                (project_id, time.time(), todo_id),
+            )
+            if claimed.rowcount != 1:
+                raise ProjectError(f"todo {todo_id} changed ownership while it was selected")
+        conn.execute(
+            "UPDATE projects SET selected_todo_id = ? WHERE id = ?", (todo_id, project_id)
+        )
+        conn.commit()
+    return _require(project_id)
+
+
+def clear_selected_todo(project_id: int) -> dict[str, Any]:
+    """Drop the explicit selection without touching the todo itself."""
+    _require(project_id)
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        conn.execute(
+            "UPDATE projects SET selected_todo_id = NULL WHERE id = ?", (project_id,)
+        )
+        conn.commit()
+    return _require(project_id)
+
+
+def selected_todo(project_id: int) -> dict[str, Any] | None:
+    """Return the chosen todo, repairing the pointer if that todo is gone.
+
+    A selection pointing at a deleted todo would otherwise surface as a
+    phantom next action. Rather than dangle, the pointer clears itself the
+    first time anyone looks.
+    """
+    project = _require(project_id)
+    todo_id = project.get("selected_todo_id")
+    if todo_id is None:
+        return None
+    from gateway import todo_store
+
+    if Path(todo_store.TODO_DB_FILE).resolve() != Path(PROJECTS_DB_FILE).resolve():
+        raise ProjectError(
+            "cannot read a selected todo while the todo and project stores are separate databases"
+        )
+    chosen = next((todo for todo in todo_store.get() if todo["id"] == todo_id), None)
+    if chosen is None:
+        _clear_selected_todo_if_current(project_id, todo_id)
+        return None
+    # The selection was valid when it was made; the todo can have moved or been
+    # finished since. Both mean this project no longer has a chosen next action,
+    # and returning one anyway would put another project's work — or work
+    # already done — in front of the user as the thing to do next.
+    # An existing selection must still be owned by *this* project. `owner is
+    # None` is not good enough: /todos/{id}/project accepts null, so a selected
+    # todo can be explicitly unassigned and would otherwise keep being returned
+    # as this project's chosen action.
+    if chosen.get("project_id") != project_id:
+        _clear_selected_todo_if_current(project_id, todo_id)
+        return None
+    if chosen["status"] not in ACTIONABLE_TODO_STATUSES:
+        _clear_selected_todo_if_current(project_id, todo_id)
+        return None
+    return chosen
+
+
+def _clear_selected_todo_if_current(project_id: int, expected_todo_id: int) -> bool:
+    """Repair one stale pointer without erasing a newer explicit choice."""
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        cursor = conn.execute(
+            "UPDATE projects SET selected_todo_id = NULL "
+            "WHERE id = ? AND selected_todo_id = ?",
+            (project_id, expected_todo_id),
+        )
+        conn.commit()
+        return cursor.rowcount == 1
 
 
 def _seed_kitty_project_once() -> None:

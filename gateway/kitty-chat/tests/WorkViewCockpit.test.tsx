@@ -97,7 +97,41 @@ describe('WorkView recovery cockpit', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prepare Builder proposal' }))
 
     expect(await screen.findByTestId('work-builder-proposal')).toHaveTextContent('Add the proof file')
-    expect(screen.getByText(/execution route and spend are shown by Builder/i)).toBeInTheDocument()
+    expect(screen.getByText(/Builder chooses the execution route later under current policy/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Proposal route:/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the proposal routing the compile endpoint actually returns, never a phantom route', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({
+      ok: true,
+      task: { objective: 'Add the proof file', instructions: 'Add it.', allowed_paths: ['rc0-builder-proof.txt'] },
+      routing: { mode: 'no_spend', saved_preference_changed: false },
+    })
+    useCompileBuilderProposal.mockReturnValue({ mutateAsync, isPending: false })
+    render(<WorkView isMobile={false} />)
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ask Builder for work' }), { target: { value: 'Add the proof file.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare Builder proposal' }))
+
+    const route = await screen.findByText(/Proposal route:/)
+    expect(route.closest('div')).toHaveTextContent('no-spend model route')
+    expect(screen.queryByText(/est\. CAD/i)).not.toBeInTheDocument()
+  })
+
+  it('names the saved-provider proposal route when the compile falls back', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({
+      ok: true,
+      task: { objective: 'Add the proof file', instructions: 'Add it.', allowed_paths: ['rc0-builder-proof.txt'] },
+      routing: { mode: 'request_scoped_fallback', saved_preference_changed: false },
+    })
+    useCompileBuilderProposal.mockReturnValue({ mutateAsync, isPending: false })
+    render(<WorkView isMobile={false} />)
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ask Builder for work' }), { target: { value: 'Add the proof file.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare Builder proposal' }))
+
+    const route = await screen.findByText(/Proposal route:/)
+    expect(route.closest('div')).toHaveTextContent('your saved provider — this proposal only')
   })
 
   it('keeps a failed Work request editable and offers an inline retry', async () => {
