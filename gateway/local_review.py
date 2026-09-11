@@ -44,6 +44,18 @@ RISK_PATTERNS: dict[str, re.Pattern[str]] = {
     "auth_security": re.compile(r"\b(auth(?:entication|orization)?|credential|secret|api key|access token|security)\b", re.I),
     "destructive": re.compile(r"\b(delete|drop|destroy|erase|purge|force[- ]?push|rewrite history)\b", re.I),
     "irreversible_external_effect": re.compile(r"\b(send (?:email|message)|publish|merge|push to main|external side effect|irreversible)\b", re.I),
+    # A small local model must not clear work whose failure can corrupt durable
+    # state. These requirements need the authoritative reviewer even when the
+    # request does not mention a destructive operation explicitly.
+    "data_integrity": re.compile(
+        r"\b(backup|restore|import|export|transaction|rollback|atomic|database|migration|"
+        r"persistence|integrity|snapshot|foreign key|data loss)\b",
+        re.I,
+    ),
+    "concurrency": re.compile(
+        r"\b(concurren(?:t|cy)|race condition|interleav(?:e|ing)|lock contention)\b",
+        re.I,
+    ),
 }
 
 

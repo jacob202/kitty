@@ -85,6 +85,34 @@ def test_high_risk_requirements_escalate_without_calling_model() -> None:
     assert called is False
 
 
+def test_durable_state_requirements_escalate_before_local_inference() -> None:
+    for requirement, tag in (
+        ("A backup restore is atomic.", "data_integrity"),
+        ("The database migration preserves state.", "data_integrity"),
+        ("The concurrent update cannot interleave.", "concurrency"),
+    ):
+        assert tag in detect_risk_tags([requirement])
+
+    called = False
+
+    def ask(_requirement: str, _candidate: str) -> str:
+        nonlocal called
+        called = True
+        return "YES"
+
+    result = review_decision(
+        requirements=["The snapshot import is atomic and preserves data."],
+        candidate="candidate",
+        ask=ask,
+        implementation_model="deepseek-v4",
+        reviewer_model="qwen3.5-9b",
+    )
+    assert result["decision"] == "escalate"
+    assert result["reason"] == "high_risk_requires_strong_review"
+    assert "data_integrity" in result["risk_tags"]
+    assert called is False
+
+
 def test_explicit_high_risk_tags_and_same_model_family_escalate() -> None:
     assert detect_risk_tags(["Rotate an API credential safely."]) == {"auth_security"}
     assert model_family("openrouter/qwen/qwen3.5-coder") == "qwen"
