@@ -1851,9 +1851,11 @@ export interface GatewayArtifact {
   error?: string | null
 }
 
-/** Metadata for a Library image staged into the Chat composer. The Gateway
- *  resolves the durable artifact bytes only when the message is sent. */
-export type ChatImageAttachment = MessageAttachment
+/** Metadata for a durable Library artifact staged into the Chat composer.
+ *  The Gateway resolves model-visible content only when the message is sent. */
+export type ChatArtifactAttachment = MessageAttachment
+/** Compatibility alias for callers that only stage image artifacts. */
+export type ChatImageAttachment = ChatArtifactAttachment
 
 /** The route already writes its rejection reasons for a person to read, so the
  *  render boundary shows `detail` verbatim rather than collapsing every 4xx
@@ -1875,7 +1877,7 @@ async function artifactChatRejection(response: Response): Promise<Error | null> 
 
 /** Resolve a saved artifact for use in chat. Throws on rejection so the UI
  *  can show the gateway's plain-language reason instead of a fake success. */
-export async function useArtifactInChat(artifactId: string): Promise<ChatImageAttachment> {
+export async function useArtifactInChat(artifactId: string): Promise<ChatArtifactAttachment> {
   const controller = new AbortController()
   const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
   try {
@@ -1889,7 +1891,7 @@ export async function useArtifactInChat(artifactId: string): Promise<ChatImageAt
       throw (await artifactChatRejection(response))
         ?? new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
     }
-    return (await response.json()) as ChatImageAttachment
+    return (await response.json()) as ChatArtifactAttachment
   } finally {
     window.clearTimeout(timeoutId)
   }

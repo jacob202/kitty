@@ -54,6 +54,35 @@ def test_projection_maps_active_ready_blocked_paused_failed_completed_and_waitin
         assert "binding" in item["evidence"]["approval"]["reason"]
 
 
+def test_projection_keeps_result_artifact_separate_from_review_publication_and_approval():
+    packet = _base_packet("result", task_state="done", next_action="done")
+    packet["attempt_history"] = [
+        {
+            "id": 42,
+            "validation": {"status": "passed", "summary": "1 validation command passed."},
+            "review": None,
+            "result_artifact": {
+                "state": "ready",
+                "artifact_id": "builder_result_task-result_attempt-42",
+            },
+        }
+    ]
+    payload = project_work_snapshot(
+        _snapshot_for(packet, initiative_state="completed"),
+        now=NOW,
+    )
+
+    evidence = payload["items"][0]["evidence"]
+    assert evidence["result"] == {
+        "state": "ready",
+        "artifact_id": "builder_result_task-result_attempt-42",
+    }
+    assert evidence["validation"]["status"] == "passed"
+    assert evidence["review"] is None
+    assert evidence["publication"] is None
+    assert evidence["approval"]["state"] == "unavailable"
+
+
 def test_projection_chooses_current_packet_by_live_run_then_next_packet_then_non_terminal_then_recency():
     live = _base_packet("live", run_state="starting", updated_at="2026-08-13T11:50:00Z")
     newer = _base_packet("newer", eligibility_state="eligible", updated_at="2026-08-13T11:59:00Z")

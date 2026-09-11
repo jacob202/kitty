@@ -43,6 +43,21 @@ def _register_image(tmp_path, *, name="camera-reference.png", media_type="image/
     )
 
 
+def _register_builder_result(tmp_path, *, content="diff --git a/a.txt b/a.txt\n+hello\n"):
+    path = tmp_path / "result.patch"
+    path.write_text(content, encoding="utf-8")
+    return artifact_store.register_file(
+        path,
+        kind="builder_result",
+        media_type="text/plain",
+        project_id=1,
+        created_by="kittybuilder",
+        source_ref="builder:task-1:attempt-3",
+        artifact_id="builder_result_task-1_attempt-3",
+        metadata={"task_id": "task-1", "attempt_id": 3},
+    )
+
+
 class TestUseInChat:
     def test_ready_png_resolves_to_chat_attachment(self, chat_client, tmp_path):
         artifact = _register_image(tmp_path)
@@ -54,6 +69,17 @@ class TestUseInChat:
         assert body["media_type"] == "image/png"
         assert body["size"] == artifact["size_bytes"]
         assert "data_url" not in body
+
+    def test_ready_builder_result_resolves_with_same_artifact_identity(self, chat_client, tmp_path):
+        artifact = _register_builder_result(tmp_path)
+        r = chat_client.post("/chats/use-in-chat", json={"artifact_id": artifact["id"]})
+        assert r.status_code == 200, r.text
+        assert r.json() == {
+            "id": artifact["id"],
+            "display_name": "result.patch",
+            "media_type": "text/plain",
+            "size": artifact["size_bytes"],
+        }
 
     def test_ready_jpeg_and_webp_are_supported(self, chat_client, tmp_path):
         for name, mime in (("a.jpg", "image/jpeg"), ("a.webp", "image/webp")):
@@ -199,6 +225,36 @@ class TestCompletionInjection:
         assert r.json()["detail"]["kind"] == "attachment"
         assert "Remove it" in r.json()["detail"]["message"]
         assert errors
+
+    def test_builder_result_attachment_is_injected_as_user_content_and_not_forwarded_as_unknown_field(
+        self, chat_client, tmp_path, monkeypatch
+    ):
+        artifact = _register_builder_result(tmp_path, content="diff --git a/a.txt b/a.txt\n+recovered result\n")
+        captured = []
+
+        async def fake_stream(payload):
+            captured.append(payload)
+            yield b"data: [DONE]\n"
+
+        monkeypatch.setattr(completions_route, "iter_chat_completions_stream", fake_stream)
+        r = chat_client.post(
+            "/api/chat/completions",
+            json={
+                "model": "kitty-default",
+                "stream": True,
+                "attachment_ids": [artifact["id"]],
+                "messages": [{"role": "user", "content": "review the saved result"}],
+            },
+        )
+        assert r.status_code == 200, r.text
+        assert len(captured) == 1
+        payload = captured[0]
+        assert "attachment_ids" not in payload
+        user = [m for m in payload["messages"] if m["role"] == "user"][-1]
+        assert artifact["id"] in user["content"]
+        assert "result.patch" in user["content"]
+        assert "+recovered result" in user["content"]
+        assert "review the saved result" in user["content"]
 
     def test_generic_pdf_attachment_reaches_upstream_without_image_resolution(
         self, chat_client, tmp_path, monkeypatch

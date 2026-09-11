@@ -24,6 +24,9 @@ router = APIRouter(tags=["chats"])
 # so only raster image types the model can actually read are allowed.
 CHAT_IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
 CHAT_IMAGE_MAX_BYTES = 5 * 1024 * 1024  # 5 MiB
+CHAT_BUILDER_RESULT_KIND = "builder_result"
+CHAT_BUILDER_RESULT_MIME_TYPE = "text/plain"
+CHAT_BUILDER_RESULT_MAX_BYTES = 256 * 1024  # bounded model-visible patch content
 
 
 def _recover_memory_items(raw_memory: object) -> list[dict[str, str]]:
@@ -347,6 +350,48 @@ def _resolve_chat_image_attachment(artifact_id: str, *, include_data_url: bool =
     return {**attachment, "data_url": f"data:{media_type};base64,{encoded}"}
 
 
+
+def _resolve_chat_builder_result_attachment(
+    artifact_id: str, *, include_text: bool = False
+) -> dict:
+    """Resolve one durable Builder result without trusting mutable disk state."""
+    artifact = artifact_store.get_artifact(artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="That saved file no longer exists.")
+    if artifact.get("state") != "ready":
+        raise HTTPException(status_code=409, detail="That saved result is not ready to use in chat yet.")
+    if artifact.get("kind") != CHAT_BUILDER_RESULT_KIND or artifact.get("media_type") != CHAT_BUILDER_RESULT_MIME_TYPE:
+        raise HTTPException(status_code=415, detail="That saved file is not a reusable Builder result.")
+    storage_uri = artifact.get("storage_uri")
+    if not isinstance(storage_uri, str) or not storage_uri:
+        raise HTTPException(status_code=409, detail="That saved result has no readable content.")
+    path = Path(storage_uri)
+    if not path.is_file():
+        raise HTTPException(status_code=409, detail="That saved result is missing from disk.")
+    try:
+        current_hash, current_size = artifact_store._hash_file(path)
+    except OSError as exc:
+        logger.warning("could not hash Builder result %s for chat: %s", artifact_id, exc)
+        raise HTTPException(status_code=409, detail="That saved result could not be read right now.") from exc
+    if current_hash != artifact.get("content_hash") or current_size != artifact.get("size_bytes"):
+        raise HTTPException(status_code=409, detail="That saved result changed on disk and cannot be reused safely.")
+    if current_size > CHAT_BUILDER_RESULT_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="That saved result is too large to attach in chat.")
+    attachment = {
+        "id": artifact["id"],
+        "display_name": artifact.get("display_name") or path.name,
+        "media_type": CHAT_BUILDER_RESULT_MIME_TYPE,
+        "size": current_size,
+    }
+    if not include_text:
+        return attachment
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        logger.warning("could not read Builder result %s for chat: %s", artifact_id, exc)
+        raise HTTPException(status_code=409, detail="That saved result could not be read as text.") from exc
+    return {**attachment, "text": text}
+
 def _format_bytes(size: int) -> str:
     if size < 1024:
         return f"{size} B"
@@ -375,7 +420,11 @@ async def use_in_chat(request: Request) -> dict:
     artifact_id = body.get("artifact_id")
     if not isinstance(artifact_id, str) or not artifact_id.strip():
         raise HTTPException(status_code=400, detail="artifact_id is required")
-    return _resolve_chat_image_attachment(artifact_id.strip(), include_data_url=False)
+    artifact_id = artifact_id.strip()
+    artifact = artifact_store.get_artifact(artifact_id)
+    if artifact is not None and artifact.get("kind") == CHAT_BUILDER_RESULT_KIND:
+        return _resolve_chat_builder_result_attachment(artifact_id, include_text=False)
+    return _resolve_chat_image_attachment(artifact_id, include_data_url=False)
 
 
 @router.get("/chats/{chat_id}/messages")

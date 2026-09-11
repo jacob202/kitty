@@ -3,7 +3,8 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { BuilderProposalCard, readPendingBuilderProposalTask, type BuilderProposalTask } from '@/components/builder/BuilderProposalCard'
-import { useCompileBuilderProposal } from '@/lib/queries'
+import { ArtifactCanvas } from '@/components/artifacts/ArtifactCanvas'
+import { useArtifact, useCompileBuilderProposal } from '@/lib/queries'
 import { type BuilderCompileResult } from '@/lib/gateway'
 import {
   useBuilderAction,
@@ -115,7 +116,7 @@ export default function WorkView({
                 {(['needs-you', 'in-progress', 'completed'] as WorkGroup[]).map(group => {
                   const items = snapshot.items.filter(item => workGroup(item) === group)
                   if (items.length === 0) return null
-                  return <WorkGroupSection key={group} group={group} items={items} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} />
+                  return <WorkGroupSection key={group} group={group} items={items} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} isMobile={isMobile} />
                 })}
               </div>
             )}
@@ -247,7 +248,7 @@ function WorkBuilderRequest() {
   )
 }
 
-function WorkGroupSection({ group, items, builderRunning, schedulerEnabled }: { group: WorkGroup; items: GatewayWorkItem[]; builderRunning: boolean; schedulerEnabled: boolean | null }) {
+function WorkGroupSection({ group, items, builderRunning, schedulerEnabled, isMobile }: { group: WorkGroup; items: GatewayWorkItem[]; builderRunning: boolean; schedulerEnabled: boolean | null; isMobile: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const visibleItems = expanded ? items : items.slice(0, INITIAL_GROUP_ITEMS)
   const remaining = items.length - visibleItems.length
@@ -261,7 +262,7 @@ function WorkGroupSection({ group, items, builderRunning, schedulerEnabled }: { 
       </div>
       <div data-testid="work-group-list" style={groupListStyle}>
         {visibleItems.map((item, index) => (
-          <WorkRow key={item.id} item={item} isLast={index === visibleItems.length - 1} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} />
+          <WorkRow key={item.id} item={item} isLast={index === visibleItems.length - 1} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} isMobile={isMobile} />
         ))}
       </div>
       {items.length > INITIAL_GROUP_ITEMS && (
@@ -465,7 +466,7 @@ function workDetailLabel(item: GatewayWorkItem): string | null {
   return raw
 }
 
-function WorkRow({ item, isLast, builderRunning, schedulerEnabled }: { item: GatewayWorkItem; isLast: boolean; builderRunning: boolean; schedulerEnabled: boolean | null }) {
+function WorkRow({ item, isLast, builderRunning, schedulerEnabled, isMobile }: { item: GatewayWorkItem; isLast: boolean; builderRunning: boolean; schedulerEnabled: boolean | null; isMobile: boolean }) {
   const approval = approvalLabel(item)
   const rawDetail = rawWorkDetail(item)
   const detail = workDetailLabel(item)
@@ -487,6 +488,7 @@ function WorkRow({ item, isLast, builderRunning, schedulerEnabled }: { item: Gat
       </div>
       {detail && <div style={{ color: 'var(--color-text-secondary)', fontSize: 13.5, lineHeight: 1.5 }}>{detail}</div>}
       <RowActions item={item} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} />
+      <ResultArtifactAction item={item} isMobile={isMobile} />
       {preflight.data && (
         <div data-testid="preflight-banner" style={preflightBannerStyle}>
           <strong>Preflight {preflight.data.action === 'run' ? 'ready' : preflight.data.action}</strong>
@@ -578,6 +580,29 @@ function RowActions({ item, builderRunning, schedulerEnabled }: { item: GatewayW
   )
 }
 
+function ResultArtifactAction({ item, isMobile }: { item: GatewayWorkItem; isMobile: boolean }) {
+  const result = evidenceRecord(item.evidence.result)
+  const state = evidenceScalar(result?.state)
+  const artifactId = evidenceScalar(result?.artifact_id)
+  const ready = state === 'ready' && Boolean(artifactId)
+  const [open, setOpen] = useState(false)
+  const artifact = useArtifact(artifactId ?? '', open && ready)
+
+  if (!ready) return null
+  return (
+    <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>
+      <button type="button" onClick={() => setOpen(true)} style={secondaryActionStyle}>Open result</button>
+      {open && artifact.isPending && <span role="status" style={actionResultStyle}>Loading saved result…</span>}
+      {open && artifact.isError && (
+        <span role="alert" style={preflightErrorStyle}>The saved result could not be opened. Refresh Work and try again.</span>
+      )}
+      {open && artifact.data && (
+        <ArtifactCanvas artifact={artifact.data} isMobile={isMobile} onClose={() => setOpen(false)} />
+      )}
+    </div>
+  )
+}
+
 function BuilderRunBanner({ supervisor, supervisorKnown }: { supervisor: GatewaySupervisor; supervisorKnown: boolean }) {
   const builderAction = useBuilderAction()
   const [result, setResult] = useState<string | null>(null)
@@ -660,9 +685,12 @@ function evidenceDate(value: unknown): string | null {
 }
 
 function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
+  const result = evidenceRecord(evidence.result)
   const review = evidenceRecord(evidence.review)
   const validation = evidenceRecord(evidence.validation)
   const publication = evidenceRecord(evidence.publication)
+  const resultState = evidenceScalar(result?.state)
+  const resultReason = boundedEvidenceText(result?.reason)
   const reviewVerdict = evidenceScalar(review?.verdict)
   const reviewSummary = boundedEvidenceText(review?.summary)
   const validationStatus = evidenceScalar(validation?.status)
@@ -674,6 +702,8 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
 
   return (
     <>
+      {result && <div>result {resultState ?? 'recorded'}</div>}
+      {resultReason && <div>{resultReason}</div>}
       {review && <div>review {reviewVerdict ?? 'recorded'}</div>}
       {reviewSummary && <div>{reviewSummary}</div>}
       {validation && <div>validation {validationStatus ?? 'recorded'}</div>}
@@ -688,6 +718,8 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
 
 function evidenceLabels(item: GatewayWorkItem): string[] {
   const labels: string[] = []
+  const result = evidenceRecord(item.evidence.result)
+  if (evidenceScalar(result?.state) === 'ready' && evidenceScalar(result?.artifact_id)) labels.push('Result available')
   if (item.evidence.review) labels.push('Review evidence available')
   if (item.evidence.publication) labels.push('Publication evidence available')
   if (item.evidence.validation) labels.push('Validation evidence available')

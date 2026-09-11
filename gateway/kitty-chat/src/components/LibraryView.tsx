@@ -3,12 +3,14 @@ import { useState, type CSSProperties } from 'react'
 import { DocumentsPanel } from '@/components/DocumentsPanel'
 import { ArtifactCanvas, canPreviewArtifact } from '@/components/artifacts/ArtifactCanvas'
 import { useArtifacts } from '@/lib/queries'
-import type { GatewayArtifact, ChatImageAttachment } from '@/lib/gateway'
+import type { GatewayArtifact, ChatArtifactAttachment } from '@/lib/gateway'
 import { useArtifactInChat } from '@/lib/gateway'
 import { describeFailure } from '@/lib/failure-copy'
 import { useKitty } from '@/state/KittyContext'
 
 const CHAT_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+const BUILDER_RESULT_KIND = 'builder_result'
+const BUILDER_RESULT_MEDIA_TYPE = 'text/plain'
 
 export default function LibraryView({ isMobile }: { isMobile: boolean }) {
   const { setAttachments, setActiveView } = useKitty()
@@ -21,7 +23,7 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
   const handleUseInChat = async (artifact: GatewayArtifact) => {
     setUseError(null)
     try {
-      const attachment: ChatImageAttachment = await useArtifactInChat(artifact.id)
+      const attachment: ChatArtifactAttachment = await useArtifactInChat(artifact.id)
       setAttachments((prev) => [...prev.filter((a) => a.id !== attachment.id), attachment])
       setActiveView('chat')
     } catch (err) {
@@ -114,10 +116,10 @@ function ArtifactRow({ artifact, onOpen, onUseInChat }: { artifact: GatewayArtif
   const isImage = artifact.media_type.startsWith('image/')
   const chatReady = isChatReady(artifact)
   const previewReady = canPreviewArtifact(artifact)
-  const chatUnavailableReason = !isImage
-    ? 'Only images can be attached into a chat message from Library.'
-    : artifact.state !== 'ready'
-      ? 'This file is not ready to use in chat yet.'
+  const chatUnavailableReason = artifact.state !== 'ready'
+    ? 'This file is not ready to use in chat yet.'
+    : !isImage
+      ? 'Only supported images and saved Builder results can be attached from Library.'
       : 'This image type isn\u2019t supported in chat yet — use PNG, JPEG, or WebP.'
 
   return (
@@ -188,9 +190,9 @@ function ArtifactRow({ artifact, onOpen, onUseInChat }: { artifact: GatewayArtif
 
 
 function isChatReady(artifact: GatewayArtifact): boolean {
-  return artifact.media_type.startsWith('image/')
-    && artifact.state === 'ready'
-    && CHAT_IMAGE_TYPES.has(artifact.media_type)
+  if (artifact.state !== 'ready') return false
+  if (artifact.kind === BUILDER_RESULT_KIND && artifact.media_type === BUILDER_RESULT_MEDIA_TYPE) return true
+  return artifact.media_type.startsWith('image/') && CHAT_IMAGE_TYPES.has(artifact.media_type)
 }
 
 function artifactTypeLabel(artifact: GatewayArtifact): string {
