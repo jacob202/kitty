@@ -173,3 +173,29 @@ def test_user_identity_is_not_valid_for_agent_mcp(monkeypatch, room_db):
         agent_workspace.AgentWorkspaceError, match="MCP identity must be one of"
     ):
         _load_server(monkeypatch, "jacob")
+
+
+def test_mcp_existing_tools_accept_scope_without_adding_an_eighth_tool(
+    monkeypatch, room_db
+):
+    server = _load_server(monkeypatch, "dsh")
+    root = server.room_post(
+        "Scoped review request",
+        recipient_id="chatgpt",
+        message_kind="handoff",
+        scope_key="git:branch:feat/scoped-room",
+    )
+    assert root["scope_key"] == "git:branch:feat/scoped-room"
+
+    recent = server.room_recent(scope_key="git:branch:feat/scoped-room")
+    assert [item["id"] for item in recent] == [root["id"]]
+
+    server = _load_server(monkeypatch, "chatgpt")
+    inbox = server.room_inbox(scope_key="git:branch:feat/scoped-room")
+    assert [item["id"] for item in inbox] == [root["id"]]
+    reply = server.room_reply(root["id"], "Scoped response", message_kind="review")
+    assert reply["scope_key"] == "git:branch:feat/scoped-room"
+    assert set(FastMCPStub.instances[-1].tools) == {
+        "room_status", "room_recent", "room_inbox", "room_thread",
+        "room_post", "room_reply", "room_ack",
+    }

@@ -154,3 +154,43 @@ def test_global_room_thread_and_invalid_recipient_routes(client):
     )
     assert invalid.status_code == 400
     assert "participant" in invalid.json()["detail"]
+
+
+def test_global_room_http_scope_round_trip(client):
+    posted = client.post(
+        "/agent-room/global/messages",
+        json={
+            "sender_id": "chatgpt",
+            "recipient_id": "codex",
+            "message_kind": "handoff",
+            "content": "Scoped HTTP handoff",
+            "scope_key": "github:issue:490:KH-CONT-01",
+        },
+    )
+    assert posted.status_code == 201
+    root = posted.json()
+    assert root["scope_key"] == "github:issue:490:KH-CONT-01"
+
+    recent = client.get(
+        "/agent-room/global/messages",
+        params={"scope_key": "github:issue:490:KH-CONT-01"},
+    )
+    inbox = client.get(
+        "/agent-room/global/inbox/codex",
+        params={"scope_key": "github:issue:490:KH-CONT-01"},
+    )
+    assert [item["id"] for item in recent.json()["messages"]] == [root["id"]]
+    assert [item["id"] for item in inbox.json()["messages"]] == [root["id"]]
+
+    reply = client.post(
+        "/agent-room/global/messages",
+        json={
+            "sender_id": "codex",
+            "recipient_id": "chatgpt",
+            "message_kind": "review",
+            "content": "Scoped HTTP reply",
+            "parent_message_id": root["id"],
+        },
+    )
+    assert reply.status_code == 201
+    assert reply.json()["scope_key"] == "github:issue:490:KH-CONT-01"

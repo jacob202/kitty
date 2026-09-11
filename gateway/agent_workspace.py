@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import time
 import uuid
@@ -76,6 +77,12 @@ PRESENCE_TTL: float = 120.0  # seconds; heartbeat age determines active vs stale
 
 _SENDER_KINDS = {"user", "agent", "system"}
 _MESSAGE_KINDS = {"prompt", "plan", "handoff", "review", "result", "status"}
+_SCOPE_KEY_PATTERNS = (
+    re.compile(r"^github:pr:[1-9][0-9]*$"),
+    re.compile(r"^github:issue:490:[A-Za-z0-9][A-Za-z0-9._/-]*$"),
+    re.compile(r"^git:branch:[A-Za-z0-9][A-Za-z0-9._/-]*$"),
+)
+MAX_SCOPE_KEY_LENGTH = 240
 _TURN_STATUSES = {"running", "completed", "failed", "interrupted"}
 _AGENT_SEQUENCE = ("planner", "researcher", "builder", "reviewer")
 
@@ -240,6 +247,7 @@ def post_global_message(
     message_kind: str,
     recipient_id: str | None = None,
     parent_message_id: str | None = None,
+    scope_key: str | None = None,
 ) -> dict[str, Any]:
     ensure_global_workspace()
     sender_id = validate_active_participant(sender_id)
@@ -253,6 +261,7 @@ def post_global_message(
         content=content,
         message_kind=message_kind,
         parent_message_id=parent_message_id,
+        scope_key=scope_key,
     )
 
 
@@ -292,6 +301,7 @@ def list_inbox(
     unread_only: bool = False,
     direct_only: bool = False,
     limit: int = 100,
+    scope_key: str | None = None,
 ) -> list[dict[str, Any]]:
     participant_id = validate_global_participant(participant_id)
     if not isinstance(unread_only, bool):
@@ -300,11 +310,27 @@ def list_inbox(
         raise AgentWorkspaceError("direct_only must be a boolean")
     if isinstance(limit, bool) or limit <= 0 or limit > 500:
         raise AgentWorkspaceError("limit must be between 1 and 500")
+    scope_key = _optional_scope_key(scope_key)
     ensure_global_workspace()
     with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
         joined_at = _global_participant_joined_at(conn, participant_id)
+        scope_clause = ""
+        params: list[Any] = [
+            participant_id,
+            GLOBAL_WORKSPACE_ID,
+            participant_id,
+            joined_at,
+            participant_id,
+            1 if direct_only else 0,
+            participant_id,
+            1 if unread_only else 0,
+        ]
+        if scope_key is not None:
+            scope_clause = " AND m.scope_key = ?"
+            params.append(scope_key)
+        params.append(limit)
         rows = conn.execute(
-            """
+            f"""
             SELECT m.*, r.seen_at, r.acknowledged_at
             FROM agent_workspace_messages AS m
             LEFT JOIN agent_workspace_message_receipts AS r
@@ -315,20 +341,11 @@ def list_inbox(
               AND (m.recipient_id = ? OR m.recipient_id IS NULL)
               AND (? = 0 OR m.recipient_id = ?)
               AND (? = 0 OR r.seen_at IS NULL)
+              {scope_clause}
             ORDER BY m.created_at DESC, m.id DESC
             LIMIT ?
             """,
-            (
-                participant_id,
-                GLOBAL_WORKSPACE_ID,
-                participant_id,
-                joined_at,
-                participant_id,
-                1 if direct_only else 0,
-                participant_id,
-                1 if unread_only else 0,
-                limit,
-            ),
+            params,
         ).fetchall()
     return [_with_receipt_state(row) for row in reversed(rows)]
 
@@ -502,6 +519,7 @@ def append_message(
     recipient_id: str | None = None,
     parent_message_id: str | None = None,
     require_turn_running: str | None = None,
+    scope_key: str | None = None,
 ) -> dict[str, Any]:
     """Append a message.
 
@@ -523,6 +541,7 @@ def append_message(
         recipient_id = _required_text(recipient_id, "recipient_id", 200)
     if parent_message_id is not None:
         parent_message_id = _required_text(parent_message_id, "parent_message_id", 200)
+    scope_key = _optional_scope_key(scope_key)
 
     message_id = f"message_{uuid.uuid4().hex}"
     now = time.time()
@@ -547,7 +566,7 @@ def append_message(
         if parent_message_id is not None:
             parent = conn.execute(
                 """
-                SELECT recipient_id FROM agent_workspace_messages
+                SELECT recipient_id, scope_key FROM agent_workspace_messages
                 WHERE id = ? AND workspace_id = ?
                 """,
                 (parent_message_id, workspace_id),
@@ -556,12 +575,19 @@ def append_message(
                 raise AgentWorkspaceError(
                     f"parent message {parent_message_id} does not belong to workspace {workspace_id}"
                 )
+            parent_scope = parent["scope_key"]
+            if scope_key is None:
+                scope_key = parent_scope
+            elif parent_scope is not None and scope_key != parent_scope:
+                raise AgentWorkspaceError(
+                    "scope_key must match the parent message scope"
+                )
         conn.execute(
             """
             INSERT INTO agent_workspace_messages
                 (id, workspace_id, parent_message_id, sender_kind, sender_id,
-                 recipient_id, message_kind, content, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 recipient_id, message_kind, content, scope_key, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 message_id,
@@ -572,6 +598,7 @@ def append_message(
                 recipient_id,
                 message_kind,
                 content,
+                scope_key,
                 now,
             ),
         )
@@ -603,6 +630,7 @@ def append_message(
             metadata={
                 "message_kind": message_kind,
                 "recipient_id": recipient_id,
+                "scope_key": scope_key,
             },
             now=now,
         )
@@ -765,28 +793,44 @@ def _persist_agent_output(
     return dict(row)
 
 
-def list_messages(workspace_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
+def list_messages(
+    workspace_id: str, *, limit: int = 200, scope_key: str | None = None
+) -> list[dict[str, Any]]:
     workspace_id = _required_text(workspace_id, "workspace_id", 200)
     if isinstance(limit, bool) or limit <= 0 or limit > 500:
         raise AgentWorkspaceError("limit must be between 1 and 500")
+    scope_key = _optional_scope_key(scope_key)
     init_db()
     with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
         _require_workspace(conn, workspace_id)
-        return _list_messages(conn, workspace_id, limit=limit)
+        return _list_messages(conn, workspace_id, limit=limit, scope_key=scope_key)
 
 
-def _list_messages(conn: Any, workspace_id: str, *, limit: int) -> list[dict[str, Any]]:
+def _list_messages(
+    conn: Any, workspace_id: str, *, limit: int, scope_key: str | None = None
+) -> list[dict[str, Any]]:
     # Bounded callers (e.g. _model_context) need the newest window, not the
     # oldest: select DESC, then restore chronological order before returning.
-    rows = conn.execute(
-        """
-        SELECT * FROM agent_workspace_messages
-        WHERE workspace_id = ?
-        ORDER BY created_at DESC, id DESC
-        LIMIT ?
-        """,
-        (workspace_id, limit),
-    ).fetchall()
+    if scope_key is None:
+        rows = conn.execute(
+            """
+            SELECT * FROM agent_workspace_messages
+            WHERE workspace_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            (workspace_id, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT * FROM agent_workspace_messages
+            WHERE workspace_id = ? AND scope_key = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            (workspace_id, scope_key, limit),
+        ).fetchall()
     return [dict(row) for row in reversed(rows)]
 
 
@@ -1770,6 +1814,18 @@ def _require_workspace(conn: Any, workspace_id: str) -> None:
     ):
         raise AgentWorkspaceError(f"workspace {workspace_id} does not exist")
 
+
+
+def _optional_scope_key(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = _required_text(value, "scope_key", MAX_SCOPE_KEY_LENGTH)
+    if not any(pattern.fullmatch(value) for pattern in _SCOPE_KEY_PATTERNS):
+        raise AgentWorkspaceError(
+            "scope_key must be evidence-derived: github:pr:<n>, "
+            "github:issue:490:<lane>, or git:branch:<branch>"
+        )
+    return value
 
 def _required_text(value: str, field: str, limit: int) -> str:
     if not isinstance(value, str) or not value.strip():

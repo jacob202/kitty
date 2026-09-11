@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sqlite3
+from pathlib import Path
+
 import pytest
 
 from gateway import agent_room_cli, agent_workspace
@@ -223,7 +226,7 @@ def test_room_cli_direct_only_flag_uses_canonical_inbox(
     seen = {}
 
     def fake_list_inbox(
-        participant_id, *, unread_only=False, direct_only=False, limit=100
+        participant_id, *, unread_only=False, direct_only=False, limit=100, scope_key=None
     ):
         seen.update(
             participant_id=participant_id,
@@ -245,3 +248,93 @@ def test_room_cli_direct_only_flag_uses_canonical_inbox(
         "direct_only": True,
         "limit": 1,
     }
+
+
+def test_scope_filter_finds_handoff_older_than_global_recent_window(room_db):
+    old = agent_workspace.post_global_message(
+        sender_id="chatgpt",
+        recipient_id="codex",
+        content="handoff for PR 759",
+        message_kind="handoff",
+        scope_key="github:pr:759",
+    )
+    for index in range(150):
+        agent_workspace.post_global_message(
+            sender_id="kitty", content=f"noise {index}", message_kind="status"
+        )
+
+    assert old["id"] not in {
+        item["id"]
+        for item in agent_workspace.list_messages(
+            agent_workspace.GLOBAL_WORKSPACE_ID, limit=100
+        )
+    }
+    scoped = agent_workspace.list_messages(
+        agent_workspace.GLOBAL_WORKSPACE_ID, scope_key="github:pr:759", limit=20
+    )
+    assert [message["id"] for message in scoped] == [old["id"]]
+    inbox = agent_workspace.list_inbox(
+        "codex", scope_key="github:pr:759", unread_only=True
+    )
+    assert [message["id"] for message in inbox] == [old["id"]]
+
+
+def test_reply_inherits_parent_scope_and_scope_keys_are_evidence_derived(room_db):
+    root = agent_workspace.post_global_message(
+        sender_id="chatgpt",
+        recipient_id="codex",
+        content="review PR 759",
+        message_kind="handoff",
+        scope_key="github:pr:759",
+    )
+    reply = agent_workspace.post_global_message(
+        sender_id="codex",
+        recipient_id="chatgpt",
+        content="reviewed",
+        message_kind="review",
+        parent_message_id=root["id"],
+    )
+    assert reply["scope_key"] == "github:pr:759"
+
+    with pytest.raises(agent_workspace.AgentWorkspaceError, match="scope_key"):
+        agent_workspace.post_global_message(
+            sender_id="chatgpt",
+            content="invalid authority scope",
+            message_kind="status",
+            scope_key="task:owned:urgent",
+        )
+
+
+def test_scope_migration_preserves_existing_unscoped_message(tmp_path):
+    db_file = tmp_path / "legacy.db"
+    with sqlite3.connect(db_file) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE agent_workspace_messages (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at REAL NOT NULL
+            );
+            INSERT INTO agent_workspace_messages (id, workspace_id, content, created_at)
+            VALUES ('legacy_message', 'workspace_global', 'keep me unchanged', 1.0);
+            """
+        )
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "gateway/migrations/058_agent_workspace_scope_key.sql"
+        ).read_text()
+        conn.executescript(migration)
+        row = conn.execute(
+            "SELECT id, content, scope_key FROM agent_workspace_messages "
+            "WHERE id = 'legacy_message'"
+        ).fetchone()
+        index_columns = [
+            item[2]
+            for item in conn.execute(
+                "PRAGMA index_info('idx_agent_workspace_messages_scope')"
+            )
+        ]
+
+    assert row == ("legacy_message", "keep me unchanged", None)
+    assert index_columns == ["workspace_id", "scope_key", "created_at", "id"]
