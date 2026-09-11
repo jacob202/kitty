@@ -34,6 +34,13 @@ _MIGRATION_RENAMES: dict[str, tuple[str, ...]] = {
     "043_image_sessions_project_scope.sql": (
         "039_image_sessions_project_scope.sql",
     ),
+    # KH-CONT-01's migration was renumbered 057 -> 058 once the return rollout
+    # took 057_project_selected_todo.sql. Databases that already applied the
+    # legacy name recorded it under that name and must not replay the column
+    # addition, which would fail with a duplicate-column error.
+    "058_agent_workspace_scope_key.sql": (
+        "057_agent_workspace_scope_key.sql",
+    ),
 }
 
 def apply_pragmas(conn: sqlite3.Connection) -> None:
