@@ -156,6 +156,68 @@ def delete(project_id: int) -> None:
     )
 
 
+def restore(items: list[dict[str, Any]]) -> int:
+    """Replace Projects with snapshot state.
+
+    Snapshot restore has the opposite contract to ``update_fields``: rows
+    omitted from the snapshot are absent afterwards. ``delete()``'s archive-only
+    policy governs user-initiated deletion, not wholesale snapshot replacement,
+    which is the same precedent ``todo_store.restore`` sets for Todos. Todos are
+    restored immediately after this in the same ``storage_sync`` pass, so a
+    ``selected_todo_id`` that is dangling only because its todo has not landed
+    yet is reconciled there rather than rejected here.
+    """
+    init_db()
+    if not isinstance(items, list):
+        raise ProjectError(f"projects payload must be a list, got {type(items).__name__}")
+
+    rows: list[tuple[Any, ...]] = []
+    seen_ids: set[int] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise ProjectError(f"project record must be a dict, got {type(item).__name__}")
+        raw_id = item.get("id")
+        if not isinstance(raw_id, int) or isinstance(raw_id, bool):
+            raise ProjectError("project records must carry an integer id to restore")
+        if raw_id in seen_ids:
+            raise ProjectError(f"duplicate project id {raw_id} in snapshot")
+        seen_ids.add(raw_id)
+        created_at = item.get("created_at")
+        rows.append(
+            (
+                raw_id,
+                created_at if isinstance(created_at, str) and created_at else None,
+                str(item.get("name", "")),
+                str(item.get("kind", "")),
+                json.dumps(item.get("paths") or []),
+                str(item.get("status") or "active"),
+                item.get("last_touched"),
+                str(item.get("summary") or ""),
+                json.dumps(item.get("open_questions") or []),
+                json.dumps(item.get("next_actions") or []),
+                json.dumps(item.get("delegable") or []),
+                json.dumps(item.get("links") or []),
+                item.get("selected_todo_id"),
+            )
+        )
+
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        # Serialize against select_todo()/update_fields() so replacing the
+        # registry is one atomic transition. Todos are restored by a separate
+        # storage_sync step, so this is not atomic across both stores.
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("DELETE FROM projects")
+        conn.executemany(
+            "INSERT INTO projects (id, created_at, name, kind, paths_json, status, "
+            "last_touched, summary, open_questions_json, next_actions_json, delegable_json, "
+            "links_json, selected_todo_id) "
+            "VALUES (?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+        conn.commit()
+    return len(rows)
+
+
 def _require(project_id: int) -> dict[str, Any]:
     project = get(project_id)
     if project is None:

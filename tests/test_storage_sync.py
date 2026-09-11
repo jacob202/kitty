@@ -123,6 +123,72 @@ def test_round_trip_preserves_todos(tmp_path, monkeypatch):
     assert {t["content"] for t in restored} == {"x", "y"}
 
 
+def test_round_trip_restores_user_project_owned_todo_into_fresh_database(
+    tmp_path, monkeypatch
+):
+    """A todo owned by a user-created project survives export -> fresh restore.
+
+    `projects` used to be absent from the snapshot while `todo_store.restore`
+    rejects any todo whose owner is missing from the destination, so a valid
+    snapshot aborted the entire todo restore into a rebuilt database.
+    """
+    _isolate_plugin(tmp_path, monkeypatch)
+    db_file = _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    seed_ids = {project["id"] for project in project_store.list_projects()}
+
+    project = project_store.create(name="job-search", kind="admin")
+    assert project["id"] not in seed_ids
+    todo = todo_store.update([{"content": "Chosen next action", "status": "pending"}])[0]
+    todo_store.set_project(todo["id"], project["id"])
+    project_store.select_todo(project["id"], todo["id"])
+    todo_store.set_progress(todo["id"], "halfway")
+
+    snapshot = storage_sync.export_all()
+    assert "projects" in snapshot["stores"]
+    assert snapshot["stores"]["todos"][0]["project_id"] == project["id"]
+
+    # Rebuild the database from scratch: only the seeded projects exist.
+    db_file.unlink()
+    kitty_db.migrate(db_file=db_file)
+    project_store.init_db()
+    assert project["id"] not in {p["id"] for p in project_store.list_projects()}
+
+    counts = storage_sync.import_all(snapshot)
+
+    assert counts["projects"] == len(snapshot["stores"]["projects"])
+    restored_project = project_store.get(project["id"])
+    assert restored_project is not None
+    assert restored_project["name"] == "job-search"
+    assert restored_project["selected_todo_id"] == todo["id"]
+
+    rows = todo_store.get()
+    assert [row["id"] for row in rows] == [todo["id"]]
+    assert rows[0]["project_id"] == project["id"]
+    assert rows[0]["progress_note"] == "halfway"
+    assert project_store.selected_todo(project["id"])["id"] == todo["id"]
+
+
+def test_import_rejects_snapshot_todo_with_owner_absent_from_snapshot(
+    tmp_path, monkeypatch
+):
+    """An internally inconsistent snapshot fails before any store is written."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    todo_store.update([{"content": "Keep current state"}])
+    before = todo_store.get()
+
+    snapshot = storage_sync.export_all()
+    snapshot["stores"]["todos"] = [
+        {"content": "Orphaned snapshot todo", "sort_order": 0, "project_id": 999999}
+    ]
+
+    with pytest.raises(ValueError, match="absent from snapshot projects"):
+        storage_sync.import_all(snapshot)
+
+    assert todo_store.get() == before
+
+
 def test_snapshot_import_replaces_omitted_selected_todo_and_clears_dangling_pointer(
     tmp_path, monkeypatch
 ):
@@ -212,6 +278,26 @@ def test_snapshot_import_rejects_missing_project_owner_before_replacing_todos(
 def test_import_rejects_unknown_format_version():
     with pytest.raises(ValueError, match="format_version"):
         storage_sync.import_all({"format_version": 999, "stores": {}})
+
+
+def test_import_accepts_an_older_snapshot_without_a_projects_store(
+    tmp_path, monkeypatch
+):
+    """A pre-`projects` backup must stay restorable after the format bump."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    todo_store.update([{"content": "Backed-up todo", "status": "pending"}])
+
+    snapshot = storage_sync.export_all()
+    snapshot["format_version"] = 1
+    del snapshot["stores"]["projects"]
+    todo_store.clear()
+
+    counts = storage_sync.import_all(snapshot)
+
+    assert "projects" not in counts
+    assert counts["todos"] == 1
+    assert [row["content"] for row in todo_store.get()] == ["Backed-up todo"]
 
 
 def test_import_rejects_missing_stores_key():

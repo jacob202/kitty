@@ -103,6 +103,21 @@ describe('BuilderProposalCard', () => {
     expect(gateway.approveBuilderJob).not.toHaveBeenCalled()
   })
 
+  it('never relabels proposal routing as the Builder execution route', async () => {
+    const routedTask = {
+      ...task,
+      route: { provider: 'openrouter', model: 'deepseek-v4-flash', estimated_cost_cad: 0.0123 },
+    }
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+
+    renderWithQueryClient(<BuilderProposalCard task={routedTask} chatId="chat-route-prepared" messageIndex={0} />)
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+
+    expect(await screen.findByText('Approve')).toBeInTheDocument()
+    expect(screen.queryByText(/Execution route:/)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Proposal route:/).length).toBeGreaterThan(0)
+  })
+
   it('flags a malformed proposal without calling propose', () => {
     renderWithQueryClient(
       <BuilderProposalCard
@@ -694,6 +709,91 @@ describe('BuilderProposalCard', () => {
     await waitFor(() => expect(window.localStorage.getItem('kitty.builder-proposal.work.pending')).toBeNull())
     expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
     expect(gateway.approveBuilderJob).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the pending approval retry while the Mission binding is still missing after reload', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'active' },
+      current_work: { state: 'queued' },
+      awaiting_acceptance: true,
+      awaiting_acceptance_because: 'Expected Gateway Mission binding is missing',
+      mission_acceptance: {
+        state: 'unavailable',
+        error: `Expected Gateway Mission binding is missing for Builder initiative ${preparedProposal.mission_id}`,
+      },
+    })
+
+    const first = renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={1}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledOnce())
+
+    // Reload: Builder's durable job is found, but its Gateway Mission binding
+    // is not. The exact approval payload is the only way to reconcile that.
+    first.unmount()
+    vi.mocked(gateway.resumeBuilderJob).mockClear()
+    renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={2}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Retry same approval' })).toBeInTheDocument()
+    await screen.findByText(/Mission binding is still missing/)
+    const checkpoint = JSON.parse(
+      window.localStorage.getItem('kitty.builder-proposal.work.pending') as string,
+    )
+    expect(checkpoint).toMatchObject({
+      version: 1,
+      state: 'pending',
+      missionId: preparedProposal.mission_id,
+      approval: {
+        expected_manifest_sha: preparedProposal.manifest_sha256,
+        approval_nonce: preparedProposal.approval_nonce,
+        confirmed: true,
+      },
+    })
+    expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
+  })
+
+  it('renders a rejected outcome as rejected instead of nobody-has-accepted', async () => {
+    window.localStorage.setItem(
+      'kitty.builder-proposal.chat-rejected.0',
+      preparedProposal.mission_id as string,
+    )
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'complete' },
+      current_work: { state: 'completed' },
+      builder_task_complete: true,
+      awaiting_acceptance: true,
+      awaiting_acceptance_because: 'the Mission outcome is rejected, not accepted',
+      mission_acceptance: { state: 'rejected', reviewer_id: 'reviewer-1', error: null },
+    })
+
+    renderWithQueryClient(
+      <BuilderProposalCard task={task} chatId="chat-rejected" messageIndex={0} />,
+    )
+
+    const status = await screen.findByTestId('builder-job-awaiting-acceptance')
+    expect(status).toHaveTextContent(/rejected/i)
+    expect(status).not.toHaveTextContent(/Nobody has accepted the result yet/)
   })
 
 })

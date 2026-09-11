@@ -72,6 +72,7 @@ resources:
     - gateway/migrations/**
     - gateway/project_store.py
     - gateway/routes/agent_workspace.py
+    - gateway/routes/projects.py
     - gateway/storage_router.py
     - gateway/storage_sync.py
     - gateway/todo_store.py
@@ -164,7 +165,6 @@ resources:
     - gateway/kitty-chat/tests/actionsContract.test.ts
     - gateway/routes/conversation_handoff.py
     - gateway/routes/extended.py
-    - gateway/routes/projects.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
     - tests/test_work_projection.py

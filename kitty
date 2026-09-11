@@ -172,28 +172,52 @@ pid_parent() {
   ps -o ppid= -p "$1" 2>/dev/null | tr -d '[:space:]'
 }
 
+# LiteLLM intentionally keeps a repo-owned wrapper alive while the proxy
+# listener runs as its direct child outside the checkout. Require the exact
+# canonical launcher command so a stale pidfile plus PID reuse cannot bless an
+# unrelated child process as Kitty-owned. `./kitty up` records the wrapper as
+# `bash <path>`; `./kitty install` runs it under launchd as `/bin/bash <path>`.
+controller_is_canonical_litellm() {
+  local controller_pid="$1" controller_command
+  controller_command="$(pid_command "$controller_pid")"
+  case "$controller_command" in
+    "bash $KITTY_ROOT/gateway/start_litellm.sh"|"/bin/bash $KITTY_ROOT/gateway/start_litellm.sh") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 pidfile_controls_listener() {
-  local svc="$1" pidfile="$2" listener_pid="$3" controller_pid controller_command expected_command
+  local svc="$1" pidfile="$2" listener_pid="$3" controller_pid
   [[ -f "$pidfile" ]] || return 1
   controller_pid="$(cat "$pidfile" 2>/dev/null || true)"
   [[ "$controller_pid" =~ ^[0-9]+$ ]] || return 1
   pid_owned_by_current_checkout "$controller_pid" || return 1
   [[ "$(pid_parent "$listener_pid")" == "$controller_pid" ]] || return 1
-
-  # LiteLLM intentionally keeps a repo-owned wrapper alive while the proxy
-  # listener runs as its direct child outside the checkout. Require the exact
-  # canonical launcher command so a stale pidfile plus PID reuse cannot bless
-  # an unrelated child process as Kitty-owned.
   [[ "$svc" == "litellm" ]] || return 1
-  controller_command="$(pid_command "$controller_pid")"
-  expected_command="bash $KITTY_ROOT/gateway/start_litellm.sh"
-  [[ "$controller_command" == "$expected_command" ]]
+  controller_is_canonical_litellm "$controller_pid"
+}
+
+# The supported `./kitty install` path starts LiteLLM under launchd and never
+# writes logs/.run/litellm.pid, so the pidfile controller above cannot see it.
+# Reuse the existing launchd authority as an alternative verified controller
+# rather than adding a second launcher: its pid is the repo-owned wrapper and
+# the proxy listener is its direct child.
+launchd_controls_listener() {
+  local svc="$1" listener_pid="$2" launch_pid
+  [[ "$svc" == "litellm" ]] || return 1
+  launch_pid="$(launchd_pid "$svc" || true)"
+  [[ "$launch_pid" =~ ^[0-9]+$ ]] || return 1
+  pid_owned_by_current_checkout "$launch_pid" || return 1
+  [[ "$(pid_parent "$listener_pid")" == "$launch_pid" ]] || return 1
+  controller_is_canonical_litellm "$launch_pid"
 }
 
 listener_role_for_service() {
   local svc="$1" pidfile="$2" listener_pid="$3" role
   role="$(pid_role "$listener_pid")"
-  if [[ "$role" == "external" ]] && pidfile_controls_listener "$svc" "$pidfile" "$listener_pid"; then
+  if [[ "$role" == "external" ]] \
+    && { pidfile_controls_listener "$svc" "$pidfile" "$listener_pid" \
+      || launchd_controls_listener "$svc" "$listener_pid"; }; then
     role="owned-current"
   fi
   printf '%s\n' "$role"

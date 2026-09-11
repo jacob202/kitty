@@ -33,7 +33,12 @@ from gateway.paths import DATA_DIR
 
 logger = logging.getLogger("kitty.storage_sync")
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
+# Every earlier version stays importable: the v1 -> v2 change only added the
+# `projects` store, so an existing backup must not become un-restorable after a
+# later bump. A v1 snapshot simply cannot carry user-created projects, so a todo
+# owned by one fails loud rather than silently losing its owner.
+_ACCEPTED_FORMAT_VERSIONS = frozenset(range(1, FORMAT_VERSION + 1))
 EXPORT_FILENAME = "kitty-storage-export.json"
 
 
@@ -58,6 +63,12 @@ def export_todos() -> list[dict]:
     return todo_store.get()
 
 
+def export_projects() -> list[dict]:
+    from gateway import project_store
+
+    return project_store.list_projects()
+
+
 def export_plugin_settings() -> dict[str, bool]:
     return plugin_registry._load_db_settings()
 
@@ -75,6 +86,7 @@ def export_all() -> dict[str, Any]:
         "stores": {
             "memories": export_memories(),
             "journal_entries": export_journal_entries(),
+            "projects": export_projects(),
             "todos": export_todos(),
             "plugin_settings": export_plugin_settings(),
             "preferences": export_preferences(),
@@ -146,6 +158,18 @@ def import_journal_entries(payload: list[dict]) -> int:
     return added
 
 
+def import_projects(payload: list[dict]) -> int:
+    from gateway import project_store
+
+    if not isinstance(payload, list):
+        raise ValueError(f"projects payload must be a list, got {type(payload).__name__}")
+    items = [dict(row) for row in payload]
+    try:
+        return project_store.restore(items)
+    except project_store.ProjectError as exc:
+        raise ValueError(str(exc)) from exc
+
+
 def import_todos(payload: list[dict]) -> int:
     if not isinstance(payload, list):
         raise ValueError(f"todos payload must be a list, got {type(payload).__name__}")
@@ -178,10 +202,52 @@ def import_preferences(payload: dict) -> int:
 _IMPORTERS: dict[str, Callable[..., int]] = {
     "memories": import_memories,
     "journal_entries": import_journal_entries,
+    # Projects must land before todos: todo_store.restore() validates every
+    # todo's project_id against the destination projects table, so a todo
+    # owned by a user-created project can only round-trip if that project is
+    # materialized first.
+    "projects": import_projects,
     "todos": import_todos,
     "plugin_settings": import_plugin_settings,
     "preferences": import_preferences,
 }
+
+
+def _validate_snapshot_references(stores: dict[str, Any]) -> None:
+    """Reject a snapshot whose todos reference projects it does not carry.
+
+    A v1 snapshot has no ``projects`` store at all, so it is skipped here and
+    ``todo_store.restore`` alone validates its todos against the destination.
+    A snapshot that does carry ``projects`` must be self-consistent: its todos
+    may only reference projects in that same snapshot.
+    """
+    projects = stores.get("projects")
+    todos = stores.get("todos")
+    if not isinstance(projects, list) or not isinstance(todos, list):
+        return
+    project_ids: set[int] = set()
+    for item in projects:
+        if not isinstance(item, dict):
+            continue
+        raw_id = item.get("id")
+        if isinstance(raw_id, int) and not isinstance(raw_id, bool):
+            project_ids.add(raw_id)
+    missing: set[int] = set()
+    for item in todos:
+        if not isinstance(item, dict):
+            continue
+        raw_project = item.get("project_id")
+        if (
+            isinstance(raw_project, int)
+            and not isinstance(raw_project, bool)
+            and raw_project not in project_ids
+        ):
+            missing.add(raw_project)
+    if missing:
+        raise ValueError(
+            "snapshot todos reference project ids absent from snapshot projects: "
+            f"{sorted(missing)}"
+        )
 
 
 def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
@@ -194,20 +260,24 @@ def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
     if not isinstance(snapshot, dict):
         raise ValueError("snapshot must be a JSON object")
     version = snapshot.get("format_version")
-    if version != FORMAT_VERSION:
+    if version not in _ACCEPTED_FORMAT_VERSIONS:
         raise ValueError(
-            f"unsupported format_version {version!r}; this build understands {FORMAT_VERSION}"
+            f"unsupported format_version {version!r}; this build understands "
+            f"{sorted(_ACCEPTED_FORMAT_VERSIONS)}"
         )
     stores = snapshot.get("stores")
     if not isinstance(stores, dict):
         raise ValueError("snapshot.stores must be a JSON object")
+    unknown = set(stores) - set(_IMPORTERS)
+    if unknown:
+        raise ValueError(f"unknown store keys in snapshot: {sorted(unknown)}")
+    # Fail before writing anything when the snapshot is internally inconsistent,
+    # rather than importing earlier stores and then aborting at todos.
+    _validate_snapshot_references(stores)
     counts: dict[str, int] = {}
     for key, importer in _IMPORTERS.items():
         if key in stores:
             counts[key] = importer(stores[key])
-    unknown = set(stores) - set(_IMPORTERS)
-    if unknown:
-        raise ValueError(f"unknown store keys in snapshot: {sorted(unknown)}")
     return counts
 
 

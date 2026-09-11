@@ -2485,11 +2485,12 @@ export interface BuilderCompileResult {
     acceptance_criteria?: string[]
     validation_commands?: string[]
   }
-  route?: {
-    provider: string
-    model: string
-    route_model?: string
-    estimated_cost_cad: number | null
+  /** The compile endpoint reports only which *proposal* route it used. It does
+   *  not return a provider/model/cost — execution routing belongs to Builder
+   *  preflight — so the UI must not present compile data as an execution route. */
+  routing?: {
+    mode?: string | null
+    saved_preference_changed?: boolean | null
   }
 }
 

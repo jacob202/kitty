@@ -132,7 +132,7 @@ function WorkBuilderRequest() {
   const [error, setError] = useState<string | null>(null)
   const [preparing, setPreparing] = useState(false)
   const [proposalKey, setProposalKey] = useState(0)
-  const [compileRoute, setCompileRoute] = useState<BuilderCompileResult['route'] | null>(null)
+  const [compileRouting, setCompileRouting] = useState<BuilderCompileResult['routing'] | null>(null)
   const compileProposal = useCompileBuilderProposal()
 
   useEffect(() => {
@@ -157,7 +157,7 @@ function WorkBuilderRequest() {
     setPreparing(true)
     setError(null)
     setProposal(null)
-    setCompileRoute(null)
+    setCompileRouting(null)
     try {
       const result = await compileProposal.mutateAsync({
         request: trimmed,
@@ -169,7 +169,7 @@ function WorkBuilderRequest() {
       }
       setProposalKey(value => value + 1)
       setProposal(result.task)
-      setCompileRoute(result.route ?? null)
+      setCompileRouting(result.routing ?? null)
     } catch (err) {
       const message = err instanceof Error ? err.message : ''
       setError(
@@ -217,7 +217,7 @@ function WorkBuilderRequest() {
           </button>
         )}
         <span style={metaStyle}>
-          Proposal preparation uses a no-spend model route by default; execution route and spend are shown by Builder before execution.
+          Proposal preparation uses a no-spend model route by default. Builder chooses the execution route later under current policy, and any spend remains subject to Builder&apos;s authorization gates.
         </span>
       </div>
       {error && (
@@ -225,16 +225,18 @@ function WorkBuilderRequest() {
           {error} Your request is still here. The default proposal route does not spend credits. Trying your saved provider route may use credits; it applies only to this proposal and does not change your saved provider preference.
         </div>
       )}
-      {compileRoute && (
+      {compileRouting && (
         <div style={routeInfoStyle}>
-          <strong>Proposal route:</strong> {compileRoute.provider} · {compileRoute.model}
-          {compileRoute.estimated_cost_cad !== null && <span> · est. CAD {compileRoute.estimated_cost_cad.toFixed(4)}</span>}
+          <strong>Proposal route:</strong>{' '}
+          {compileRouting.mode === 'request_scoped_fallback'
+            ? 'your saved provider — this proposal only'
+            : 'no-spend model route'}
         </div>
       )}
       {proposal && (
         <BuilderProposalCard
           key={proposalKey}
-          task={{ ...proposal, route: compileRoute ?? undefined }}
+          task={proposal}
           chatId="work-builder-request"
           messageIndex={proposalKey}
           recoveryStorageKey={WORK_BUILDER_PENDING_STORAGE_KEY}

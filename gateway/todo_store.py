@@ -281,10 +281,11 @@ def restore(items: list[dict]) -> list[dict]:
                     ),
                 )
 
-        # Projects are not part of this storage_sync snapshot. Preserve a
-        # current pointer only when the restored row still proves it is this
-        # project's actionable selected todo; otherwise clear the dangling or
-        # contradictory pointer in the same transaction.
+        # storage_sync restores projects before todos, so a pointer can only be
+        # dangling because the referenced todo is absent from the snapshot or no
+        # longer actionable. Preserve it only when the restored row still proves
+        # it is this project's actionable selected todo; otherwise clear the
+        # dangling or contradictory pointer in the same transaction.
         actionable_statuses = ("in_progress", "pending")
         placeholders = ", ".join("?" for _ in actionable_statuses)
         conn.execute(
