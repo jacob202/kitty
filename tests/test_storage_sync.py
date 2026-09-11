@@ -394,6 +394,58 @@ def test_import_rejects_referenced_omitted_project_before_writing_earlier_stores
     assert project_store.list_projects() == before_projects
 
 
+def test_import_rejects_v1_todo_owner_absent_from_destination_before_writing(
+    tmp_path, monkeypatch
+):
+    """A v1 snapshot has no projects store, so its owners need a destination check.
+
+    Without it `todo_store.restore` is the first to notice the unknown owner —
+    after Memories and Journal have already been imported.
+    """
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    journal_store.append_entry(ts=1.0, entry="snapshot entry", theme=None, session_id=None)
+    snapshot = storage_sync.export_all()
+    snapshot["format_version"] = 1
+    del snapshot["stores"]["projects"]
+    snapshot["stores"]["todos"] = [
+        {"content": "orphan v1 todo", "sort_order": 0, "project_id": 999999}
+    ]
+    with kitty_db.connect(journal_store.JOURNAL_DB_FILE) as conn:
+        conn.execute("DELETE FROM journal_entries")
+        conn.commit()
+
+    with pytest.raises(ValueError, match="absent from the destination"):
+        storage_sync.import_all(snapshot)
+
+    assert journal_store.list_entries(limit=100) == []
+    assert todo_store.get() == []
+
+
+def test_import_accepts_a_v1_snapshot_whose_owner_exists_on_the_destination(
+    tmp_path, monkeypatch
+):
+    """The destination check must keep a legitimate v1 owner importable."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    todo = todo_store.update([{"content": "Chosen next action", "status": "pending"}])[0]
+    todo_store.set_project(todo["id"], project["id"])
+
+    snapshot = storage_sync.export_all()
+    snapshot["format_version"] = 1
+    del snapshot["stores"]["projects"]
+    todo_store.clear()
+
+    counts = storage_sync.import_all(snapshot)
+
+    assert counts["todos"] == 1
+    restored = todo_store.get()
+    assert [row["project_id"] for row in restored] == [project["id"]]
+
+
 def test_import_rejects_malformed_project_selected_todo_id_before_writing(
     tmp_path, monkeypatch
 ):

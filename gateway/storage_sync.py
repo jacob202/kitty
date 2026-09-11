@@ -345,6 +345,38 @@ def _validate_snapshot_references(stores: dict[str, Any]) -> None:
             "snapshot todos reference project ids absent from snapshot projects: "
             f"{sorted(missing)}"
         )
+    if project_ids is None:
+        # No projects store means the destination keeps its own rows, so an
+        # owner can only be validated against this database.
+        _validate_todo_owners_against_destination(todos)
+
+
+def _validate_todo_owners_against_destination(todos: list[Any]) -> None:
+    """Reject snapshot todos whose owner does not exist in this database.
+
+    A v1 snapshot carries no ``projects`` store, so the cross-store check above
+    cannot see its owners and ``todo_store.restore`` would be the first to
+    notice — after Memories and Journal are already committed. Checking the
+    destination here fails the whole snapshot before any write.
+    """
+    referenced: set[int] = set()
+    for item in todos:
+        if not isinstance(item, dict):
+            continue
+        raw_project = item.get("project_id")
+        if isinstance(raw_project, int) and not isinstance(raw_project, bool):
+            referenced.add(raw_project)
+    if not referenced:
+        return
+    from gateway import project_store
+
+    available = {project["id"] for project in project_store.list_projects()}
+    missing = sorted(referenced - available)
+    if missing:
+        raise ValueError(
+            "snapshot todos reference project ids absent from the destination: "
+            f"{missing}"
+        )
 
 
 def _validate_project_restore(projects: list[Any]) -> None:
