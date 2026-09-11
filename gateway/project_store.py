@@ -176,27 +176,38 @@ def restore(items: list[dict[str, Any]]) -> int:
         # If an omitted project is still referenced, SQLite rejects that delete
         # and the transaction rolls back rather than corrupting dependent state.
         conn.execute("BEGIN IMMEDIATE")
-        conn.executemany(
-            "INSERT INTO projects (id, created_at, name, kind, paths_json, status, "
-            "last_touched, summary, open_questions_json, next_actions_json, delegable_json, "
-            "links_json, selected_todo_id) "
-            "VALUES (?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT(id) DO UPDATE SET "
-            "created_at=excluded.created_at, name=excluded.name, kind=excluded.kind, "
-            "paths_json=excluded.paths_json, status=excluded.status, "
-            "last_touched=excluded.last_touched, summary=excluded.summary, "
-            "open_questions_json=excluded.open_questions_json, "
-            "next_actions_json=excluded.next_actions_json, delegable_json=excluded.delegable_json, "
-            "links_json=excluded.links_json, selected_todo_id=excluded.selected_todo_id",
-            rows,
-        )
         try:
-            _delete_omitted_projects(conn, seen_ids)
+            _write_restore(conn, rows, seen_ids)
         except sqlite3.IntegrityError as exc:
             conn.rollback()
             raise _omitted_referenced_error() from exc
         conn.commit()
     return len(rows)
+
+
+def _write_restore(
+    conn: sqlite3.Connection, rows: list[tuple[Any, ...]], seen_ids: set[int]
+) -> None:
+    """Upsert the snapshot rows and drop only what the snapshot omits.
+
+    Caller owns the transaction. Shared with ``validate_restore`` so the prove
+    step exercises exactly the statements the real restore runs.
+    """
+    conn.executemany(
+        "INSERT INTO projects (id, created_at, name, kind, paths_json, status, "
+        "last_touched, summary, open_questions_json, next_actions_json, delegable_json, "
+        "links_json, selected_todo_id) "
+        "VALUES (?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(id) DO UPDATE SET "
+        "created_at=excluded.created_at, name=excluded.name, kind=excluded.kind, "
+        "paths_json=excluded.paths_json, status=excluded.status, "
+        "last_touched=excluded.last_touched, summary=excluded.summary, "
+        "open_questions_json=excluded.open_questions_json, "
+        "next_actions_json=excluded.next_actions_json, delegable_json=excluded.delegable_json, "
+        "links_json=excluded.links_json, selected_todo_id=excluded.selected_todo_id",
+        rows,
+    )
+    _delete_omitted_projects(conn, seen_ids)
 
 
 def _restore_rows(items: list[dict[str, Any]]) -> tuple[list[tuple[Any, ...]], set[int]]:
@@ -261,20 +272,20 @@ def _omitted_referenced_error() -> ProjectError:
 
 
 def validate_restore(items: list[dict[str, Any]]) -> None:
-    """Prove ``restore`` can replace Projects without breaking a reference.
+    """Prove ``restore`` can replace Projects, changing nothing.
 
     ``storage_sync`` writes other stores before Projects, so a payload that only
-    fails on a foreign-key dependent would leave those earlier stores committed
-    against a rejected snapshot. This runs the same omit-delete preconditions in
-    a transaction that is always rolled back, so callers can fail before any
-    store is written while nothing here persists.
+    fails on a foreign-key dependent — or on a value SQLite cannot bind — would
+    leave those earlier stores committed against a rejected snapshot. This runs
+    the real upsert and omit-delete in a transaction that is always rolled back,
+    so callers can fail before any store is written while nothing here persists.
     """
     init_db()
-    _, seen_ids = _restore_rows(items)
+    rows, seen_ids = _restore_rows(items)
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
-            _delete_omitted_projects(conn, seen_ids)
+            _write_restore(conn, rows, seen_ids)
         except sqlite3.IntegrityError as exc:
             raise _omitted_referenced_error() from exc
         finally:

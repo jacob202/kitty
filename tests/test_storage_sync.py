@@ -394,6 +394,116 @@ def test_import_rejects_referenced_omitted_project_before_writing_earlier_stores
     assert project_store.list_projects() == before_projects
 
 
+def test_import_rejects_non_dict_journal_record_before_writing_memories(
+    tmp_path, monkeypatch
+):
+    """A malformed journal record must not leave Memories committed.
+
+    Memories live in an external backend that cannot share the SQLite
+    transaction, so a payload only rejected by the journal importer would
+    partially apply.
+    """
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    added: list[str] = []
+    monkeypatch.setattr(
+        memory, "add_memory", lambda text, namespace="facts": added.append(text)
+    )
+
+    snapshot = {
+        "format_version": 2,
+        "stores": {
+            "memories": [{"memory": "should not persist"}],
+            "journal_entries": ["not-a-record"],
+        },
+    }
+
+    with pytest.raises(ValueError, match="journal record must be a dict"):
+        storage_sync.import_all(snapshot)
+
+    assert added == []
+
+
+def test_import_rejects_unbindable_project_field_before_writing_journal(
+    tmp_path, monkeypatch
+):
+    """A value SQLite cannot bind must fail before the journal importer commits."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    kept = project_store.create(name="keep-me", kind="admin")
+    before_journal = journal_store.list_entries(limit=100)
+
+    snapshot = {
+        "format_version": 2,
+        "stores": {
+            "journal_entries": [{"entry": "should not persist", "ts": 1.0}],
+            "projects": [
+                {
+                    "id": kept["id"],
+                    "name": "keep-me",
+                    "kind": "admin",
+                    "last_touched": {"nested": "dict"},
+                }
+            ],
+        },
+    }
+
+    with pytest.raises(ValueError, match="projects cannot be restored"):
+        storage_sync.import_all(snapshot)
+
+    assert journal_store.list_entries(limit=100) == before_journal
+    assert project_store.get(kept["id"])["last_touched"] is None
+
+
+def test_import_rejects_out_of_range_todo_id_before_writing_earlier_stores(
+    tmp_path, monkeypatch
+):
+    """An id past SQLite's INTEGER range must fail before Journal and Projects run."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    kept = project_store.create(name="keep-me", kind="admin")
+    before_journal = journal_store.list_entries(limit=100)
+    before_projects = project_store.list_projects()
+
+    snapshot = {
+        "format_version": 2,
+        "stores": {
+            "journal_entries": [{"entry": "should not persist", "ts": 1.0}],
+            "projects": [{"id": kept["id"], "name": "renamed", "kind": "admin"}],
+            "todos": [{"id": 2**63, "content": "too big", "sort_order": 0}],
+        },
+    }
+
+    with pytest.raises(ValueError, match="todos cannot be restored"):
+        storage_sync.import_all(snapshot)
+
+    assert journal_store.list_entries(limit=100) == before_journal
+    assert project_store.list_projects() == before_projects
+
+
+def test_validate_restore_dry_runs_leave_the_project_store_untouched(
+    tmp_path, monkeypatch
+):
+    """The projects dry run must not upsert rows on its way to proving the write."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    before = project_store.list_projects()
+    payload = [dict(row) for row in before]
+    payload = [
+        {**row, "name": "would-have-been-written"} if row["id"] == project["id"] else row
+        for row in payload
+    ]
+
+    project_store.validate_restore(payload)
+
+    assert project_store.list_projects() == before
+
+
 def test_import_rejects_v1_todo_owner_absent_from_destination_before_writing(
     tmp_path, monkeypatch
 ):
