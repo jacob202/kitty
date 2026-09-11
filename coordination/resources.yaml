@@ -68,6 +68,7 @@ resources:
     - gateway/agent_workspace.py
     - gateway/context_*.py
     - gateway/explicit_memory.py
+    - gateway/journal_store.py
     - gateway/memory*.py
     - gateway/migrations/**
     - gateway/project_store.py

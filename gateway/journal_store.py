@@ -44,6 +44,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import time
 
 from gateway import db as kitty_db
 from gateway.paths import DATA_DIR, KITTY_DB_FILE
@@ -84,6 +85,39 @@ def append_entry(
         conn.commit()
         record["id"] = cursor.lastrowid
     return record
+
+
+def validate_records(payload: list) -> None:
+    """Prove these records can be appended, changing nothing.
+
+    Enumerating what SQLite will reject is how a snapshot ends up partially
+    imported: the real INSERTs know the answer and a hand-written type check
+    does not. This runs the identical statements in a transaction that is
+    always rolled back, so a caller can reject the whole snapshot up front.
+    """
+    if not isinstance(payload, list):
+        raise ValueError(f"journal_entries payload must be a list, got {type(payload).__name__}")
+    init_db()
+    with kitty_db.connect(JOURNAL_DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for record in payload:
+                if not isinstance(record, dict):
+                    raise ValueError(
+                        f"journal record must be a dict, got {type(record).__name__}"
+                    )
+                entry_text = record.get("entry", "")
+                if not entry_text:
+                    continue
+                ts = record.get("ts")
+                bind_ts = float(ts) if isinstance(ts, (int, float)) else time.time()
+                conn.execute(
+                    "INSERT INTO journal_entries (ts, theme, entry, session_id) "
+                    "VALUES (?, ?, ?, ?)",
+                    (bind_ts, record.get("theme"), entry_text, record.get("session_id")),
+                )
+        finally:
+            conn.rollback()
 
 
 def list_entries(limit: int = 50, theme: str | None = None) -> list[dict]:
