@@ -900,4 +900,6 @@ def resume(*, mission_id: str | None = None, task_id: str | None = None) -> dict
     Builder facts (including failure/blocker state) are never softened into
     a false chat-side success.
     """
-    return _context.resume_context(mission_id=mission_id, task_id=task_id)
+    return _context.resume_context(
+        mission_id=mission_id, task_id=task_id, expect_mission_binding=True
+    )
