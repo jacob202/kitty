@@ -85,6 +85,7 @@ resources:
     - tests/test_agent_workspace.py
     - tests/test_agent_workspace_routes.py
     - tests/test_check_continuity_state.py
+    - tests/test_context_orientation.py
     - tests/test_db.py
     - tests/test_mcp_agent_room_server.py
     - tests/test_project_store.py

@@ -7,7 +7,7 @@ import json
 import sys
 from typing import Any
 
-from gateway import agent_coordination, agent_workspace
+from gateway import agent_coordination, agent_workspace, context_receipt
 
 _MESSAGE_KINDS = ("prompt", "plan", "handoff", "review", "result", "status")
 
@@ -87,6 +87,13 @@ def _parser() -> argparse.ArgumentParser:
     presence.add_argument("--as", dest="participant_id")
     presence.add_argument("--limit", type=int, default=100)
     _json_flag(presence)
+
+    briefing = sub.add_parser("briefing")
+    briefing.add_argument("--as", dest="participant_id", required=True)
+    briefing.add_argument("--session-id", dest="session_id")
+    briefing.add_argument("--scope")
+    briefing.add_argument("--thread", dest="thread_or_handoff")
+    _json_flag(briefing)
 
     return parser
 
@@ -192,6 +199,21 @@ def _dispatch(args: argparse.Namespace) -> Any:
             participant_id=args.participant_id,
             limit=args.limit,
         )
+    if args.command == "briefing":
+        # Room Briefing is a scoped view of the one shared orientation result.
+        # The domain owns assembly; this CLI only passes identity/scope through.
+        orientation = context_receipt.build_orientation_receipt(
+            args.participant_id,
+            session_id=args.session_id,
+            explicit_scope={"scope_key": args.scope} if args.scope else None,
+            thread_or_handoff=args.thread_or_handoff,
+        )
+        return context_receipt.build_room_briefing(
+            orientation,
+            identity=args.participant_id,
+            session_id=args.session_id,
+            scope=args.scope,
+        )
     raise AgentRoomCliError(f"unsupported command {args.command}")
 
 
@@ -203,7 +225,11 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         result = _dispatch(args)
-    except (agent_workspace.AgentWorkspaceError, AgentRoomCliError) as exc:
+    except (
+        agent_workspace.AgentWorkspaceError,
+        AgentRoomCliError,
+        context_receipt.OrientationError,
+    ) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     _emit(result, as_json=args.as_json)

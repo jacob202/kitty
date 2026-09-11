@@ -64,6 +64,31 @@ def test_server_registers_exact_room_tools_and_pins_identity(monkeypatch, room_d
     }
 
 
+def test_room_status_exposes_the_shared_scoped_briefing(monkeypatch, room_db):
+    from gateway import context_orientation
+
+    stub = context_orientation.OrientationEvidence(
+        observed_at="2026-09-11T12:00:00+00:00",
+        inbox=[],
+        presence=[],
+        events=[],
+    )
+    monkeypatch.setattr(
+        context_orientation, "collect_orientation_evidence", lambda *a, **k: stub
+    )
+    server = _load_server(monkeypatch, "dsh")
+
+    status = server.room_status(session_id="session-a", scope="github:pr:852")
+
+    assert status["id"] == "workspace_global"
+    assert status["identity"] == "dsh"
+    briefing = status["briefing"]
+    assert briefing["kind"] == "room_briefing"
+    assert briefing["scope"] == "github:pr:852"
+    assert briefing["identity"] == "dsh"
+    assert briefing["assignment"]["state"] == "resolved"
+
+
 def test_room_tools_share_domain_truth_without_sender_override(monkeypatch, room_db):
     root = agent_workspace.post_global_message(
         sender_id="chatgpt", recipient_id="dsh",
