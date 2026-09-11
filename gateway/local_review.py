@@ -17,7 +17,7 @@ import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Literal, Sequence
 
 DEFAULT_REVIEWER_MODEL = "Qwen3.5-9B-Q3_K_M"
 DEFAULT_OLLAMA_URLS = ("http://127.0.0.1:11434", "http://127.0.0.1:11435")
@@ -282,7 +282,7 @@ class ReviewExecutionLock:
         self._handle = handle
         return self
 
-    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> bool:
+    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> Literal[False]:
         if self._handle is not None:
             try:
                 fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
@@ -391,7 +391,7 @@ class ReviewFocus:
                 ) from exc
             raise
 
-    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> bool:
+    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> Literal[False]:
         restore_errors = self._restore_unloaded()
         self._release_lock()
         if restore_errors:
@@ -654,7 +654,7 @@ class LocalLlamaServer:
             self.process.kill()
             self.process.wait(timeout=5)
 
-    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> bool:
+    def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> Literal[False]:
         self._stop()
         return False
 
@@ -771,6 +771,7 @@ def run_local_review(
             result["reviewer_fingerprint"] = fingerprint
             result["implementation_provenance"] = "untrusted_request_metadata"
             return result
+        raise AssertionError("local reviewer server context exited without a result")
 
     try:
         with ReviewExecutionLock(focus_lock_path):
@@ -789,6 +790,7 @@ def run_local_review(
             "reason": "local_reviewer_runtime_error",
             "error": str(exc),
         }
+    raise AssertionError("local reviewer execution exited without a result")
 
 def _load_request(path: str) -> dict[str, Any]:
     if path == "-":
