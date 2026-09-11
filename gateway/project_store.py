@@ -202,18 +202,39 @@ def restore(items: list[dict[str, Any]]) -> int:
         )
 
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
-        # Serialize against select_todo()/update_fields() so replacing the
-        # registry is one atomic transition. Todos are restored by a separate
-        # storage_sync step, so this is not atomic across both stores.
+        # Update snapshot projects in place so foreign-key dependents keep the
+        # same parent row. Only projects omitted from the snapshot are deleted.
+        # If an omitted project is still referenced, SQLite rejects that delete
+        # and the transaction rolls back rather than corrupting dependent state.
         conn.execute("BEGIN IMMEDIATE")
-        conn.execute("DELETE FROM projects")
+        existing_ids = {row["id"] for row in conn.execute("SELECT id FROM projects")}
         conn.executemany(
             "INSERT INTO projects (id, created_at, name, kind, paths_json, status, "
             "last_touched, summary, open_questions_json, next_actions_json, delegable_json, "
             "links_json, selected_todo_id) "
-            "VALUES (?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "created_at=excluded.created_at, name=excluded.name, kind=excluded.kind, "
+            "paths_json=excluded.paths_json, status=excluded.status, "
+            "last_touched=excluded.last_touched, summary=excluded.summary, "
+            "open_questions_json=excluded.open_questions_json, "
+            "next_actions_json=excluded.next_actions_json, delegable_json=excluded.delegable_json, "
+            "links_json=excluded.links_json, selected_todo_id=excluded.selected_todo_id",
             rows,
         )
+        stale_ids = sorted(existing_ids - seen_ids)
+        if stale_ids:
+            placeholders = ",".join("?" for _ in stale_ids)
+            try:
+                conn.execute(
+                    f"DELETE FROM projects WHERE id IN ({placeholders})",
+                    stale_ids,
+                )
+            except sqlite3.IntegrityError as exc:
+                conn.rollback()
+                raise ProjectError(
+                    "cannot remove snapshot-omitted projects while they are still referenced"
+                ) from exc
         conn.commit()
     return len(rows)
 

@@ -237,11 +237,11 @@ def _validate_snapshot_references(stores: dict[str, Any]) -> None:
         if not isinstance(item, dict):
             continue
         raw_project = item.get("project_id")
-        if (
-            isinstance(raw_project, int)
-            and not isinstance(raw_project, bool)
-            and raw_project not in project_ids
-        ):
+        if raw_project is None:
+            continue
+        if not isinstance(raw_project, int) or isinstance(raw_project, bool):
+            raise ValueError("snapshot todo project_id must be an integer or null")
+        if raw_project not in project_ids:
             missing.add(raw_project)
     if missing:
         raise ValueError(

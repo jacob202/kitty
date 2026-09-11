@@ -196,6 +196,10 @@ def restore(items: list[dict]) -> list[dict]:
         sort_orders.append(sort_order)
 
         raw_project = item.get("project_id")
+        if raw_project is not None and (
+            not isinstance(raw_project, int) or isinstance(raw_project, bool)
+        ):
+            raise TodoStoreError("todo project_id must be an integer or null")
         if isinstance(raw_project, int) and not isinstance(raw_project, bool):
             referenced_project_ids.add(raw_project)
 

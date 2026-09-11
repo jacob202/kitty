@@ -320,6 +320,10 @@ export function BuilderProposalCard({
           else safeStorage.remove(storageKey)
           setPendingApproval(null)
           setResumedMissionId(data.mission_id)
+        } else if (data.state === 'recovery_required' && data.error_code === 'mission_binding_failed') {
+          // Reconciliation can fail repeatedly while Mission is unavailable.
+          // Keep the exact nonce-bound approval checkpoint so another retry
+          // cannot compile or approve a duplicate job.
         } else {
           safeStorage.remove(storageKey)
           setPendingApproval(null)

@@ -169,6 +169,63 @@ def test_round_trip_restores_user_project_owned_todo_into_fresh_database(
     assert project_store.selected_todo(project["id"])["id"] == todo["id"]
 
 
+def test_self_restore_preserves_existing_project_foreign_key_dependents(
+    tmp_path, monkeypatch
+):
+    """Restoring an exported project must not delete/reinsert its referenced parent row."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    db_file = _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    with kitty_db.connect(db_file) as conn:
+        conn.execute(
+            "INSERT INTO project_next_steps "
+            "(project_id, step, why, recent_win, delegable, generated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (project["id"], "Apply", "important", "", 0, 1.0),
+        )
+        conn.commit()
+
+    snapshot = storage_sync.export_all()
+    counts = storage_sync.import_all(snapshot)
+
+    assert counts["projects"] == len(snapshot["stores"]["projects"])
+    with kitty_db.connect(db_file) as conn:
+        row = conn.execute(
+            "SELECT step FROM project_next_steps WHERE project_id = ?",
+            (project["id"],),
+        ).fetchone()
+    assert row is not None
+    assert row["step"] == "Apply"
+
+
+def test_import_rejects_malformed_todo_project_owner_before_writing_stores(
+    tmp_path, monkeypatch
+):
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    project = project_store.create(name="keep-me", kind="admin")
+    todo_store.update([{"content": "Keep current state"}])
+    before_projects = project_store.list_projects()
+    before_todos = todo_store.get()
+
+    snapshot = storage_sync.export_all()
+    snapshot["stores"]["projects"] = [
+        {**row, "name": "would-have-been-written"}
+        for row in snapshot["stores"]["projects"]
+    ]
+    snapshot["stores"]["todos"] = [
+        {"content": "corrupt owner", "sort_order": 0, "project_id": str(project["id"])}
+    ]
+
+    with pytest.raises(ValueError, match="project_id.*integer or null"):
+        storage_sync.import_all(snapshot)
+
+    assert project_store.list_projects() == before_projects
+    assert todo_store.get() == before_todos
+
+
 def test_import_rejects_snapshot_todo_with_owner_absent_from_snapshot(
     tmp_path, monkeypatch
 ):

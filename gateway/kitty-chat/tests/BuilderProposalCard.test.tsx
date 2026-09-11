@@ -772,6 +772,67 @@ describe('BuilderProposalCard', () => {
     expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
   })
 
+  it('retains the exact checkpoint after a repeated Mission binding reconciliation failure', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'active' },
+      current_work: { state: 'queued' },
+      awaiting_acceptance: true,
+      awaiting_acceptance_because: 'Expected Gateway Mission binding is missing',
+      mission_acceptance: {
+        state: 'unavailable',
+        error: `Expected Gateway Mission binding is missing for Builder initiative ${preparedProposal.mission_id}`,
+      },
+    })
+
+    const first = renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={1}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledOnce())
+    first.unmount()
+
+    vi.mocked(gateway.approveBuilderJob).mockResolvedValue({
+      ok: false,
+      state: 'recovery_required',
+      error_code: 'mission_binding_failed',
+      mission_id: preparedProposal.mission_id,
+    })
+    renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={2}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+
+    const retry = await screen.findByRole('button', { name: 'Retry same approval' })
+    fireEvent.click(retry)
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('button', { name: 'Retry same approval' })).toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem('kitty.builder-proposal.work.pending') as string)).toMatchObject({
+      state: 'pending',
+      missionId: preparedProposal.mission_id,
+      approval: {
+        expected_manifest_sha: preparedProposal.manifest_sha256,
+        approval_nonce: preparedProposal.approval_nonce,
+        confirmed: true,
+      },
+    })
+  })
+
   it('renders a rejected outcome as rejected instead of nobody-has-accepted', async () => {
     window.localStorage.setItem(
       'kitty.builder-proposal.chat-rejected.0',
