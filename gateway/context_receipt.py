@@ -1,4 +1,4 @@
-"""Context receipt facade with a bounded Global Agent Room migration mode.
+"""Context receipt facade and the single shared orientation owner.
 
 The historical checkpoint implementation remains in ``context_receipt_legacy``
 while callers migrate from tracked ``.claude`` checkpoint continuity to the
@@ -6,6 +6,13 @@ Global Agent Room. Strict callers (doctor, CI, legacy session validation) keep
 the exact previous behavior by default. Agent cold starts that have already
 proven ``workspace_global`` available may opt out of legacy checkpoint authority
 with ``--skip-legacy-continuity``.
+
+This module is also the public owner of Kitty's one shared orientation
+projection. The bounded implementation lives in ``context_orientation``;
+``build_orientation_receipt`` and ``build_room_briefing`` are re-exported here so
+CLI, MCP, hooks, and future clients consume one deterministic domain result
+instead of reassembling authority state themselves. GAR supplies conversation,
+presence, and event evidence; it does not own the assembled operating picture.
 
 This compatibility seam is temporary and is intentionally small so the legacy
 implementation can be archived cleanly once scoped Agent Room retrieval is the
@@ -21,6 +28,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from gateway import context_orientation
 from gateway import context_receipt_legacy as _legacy
 
 # Public compatibility exports used by doctor, Builder MCP, tests, and scripts.
@@ -38,6 +46,14 @@ ACTIVE_MISSION_PATH = _legacy.ACTIVE_MISSION_PATH
 
 compact_context_receipt = _legacy.compact_context_receipt
 run_continuity_checks = _legacy.run_continuity_checks
+
+# Shared orientation domain (the one cross-authority operating picture).
+OrientationError = context_orientation.OrientationError
+OrientationEvidence = context_orientation.OrientationEvidence
+collect_orientation_evidence = context_orientation.collect_orientation_evidence
+build_orientation_receipt = context_orientation.build_orientation_receipt
+build_room_briefing = context_orientation.build_room_briefing
+assemble_orientation = context_orientation.assemble_orientation
 
 _LEGACY_CHECK_PREFIXES = ("state:", "handoff:", "checkpoint:")
 _LEGACY_DERIVED_CHECKS = {"mission:active_state"}
