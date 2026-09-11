@@ -143,7 +143,10 @@ ACCEPTANCE_UNAVAILABLE = "unavailable"
 
 
 def _mission_acceptance(
-    initiative_id: str | None, *, expect_binding: bool = False
+    initiative_id: str | None,
+    *,
+    expect_binding: bool = False,
+    expected_task_id: str | None = None,
 ) -> dict[str, Any]:
     """Report the outcome-acceptance fact, separately from Builder's task.
 
@@ -216,6 +219,33 @@ def _mission_acceptance(
             "mission_id": None,
             "error": None,
         }
+    # A Mission bound only to the initiative is not a resolved Builder binding.
+    # bind_builder_locator records the initiative at proposal time and adds the
+    # durable Builder task id only once approval returns one, so a locator with
+    # no task id means the binding is still missing — not that acceptance simply
+    # was not recorded. Resolving it here would let a resume report a partial
+    # binding as complete and discard the only replayable approval checkpoint.
+    # The message keeps the "binding ... missing" shape callers match on so a
+    # partial or mismatched binding is still reported as recoverable.
+    if expect_binding:
+        bound_task_id = (mission.get("builder_locator") or {}).get("task_id")
+        mismatch = bool(expected_task_id) and bound_task_id != expected_task_id
+        if not isinstance(bound_task_id, str) or not bound_task_id or mismatch:
+            detail = (
+                f"bound task {bound_task_id!r} does not match {expected_task_id!r}"
+                if mismatch
+                else "no Builder task is bound"
+            )
+            return {
+                "state": ACCEPTANCE_UNAVAILABLE,
+                "reviewer_id": None,
+                "mission_id": None,
+                "error": (
+                    "Expected Gateway Mission binding is missing for Builder "
+                    f"initiative {initiative_id} ({detail})"
+                ),
+            }
+
     acceptance = mission.get("acceptance") or {}
     return {
         "state": acceptance.get("state") or ACCEPTANCE_NONE,
@@ -484,7 +514,13 @@ def resume_context(
     # here, Builder's terminal state is the only thing Chat can show, and it
     # gets presented as the finished user outcome.
     acceptance = (
-        _mission_acceptance(resolved_mission, expect_binding=True)
+        _mission_acceptance(
+            resolved_mission,
+            expect_binding=True,
+            # The duty is on the resolver to prove the binding is complete, so
+            # hand it the Builder task this resume is actually about.
+            expected_task_id=(current or {}).get("task_id"),
+        )
         if expect_mission_binding
         else _mission_acceptance(resolved_mission)
     )

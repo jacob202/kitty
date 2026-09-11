@@ -476,6 +476,72 @@ def test_cold_start_failure_does_not_unfinish_a_finished_builder_task(
     assert result["awaiting_acceptance"] is True
 
 
+def test_expected_binding_without_a_bound_task_is_missing_not_resolved(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An initiative-only locator is a partial binding, not a resolved one.
+
+    bind_builder_locator records the initiative at proposal time and adds the
+    durable Builder task id only once approval returns one. Until then the
+    binding is still missing, so a resume must not resolve it and discard the
+    only replayable approval checkpoint.
+    """
+    import gateway.memory_mission as mm
+
+    db_path = tmp_path / "kitty.db"
+    mm.create_mission(
+        mission_id="mission_partial",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    mm.bind_builder_locator(
+        "mission_partial", initiative_id="init-partial", db_path=db_path
+    )
+    monkeypatch.setattr(mm, "MISSION_DB_FILE", db_path)
+
+    acceptance = context._mission_acceptance("init-partial", expect_binding=True)
+
+    assert acceptance["state"] == context.ACCEPTANCE_UNAVAILABLE
+    assert "binding" in (acceptance["error"] or "").lower()
+    assert "missing" in (acceptance["error"] or "").lower()
+
+
+def test_expected_binding_requires_the_current_builder_task(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A locator bound to a different Builder task is not this job's binding."""
+    import gateway.memory_mission as mm
+
+    db_path = tmp_path / "kitty.db"
+    mm.create_mission(
+        mission_id="mission_task",
+        objective="Ship it",
+        definition_of_done=["done"],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    mm.bind_builder_locator(
+        "mission_task",
+        initiative_id="init-task",
+        task_id="kb_original",
+        db_path=db_path,
+    )
+    monkeypatch.setattr(mm, "MISSION_DB_FILE", db_path)
+
+    matched = context._mission_acceptance(
+        "init-task", expect_binding=True, expected_task_id="kb_original"
+    )
+    assert matched["state"] != context.ACCEPTANCE_UNAVAILABLE
+
+    mismatched = context._mission_acceptance(
+        "init-task", expect_binding=True, expected_task_id="kb_other"
+    )
+    assert mismatched["state"] == context.ACCEPTANCE_UNAVAILABLE
+    assert "binding" in (mismatched["error"] or "").lower()
+
+
 def test_acceptance_lookup_honours_a_runtime_db_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
