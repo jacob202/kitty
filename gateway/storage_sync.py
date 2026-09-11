@@ -212,36 +212,95 @@ _IMPORTERS: dict[str, Callable[..., int]] = {
     "preferences": import_preferences,
 }
 
+_REQUIRED_PAYLOAD_TYPES: dict[str, type] = {
+    "memories": list,
+    "journal_entries": list,
+    "projects": list,
+    "todos": list,
+    "plugin_settings": dict,
+    "preferences": dict,
+}
+
+
+def _validate_snapshot_payloads(stores: dict[str, Any]) -> None:
+    """Reject a wrongly-shaped store payload before any store is written.
+
+    ``_IMPORTERS`` writes in declaration order, so a payload shape error raised
+    by a later importer would otherwise follow successful writes by earlier
+    ones. Every importer's top-level shape check is therefore applied up front.
+    """
+    for key, expected in _REQUIRED_PAYLOAD_TYPES.items():
+        if key not in stores:
+            continue
+        payload = stores[key]
+        if not isinstance(payload, expected):
+            raise ValueError(
+                f"{key} payload must be a {expected.__name__}, "
+                f"got {type(payload).__name__}"
+            )
+
 
 def _validate_snapshot_references(stores: dict[str, Any]) -> None:
-    """Reject a snapshot whose todos reference projects it does not carry.
+    """Reject an un-restorable snapshot before any store is written.
 
-    A v1 snapshot has no ``projects`` store at all, so it is skipped here and
-    ``todo_store.restore`` alone validates its todos against the destination.
-    A snapshot that does carry ``projects`` must be self-consistent: its todos
-    may only reference projects in that same snapshot.
+    ``_IMPORTERS`` restores memories, journal entries, and projects ahead of
+    todos, so a todo payload that only fails inside ``todo_store.restore`` would
+    leave those earlier stores committed against a rejected snapshot. Every
+    precondition restore enforces is therefore checked here first.
+
+    The cross-store reference check needs a ``projects`` store. A v1 snapshot
+    has none, so its todos are validated only for internal shape here and are
+    checked against the destination by ``todo_store.restore`` instead.
     """
-    projects = stores.get("projects")
     todos = stores.get("todos")
-    if not isinstance(projects, list) or not isinstance(todos, list):
+    if todos is None:
         return
-    project_ids: set[int] = set()
-    for item in projects:
-        if not isinstance(item, dict):
-            continue
-        raw_id = item.get("id")
-        if isinstance(raw_id, int) and not isinstance(raw_id, bool):
-            project_ids.add(raw_id)
+    if not isinstance(todos, list):
+        raise ValueError(f"todos payload must be a list, got {type(todos).__name__}")
+
+    projects = stores.get("projects")
+    project_ids: set[int] | None = None
+    if isinstance(projects, list):
+        project_ids = set()
+        for item in projects:
+            if not isinstance(item, dict):
+                continue
+            raw_id = item.get("id")
+            if isinstance(raw_id, int) and not isinstance(raw_id, bool):
+                project_ids.add(raw_id)
+
+    seen_ids: set[int] = set()
+    seen_sort_orders: set[int] = set()
     missing: set[int] = set()
-    for item in todos:
+    for position, item in enumerate(todos):
         if not isinstance(item, dict):
-            continue
+            raise ValueError(
+                f"snapshot todo record must be a JSON object, got {type(item).__name__}"
+            )
+        raw_id = item.get("id")
+        if raw_id is not None:
+            if not isinstance(raw_id, int) or isinstance(raw_id, bool):
+                raise ValueError("snapshot todo id must be an integer or null")
+            if raw_id in seen_ids:
+                raise ValueError(f"duplicate todo id {raw_id} in snapshot")
+            seen_ids.add(raw_id)
+        raw_order = item.get("sort_order", position)
+        sort_order = (
+            raw_order
+            if isinstance(raw_order, int) and not isinstance(raw_order, bool)
+            else position
+        )
+        if sort_order in seen_sort_orders:
+            raise ValueError(
+                f"cannot restore todos with duplicate sort_order {sort_order}"
+            )
+        seen_sort_orders.add(sort_order)
         raw_project = item.get("project_id")
         if raw_project is None:
             continue
         if not isinstance(raw_project, int) or isinstance(raw_project, bool):
             raise ValueError("snapshot todo project_id must be an integer or null")
-        if raw_project not in project_ids:
+        if project_ids is not None and raw_project not in project_ids:
             missing.add(raw_project)
     if missing:
         raise ValueError(
@@ -272,7 +331,8 @@ def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
     if unknown:
         raise ValueError(f"unknown store keys in snapshot: {sorted(unknown)}")
     # Fail before writing anything when the snapshot is internally inconsistent,
-    # rather than importing earlier stores and then aborting at todos.
+    # rather than importing earlier stores and then aborting at a later one.
+    _validate_snapshot_payloads(stores)
     _validate_snapshot_references(stores)
     counts: dict[str, int] = {}
     for key, importer in _IMPORTERS.items():

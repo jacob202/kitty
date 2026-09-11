@@ -226,6 +226,95 @@ def test_import_rejects_malformed_todo_project_owner_before_writing_stores(
     assert todo_store.get() == before_todos
 
 
+def test_import_rejects_duplicate_todo_sort_orders_before_writing_any_store(
+    tmp_path, monkeypatch
+):
+    """A failing todo payload must not leave earlier stores committed.
+
+    `import_all` restores projects before todos, so a snapshot whose todos
+    cannot be restored has to be rejected before any store is written.
+    """
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    todo_store.update([{"content": "Keep current state"}])
+    before_projects = project_store.list_projects()
+    before_todos = todo_store.get()
+
+    snapshot = storage_sync.export_all()
+    snapshot["stores"]["projects"] = [
+        {**row, "name": "would-have-been-written"}
+        for row in snapshot["stores"]["projects"]
+    ]
+    snapshot["stores"]["todos"] = [
+        {"content": "first", "sort_order": 3},
+        {"content": "second", "sort_order": 3},
+    ]
+
+    with pytest.raises(ValueError, match="duplicate sort_order 3"):
+        storage_sync.import_all(snapshot)
+
+    assert project_store.list_projects() == before_projects
+    assert todo_store.get() == before_todos
+
+
+def test_import_rejects_non_integer_todo_id_before_writing_stores(
+    tmp_path, monkeypatch
+):
+    """A non-integer todo id must fail loud, never be silently reallocated."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    todo = todo_store.update([{"content": "Chosen next action", "status": "pending"}])[0]
+    todo_store.set_project(todo["id"], project["id"])
+    project_store.select_todo(project["id"], todo["id"])
+    before_projects = project_store.list_projects()
+    before_todos = todo_store.get()
+
+    snapshot = storage_sync.export_all()
+    snapshot["stores"]["projects"] = [
+        {**row, "name": "would-have-been-written"}
+        for row in snapshot["stores"]["projects"]
+    ]
+    snapshot["stores"]["todos"] = [
+        {**row, "id": str(row["id"])} for row in snapshot["stores"]["todos"]
+    ]
+
+    with pytest.raises(ValueError, match="todo id must be an integer or null"):
+        storage_sync.import_all(snapshot)
+
+    assert project_store.list_projects() == before_projects
+    assert todo_store.get() == before_todos
+    assert project_store.get(project["id"])["selected_todo_id"] == todo["id"]
+
+
+def test_import_rejects_wrongly_shaped_later_store_before_writing_earlier_ones(
+    tmp_path, monkeypatch
+):
+    """A late store's payload shape must not decide after earlier stores commit."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    todo_store.update([{"content": "Keep current state"}])
+    before_projects = project_store.list_projects()
+    before_todos = todo_store.get()
+
+    snapshot = storage_sync.export_all()
+    snapshot["stores"]["projects"] = [
+        {**row, "name": "would-have-been-written"}
+        for row in snapshot["stores"]["projects"]
+    ]
+    snapshot["stores"]["todos"] = [{"content": "would-have-been-written", "sort_order": 0}]
+    snapshot["stores"]["plugin_settings"] = "not-a-dict"
+
+    with pytest.raises(ValueError, match="plugin_settings payload must be a dict"):
+        storage_sync.import_all(snapshot)
+
+    assert project_store.list_projects() == before_projects
+    assert todo_store.get() == before_todos
+
+
 def test_import_rejects_snapshot_todo_with_owner_absent_from_snapshot(
     tmp_path, monkeypatch
 ):
