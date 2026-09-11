@@ -21,6 +21,7 @@ REQUIRED_RESOURCES = {
     "builder:initiative-lifecycle",
     "builder:queue-reconciliation",
     "runtime:provenance",
+    "review:scope-classification",
     "ui:action-grammar",
     "docs:roadmap",
     "evaluation:project-sources",
