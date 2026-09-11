@@ -130,7 +130,7 @@ def test_room_launcher_uses_canonical_data_root_from_linked_worktree(tmp_path):
 def test_cli_direct_only_uses_canonical_inbox_filter(monkeypatch, room_db, capsys):
     calls = []
 
-    def fake_list_inbox(participant_id, *, unread_only=False, direct_only=False, limit=100):
+    def fake_list_inbox(participant_id, *, unread_only=False, direct_only=False, limit=100, scope_key=None):
         calls.append((participant_id, unread_only, direct_only, limit))
         return []
 
@@ -143,3 +143,33 @@ def test_cli_direct_only_uses_canonical_inbox_filter(monkeypatch, room_db, capsy
     assert code == 0
     assert json.loads(captured.out) == []
     assert calls == [("codex", True, True, 7)]
+
+
+def test_cli_scope_round_trip_for_post_recent_inbox_and_reply(room_db, capsys):
+    code, captured = _run([
+        "post", "--as", "chatgpt", "--to", "codex", "--kind", "handoff",
+        "--scope", "github:pr:759", "Scoped handoff", "--json",
+    ], capsys)
+    assert code == 0
+    root = _json_stdout(captured)
+    assert root["scope_key"] == "github:pr:759"
+
+    code, captured = _run(
+        ["recent", "--scope", "github:pr:759", "--json"], capsys
+    )
+    assert code == 0
+    assert [item["id"] for item in _json_stdout(captured)] == [root["id"]]
+
+    code, captured = _run(
+        ["inbox", "--as", "codex", "--scope", "github:pr:759", "--json"],
+        capsys,
+    )
+    assert code == 0
+    assert [item["id"] for item in _json_stdout(captured)] == [root["id"]]
+
+    code, captured = _run([
+        "reply", "--as", "codex", "--to", "chatgpt", "--kind", "review",
+        root["id"], "Scoped reply", "--json",
+    ], capsys)
+    assert code == 0
+    assert _json_stdout(captured)["scope_key"] == "github:pr:759"

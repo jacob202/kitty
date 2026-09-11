@@ -27,6 +27,7 @@ def _parser() -> argparse.ArgumentParser:
 
     recent = sub.add_parser("recent")
     recent.add_argument("--limit", type=int, default=100)
+    recent.add_argument("--scope", dest="scope_key")
     _json_flag(recent)
 
     inbox = sub.add_parser("inbox")
@@ -34,6 +35,7 @@ def _parser() -> argparse.ArgumentParser:
     inbox.add_argument("--unread", action="store_true")
     inbox.add_argument("--direct-only", action="store_true", dest="direct_only")
     inbox.add_argument("--limit", type=int, default=100)
+    inbox.add_argument("--scope", dest="scope_key")
     _json_flag(inbox)
 
     thread = sub.add_parser("thread")
@@ -45,6 +47,7 @@ def _parser() -> argparse.ArgumentParser:
     post.add_argument("--as", dest="sender_id", required=True)
     post.add_argument("--to", dest="recipient_id")
     post.add_argument("--kind", choices=_MESSAGE_KINDS, default="status")
+    post.add_argument("--scope", dest="scope_key")
     post.add_argument("content")
     _json_flag(post)
 
@@ -52,6 +55,7 @@ def _parser() -> argparse.ArgumentParser:
     reply.add_argument("--as", dest="sender_id", required=True)
     reply.add_argument("--to", dest="recipient_id")
     reply.add_argument("--kind", choices=_MESSAGE_KINDS, default="status")
+    reply.add_argument("--scope", dest="scope_key")
     reply.add_argument("message_id")
     reply.add_argument("content")
     _json_flag(reply)
@@ -146,13 +150,16 @@ def _dispatch(args: argparse.Namespace) -> Any:
         return _status()
     if args.command == "recent":
         agent_workspace.ensure_global_workspace()
-        return agent_workspace.list_messages(agent_workspace.GLOBAL_WORKSPACE_ID, limit=args.limit)
+        return agent_workspace.list_messages(
+            agent_workspace.GLOBAL_WORKSPACE_ID, limit=args.limit, scope_key=args.scope_key
+        )
     if args.command == "inbox":
         return agent_workspace.list_inbox(
             args.participant_id,
             unread_only=args.unread,
             direct_only=args.direct_only,
             limit=args.limit,
+            scope_key=args.scope_key,
         )
     if args.command == "thread":
         return agent_workspace.list_thread(args.message_id, limit=args.limit)
@@ -162,6 +169,7 @@ def _dispatch(args: argparse.Namespace) -> Any:
             recipient_id=args.recipient_id,
             content=args.content,
             message_kind=args.kind,
+            scope_key=args.scope_key,
         )
     if args.command == "reply":
         return agent_workspace.post_global_message(
@@ -170,6 +178,7 @@ def _dispatch(args: argparse.Namespace) -> Any:
             content=args.content,
             message_kind=args.kind,
             parent_message_id=args.message_id,
+            scope_key=args.scope_key,
         )
     if args.command == "ack":
         return agent_workspace.record_receipt(

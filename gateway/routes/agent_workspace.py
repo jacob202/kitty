@@ -30,6 +30,9 @@ class GlobalMessageRequest(BaseModel):
     )
     content: str = Field(min_length=1, max_length=agent_workspace.MAX_MESSAGE_LENGTH)
     parent_message_id: str | None = Field(default=None, min_length=1, max_length=200)
+    scope_key: str | None = Field(
+        default=None, min_length=1, max_length=agent_workspace.MAX_SCOPE_KEY_LENGTH
+    )
 
 
 class GlobalReceiptRequest(BaseModel):
@@ -112,10 +115,17 @@ def get_global_room() -> dict:
 
 
 @router.get("/agent-room/global/messages")
-def get_global_messages(limit: int = Query(default=100, ge=1, le=500)) -> dict:
+def get_global_messages(
+    limit: int = Query(default=100, ge=1, le=500),
+    scope_key: str | None = Query(default=None),
+) -> dict:
     try:
         agent_workspace.ensure_global_workspace()
-        return {"messages": agent_workspace.list_messages(agent_workspace.GLOBAL_WORKSPACE_ID, limit=limit)}
+        return {
+            "messages": agent_workspace.list_messages(
+                agent_workspace.GLOBAL_WORKSPACE_ID, limit=limit, scope_key=scope_key
+            )
+        }
     except agent_workspace.AgentWorkspaceError as exc:
         raise HTTPException(status_code=_global_error_status(exc), detail=str(exc)) from exc
 
@@ -128,6 +138,7 @@ def post_global_message(request: GlobalMessageRequest) -> dict:
             content=request.content,
             message_kind=request.message_kind,
             parent_message_id=request.parent_message_id,
+            scope_key=request.scope_key,
         )
     except agent_workspace.AgentWorkspaceError as exc:
         raise HTTPException(status_code=_global_error_status(exc), detail=str(exc)) from exc
@@ -139,6 +150,7 @@ def get_global_inbox(
     unread_only: bool = Query(default=False),
     direct_only: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
+    scope_key: str | None = Query(default=None),
 ) -> dict:
     try:
         return {
@@ -147,6 +159,7 @@ def get_global_inbox(
                 unread_only=unread_only,
                 direct_only=direct_only,
                 limit=limit,
+                scope_key=scope_key,
             )
         }
     except agent_workspace.AgentWorkspaceError as exc:

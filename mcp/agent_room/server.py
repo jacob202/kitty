@@ -93,10 +93,12 @@ def room_status(session_id: str | None = None, scope: str | None = None) -> dict
 
 
 @mcp.tool()
-def room_recent(limit: int = 100) -> list[dict]:
-    """Read recent durable room messages without mutating receipt state."""
+def room_recent(limit: int = 100, scope_key: str | None = None) -> list[dict]:
+    """Read recent durable room messages, optionally for one evidence scope."""
     agent_workspace.ensure_global_workspace()
-    return agent_workspace.list_messages(agent_workspace.GLOBAL_WORKSPACE_ID, limit=limit)
+    return agent_workspace.list_messages(
+        agent_workspace.GLOBAL_WORKSPACE_ID, limit=limit, scope_key=scope_key
+    )
 
 
 @mcp.tool()
@@ -104,6 +106,7 @@ def room_inbox(
     unread_only: bool = False,
     direct_only: bool = False,
     limit: int = 100,
+    scope_key: str | None = None,
 ) -> list[dict]:
     """Read this identity's inbox, optionally limited to direct assignments."""
     return agent_workspace.list_inbox(
@@ -111,6 +114,7 @@ def room_inbox(
         unread_only=unread_only,
         direct_only=direct_only,
         limit=limit,
+        scope_key=scope_key,
     )
 
 
@@ -125,6 +129,7 @@ def room_post(
     content: str,
     recipient_id: str | None = None,
     message_kind: str = "status",
+    scope_key: str | None = None,
 ) -> dict:
     """Post as this configured client identity; sender identity is not overridable."""
     return agent_workspace.post_global_message(
@@ -132,6 +137,7 @@ def room_post(
         recipient_id=recipient_id,
         content=content,
         message_kind=message_kind,
+        scope_key=scope_key,
     )
 
 
@@ -141,6 +147,7 @@ def room_reply(
     content: str,
     recipient_id: str | None = None,
     message_kind: str = "status",
+    scope_key: str | None = None,
 ) -> dict:
     """Reply in-thread as this configured client identity."""
     return agent_workspace.post_global_message(
@@ -149,6 +156,7 @@ def room_reply(
         content=content,
         message_kind=message_kind,
         parent_message_id=message_id,
+        scope_key=scope_key,
     )
 
 
