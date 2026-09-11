@@ -168,6 +168,39 @@ def restore(items: list[dict[str, Any]]) -> int:
     yet is reconciled there rather than rejected here.
     """
     init_db()
+    rows, seen_ids = _restore_rows(items)
+
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        # Update snapshot projects in place so foreign-key dependents keep the
+        # same parent row. Only projects omitted from the snapshot are deleted.
+        # If an omitted project is still referenced, SQLite rejects that delete
+        # and the transaction rolls back rather than corrupting dependent state.
+        conn.execute("BEGIN IMMEDIATE")
+        conn.executemany(
+            "INSERT INTO projects (id, created_at, name, kind, paths_json, status, "
+            "last_touched, summary, open_questions_json, next_actions_json, delegable_json, "
+            "links_json, selected_todo_id) "
+            "VALUES (?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "created_at=excluded.created_at, name=excluded.name, kind=excluded.kind, "
+            "paths_json=excluded.paths_json, status=excluded.status, "
+            "last_touched=excluded.last_touched, summary=excluded.summary, "
+            "open_questions_json=excluded.open_questions_json, "
+            "next_actions_json=excluded.next_actions_json, delegable_json=excluded.delegable_json, "
+            "links_json=excluded.links_json, selected_todo_id=excluded.selected_todo_id",
+            rows,
+        )
+        try:
+            _delete_omitted_projects(conn, seen_ids)
+        except sqlite3.IntegrityError as exc:
+            conn.rollback()
+            raise _omitted_referenced_error() from exc
+        conn.commit()
+    return len(rows)
+
+
+def _restore_rows(items: list[dict[str, Any]]) -> tuple[list[tuple[Any, ...]], set[int]]:
+    """Validate a projects payload and shape it for restore, or raise."""
     if not isinstance(items, list):
         raise ProjectError(f"projects payload must be a list, got {type(items).__name__}")
 
@@ -182,6 +215,14 @@ def restore(items: list[dict[str, Any]]) -> int:
         if raw_id in seen_ids:
             raise ProjectError(f"duplicate project id {raw_id} in snapshot")
         seen_ids.add(raw_id)
+        # A malformed owner must fail loud. Writing it raw lets Todo restore
+        # reconcile the pointer away and report a successful import, which
+        # silently drops the project's explicitly chosen action.
+        raw_selected = item.get("selected_todo_id")
+        if raw_selected is not None and (
+            not isinstance(raw_selected, int) or isinstance(raw_selected, bool)
+        ):
+            raise ProjectError("project selected_todo_id must be an integer or null")
         created_at = item.get("created_at")
         rows.append(
             (
@@ -197,46 +238,47 @@ def restore(items: list[dict[str, Any]]) -> int:
                 json.dumps(item.get("next_actions") or []),
                 json.dumps(item.get("delegable") or []),
                 json.dumps(item.get("links") or []),
-                item.get("selected_todo_id"),
+                raw_selected,
             )
         )
+    return rows, seen_ids
 
+
+def _delete_omitted_projects(conn: sqlite3.Connection, snapshot_ids: set[int]) -> None:
+    """Delete only projects absent from the snapshot. Raises on a live reference."""
+    existing_ids = {row["id"] for row in conn.execute("SELECT id FROM projects")}
+    stale_ids = sorted(existing_ids - snapshot_ids)
+    if not stale_ids:
+        return
+    placeholders = ",".join("?" for _ in stale_ids)
+    conn.execute(f"DELETE FROM projects WHERE id IN ({placeholders})", stale_ids)
+
+
+def _omitted_referenced_error() -> ProjectError:
+    return ProjectError(
+        "cannot remove snapshot-omitted projects while they are still referenced"
+    )
+
+
+def validate_restore(items: list[dict[str, Any]]) -> None:
+    """Prove ``restore`` can replace Projects without breaking a reference.
+
+    ``storage_sync`` writes other stores before Projects, so a payload that only
+    fails on a foreign-key dependent would leave those earlier stores committed
+    against a rejected snapshot. This runs the same omit-delete preconditions in
+    a transaction that is always rolled back, so callers can fail before any
+    store is written while nothing here persists.
+    """
+    init_db()
+    _, seen_ids = _restore_rows(items)
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
-        # Update snapshot projects in place so foreign-key dependents keep the
-        # same parent row. Only projects omitted from the snapshot are deleted.
-        # If an omitted project is still referenced, SQLite rejects that delete
-        # and the transaction rolls back rather than corrupting dependent state.
         conn.execute("BEGIN IMMEDIATE")
-        existing_ids = {row["id"] for row in conn.execute("SELECT id FROM projects")}
-        conn.executemany(
-            "INSERT INTO projects (id, created_at, name, kind, paths_json, status, "
-            "last_touched, summary, open_questions_json, next_actions_json, delegable_json, "
-            "links_json, selected_todo_id) "
-            "VALUES (?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT(id) DO UPDATE SET "
-            "created_at=excluded.created_at, name=excluded.name, kind=excluded.kind, "
-            "paths_json=excluded.paths_json, status=excluded.status, "
-            "last_touched=excluded.last_touched, summary=excluded.summary, "
-            "open_questions_json=excluded.open_questions_json, "
-            "next_actions_json=excluded.next_actions_json, delegable_json=excluded.delegable_json, "
-            "links_json=excluded.links_json, selected_todo_id=excluded.selected_todo_id",
-            rows,
-        )
-        stale_ids = sorted(existing_ids - seen_ids)
-        if stale_ids:
-            placeholders = ",".join("?" for _ in stale_ids)
-            try:
-                conn.execute(
-                    f"DELETE FROM projects WHERE id IN ({placeholders})",
-                    stale_ids,
-                )
-            except sqlite3.IntegrityError as exc:
-                conn.rollback()
-                raise ProjectError(
-                    "cannot remove snapshot-omitted projects while they are still referenced"
-                ) from exc
-        conn.commit()
-    return len(rows)
+        try:
+            _delete_omitted_projects(conn, seen_ids)
+        except sqlite3.IntegrityError as exc:
+            raise _omitted_referenced_error() from exc
+        finally:
+            conn.rollback()
 
 
 def _require(project_id: int) -> dict[str, Any]:

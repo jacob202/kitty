@@ -14,7 +14,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from gateway import db as kitty_db
-from gateway import memory, plugin_registry, project_store, storage_sync, todo_store
+from gateway import (
+    journal_store,
+    memory,
+    plugin_registry,
+    project_store,
+    storage_sync,
+    todo_store,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -32,6 +39,18 @@ def _isolate(tmp_path, monkeypatch, name):
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
     return db_file
+
+
+def _add_next_step(project_id, step):
+    """Give a project a foreign-key-dependent row that a restore must respect."""
+    with kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
+        conn.execute(
+            "INSERT INTO project_next_steps "
+            "(project_id, step, why, recent_win, delegable, generated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (project_id, step, "why", "", 0, 1.0),
+        )
+        conn.commit()
 
 
 def _isolate_plugin(tmp_path, monkeypatch):
@@ -337,6 +356,69 @@ def test_import_rejects_non_integer_todo_id_before_writing_stores(
     assert project_store.list_projects() == before_projects
     assert todo_store.get() == before_todos
     assert project_store.get(project["id"])["selected_todo_id"] == todo["id"]
+
+
+def test_import_rejects_referenced_omitted_project_before_writing_earlier_stores(
+    tmp_path, monkeypatch
+):
+    """A project that cannot be removed must be caught before Memories/Journal.
+
+    Restoring an older snapshot after a newer project acquired a dependent row
+    hits foreign-key enforcement. Projects restore after Memories and Journal,
+    so that failure must be found up front or those stores are left partially
+    imported.
+    """
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    kept = project_store.create(name="kept", kind="admin")
+    _add_next_step(kept["id"], "kept-step")
+    # The snapshot carries a journal entry so the importer ordered before
+    # Projects has something it would commit before hitting the failure.
+    journal_store.append_entry(ts=1.0, entry="snapshot entry", theme=None, session_id=None)
+    snapshot = storage_sync.export_all()
+
+    newer = project_store.create(name="newer", kind="admin")
+    _add_next_step(newer["id"], "newer-step")
+    with kitty_db.connect(journal_store.JOURNAL_DB_FILE) as conn:
+        conn.execute("DELETE FROM journal_entries")
+        conn.commit()
+    before_projects = project_store.list_projects()
+
+    with pytest.raises(ValueError, match="still referenced"):
+        storage_sync.import_all(snapshot)
+
+    # Nothing may survive a rejected snapshot, including the store imported
+    # ahead of Projects.
+    assert journal_store.list_entries(limit=100) == []
+    assert project_store.list_projects() == before_projects
+
+
+def test_import_rejects_malformed_project_selected_todo_id_before_writing(
+    tmp_path, monkeypatch
+):
+    """A non-integer selected_todo_id must fail loud, not be silently cleared."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    todo = todo_store.update([{"content": "Chosen next action", "status": "pending"}])[0]
+    todo_store.set_project(todo["id"], project["id"])
+    project_store.select_todo(project["id"], todo["id"])
+    before_projects = project_store.list_projects()
+    before_todos = todo_store.get()
+
+    snapshot = storage_sync.export_all()
+    snapshot["stores"]["projects"] = [
+        {**row, "selected_todo_id": "not-an-id"} if row["id"] == project["id"] else row
+        for row in snapshot["stores"]["projects"]
+    ]
+
+    with pytest.raises(ValueError, match="selected_todo_id must be an integer or null"):
+        storage_sync.import_all(snapshot)
+
+    assert project_store.list_projects() == before_projects
+    assert todo_store.get() == before_todos
 
 
 def test_import_rejects_wrongly_shaped_later_store_before_writing_earlier_ones(

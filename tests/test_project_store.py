@@ -507,3 +507,56 @@ class TestSelectionEdges:
         chosen = project_store.selected_todo(project["id"])
         assert chosen["project_id"] == project["id"]
         assert project_store.get(project["id"])["selected_todo_id"] == created[0]["id"]
+
+
+def test_restore_rejects_a_malformed_selected_todo_id_before_writing():
+    """Writing it raw lets Todo restore clear it and report a successful import."""
+    project_store.init_db()
+    project_store.create(name="job-search", kind="admin")
+    before = project_store.list_projects()
+
+    with pytest.raises(
+        project_store.ProjectError, match="selected_todo_id must be an integer or null"
+    ):
+        project_store.restore([{**before[-1], "selected_todo_id": "not-an-id"}])
+
+    assert project_store.list_projects() == before
+
+
+def test_validate_restore_is_a_read_only_preflight():
+    """It must answer without persisting anything, including its own deletes."""
+    project_store.init_db()
+    project_store.create(name="will-be-omitted", kind="admin")
+    snapshot = [dict(row) for row in project_store.list_projects()]
+    snapshot = [row for row in snapshot if row["name"] != "will-be-omitted"]
+
+    before = project_store.list_projects()
+
+    # Omitting an unreferenced project is allowed, and proving it must leave
+    # the store exactly as it was.
+    project_store.validate_restore(snapshot)
+
+    assert project_store.list_projects() == before
+
+
+def test_validate_restore_reports_a_referenced_omission_without_writing():
+    project_store.init_db()
+    kept = project_store.create(name="kept", kind="admin")
+    omitted = project_store.create(name="omitted", kind="admin")
+    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
+        conn.execute(
+            "INSERT INTO project_next_steps "
+            "(project_id, step, why, recent_win, delegable, generated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (omitted["id"], "step", "why", "", 0, 1.0),
+        )
+        conn.commit()
+    snapshot = [
+        dict(row) for row in project_store.list_projects() if row["id"] == kept["id"]
+    ]
+
+    with pytest.raises(project_store.ProjectError, match="still referenced"):
+        project_store.validate_restore(snapshot)
+
+    names = {p["name"] for p in project_store.list_projects()}
+    assert {"kept", "omitted"} <= names

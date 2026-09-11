@@ -347,6 +347,23 @@ def _validate_snapshot_references(stores: dict[str, Any]) -> None:
         )
 
 
+def _validate_project_restore(projects: list[Any]) -> None:
+    """Fail before any write if Projects cannot be replaced without breaking refs.
+
+    Projects restore before Todos and after Memories/Journal, so a Projects
+    payload that only fails on a foreign-key dependent would leave the earlier
+    stores committed against a rejected snapshot. The owning store answers the
+    question with a rolled-back dry run, and its error is reported as the
+    snapshot error the caller already handles.
+    """
+    from gateway import project_store
+
+    try:
+        project_store.validate_restore(projects)
+    except project_store.ProjectError as exc:
+        raise ValueError(str(exc)) from exc
+
+
 def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
     """Replace every migrated store with the contents of ``snapshot``.
 
@@ -372,6 +389,10 @@ def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
     # rather than importing earlier stores and then aborting at a later one.
     _validate_snapshot_payloads(stores)
     _validate_snapshot_references(stores)
+    # Projects and Todos are validated independently: a projects store with no
+    # todos must not skip the reference preflight above.
+    if isinstance(stores.get("projects"), list):
+        _validate_project_restore(stores["projects"])
     counts: dict[str, int] = {}
     for key, importer in _IMPORTERS.items():
         if key in stores:
