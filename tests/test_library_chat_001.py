@@ -121,7 +121,9 @@ class TestUseInChat:
         artifact = artifact_store.register_file(path, kind="document", media_type="application/pdf", project_id=1, created_by="test")
         r = chat_client.post("/chats/use-in-chat", json={"artifact_id": artifact["id"]})
         assert r.status_code == 415
-        assert "Only images" in r.json()["detail"]
+        # The copy must name what *can* be attached now that a saved Builder
+        # result is also a valid chat attachment.
+        assert "supported images and saved Builder results" in r.json()["detail"]
         assert artifact["id"] not in r.json()["detail"]
 
     def test_unsupported_image_type_is_rejected_with_plain_copy(self, chat_client, tmp_path):

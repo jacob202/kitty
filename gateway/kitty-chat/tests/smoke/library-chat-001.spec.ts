@@ -64,7 +64,7 @@ test('a ready image reaches the chat composer and an unusable file says why', as
   await expect(
     page.getByRole('button', { name: /use notes\.pdf in chat unavailable/i })
   ).toBeDisabled();
-  await expect(page.getByText(/only images can be attached/i)).toBeVisible();
+  await expect(page.getByText(/only supported images and saved Builder results/i)).toBeVisible();
 
   const use = page.getByRole('button', { name: /use camera-reference\.png in chat$/i });
   await expect(use).toBeEnabled();

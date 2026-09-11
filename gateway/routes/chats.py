@@ -290,7 +290,10 @@ def _resolve_chat_image_attachment(artifact_id: str, *, include_data_url: bool =
     if not media_type.startswith("image/"):
         raise HTTPException(
             status_code=415,
-            detail="Only images can be attached into a chat message from Library.",
+            detail=(
+                "Only supported images and saved Builder results can be attached "
+                "from Library."
+            ),
         )
     if media_type not in CHAT_IMAGE_MIME_TYPES:
         raise HTTPException(
