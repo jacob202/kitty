@@ -69,6 +69,43 @@ def export_projects() -> list[dict]:
     return project_store.list_projects()
 
 
+def export_projects_and_todos() -> tuple[list[dict], list[dict]]:
+    """Read Projects and Todos as one coherent snapshot.
+
+    A project's ``selected_todo_id`` and a todo's owning ``project_id`` are one
+    cross-table state. Reading them through separate connections can capture a
+    selection or reassignment that landed between the two reads, exporting a
+    state that never existed — and importing it would silently restore without
+    the user's chosen action. One deferred read transaction sees a single WAL
+    snapshot of both tables and does not block writers.
+    """
+    from gateway import project_store
+
+    if Path(project_store.PROJECTS_DB_FILE).resolve() != Path(todo_store.TODO_DB_FILE).resolve():
+        raise ValueError(
+            "cannot export projects and todos coherently while the project and "
+            "todo stores are separate databases"
+        )
+    project_store.init_db()
+    todo_store.init_db()
+    with kitty_db.connect(todo_store.TODO_DB_FILE) as conn:
+        conn.execute("BEGIN")
+        projects = [
+            project_store._row_to_project(row)
+            for row in conn.execute(
+                f"SELECT {project_store._COLUMNS} FROM projects ORDER BY id ASC"
+            ).fetchall()
+        ]
+        todos = [
+            todo_store._row_to_dict(row)
+            for row in conn.execute(
+                "SELECT id, content, status, active_form, sort_order, progress_note, "
+                "project_id, created_at, updated_at FROM todos ORDER BY sort_order ASC"
+            ).fetchall()
+        ]
+    return projects, todos
+
+
 def export_plugin_settings() -> dict[str, bool]:
     return plugin_registry._load_db_settings()
 
@@ -80,14 +117,15 @@ def export_preferences() -> dict:
 
 def export_all() -> dict[str, Any]:
     """Return a JSON-serializable snapshot of every migrated store."""
+    projects, todos = export_projects_and_todos()
     return {
         "format_version": FORMAT_VERSION,
         "exported_at": _iso_now(),
         "stores": {
             "memories": export_memories(),
             "journal_entries": export_journal_entries(),
-            "projects": export_projects(),
-            "todos": export_todos(),
+            "projects": projects,
+            "todos": todos,
             "plugin_settings": export_plugin_settings(),
             "preferences": export_preferences(),
         },

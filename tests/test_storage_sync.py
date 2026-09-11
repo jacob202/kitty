@@ -86,6 +86,56 @@ def test_export_includes_real_plugin_settings_and_todos(tmp_path, monkeypatch):
     assert {t["content"] for t in snapshot["stores"]["todos"]} == {"first todo", "second todo"}
 
 
+def test_export_reads_projects_and_todos_as_one_snapshot(tmp_path, monkeypatch):
+    """A change between the two reads must not produce a torn snapshot.
+
+    A project's `selected_todo_id` and a todo's owning `project_id` are one
+    cross-table state. Reading each through its own connection can capture a
+    selection that landed between the reads, exporting a state that never
+    existed — and importing it would restore without the user's chosen action.
+    """
+    _isolate_plugin(tmp_path, monkeypatch)
+    db_file = _isolate(tmp_path, monkeypatch, "todo")
+    project_store.init_db()
+    project = project_store.create(name="job-search", kind="admin")
+    todo = todo_store.update([{"content": "Chosen next action", "status": "pending"}])[0]
+    todo_store.set_project(todo["id"], project["id"])
+    project_store.select_todo(project["id"], todo["id"])
+
+    original_mapper = project_store._row_to_project
+    mutated = {"done": False}
+
+    def _mapper(row):
+        mapped = original_mapper(row)
+        if not mutated["done"]:
+            mutated["done"] = True
+            # Lands after the projects read and before the todos read.
+            with kitty_db.connect(db_file) as conn:
+                conn.execute(
+                    "UPDATE projects SET selected_todo_id = NULL WHERE id = ?",
+                    (project["id"],),
+                )
+                conn.execute(
+                    "UPDATE todos SET project_id = NULL WHERE id = ?", (todo["id"],)
+                )
+                conn.commit()
+        return mapped
+
+    monkeypatch.setattr(project_store, "_row_to_project", _mapper)
+
+    snapshot = storage_sync.export_all()
+
+    assert mutated["done"] is True
+    exported_project = next(
+        row for row in snapshot["stores"]["projects"] if row["id"] == project["id"]
+    )
+    exported_todo = next(
+        row for row in snapshot["stores"]["todos"] if row["id"] == todo["id"]
+    )
+    assert exported_project["selected_todo_id"] == todo["id"]
+    assert exported_todo["project_id"] == project["id"]
+
+
 def test_round_trip_preserves_plugin_settings(tmp_path, monkeypatch):
     _isolate_plugin(tmp_path, monkeypatch)
     _isolate(tmp_path, monkeypatch, "todo")
