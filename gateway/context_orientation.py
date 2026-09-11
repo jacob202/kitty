@@ -940,7 +940,16 @@ def _project_next_continuation(
             "thread/handoff/lane/session/candidate correlation"
         )
 
-    origin = assignment.get("authority_source")
+    assigned_scope = assignment.get("scope") or {}
+    assigned_lane = assigned_scope.get("lane")
+    # A live claim authorizes only when it is the same lane the assignment
+    # resolved to; an unrelated claim must not lend authority to another scope.
+    matching_claims = [
+        claim
+        for claim in session_claims
+        if assigned_lane and assigned_lane in {claim.get("lane"), claim.get("task_id")}
+    ]
+
     if explicit_scope:
         action = explicit_scope.get("action") or explicit_scope.get("next_action")
         declared = str(explicit_scope.get("authority") or "user")
@@ -948,8 +957,8 @@ def _project_next_continuation(
         evidence.append(
             _evidence_item("explicit_scope", "explicit_scope", observed_at, authority=declared)
         )
-    elif origin == "kx_claim" and session_claims:
-        claim = session_claims[0]
+    elif matching_claims:
+        claim = matching_claims[0]
         action = claim.get("task_id") or claim.get("lane")
         authority_source = "kx:claim"
         evidence.append(
@@ -961,11 +970,10 @@ def _project_next_continuation(
                 resource=claim.get("resource_id"),
             )
         )
-    elif origin in {"gar_thread", "gar_presence"}:
-        authority_source = None
+    elif assignment_resolved:
         missing.append(
             "GAR conversation/presence is evidence, not mutation authority; link an "
-            "explicit user/session scope or an active KX/Builder authority"
+            "explicit user/session scope or a matching active KX/Builder authority"
         )
 
     authoritative = authority_source in AUTHORITATIVE_AUTHORITIES
@@ -1291,7 +1299,9 @@ def build_room_briefing(
 
     The briefing never recomputes truth. Unscoped briefings pass the domain
     result through by reference; a scope filter only narrows collections whose
-    items declare a matching locator.
+    items declare a matching locator, and marks them with ``filter_scope`` /
+    ``filter_total`` so a narrowed result cannot read as an empty source.
+    ``assignment`` always remains the unfiltered domain result.
     """
     if orientation.get("kind") != "orientation":
         raise OrientationError("room briefing requires an orientation result")
