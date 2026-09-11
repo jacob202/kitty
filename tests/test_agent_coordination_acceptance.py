@@ -637,3 +637,49 @@ def test_acquire_many_overlapping_set_race_has_one_whole_winner(tmp_path: Path) 
     active = agent_coordination.list_claims(active_only=True, db_path=db_path, now=T1)
     assert {row["session_id"] for row in active} == {winners[0]["session"]}
     assert all(row["session_id"] != losers[0]["session"] for row in active)
+
+def test_read_current_claims_filters_expired_without_mutation_or_projection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "coordination.db"
+    registry_path = _write_registry(tmp_path / "resources.yaml")
+    projected: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    monkeypatch.setattr(
+        agent_coordination,
+        "_project_event",
+        lambda *args, **kwargs: projected.append((args, kwargs)) or {"ok": True},
+    )
+
+    _acquire(
+        db_path,
+        registry_path,
+        session="expired-stored-owner",
+        now=T0,
+        lease_seconds=1,
+    )
+    projected.clear()
+    with sqlite3.connect(db_path) as conn:
+        before = tuple(
+            conn.execute(
+                "SELECT * FROM claims WHERE session_id=?",
+                ("expired-stored-owner",),
+            ).fetchone()
+        )
+
+    claims = agent_coordination.read_current_claims(db_path=db_path, now=T1)
+
+    assert claims == []
+    with sqlite3.connect(db_path) as conn:
+        stored = tuple(
+            conn.execute(
+                "SELECT * FROM claims WHERE session_id=?",
+                ("expired-stored-owner",),
+            ).fetchone()
+        )
+        state = conn.execute(
+            "SELECT state FROM claims WHERE session_id=?",
+            ("expired-stored-owner",),
+        ).fetchone()
+    assert stored == before
+    assert state == ("active",)
+    assert projected == []

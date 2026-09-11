@@ -9,6 +9,7 @@ artifacts without touching authoritative state.
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -359,6 +360,47 @@ def test_presence_never_implies_assignment():
     assert orientation["runtime"]["state"] == co.SOURCE_CURRENT
     assert orientation["runtime"]["runtime"] == "commandcode"
     assert "never implies assignment" in orientation["presence"]["note"]
+
+
+def test_presence_lane_and_ref_never_resolve_or_correlate_assignment():
+    presence = [
+        {
+            "participant_id": "chatgpt",
+            "session_id": "session-presence-only",
+            "runtime": "commandcode",
+            "role": "OWN",
+            "lane_id": "lane-presence-only",
+            "exact_ref": HEAD_A,
+            "declared_status": "active",
+            "presence_state": "active",
+            "heartbeat_at": 1_789_000_000.0,
+        }
+    ]
+    presence_only = _build(
+        "chatgpt",
+        evidence=_evidence(presence=presence),
+        session_id="session-presence-only",
+    )
+
+    assert presence_only["assignment"]["state"] == co.ASSIGNMENT_UNRESOLVED
+    assert presence_only["assignment"]["authority_source"] is None
+    assert presence_only["next_continuation"]["authorized"] is not True
+
+    presence_correlated = _message(
+        "message_presence_only", parent="lane-presence-only"
+    )
+    orientation = _build(
+        "chatgpt",
+        evidence=_evidence(inbox=[presence_correlated], presence=presence),
+        session_id="session-presence-only",
+    )
+
+    assert orientation["assignment"]["state"] == co.ASSIGNMENT_UNRESOLVED
+    assert orientation["assignment"]["authority_source"] is None
+    assert orientation["next_continuation"]["authorized"] is not True
+    assert [item["message_id"] for item in orientation["assignment"]["attention"]] == [
+        "message_presence_only"
+    ]
 
 
 def test_machine_events_are_not_assignments():
@@ -751,3 +793,64 @@ def test_collect_orientation_evidence_reads_real_surfaces(monkeypatch, tmp_path)
     assert orientation["assignment"]["state"] == co.ASSIGNMENT_UNRESOLVED
     assert orientation["assignment"]["attention"][0]["kind"] == "participant_wide_direct"
     assert orientation["sources"]["builder"]["state"] == co.SOURCE_UNKNOWN
+
+@pytest.mark.integration
+def test_room_briefing_collection_does_not_reconcile_expired_kx_claim(
+    monkeypatch, tmp_path
+):
+    workspace_db = tmp_path / "kitty" / "kitty.db"
+    coordination_db = tmp_path / "coordination.db"
+    registry = tmp_path / "resources.yaml"
+    registry.write_text(
+        "resources:\n  memory:continuity:\n    paths:\n      - gateway/context_orientation.py\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(agent_workspace, "WORKSPACE_DB_FILE", workspace_db)
+    monkeypatch.setattr(agent_coordination, "default_db_path", lambda: coordination_db)
+    projected: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    monkeypatch.setattr(
+        agent_coordination,
+        "_project_event",
+        lambda *args, **kwargs: projected.append((args, kwargs)) or {"ok": True},
+    )
+    agent_workspace.init_db()
+    agent_coordination.acquire(
+        session_id="expired-stored-owner",
+        participant="chatgpt",
+        role="OWN",
+        resource_id="memory:continuity",
+        lane="expired-lane",
+        task_id="expired-task",
+        branch="feat/expired",
+        worktree="/tmp/expired",
+        base_sha=HEAD_A,
+        paths=("gateway/context_orientation.py",),
+        lease_seconds=1,
+        db_path=coordination_db,
+        registry_path=registry,
+        now="2026-09-11T11:59:00+00:00",
+    )
+    projected.clear()
+
+    evidence = co.collect_orientation_evidence(
+        "chatgpt", repo_root=Path(context_receipt.ROOT), include_builder=False, now=NOW
+    )
+    orientation = co.assemble_orientation(
+        "chatgpt",
+        session_id="expired-stored-owner",
+        explicit_scope=None,
+        thread_or_handoff=None,
+        evidence=evidence,
+        now=NOW,
+    )
+    briefing = co.build_room_briefing(orientation)
+
+    assert briefing["lanes"]["active"] == []
+    assert orientation["assignment"]["state"] == co.ASSIGNMENT_UNRESOLVED
+    with sqlite3.connect(coordination_db) as conn:
+        stored = conn.execute(
+            "SELECT state FROM claims WHERE session_id=?",
+            ("expired-stored-owner",),
+        ).fetchone()
+    assert stored == ("active",)
+    assert projected == []

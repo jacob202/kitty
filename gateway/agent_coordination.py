@@ -267,6 +267,23 @@ def _connect(db_path: Path | None = None) -> sqlite3.Connection:
     raise last_error
 
 
+def _connect_readonly(db_path: Path | None = None) -> sqlite3.Connection | None:
+    """Open KX storage without creating, migrating, or changing database state."""
+    path = Path(db_path or default_db_path()).expanduser().resolve()
+    if not path.exists():
+        return None
+    conn = sqlite3.connect(
+        f"{path.as_uri()}?mode=ro",
+        uri=True,
+        timeout=15,
+        isolation_level=None,
+    )
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 15000")
+    conn.execute("PRAGMA query_only = ON")
+    return conn
+
+
 def _decode(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     claim = dict(row)
     claim["paths"] = json.loads(claim.pop("paths_json"))
@@ -707,6 +724,27 @@ def _expire_and_project(
     for stale in expired:
         _project_event("LEASE STALE", participant=stale.get("participant"), claim=stale)
     return stamp
+
+
+def read_current_claims(
+    *,
+    db_path: Path | None = None,
+    now: str | datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Read currently valid claims without reconciling or projecting lease state."""
+    stamp = _stamp(now)
+    conn = _connect_readonly(db_path)
+    if conn is None:
+        return []
+    try:
+        rows = conn.execute(
+            "SELECT * FROM claims WHERE state='active' AND expires_at>? "
+            "ORDER BY resource_id,created_at,id",
+            (stamp,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [_decode(row) for row in rows]
 
 
 def list_claims(

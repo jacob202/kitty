@@ -200,7 +200,6 @@ def _scope_tokens(
     explicit_scope: dict[str, Any] | None,
     session_id: str | None,
     claims: list[dict[str, Any]],
-    presence: list[dict[str, Any]],
     thread_root: str | None,
 ) -> dict[str, str]:
     """Return locator -> source-map for exact assignment correlation.
@@ -225,9 +224,6 @@ def _scope_tokens(
     for claim in claims:
         for key in ("id", "lane", "task_id", "branch", "base_sha"):
             add(claim.get(key), "kx_claim")
-    for row in presence:
-        for key in ("session_id", "lane_id", "exact_ref"):
-            add(row.get(key), "gar_presence")
     return tokens
 
 
@@ -325,7 +321,6 @@ def _resolve_assignment(
     inbox: list[dict[str, Any]] | None,
     thread: list[dict[str, Any]] | None,
     claims: list[dict[str, Any]],
-    presence: list[dict[str, Any]] | None,
     inbox_error: str | None,
     observed_at: str,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -393,30 +388,6 @@ def _resolve_assignment(
             "candidate_ref": claim.get("base_sha"),
         }
 
-    if presence and session_id:
-        for row in presence:
-            if row.get("session_id") != session_id:
-                continue
-            lane = row.get("lane_id") or row.get("exact_ref")
-            if not lane:
-                continue
-            evidence.append(
-                _evidence_item(
-                    "gar_presence",
-                    f"gar_presence:{row.get('session_id')}",
-                    observed_at,
-                    presence_state=row.get("presence_state"),
-                    lane_id=row.get("lane_id"),
-                )
-            )
-            scopes[("gar_presence", str(row.get("session_id")))] = {
-                "locator": row.get("session_id"),
-                "origin": "gar_presence",
-                "thread_root": None,
-                "lane": lane,
-                "candidate_ref": row.get("exact_ref"),
-            }
-
     if explicit_scope:
         chosen = scopes[("explicit_scope", "explicit_scope")]
         state = ASSIGNMENT_RESOLVED
@@ -476,7 +447,7 @@ def _project_lanes(
     if claims_error is not None:
         return _source(
             SOURCE_UNAVAILABLE,
-            "gateway.agent_coordination.list_claims",
+            "gateway.agent_coordination.read_current_claims",
             observed_at,
             active=None,
             diagnostic=claims_error,
@@ -500,7 +471,7 @@ def _project_lanes(
     active.sort(key=lambda item: (str(item["resource"]), str(item["session_id"])))
     return _source(
         SOURCE_CURRENT,
-        "gateway.agent_coordination.list_claims",
+        "gateway.agent_coordination.read_current_claims",
         observed_at,
         active=active,
         issue={
@@ -1073,7 +1044,7 @@ def assemble_orientation(
         root = next((row for row in thread if not row.get("parent_message_id")), thread[0])
         thread_root = root.get("id")
 
-    tokens = _scope_tokens(scope, session_id, claims, presence or [], thread_root)
+    tokens = _scope_tokens(scope, session_id, claims, thread_root)
 
     assignment, attention = _resolve_assignment(
         identity=identity,
@@ -1083,7 +1054,6 @@ def assemble_orientation(
         inbox=inbox,
         thread=thread,
         claims=claims,
-        presence=presence,
         inbox_error=evidence.inbox_error,
         observed_at=observed_at,
     )
@@ -1216,7 +1186,7 @@ def collect_orientation_evidence(
         evidence.context_receipt_error = f"{type(exc).__name__}: {exc}"
 
     try:
-        evidence.claims = agent_coordination.list_claims(active_only=True)
+        evidence.claims = agent_coordination.read_current_claims(now=now)
     except Exception as exc:  # noqa: BLE001 - attributed as an explicit source failure
         evidence.claims_error = f"{type(exc).__name__}: {exc}"
 
