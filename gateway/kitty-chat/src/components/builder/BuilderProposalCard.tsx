@@ -96,6 +96,19 @@ function missingMissionBinding(
     && /binding.*missing|missing.*binding/i.test(data.mission_acceptance.error ?? '')
 }
 
+/** True only when the receipt positively proves the expected Builder binding.
+ *
+ * A Mission-store outage, a missing acceptance field, or any other unproven
+ * answer is not resolution. `missingMissionBinding` only recognizes the
+ * "binding missing" wording, so treating every other unavailable reason as
+ * resolved would throw away the only payload that can reconcile the approval. */
+function missionBindingConfirmed(
+  data: { mission_acceptance?: { state?: string | null } | null } | undefined,
+): boolean {
+  const state = data?.mission_acceptance?.state
+  return typeof state === 'string' && state !== 'unavailable'
+}
+
 interface PendingApprovalCheckpoint {
   version: 1
   state: 'pending'
@@ -282,6 +295,8 @@ export function BuilderProposalCard({
   const [proposalIdentity, setProposalIdentity] = useState<string | null>(null)
   const resume = useResumeBuilderJob(resumedMissionId)
   const bindingMissing = missingMissionBinding(resume.data)
+  const bindingConfirmed = missionBindingConfirmed(resume.data)
+  const acceptanceUnavailable = resume.data?.mission_acceptance?.state === 'unavailable'
   const gatewayMissionId = proposal?.gateway_mission_id
     || pendingApproval?.gateway_mission_id
     || (resumedMissionId ? `gateway-conversation:${resumedMissionId}` : null)
@@ -301,15 +316,16 @@ export function BuilderProposalCard({
       && resumedMissionId
       && resume.data?.mission?.id === resumedMissionId
       // Finding the Builder job is not the same as resolving its Mission
-      // binding. Clearing here while the binding is still missing would throw
-      // away the only payload that can reconcile it.
-      && !bindingMissing
+      // binding. Clearing here unless the receipt positively proves the
+      // binding would throw away the only payload that can reconcile it —
+      // including when the Mission store is unavailable for any other reason.
+      && bindingConfirmed
     ) {
       if (persistResolvedMission) safeStorage.set(storageKey, resumedMissionId)
       else safeStorage.remove(storageKey)
       setPendingApproval(null)
     }
-  }, [bindingMissing, pendingApproval, persistResolvedMission, resume.data?.mission?.id, resumedMissionId, storageKey])
+  }, [bindingConfirmed, pendingApproval, persistResolvedMission, resume.data?.mission?.id, resumedMissionId, storageKey])
 
   const retryPendingApproval = () => {
     if (!pendingApproval || !resumedMissionId) return
@@ -334,7 +350,9 @@ export function BuilderProposalCard({
   }
 
   if (resumedMissionId) {
-    if (pendingApproval && (resume.data?.error_code === 'work_not_found' || bindingMissing)) {
+    // Any unproven acceptance — not only the "binding missing" wording — must
+    // keep offering the exact replay, so route every unavailable reason here.
+    if (pendingApproval && (resume.data?.error_code === 'work_not_found' || bindingMissing || acceptanceUnavailable)) {
       return (
         <PendingApprovalRecovery
           task={draft}

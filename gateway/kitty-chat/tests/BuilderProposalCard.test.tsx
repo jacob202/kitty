@@ -671,6 +671,9 @@ describe('BuilderProposalCard', () => {
       ok: true,
       mission: { id: preparedProposal.mission_id, state: 'active' },
       current_work: { state: 'queued' },
+      // The receipt proves the binding resolved only by reporting a real
+      // acceptance state; an unavailable one would mean it is still unproven.
+      mission_acceptance: { state: 'unreviewed', mission_id: 'mission_gateway_1' },
     })
 
     const first = renderWithQueryClient(
@@ -770,6 +773,64 @@ describe('BuilderProposalCard', () => {
       },
     })
     expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the checkpoint when the Mission store is unavailable for another reason', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
+    vi.mocked(gateway.approveBuilderJob).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'active' },
+      current_work: { state: 'queued' },
+      awaiting_acceptance: true,
+      awaiting_acceptance_because: 'the Mission store could not be read',
+      mission_acceptance: {
+        state: 'unavailable',
+        error: 'MissionError: Mission store is unavailable: database changed while snapshotting',
+      },
+    })
+
+    const first = renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={1}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+    fireEvent.click(await screen.findByText('Approve'))
+    fireEvent.click(screen.getByText('Confirm'))
+    await waitFor(() => expect(gateway.approveBuilderJob).toHaveBeenCalledOnce())
+    first.unmount()
+
+    renderWithQueryClient(
+      <BuilderProposalCard
+        task={task}
+        chatId="work-builder-request"
+        messageIndex={2}
+        recoveryStorageKey="kitty.builder-proposal.work.pending"
+        persistResolvedMission={false}
+      />,
+    )
+
+    // The store outage is not proof the binding resolved. The exact checkpoint
+    // is the only way to reconcile the approval once the store recovers.
+    expect(await screen.findByRole('button', { name: 'Retry same approval' })).toBeInTheDocument()
+    const checkpoint = JSON.parse(
+      window.localStorage.getItem('kitty.builder-proposal.work.pending') as string,
+    )
+    expect(checkpoint).toMatchObject({
+      version: 1,
+      state: 'pending',
+      missionId: preparedProposal.mission_id,
+      approval: {
+        expected_manifest_sha: preparedProposal.manifest_sha256,
+        approval_nonce: preparedProposal.approval_nonce,
+        confirmed: true,
+      },
+    })
   })
 
   it('retains the exact checkpoint after a repeated Mission binding reconciliation failure', async () => {
