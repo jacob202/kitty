@@ -610,7 +610,20 @@ def _select_packets(
             skipped.append(admission_skip)
             continue
         task = bq.get_task(str(packet["task_id"]), db_path=db_path)
-        priority = int((task or {}).get("priority") or 0)
+        if task is None:
+            # ``_dispatch_candidate`` already resolved this task, so it can only
+            # be absent here if the row vanished between the two reads. Record
+            # the broken packet-to-task reference instead of ranking a vanished
+            # task at priority 0: a fake priority would let invalid work take a
+            # launch slot, or hide the integrity failure past ``max_runs``.
+            skipped.append({
+                "initiative_id": str(packet["initiative_id"]),
+                "packet_id": str(packet["packet_id"]),
+                "task_id": str(packet["task_id"]),
+                "reason": "task_missing",
+            })
+            continue
+        priority = int(task.get("priority") or 0)
         ranked.append((
             -priority,
             str(packet["initiative_id"]),

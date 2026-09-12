@@ -158,6 +158,27 @@ def test_tick_prefers_higher_priority_across_initiatives(
     assert launched[0]["initiative_id"] == "z-high-priority"
 
 
+def test_select_packets_skips_a_task_that_vanishes_after_admission(
+    repo: Path, db_path: Path
+) -> None:
+    """A task missing at ranking time is recorded, never ranked at priority 0."""
+    _apply(db_path, "vanishing", [_packet("p")], repo_root=repo)
+    dispatched = {
+        "initiative_id": "vanishing",
+        "packet_id": "p",
+        "task_id": "kb_missing_task",
+    }
+    with (
+        patch.object(bs, "_dispatch_candidate", return_value=(dispatched, None)),
+        patch.object(bq, "get_task", return_value=None),
+    ):
+        selected, skipped = bs._select_packets(db_path=db_path, max_runs=1)
+
+    assert selected == []
+    assert [item["reason"] for item in skipped] == ["task_missing"]
+    assert skipped[0]["task_id"] == "kb_missing_task"
+
+
 def test_tick_concurrent_locked(db_path: Path) -> None:
     """Concurrent tick returns locked receipt with no launches."""
     with bs.SupervisorLock(db_path):
