@@ -286,6 +286,36 @@ def detect_unit(
     }
 
 
+def _write_observations(
+    out: Path,
+    corpus: dict[str, Any],
+    args: argparse.Namespace,
+    api_key: str | None,
+    units: list[dict[str, Any]],
+    results: list[dict[str, Any]],
+    failures: int,
+) -> None:
+    """Write observations atomically, so a checkpoint is never a half-written file."""
+    observations = {
+        "corpus_version": corpus["version"],
+        "provenance": {
+            "endpoint": args.endpoint,
+            "model": args.model,
+            "max_tokens": args.max_tokens,
+            "api_key_env": args.api_key_env if api_key else None,
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "review_units_requested": len(units),
+            "review_units_completed": len(results),
+            "review_units_failed": failures,
+        },
+        "review_units": {str(r["pr"]): r for r in results},
+    }
+    out.parent.mkdir(parents=True, exist_ok=True)
+    temporary = out.with_suffix(out.suffix + ".tmp")
+    temporary.write_text(json.dumps(observations, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(out)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus", type=Path, required=True)
@@ -342,28 +372,18 @@ def main() -> int:
             f"PR {unit['pr']}: {len(result['findings'])} candidate findings, "
             f"{len(result['chunk_errors'])} chunk errors, {result['elapsed_seconds']}s",
             file=sys.stderr,
+            flush=True,
         )
+        # Checkpoint after every unit. A full-corpus run takes hours, and writing only at
+        # the end meant an interrupt or crash discarded every completed review unit.
+        _write_observations(args.out, corpus, args, api_key, units, results, failures)
+        print(f"  checkpointed {args.out}", file=sys.stderr, flush=True)
 
     if failures:
         print(f"{failures} review unit(s) failed outright", file=sys.stderr)
 
-    observations = {
-        "corpus_version": corpus["version"],
-        "provenance": {
-            "endpoint": args.endpoint,
-            "model": args.model,
-            "max_tokens": args.max_tokens,
-            "api_key_env": args.api_key_env if api_key else None,
-            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "review_units_requested": len(units),
-            "review_units_completed": len(results),
-            "review_units_failed": failures,
-        },
-        "review_units": {str(r["pr"]): r for r in results},
-    }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(observations, indent=2) + "\n", encoding="utf-8")
-    print(f"wrote {args.out}", file=sys.stderr)
+    _write_observations(args.out, corpus, args, api_key, units, results, failures)
+    print(f"wrote {args.out}", file=sys.stderr, flush=True)
     return 0 if results else 1
 
 

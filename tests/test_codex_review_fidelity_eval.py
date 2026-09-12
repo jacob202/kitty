@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import importlib.util
 import json
@@ -351,6 +352,33 @@ def test_detect_unit_records_findings_and_the_diff_hash(monkeypatch) -> None:
     assert result["chunk_errors"] == []
     assert result["findings"][0]["path"] == "x"
     assert result["diff_sha256"] == hashlib.sha256(diff.encode("utf-8")).hexdigest()
+
+
+def test_write_observations_is_atomic_and_leaves_no_temp_file(tmp_path) -> None:
+    detect = load_detect_module()
+    args = argparse.Namespace(endpoint="http://stub", model="m", max_tokens=99, api_key_env="K")
+    out = tmp_path / "nested" / "observations.json"
+    detect._write_observations(out, {"version": 1}, args, None, [{"pr": 1}], [{"pr": 1, "findings": []}], 0)
+
+    written = json.loads(out.read_text())
+    assert written["provenance"]["review_units_requested"] == 1
+    assert written["provenance"]["review_units_completed"] == 1
+    assert written["provenance"]["max_tokens"] == 99
+    assert written["provenance"]["api_key_env"] is None
+    assert set(written["review_units"]) == {"1"}
+    assert list(out.parent.glob("*.tmp")) == []
+
+
+def test_write_observations_overwrites_a_previous_checkpoint(tmp_path) -> None:
+    detect = load_detect_module()
+    args = argparse.Namespace(endpoint="http://stub", model="m", max_tokens=99, api_key_env="K")
+    out = tmp_path / "observations.json"
+    detect._write_observations(out, {"version": 1}, args, None, [{"pr": 1}], [{"pr": 1, "findings": []}], 0)
+    detect._write_observations(
+        out, {"version": 1}, args, None, [{"pr": 1}, {"pr": 2}],
+        [{"pr": 1, "findings": []}, {"pr": 2, "findings": []}], 0,
+    )
+    assert set(json.loads(out.read_text())["review_units"]) == {"1", "2"}
 
 
 def test_detect_unit_records_a_chunk_failure_instead_of_dropping_it(monkeypatch) -> None:
