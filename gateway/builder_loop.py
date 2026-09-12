@@ -67,11 +67,21 @@ from gateway.builder_runner import (
     worktree_head,
     worktree_path,
 )
+from gateway.local_review import (
+    CPU_SHADOW_LLAMA_SERVER_SHA256,
+    CPU_SHADOW_LLAMA_SERVER_VERSION,
+    CPU_SHADOW_MODEL_SHA256,
+    CPU_SHADOW_RUNTIME_PROFILE,
+    run_local_review,
+)
 from gateway.paths import BUILDER_QUEUE_DB
+from scripts import pr_scope
 
 logger = logging.getLogger("kitty.builder_loop")
 
 DEFAULT_REVIEW_TIMEOUT = 240
+LOCAL_SHADOW_MAX_WALL_SECONDS = 90.0
+LOCAL_SHADOW_MAX_CANDIDATE_BYTES = 128 * 1024
 
 # P027: consecutive identical infrastructure crashes tolerated before the
 # loop stops with a truthful blocker instead of recovering forever.
@@ -1410,6 +1420,377 @@ def register_saved_result_artifact(
         if worktree.exists() and (worktree / "done.txt").is_file():
             remove_worktree(task_id, repo_root=repo_root, discard_done_marker=True)
     return result
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _local_shadow_enabled() -> bool:
+    return os.environ.get("KITTYBUILDER_LOCAL_REVIEW_SHADOW", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _local_shadow_deadline(
+    *,
+    deadline_monotonic: float | None,
+    review_timeout_seconds: int,
+) -> float | None:
+    """Return one absolute shadow deadline while reserving authoritative review time."""
+    now = time.monotonic()
+    local_deadline = now + LOCAL_SHADOW_MAX_WALL_SECONDS
+    if deadline_monotonic is None:
+        return local_deadline
+    latest_safe_deadline = deadline_monotonic - review_timeout_seconds
+    if latest_safe_deadline - now < LOCAL_SHADOW_MAX_WALL_SECONDS:
+        return None
+    return min(local_deadline, latest_safe_deadline)
+
+
+def _local_shadow_budget_available(
+    *,
+    deadline_monotonic: float | None,
+    review_timeout_seconds: int,
+) -> bool:
+    """Compatibility predicate for whether a full shadow window fits safely."""
+    return (
+        _local_shadow_deadline(
+            deadline_monotonic=deadline_monotonic,
+            review_timeout_seconds=review_timeout_seconds,
+        )
+        is not None
+    )
+
+
+def _remaining_local_shadow_seconds(deadline_monotonic: float | None) -> float:
+    if deadline_monotonic is None:
+        return LOCAL_SHADOW_MAX_WALL_SECONDS
+    remaining = deadline_monotonic - time.monotonic()
+    if remaining <= 0:
+        raise LoopError("local-review shadow wall budget exhausted")
+    return min(LOCAL_SHADOW_MAX_WALL_SECONDS, remaining)
+
+
+def _strict_dsh_builder_worker(worker_command: list[str] | None) -> bool:
+    canonical = (Path(__file__).resolve().parents[1] / "scripts" / "kittybuilder_dsh_worker.sh").resolve()
+    if not worker_command or len(worker_command) != 2 or worker_command[0] != "bash":
+        return False
+    try:
+        return Path(worker_command[1]).expanduser().resolve() == canonical
+    except OSError:
+        return False
+
+
+def _trusted_local_implementation_model(
+    *,
+    worker_command: list[str] | None,
+    adapter_env: dict[str, str],
+    model: str | None,
+) -> tuple[str | None, str]:
+    """Return model identity only when Builder controls the adapter that consumes it."""
+    if not model:
+        return None, "implementation_model_unknown"
+    routed = adapter_env.get("KITTYBUILDER_MODEL", "").strip()
+    if not _strict_dsh_builder_worker(worker_command) or routed != model:
+        return None, "implementation_model_unverified"
+    return model, "builder_controlled_dsh_adapter"
+
+
+def _local_shadow_candidate(
+    worktree: Path,
+    base_sha: str,
+    *,
+    deadline_monotonic: float | None = None,
+) -> str:
+    """Capture bounded complete text evidence under the shadow's aggregate deadline."""
+    diff_timeout = min(30.0, _remaining_local_shadow_seconds(deadline_monotonic))
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        completed = subprocess.run(
+            [
+                beb.boundary_git_executable(),
+                "diff",
+                "--binary",
+                "--no-ext-diff",
+                "--no-color",
+                base_sha,
+                "--",
+            ],
+            cwd=worktree,
+            stdout=stdout_file,
+            stderr=stderr_file,
+            timeout=max(0.01, diff_timeout),
+            check=False,
+        )
+        _remaining_local_shadow_seconds(deadline_monotonic)
+        stderr_file.seek(0)
+        stderr = stderr_file.read(600).decode("utf-8", errors="replace").strip()
+        if completed.returncode != 0:
+            raise LoopError(f"cannot capture local-review candidate diff: {stderr or 'git diff failed'}")
+        size = stdout_file.tell()
+        if size > LOCAL_SHADOW_MAX_CANDIDATE_BYTES:
+            raise LoopError(
+                f"local-review candidate exceeds byte limit: {size} > "
+                f"{LOCAL_SHADOW_MAX_CANDIDATE_BYTES}"
+            )
+        stdout_file.seek(0)
+        tracked_bytes = stdout_file.read()
+    if b"GIT binary patch" in tracked_bytes:
+        raise LoopError("local-review candidate contains a tracked binary change")
+    try:
+        tracked = tracked_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise LoopError("local-review tracked candidate is not UTF-8 text") from exc
+
+    untracked_raw = _readonly_review_git_output(
+        worktree, "ls-files", "--others", "--exclude-standard", "-z"
+    )
+    chunks = [tracked]
+    total_bytes = len(tracked_bytes)
+    root = worktree.resolve()
+    for relative in sorted(item for item in untracked_raw.split("\0") if item):
+        _remaining_local_shadow_seconds(deadline_monotonic)
+        path = (worktree / relative).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            raise LoopError(f"local-review untracked candidate path is unsafe: {relative!r}")
+        framing = (
+            f"\n--- BEGIN UNTRACKED {relative} ---\n",
+            f"\n--- END UNTRACKED {relative} ---\n",
+        )
+        framing_bytes = sum(len(item.encode("utf-8")) for item in framing)
+        file_size = path.stat().st_size
+        if total_bytes + framing_bytes + file_size > LOCAL_SHADOW_MAX_CANDIDATE_BYTES:
+            raise LoopError(
+                "local-review candidate exceeds byte limit before reading untracked file: "
+                f"{relative!r}"
+            )
+        content = path.read_bytes()
+        _remaining_local_shadow_seconds(deadline_monotonic)
+        if b"\x00" in content:
+            raise LoopError(f"local-review untracked candidate is binary: {relative!r}")
+        try:
+            decoded = content.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise LoopError(
+                f"local-review untracked candidate is not UTF-8 text: {relative!r}"
+            ) from exc
+        chunks.extend((framing[0], decoded, framing[1]))
+        total_bytes += framing_bytes + len(content)
+    return "".join(chunks)
+
+
+def _local_shadow_receipt(
+    raw: dict[str, Any],
+    *,
+    requirements: list[str],
+    candidate: str | None,
+    cumulative: dict[str, Any],
+    implementation_model: str | None,
+    implementation_provenance: str,
+) -> dict[str, Any]:
+    """Privacy-bounded shadow receipt; never stores requirement/diff prose."""
+    raw_requirements = raw.get("requirements")
+    answer_rows = raw_requirements if isinstance(raw_requirements, list) else []
+    answers: list[dict[str, Any]] = []
+    for index, requirement in enumerate(requirements):
+        answer = None
+        if index < len(answer_rows) and isinstance(answer_rows[index], dict):
+            candidate_answer = answer_rows[index].get("answer")
+            if candidate_answer in {"YES", "NO", "UNSURE", None}:
+                answer = candidate_answer
+        answers.append({"sha256": _sha256_text(requirement), "answer": answer})
+
+    fingerprint = raw.get("reviewer_fingerprint")
+    safe_fingerprint: dict[str, Any] | None = None
+    if isinstance(fingerprint, dict):
+        safe_fingerprint = {
+            key: fingerprint.get(key)
+            for key in (
+                "model_id",
+                "model_family",
+                "model_sha256",
+                "runtime",
+                "runtime_profile",
+                "inference_flags",
+                "request_timeout_s",
+                "runtime_executable_sha256",
+                "runtime_version",
+            )
+            if fingerprint.get(key) is not None
+        }
+
+    return {
+        "contract_version": 1,
+        "profile": "code_conformance_v1",
+        "authoritative": False,
+        "decision": raw.get("decision", "escalate"),
+        "reason": raw.get("reason", "local_reviewer_malformed_result"),
+        "risk_tags": list(raw.get("risk_tags") or []),
+        "reviewer_fingerprint": safe_fingerprint,
+        "requirements": answers,
+        "binding": {
+            "base_sha": cumulative["base_sha"],
+            "review_sha": cumulative["review_sha"],
+            "diff_sha256": cumulative["diff_sha256"],
+            "candidate_sha256": _sha256_text(candidate) if candidate is not None else None,
+            "changed_paths": list(cumulative["changed_paths"]),
+            "implementation_model": implementation_model,
+            "implementation_provenance": implementation_provenance,
+        },
+        "learning": {
+            "candidate": True,
+            "adjudication_status": "pending",
+        },
+    }
+
+
+def _well_formed_local_clear(raw: dict[str, Any], requirements: list[str]) -> bool:
+    rows = raw.get("requirements")
+    if not isinstance(rows, list) or len(rows) != len(requirements):
+        return False
+    for requirement, row in zip(requirements, rows, strict=True):
+        if not isinstance(row, dict) or row.get("answer") != "YES":
+            return False
+        if row.get("requirement") != requirement:
+            return False
+    fp = raw.get("reviewer_fingerprint")
+    if not isinstance(fp, dict):
+        return False
+    required_fields = (
+        "model_id",
+        "model_family",
+        "model_sha256",
+        "runtime",
+        "runtime_profile",
+        "inference_flags",
+        "request_timeout_s",
+        "runtime_executable_sha256",
+        "runtime_version",
+    )
+    if any(not fp.get(field) for field in required_fields):
+        return False
+    return (
+        fp.get("model_sha256") == CPU_SHADOW_MODEL_SHA256
+        and fp.get("runtime") == "llama.cpp"
+        and fp.get("runtime_profile") == CPU_SHADOW_RUNTIME_PROFILE
+        and fp.get("runtime_executable_sha256") == CPU_SHADOW_LLAMA_SERVER_SHA256
+        and fp.get("runtime_version") == CPU_SHADOW_LLAMA_SERVER_VERSION
+    )
+
+
+def _run_local_shadow_review(
+    *,
+    worktree: Path,
+    packet_contract: dict[str, Any],
+    cumulative: dict[str, Any],
+    implementation_model: str | None,
+    implementation_provenance: str,
+    governor_risk_class: str,
+    deadline_monotonic: float | None = None,
+) -> dict[str, Any]:
+    requirements = [str(item) for item in packet_contract.get("acceptance_criteria") or []]
+    risk_tags = [] if governor_risk_class == "routine" else [f"builder_risk:{governor_risk_class}"]
+    if pr_scope.classify(list(cumulative.get("changed_paths") or [])).sensitive:
+        risk_tags.append("builder_sensitive_scope")
+    candidate: str | None = None
+    try:
+        if risk_tags or implementation_model is None:
+            raw = {
+                "contract_version": 1,
+                "authoritative": False,
+                "decision": "escalate",
+                "reason": (
+                    "high_risk_requires_strong_review"
+                    if risk_tags
+                    else implementation_provenance
+                ),
+                "risk_tags": risk_tags,
+                "requirements": [],
+            }
+        else:
+            candidate = _local_shadow_candidate(
+                worktree,
+                cumulative["base_sha"],
+                deadline_monotonic=deadline_monotonic,
+            )
+            if not candidate.strip():
+                raise LoopError("local-review candidate is empty")
+            raw = run_local_review(
+                {
+                    "requirements": requirements,
+                    "candidate": candidate,
+                    "implementation_model": implementation_model,
+                    "risk_tags": risk_tags,
+                    "review_kind": "code",
+                },
+                use_focus=False,
+                managed_ollama_models=[],
+                runtime_profile=CPU_SHADOW_RUNTIME_PROFILE,
+                max_wall_seconds=_remaining_local_shadow_seconds(deadline_monotonic),
+            )
+            _remaining_local_shadow_seconds(deadline_monotonic)
+    except Exception:
+        raw = {
+            "contract_version": 1,
+            "authoritative": False,
+            "decision": "escalate",
+            "reason": "local_reviewer_runtime_error",
+            "risk_tags": risk_tags,
+            "requirements": [],
+        }
+    malformed = (
+        not isinstance(raw, dict)
+        or raw.get("authoritative") is not False
+        or raw.get("decision") not in {"advisory_clear", "escalate"}
+        or (
+            isinstance(raw, dict)
+            and raw.get("decision") == "advisory_clear"
+            and not _well_formed_local_clear(raw, requirements)
+        )
+    )
+    if malformed:
+        raw = {
+            "contract_version": 1,
+            "authoritative": False,
+            "decision": "escalate",
+            "reason": "local_reviewer_malformed_result",
+            "risk_tags": risk_tags,
+            "requirements": [],
+        }
+    return _local_shadow_receipt(
+        raw,
+        requirements=requirements,
+        candidate=candidate,
+        cumulative=cumulative,
+        implementation_model=implementation_model,
+        implementation_provenance=implementation_provenance,
+    )
+
+
+def _skipped_local_shadow_receipt(
+    *,
+    packet_contract: dict[str, Any],
+    cumulative: dict[str, Any],
+    implementation_model: str | None,
+    implementation_provenance: str,
+) -> dict[str, Any]:
+    requirements = [str(item) for item in packet_contract.get("acceptance_criteria") or []]
+    return _local_shadow_receipt(
+        {
+            "contract_version": 1,
+            "authoritative": False,
+            "decision": "escalate",
+            "reason": "local_reviewer_skipped_budget",
+            "risk_tags": [],
+            "requirements": [],
+        },
+        requirements=requirements,
+        candidate=None,
+        cumulative=cumulative,
+        implementation_model=implementation_model,
+        implementation_provenance=implementation_provenance,
+    )
 
 
 def _read_contract(path: Path, kind: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -2875,6 +3256,54 @@ def run_packet(
                 "changed_paths": review_context["changed_paths"],
             }
             write_run_manifest(manifest_path, manifest)
+            if _local_shadow_enabled():
+                trusted_model, implementation_provenance = _trusted_local_implementation_model(
+                    worker_command=worker_command,
+                    adapter_env=effective_adapter_env,
+                    model=model,
+                )
+                shadow_deadline = _local_shadow_deadline(
+                    deadline_monotonic=deadline_monotonic,
+                    review_timeout_seconds=review_timeout_seconds,
+                )
+                if shadow_deadline is not None:
+                    shadow = _run_local_shadow_review(
+                        worktree=review_worktree,
+                        packet_contract=packet_contract,
+                        cumulative=cumulative,
+                        implementation_model=trusted_model,
+                        implementation_provenance=implementation_provenance,
+                        governor_risk_class=governor_risk_class,
+                        deadline_monotonic=shadow_deadline,
+                    )
+                else:
+                    shadow = _skipped_local_shadow_receipt(
+                        packet_contract=packet_contract,
+                        cumulative=cumulative,
+                        implementation_model=trusted_model,
+                        implementation_provenance=implementation_provenance,
+                    )
+                manifest["local_review_shadow"] = shadow
+                bq.append_event(
+                    task_id,
+                    "local_review_shadow_recorded",
+                    payload={
+                        "attempt_id": attempt_id,
+                        "decision": shadow["decision"],
+                        "reason": shadow["reason"],
+                        "diff_sha256": shadow["binding"]["diff_sha256"],
+                        "requirement_sha256": [
+                            item["sha256"] for item in shadow["requirements"]
+                        ],
+                        "reviewer_model_sha256": (
+                            (shadow.get("reviewer_fingerprint") or {}).get("model_sha256")
+                        ),
+                        "adjudication_status": "pending",
+                        "counts_toward_authoritative_review": False,
+                    },
+                    db_path=db_path,
+                )
+                write_run_manifest(manifest_path, manifest)
             review_note_path = Path(attempt_dir) / "review-note.md"
             review_error = _run_review_command(
                 review_command,
@@ -2965,6 +3394,14 @@ def run_packet(
                             if review_note_path.exists()
                             else None,
                         }
+                        if "local_review_shadow" in manifest:
+                            manifest["local_review_shadow"]["learning"][
+                                "authoritative_review"
+                            ] = {
+                                "verdict": review.get("verdict"),
+                                "review_sha": review_context["review_sha"],
+                                "diff_sha256": review_context["diff_sha256"],
+                            }
                         bq.append_event(
                             task_id,
                             "review_evidence_bound",
