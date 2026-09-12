@@ -1,35 +1,46 @@
 #!/usr/bin/env bash
-# Run the Tests workflow's gates before anything leaves this machine.
+# Keep publication safe without making every intermediate push pay full CI cost.
 #
-# GitHub Actions is the usual gate. When it cannot run — no runner minutes, no
-# network, no budget — a push carries no verdict at all, and broken code reaches
-# main unnoticed. This hook is the standing local replacement: same commands,
-# same thresholds, no account required.
+# Normal feature pushes enforce Git-history safety, environment admission, and
+# bounded changed-scope checks. Ready-PR GitHub Actions is the authoritative full
+# delivery gate. Use --full (or make ci) when explicit local parity is needed,
+# such as an offline/no-runner delivery path.
 #
 # Install: make hooks
 # Bypass:  git push --no-verify   (deliberate, and it says so in the output)
 set -uo pipefail
 
 PREFLIGHT=0
+FULL=0
 REMOTE_NAME=""
 REMOTE_URL=""
-if [[ "${1:-}" == "--preflight" ]]; then
-  PREFLIGHT=1
+while [[ "${1:-}" == --* ]]; do
+  case "${1}" in
+    --preflight) PREFLIGHT=1 ;;
+    --full) FULL=1 ;;
+    *)
+      printf 'usage: %s [--preflight | --full] [remote-name remote-url]\n' "$0" >&2
+      exit 2
+      ;;
+  esac
   shift
-  if [[ $# -ne 0 ]]; then
-    printf 'usage: %s [--preflight]\n' "$0" >&2
-    exit 2
-  fi
-else
-  # Git invokes pre-push as: <hook> <remote-name> <remote-url>.
-  # A manual no-argument invocation is still supported for local parity runs.
-  if [[ $# -gt 2 ]]; then
-    printf 'usage: %s [--preflight] OR %s [remote-name remote-url]\n' "$0" "$0" >&2
-    exit 2
-  fi
-  REMOTE_NAME="${1:-}"
-  REMOTE_URL="${2:-}"
+done
+if [[ "${PREFLIGHT}" == "1" && "${FULL}" == "1" ]]; then
+  printf 'usage: %s [--preflight | --full] [remote-name remote-url]\n' "$0" >&2
+  exit 2
 fi
+if [[ "${PREFLIGHT}" == "1" && $# -ne 0 ]]; then
+  printf 'usage: %s --preflight\n' "$0" >&2
+  exit 2
+fi
+if [[ $# -gt 2 ]]; then
+  printf 'usage: %s [--full] [remote-name remote-url]\n' "$0" >&2
+  exit 2
+fi
+# Git invokes pre-push as: <hook> <remote-name> <remote-url>.
+# A manual no-argument invocation is still supported for local parity runs.
+REMOTE_NAME="${1:-}"
+REMOTE_URL="${2:-}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}" || exit 1
@@ -119,21 +130,40 @@ if [[ "${PREFLIGHT}" == "1" ]]; then
   exit 0
 fi
 
-# Frontend gates cost several minutes and only matter when the frontend moved.
-# Everything else runs every time — the last two breakages on main were both
-# docs-only changes.
+# Classify the candidate against origin/main. If that base is unavailable we
+# cannot prove a narrow scope, so widen to the explicit full gate instead of
+# guessing. Documentation matches scripts.pr_scope: docs/ or *.md/*.mdx.
 BASE_REF="$(git rev-parse --verify --quiet origin/main || true)"
 if [[ -n "${BASE_REF}" ]]; then
   CHANGED="$(git diff --name-only "${BASE_REF}...HEAD" 2>/dev/null || true)"
 else
   CHANGED=""
+  FULL=1
 fi
+CODE_CHANGED="$(printf '%s\n' "${CHANGED}" | grep -Ev '(^docs/|\.(md|mdx)$)' || true)"
 FRONTEND_CHANGED="$(printf '%s\n' "${CHANGED}" | grep '^gateway/kitty-chat/' | grep -Ev '\.(md|mdx)$' || true)"
+if [[ -z "${BASE_REF}" ]] || [[ -n "${CODE_CHANGED}" ]]; then
+  RUN_CODE=1
+else
+  RUN_CODE=0
+fi
 if [[ -z "${BASE_REF}" ]] || [[ -n "${FRONTEND_CHANGED}" ]]; then
   RUN_FRONTEND=1
 else
   RUN_FRONTEND=0
 fi
+
+CHANGED_PYTHON_FILES=()
+CHANGED_TEST_FILES=()
+while IFS= read -r path; do
+  [[ -n "${path}" ]] || continue
+  if [[ "${path}" == *.py ]]; then
+    CHANGED_PYTHON_FILES+=("${path}")
+  fi
+  if [[ "${path}" == tests/* && "${path##*/}" == test_*.py ]]; then
+    CHANGED_TEST_FILES+=("${path}")
+  fi
+done <<< "${CHANGED}"
 
 FAILED=()
 INFRA_FAILED=0
@@ -155,32 +185,71 @@ run_gate() {
   rm -f /tmp/kitty-pre-push.$$
 }
 
-say ""
-say "Checking before push — the same gates CI runs."
+run_bounded_gates() {
+  say ""
+  say "Checking before push — bounded changed-scope checks. Ready-PR CI is authoritative."
+  if [[ "${RUN_CODE}" != "1" ]]; then
+    say "  ${DIM}skipped${OFF}  code gates — documentation-only change"
+    return
+  fi
 
-if [[ -n "${RUFF}" ]]; then
-  run_gate "code style" "${RUFF}" check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+  if [[ ${#CHANGED_PYTHON_FILES[@]} -gt 0 ]]; then
+    if [[ -n "${RUFF}" ]]; then
+      run_gate "changed code style" "${RUFF}" check "${CHANGED_PYTHON_FILES[@]}"
+    else
+      run_gate "changed code style" "${PYTHON_BIN}" -m ruff check "${CHANGED_PYTHON_FILES[@]}"
+    fi
+  else
+    say "  ${DIM}skipped${OFF}  changed code style — no changed Python files"
+  fi
+
+  if [[ ${#CHANGED_TEST_FILES[@]} -gt 0 ]]; then
+    run_gate "changed tests" "${PYTHON_BIN}" -m pytest "${CHANGED_TEST_FILES[@]}" \
+      -q --tb=short -o addopts="--strict-markers" -m "not controlled_live"
+  else
+    say "  ${DIM}skipped${OFF}  changed tests — no changed Python test files"
+  fi
+
+  if [[ "${RUN_FRONTEND}" == "1" ]]; then
+    run_gate "web tests" bash -c 'cd gateway/kitty-chat && ./node_modules/.bin/vitest run --maxWorkers=2'
+  fi
+}
+
+run_full_gates() {
+  say ""
+  say "Checking before push — full local parity gate."
+  if [[ "${RUN_CODE}" != "1" ]]; then
+    say "  ${DIM}skipped${OFF}  full code gates — documentation-only change"
+    return
+  fi
+
+  if [[ -n "${RUFF}" ]]; then
+    run_gate "code style" "${RUFF}" check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+  else
+    run_gate "code style" "${PYTHON_BIN}" -m ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+  fi
+  run_gate "types" "${PYTHON_BIN}" -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+
+  # CI gives frontend and Python separate runners. Keep frontend first locally
+  # so coverage does not push the 8 GB host into swap before Vitest/build.
+  if [[ "${RUN_FRONTEND}" == "1" ]]; then
+    run_gate "web tests" bash -c 'cd gateway/kitty-chat && ./node_modules/.bin/vitest run --maxWorkers=2'
+    run_gate "web build" bash -c 'cd gateway/kitty-chat && node node_modules/next/dist/bin/next build'
+  else
+    say "  ${DIM}skipped${OFF}  web tests and build — nothing under gateway/kitty-chat/ changed"
+  fi
+
+  export KITTY_EXPECTED_TEST_CHECKOUT="${ROOT_DIR}"
+  export KITTY_EXPECTED_TEST_HEAD="$(git rev-parse HEAD)"
+  run_gate "tests" "${PYTHON_BIN}" -m pytest tests/ -q --tb=short \
+    --cov=gateway --cov-report=term-missing --cov-fail-under=73
+}
+
+if [[ "${FULL}" == "1" ]]; then
+  run_full_gates
 else
-  run_gate "code style" "${PYTHON_BIN}" -m ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+  run_bounded_gates
 fi
-
-run_gate "types" "${PYTHON_BIN}" -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
-
-# CI gives the frontend and Python suites separate runners. On the 8 GB local
-# Mac, running coverage first can leave the host deeply swapped and create
-# unrelated 5-second Vitest timeouts. Run the same frontend commands first so
-# the local parity gate preserves CI's resource isolation instead of faking red.
-if [[ "${RUN_FRONTEND}" == "1" ]]; then
-  run_gate "web tests" bash -c 'cd gateway/kitty-chat && ./node_modules/.bin/vitest run --maxWorkers=2'
-  run_gate "web build" bash -c 'cd gateway/kitty-chat && node node_modules/next/dist/bin/next build'
-else
-  say "  ${DIM}skipped${OFF}  web tests and build — nothing under gateway/kitty-chat/ changed"
-fi
-
-export KITTY_EXPECTED_TEST_CHECKOUT="${ROOT_DIR}"
-export KITTY_EXPECTED_TEST_HEAD="$(git rev-parse HEAD)"
-run_gate "tests" "${PYTHON_BIN}" -m pytest tests/ -q --tb=short \
-  --cov=gateway --cov-report=term-missing --cov-fail-under=73
 
 say ""
 if [[ ${#FAILED[@]} -eq 0 ]]; then

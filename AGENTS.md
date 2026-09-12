@@ -77,10 +77,27 @@ active roadmap.
 ## Verification
 
 After a meaningful change, run the narrowest relevant checks and report exact
-results. Do not run the full suite, lint, typecheck, or build unless the task
-asks for it or `/qg`/CI requires it. Runtime, UI, launch, and environment
-claims need their corresponding live proof. Never call work complete from
-inspection alone; use the final states in `verified-delivery`. Implementation,
+results. Use targeted checks during implementation; do not run the full suite,
+lint, typecheck, or build unless the task asks for it or `/qg`/CI requires it.
+Ordinary implementation stays local; an optional non-main branch push may be
+used for recoverability without creating a PR. Do not create a PR merely as an
+iteration workspace. Draft PRs are exceptional and should exist only when real
+remote collaboration or preservation needs justify them. A frozen candidate is
+the exact SHA the implementer believes satisfies the outcome contract after
+narrow checks, and the ready PR is the publication boundary for that candidate.
+
+Current GitHub deterministic CI and model-backed agent review are separate
+workflows and may run concurrently on a ready PR. Do not claim review happened
+after CI unless the actual workflow evidence proves that ordering. Both forms of
+evidence must bind to the same exact candidate SHA; any failed required check,
+review finding, or material code change reopens the candidate and invalidates
+prior exact-SHA completion evidence until the new SHA is revalidated. Marking a
+PR ready can trigger model-backed review, so when the operator has prohibited
+agentic/model spend, do not cross that boundary without a non-spending approved
+review path or fresh explicit authorization.
+Runtime, UI, launch, and environment claims need their corresponding live proof.
+Never call work complete from inspection alone; use the final states in
+`verified-delivery`. Implementation,
 packet completion, tests, a green PR, or a subagent reporting `DONE` are
 implementation evidence only. A user outcome closes only when its applicable
 outcome contract is verified against the exact running candidate or, for a

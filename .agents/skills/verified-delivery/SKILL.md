@@ -60,6 +60,8 @@ Do not widen scope because nearby cleanup is tempting.
 
 The implementer may run checks, but cannot grant independent acceptance to its own work (Constitution VI.4: the worker that executes a change is never the reviewer that accepts it).
 
+Independent review runs against the frozen candidate: the exact SHA the implementer believes satisfies the outcome contract after its narrow checks. Prefer completing the authoritative deterministic gate before spending model-backed independent review when the delivery tooling can enforce that sequence. When the current workflow runs deterministic CI and review concurrently, acceptance still requires both to pass on the same exact SHA; do not invent an ordering that did not occur. Do not spend independent review on every intermediate repair commit. A reviewer finding, failed authoritative gate, or material post-review change reopens the candidate; repair with the narrowest affected checks, freeze a new SHA, and then repeat every affected exact-SHA gate within the contract's repair cap.
+
 A review-only pass *in the same context* is a self-check: it feeds the repair loop and records implementation evidence, but it is not independent acceptance. When the final state depends on a verifier’s verdict, the verification must run in a genuinely separate trust boundary — a different agent or tool process, or a distinct review invocation that receives only:
 
 - the outcome contract;

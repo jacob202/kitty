@@ -91,14 +91,29 @@ def test_frontend_gates_run_before_memory_heavy_python_suite(hook_text):
     assert hook_text.index('run_gate "web build"') < hook_text.index('run_gate "tests"')
 
 
-def test_python_gates_never_skip(hook_text):
-    """Both breakages that reddened main on 2026-08-09 were docs-only changes."""
-    guard = hook_text.split("RUN_FRONTEND=1", 1)[1]
-    pytest_call = guard.split("-m pytest", 1)
-    assert len(pytest_call) == 2, "pytest is not invoked after the frontend decision"
-    assert "RUN_FRONTEND" not in pytest_call[0].rsplit("run_gate", 1)[-1], (
-        "pytest sits behind the frontend-changed condition; docs-only pushes would skip it"
-    )
+def test_default_gate_is_bounded_and_full_mode_retains_ci_parity(hook_text):
+    """Intermediate pushes stay cheap; --full preserves the expensive local parity path."""
+    assert "FULL=0" in hook_text
+    assert 'run_bounded_gates() {' in hook_text
+    assert 'run_full_gates() {' in hook_text
+    assert 'if [[ "${FULL}" == "1" ]]' in hook_text
+
+    bounded = hook_text.split('run_bounded_gates() {', 1)[1].split('\n}', 1)[0]
+    full = hook_text.split('run_full_gates() {', 1)[1].split('\n}', 1)[0]
+    assert "CHANGED_PYTHON_FILES" in bounded
+    assert "CHANGED_TEST_FILES" in bounded
+    assert "--cov-fail-under" not in bounded
+    assert "-m mypy" not in bounded
+    assert LINT_PATHS in full
+    assert TYPECHECK_PATHS in full
+    assert "--cov-fail-under=73" in full
+
+
+def test_history_safety_precedes_quality_mode_selection(hook_text):
+    """--full may change quality cost, never Git history protections."""
+    mode_split = hook_text.index('if [[ "${FULL}" == "1" ]]')
+    assert hook_text.index("refs/heads/main") < mode_split
+    assert hook_text.index("git merge-base --is-ancestor") < mode_split
 
 
 def test_missing_interpreter_blocks_the_push(tmp_path):
