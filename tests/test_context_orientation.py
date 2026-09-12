@@ -251,7 +251,13 @@ def test_exact_thread_correlation_resolves_assignment():
     assert orientation["assignment"]["authority_source"] == "thread"
 
 
-def test_conflicting_scopes_fail_closed_as_conflicted():
+def test_same_session_locators_agree_instead_of_conflicting():
+    """One session's own evidence is one assignment, not a conflict.
+
+    Regression: a message correlated to the session id plus a message in a
+    handed thread was reported as `conflicted`, which stripped continuation
+    authority from an entirely unambiguous session.
+    """
     session_linked = _message("session-a", parent=None, content="Bound to the session id.")
     thread_linked = _message("message_reply", parent="message_root")
     orientation = co.assemble_orientation(
@@ -266,12 +272,72 @@ def test_conflicting_scopes_fail_closed_as_conflicted():
         now=NOW,
     )
 
+    assert orientation["assignment"]["state"] == co.ASSIGNMENT_RESOLVED
+    assert orientation["assignment"]["authority_source"] == "thread"
+    assert orientation["next_continuation"]["authorized"] is not True
+
+
+def test_claim_plus_handed_thread_resolves_with_claim_authority():
+    """The normal working case: own a lane, and be handed a thread about it."""
+    root = _message("message_root")
+    reply = _message("message_reply", parent="message_root")
+    orientation = co.assemble_orientation(
+        "commandcode",
+        session_id="session-a",
+        explicit_scope=None,
+        thread_or_handoff="message_root",
+        evidence=_evidence(
+            claims=[_claim("session-a", task="GAR-AWARE-01")],
+            inbox=[root, reply],
+            thread=[root, reply],
+        ),
+        now=NOW,
+    )
+
+    assert orientation["assignment"]["state"] == co.ASSIGNMENT_RESOLVED
+    assert orientation["assignment"]["authority_source"] == "kx_claim"
+    assert orientation["next_continuation"]["authorized"] is True
+
+
+def test_correlation_to_another_sessions_lane_never_resolves():
+    """Regression: another session's lane must never become this assignment."""
+    foreign = _claim("session-other", lane="LANE-OWNED-ELSEWHERE", task="LANE-OWNED-ELSEWHERE")
+    orientation = co.assemble_orientation(
+        "commandcode",
+        session_id="session-mine",
+        explicit_scope=None,
+        thread_or_handoff=None,
+        evidence=_evidence(
+            claims=[foreign],
+            inbox=[_message("message_x", parent="LANE-OWNED-ELSEWHERE")],
+        ),
+        now=NOW,
+    )
+
     assert orientation["assignment"]["state"] == co.ASSIGNMENT_CONFLICTED
     assert orientation["assignment"]["scope"] is None
     assert orientation["next_continuation"]["authorized"] is not True
-    assert "conflicting scoped evidence" in " ".join(
-        orientation["next_continuation"]["missing"]
+    assert "another session" in orientation["assignment"]["reason"]
+
+
+def test_session_holding_two_lanes_fails_closed():
+    orientation = co.assemble_orientation(
+        "commandcode",
+        session_id="session-a",
+        explicit_scope=None,
+        thread_or_handoff=None,
+        evidence=_evidence(
+            claims=[
+                _claim("session-a", lane="LANE-ONE", task="LANE-ONE"),
+                _claim("session-a", lane="LANE-TWO", task="LANE-TWO"),
+            ],
+        ),
+        now=NOW,
     )
+
+    assert orientation["assignment"]["state"] == co.ASSIGNMENT_CONFLICTED
+    assert orientation["assignment"]["scope"] is None
+    assert orientation["next_continuation"]["authorized"] is not True
 
 
 def test_kx_claim_resolves_assignment_and_authorizes_continuation():
