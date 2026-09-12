@@ -405,6 +405,78 @@ def _serve(handler_cls) -> tuple[HTTPServer, str]:
     return server, f"http://127.0.0.1:{server.server_port}"
 
 
+def test_chat_rejects_a_null_completion_instead_of_stringifying_it() -> None:
+    detect = load_detect_module()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            body = json.dumps(
+                {"choices": [{"message": {"content": None}, "finish_reason": "length"}], "usage": {"total_tokens": 5}}
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server, endpoint = _serve(Handler)
+    try:
+        # Regression: str(None) == "None" used to be returned, which surfaced downstream as
+        # a bogus "candidate returned ... 'None'" parse error instead of the real cause.
+        with pytest.raises(detect.EndpointError, match="empty or reasoning-only"):
+            detect._chat(endpoint, "stub-model", None, "prompt", 5.0)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_is_transient_classifies_statuses() -> None:
+    detect = load_detect_module()
+    assert detect._is_transient(detect.EndpointError("x returned HTTP 429 for model m: slow down"))
+    assert detect._is_transient(detect.EndpointError("x returned HTTP 503 for model m: unavailable"))
+    assert not detect._is_transient(detect.EndpointError("x returned HTTP 400 for model m: bad"))
+    assert not detect._is_transient(detect.EndpointError("x returned 'None' content for model m"))
+
+
+def test_detect_unit_retries_a_transient_chunk_failure_once(monkeypatch) -> None:
+    detect = load_detect_module()
+    unit = {"pr": 9, "title": "stub", "base": FULL_SHA_A, "head": FULL_SHA_B}
+    diff = "diff --git a/x b/x\n+hello\n"
+    monkeypatch.setattr(detect, "review_unit_diff", lambda base, head, **kwargs: diff)
+    calls = {"n": 0}
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise detect.EndpointError("stub returned HTTP 429 for model m: rate limited")
+        return '[{"path": "x", "line": 1, "severity": "P1", "title": "t", "detail": "d"}]'
+
+    monkeypatch.setattr(detect, "_chat", flaky)
+    result = detect.detect_unit(unit, endpoint="http://stub", model="m", api_key=None, timeout=1.0)
+    assert calls["n"] == 2
+    assert result["chunk_errors"] == []
+    assert len(result["findings"]) == 1
+
+
+def test_detect_unit_does_not_retry_a_deterministic_failure(monkeypatch) -> None:
+    detect = load_detect_module()
+    unit = {"pr": 10, "title": "stub", "base": FULL_SHA_A, "head": FULL_SHA_B}
+    monkeypatch.setattr(detect, "review_unit_diff", lambda base, head, **kwargs: "diff --git a/x b/x\n+hello\n")
+    calls = {"n": 0}
+
+    def refused(*args, **kwargs):
+        calls["n"] += 1
+        raise detect.EndpointError("stub returned HTTP 400 for model m: bad request")
+
+    monkeypatch.setattr(detect, "_chat", refused)
+    result = detect.detect_unit(unit, endpoint="http://stub", model="m", api_key=None, timeout=1.0)
+    assert calls["n"] == 1
+    assert len(result["chunk_errors"]) == 1
+
+
 def test_chat_round_trips_a_completion() -> None:
     detect = load_detect_module()
 

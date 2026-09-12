@@ -83,6 +83,17 @@ class EndpointError(RuntimeError):
     """Raised when the candidate endpoint cannot complete a review request."""
 
 
+# A rate limit or a transient provider fault is worth one more attempt; a deterministic
+# refusal (400, unsupported model) is not. Retries are announced, never silent.
+TRANSIENT_STATUSES = {408, 409, 429, 500, 502, 503, 504}
+RETRY_ATTEMPTS = 2
+
+
+def _is_transient(exc: EndpointError) -> bool:
+    match = re.search(r"HTTP (\d{3})", str(exc))
+    return match is not None and int(match.group(1)) in TRANSIENT_STATUSES
+
+
 def _git(*args: str) -> str:
     completed = subprocess.run(
         ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False
@@ -117,6 +128,7 @@ def ensure_revision(revision: str, *, pr: int) -> bool:
     print(
         f"PR {pr}: revision {revision[:12]} is absent locally; fetching refs/pull/{pr}/head",
         file=sys.stderr,
+        flush=True,
     )
     _git("fetch", "--quiet", "origin", f"refs/pull/{pr}/head")
     if not _present(revision):
@@ -174,11 +186,23 @@ def _chat(
     except URLError as exc:
         raise EndpointError(f"{endpoint} unreachable for model {model}: {exc.reason}") from exc
     try:
-        return str(body["choices"][0]["message"]["content"])
+        choice = body["choices"][0]
+        content = choice["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise EndpointError(
             f"{endpoint} returned an unusable payload for model {model}: {json.dumps(body)[:400]}"
         ) from exc
+    if not isinstance(content, str) or not content.strip():
+        # A null or empty completion is a provider-side outcome, not a review that found
+        # nothing. Reporting it as an empty answer would silently count a broken chunk as
+        # a candidate with zero findings, so name the real cause instead.
+        usage = body.get("usage")
+        raise EndpointError(
+            f"{endpoint} returned {content!r} content for model {model} "
+            f"(finish_reason={choice.get('finish_reason')!r}, usage={usage}); "
+            f"the completion was empty or reasoning-only"
+        )
+    return content
 
 
 def _json_arrays(text: str) -> list[list[Any]]:
@@ -266,14 +290,32 @@ def detect_unit(
             f"This is diff chunk {index + 1} of {len(chunks)}. Review only this chunk.\n\n"
             f"```diff\n{chunk}\n```"
         )
-        try:
-            findings.extend(
-                parse_findings(_chat(endpoint, model, api_key, prompt, timeout, max_tokens))
-            )
-        except (EndpointError, ValueError) as exc:
+        last_error: Exception | None = None
+        for attempt in range(1, RETRY_ATTEMPTS + 1):
+            try:
+                findings.extend(
+                    parse_findings(_chat(endpoint, model, api_key, prompt, timeout, max_tokens))
+                )
+                last_error = None
+                break
+            except EndpointError as exc:
+                last_error = exc
+                if attempt < RETRY_ATTEMPTS and _is_transient(exc):
+                    print(
+                        f"PR {unit['pr']} chunk {index + 1}/{len(chunks)}: transient failure, "
+                        f"retrying ({attempt}/{RETRY_ATTEMPTS - 1}): {exc}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    continue
+                break
+            except ValueError as exc:
+                last_error = exc
+                break
+        if last_error is not None:
             # A failed chunk is recorded, never silently dropped: a partial run must
             # not look like a candidate that simply found nothing.
-            errors.append(f"chunk {index + 1}/{len(chunks)}: {exc}")
+            errors.append(f"chunk {index + 1}/{len(chunks)}: {last_error}")
     return {
         "pr": unit["pr"],
         "base": unit["base"],
@@ -364,7 +406,8 @@ def main() -> int:
             )
         except (RuntimeError, ValueError) as exc:
             failures += 1
-            print(f"PR {unit['pr']}: FAILED: {exc}", file=sys.stderr)
+            print(f"PR {unit['pr']}: FAILED: {exc}", file=sys.stderr, flush=True)
+            _write_observations(args.out, corpus, args, api_key, units, results, failures)
             continue
         result["elapsed_seconds"] = round(time.monotonic() - started, 1)
         results.append(result)
@@ -380,7 +423,7 @@ def main() -> int:
         print(f"  checkpointed {args.out}", file=sys.stderr, flush=True)
 
     if failures:
-        print(f"{failures} review unit(s) failed outright", file=sys.stderr)
+        print(f"{failures} review unit(s) failed outright", file=sys.stderr, flush=True)
 
     _write_observations(args.out, corpus, args, api_key, units, results, failures)
     print(f"wrote {args.out}", file=sys.stderr, flush=True)
