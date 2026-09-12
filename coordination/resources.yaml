@@ -55,6 +55,10 @@ resources:
     paths:
     - evals/project_sources/**
     - tests/test_project_source_eval.py
+  evaluation:review-fidelity:
+    paths:
+    - evals/codex_review_fidelity/**
+    - tests/test_codex_review_fidelity_eval.py
   image-lab:generation:
     paths:
     - gateway/image_*.py
