@@ -33,6 +33,18 @@ def test_find_existing_review_comment_returns_none_without_marker() -> None:
     ) is None
 
 
+def test_find_existing_review_comment_is_scoped_to_the_head() -> None:
+    """Runs for different heads must never share one comment."""
+    other, mine = "a" * 40, "b" * 40
+    comments = [
+        {"id": 11, "body": f"{pr_review.COMMENT_MARKER}\nReviewed commit `{other}`."},
+        {"id": 12, "body": f"{pr_review.COMMENT_MARKER}\nReviewed commit `{mine}`."},
+    ]
+
+    assert pr_review.find_existing_review_comment(comments, mine) == 12
+    assert pr_review.find_existing_review_comment(comments, "c" * 40) is None
+
+
 def test_prompt_requires_concrete_findings_and_exact_empty_result() -> None:
     assert "name the changed file" in pr_review.SYSTEM_PROMPT
     assert "specific failure mode" in pr_review.SYSTEM_PROMPT

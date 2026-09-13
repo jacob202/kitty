@@ -483,13 +483,25 @@ def render_review_body(review: str, head_sha: str) -> str:
     return f"{COMMENT_MARKER}\n## Agent PR Review\n\n{review}\n\n_{reviewed}_"
 
 
-def find_existing_review_comment(comments: list[dict[str, Any]]) -> int | None:
-    """Return the existing workflow-owned issue comment id, if present."""
+def find_existing_review_comment(
+    comments: list[dict[str, Any]], head_sha: str = ""
+) -> int | None:
+    """Return this head's workflow-owned issue comment id, if present.
+
+    Evidence is kept per head. The workflow deliberately lets runs for different
+    heads overlap (its concurrency group includes the event action), so one shared
+    comment would let a slower run for an older head overwrite a newer head's
+    verdict. Head-scoped comments make that impossible by construction, and
+    ``pr_review_gate`` already scans every comment for the exact SHA it needs.
+    """
     for comment in comments:
         body = comment.get("body")
         comment_id = comment.get("id")
-        if isinstance(body, str) and COMMENT_MARKER in body and isinstance(comment_id, int):
-            return comment_id
+        if not (isinstance(body, str) and COMMENT_MARKER in body and isinstance(comment_id, int)):
+            continue
+        if head_sha and f"`{head_sha}`" not in body:
+            continue
+        return comment_id
     return None
 
 
@@ -557,7 +569,9 @@ def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: 
 
     try:
         comments = github_json(comments_url, token)
-        existing_id = find_existing_review_comment(comments if isinstance(comments, list) else [])
+        existing_id = find_existing_review_comment(
+            comments if isinstance(comments, list) else [], head_sha
+        )
         if not _head_still_current(pr_number, owner, repo, head_sha):
             return
         if existing_id is None:
