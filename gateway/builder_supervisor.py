@@ -1555,6 +1555,7 @@ def main(argv: list[str] | None = None) -> int:
     install/bootout/status launchctl surface here — the tests and the design
     both forbid the service from installing itself.
     """
+    bq.install_awareness_sink()
     parser = _build_parser()
     args = parser.parse_args(argv)
     if args.command == "launchd-plist":

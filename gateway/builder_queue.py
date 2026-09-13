@@ -30,6 +30,7 @@ import logging
 import os
 import sqlite3
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -294,6 +295,87 @@ def _row_to_event(row: sqlite3.Row) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Library functions
 # ---------------------------------------------------------------------------
+
+
+# Machine-awareness sink for task transitions. Deliberately *installed* rather
+# than discovered: the queue owns task state, not the room, and if it looked up a
+# room database path on its own then every unit test calling transition_task
+# would write awareness into a developer's real room state. Process entry points
+# that own the room call ``awareness_producers.install()``; with no sink
+# installed a transition publishes nothing.
+_awareness_sink: "Callable[[dict[str, Any], str], None] | None" = None
+
+
+def set_awareness_sink(sink: "Callable[[dict[str, Any], str], None] | None") -> None:
+    """Install (or clear) the machine-awareness sink for task transitions."""
+    global _awareness_sink
+    _awareness_sink = sink
+
+
+def publish_task_transition(task: dict[str, Any], from_state: str) -> None:
+    """Publish one Builder task transition into the shared orientation.
+
+    Reads the room's global workspace and hands the awareness seam a typed event
+    carrying the exact task id and both states, so a reader can tell a current
+    fact from a superseded one without trusting prose.
+    """
+    # Imported lazily: the queue must not carry the room module on its import
+    # surface, and participating in shared orientation is a per-process choice.
+    from gateway import agent_workspace
+
+    workspace = agent_workspace.ensure_global_workspace()
+    verdict = agent_workspace.publish_awareness(
+        workspace["id"],
+        event_type="task_transition",
+        actor_id="builder",
+        source="builder",
+        metadata={
+            "task_id": str(task["id"]),
+            "state": str(task["state"]),
+            "from_state": from_state,
+        },
+        subject=str(task["id"]),
+    )
+    if not verdict.get("published"):
+        logger.warning(
+            "task %s transitioned to %s but awareness was not published: %s",
+            task.get("id"),
+            task.get("state"),
+            verdict.get("reason"),
+        )
+
+
+def install_awareness_sink() -> None:
+    """Install the Builder producer as this process's awareness sink.
+
+    Called by process entry points that own the room. Unit tests never install
+    it, so a queue transition cannot write awareness into a developer's real
+    room database.
+    """
+    global _awareness_sink
+    _awareness_sink = publish_task_transition
+
+
+def _publish_transition_awareness(
+    task: dict[str, Any], from_state: str | None
+) -> None:
+    """Publish transition awareness after the authoritative commit.
+
+    Best effort by contract: the transition has already committed, so a broken
+    awareness publication is logged and dropped. It must never fail, roll back
+    or block the transition that succeeded.
+    """
+    sink = _awareness_sink
+    if sink is None or from_state is None:
+        return
+    try:
+        sink(dict(task), from_state)
+    except Exception as exc:  # noqa: BLE001 - awareness is evidence, not authority
+        logger.warning(
+            "task %s transitioned but awareness publication failed: %s",
+            task.get("id"),
+            exc,
+        )
 
 
 def create_task(
@@ -615,6 +697,7 @@ def transition_task(
             concurrent state change.
         ValueError — unknown *new_state*.
     """
+    previous_state: str | None = None
     conn = connect(db_path)
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -631,8 +714,9 @@ def transition_task(
                 f"task {task_id} is archived and cannot be transitioned"
             )
 
+        previous_state = row["state"]
         _apply_transition(
-            conn, task_id, row["state"], new_state, payload=payload
+            conn, task_id, previous_state, new_state, payload=payload
         )
         conn.commit()
     except Exception:
@@ -646,6 +730,7 @@ def transition_task(
         raise RuntimeError(
             f"Task {task_id} was committed but is not retrievable"
         )
+    _publish_transition_awareness(result, previous_state)
     return result
 
 

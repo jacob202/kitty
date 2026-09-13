@@ -2633,6 +2633,7 @@ def _detached_main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.spec_path:
         parser.error("missing supervisor spec path")
+    bq.install_awareness_sink()
     return _supervise_worker(args.spec_path)
 
 
