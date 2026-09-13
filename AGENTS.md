@@ -37,21 +37,29 @@ execution, or collision risk.
 ## Global Agent Room
 
 `workspace_global` is the primary mutable cross-agent communication channel for
-Kitty work. After checkout/Git verification at start or resume, discover new
-work through the unread direct inbox first with `./kitty room inbox --as
-<identity> --unread --direct-only --json`. MCP clients use
-`room_inbox(unread_only=True, direct_only=True)` for the same assignment
-discovery. When a handoff or current assignment supplies a durable locator,
-load that exact
-conversation with `room_thread` or `./kitty room thread <message_id> --json`.
-Use `room_recent` only for bounded shared situational context; the newest global
-window is not an assignment index. If no unread handoff or durable locator
-exists and legacy checkpoint fallback is required, run the strict `./kitty
-context --agent` receipt and use the checkpoint only when that validation
-succeeds. A legacy-skipping receipt never validates a legacy fallback.
-Acknowledge messages actually received; acknowledgement means received, not
-completed. Use direct messages for a specific owner, broadcasts for shared
-context, and replies for an existing thread.
+Kitty work. After checkout/Git verification at start or resume, consume the
+shared Room Briefing first with `./kitty room briefing --as <identity>
+--session-id <current-session> --json` (or the MCP `room_status` briefing view).
+Room Briefing is a view of the shared orientation domain; clients must not
+independently reconstruct assignment, ownership, Builder, Git, runtime,
+presence, or GAR truth. Participant-wide directs are attention only unless
+exact structural correlation independently resolves the current assignment.
+Presence is liveness only and never establishes assignment or ownership. When
+Room Briefing resolves or identifies a durable locator for an exact thread or
+handoff, load that exact conversation with `room_thread` or `./kitty room thread
+<message_id> --json`. The unread direct inbox remains an attention/receipt
+surface after briefing; inspect it with `./kitty room inbox --as <identity>
+--unread --direct-only --json` or MCP
+`room_inbox(unread_only=True, direct_only=True)`. It is not an assignment
+authority. Use `room_recent`
+only for bounded situational context; the newest global window is not an
+assignment index. If briefing cannot resolve continuation and legacy checkpoint
+fallback is genuinely required, run the
+strict `./kitty context --agent` receipt and use the checkpoint only when that
+validation succeeds. A legacy-skipping receipt never validates a legacy
+fallback. Acknowledge only messages actually consumed; acknowledgement means
+received, not completed. Use direct messages for a specific owner, broadcasts
+for shared context, and replies for an existing thread.
 
 Before ending or handing off substantial work, post a concise verified result or
 handoff to the room with exact SHA/evidence, blockers, and next action when

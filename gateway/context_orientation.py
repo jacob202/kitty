@@ -11,6 +11,9 @@ Invariants:
 * GAR contributes evidence; it is never execution, ownership, or task authority.
 * Assignment resolves only from explicit current scope or exact scoped
   thread/handoff/lane/session/candidate correlation; otherwise ``unresolved``.
+* Correlated evidence is resolved by *ownership*: everything attributable to this
+  session is one assignment, and a locator belonging to another session's claim is
+  a conflict rather than an assignment this session may adopt.
 * Participant-wide unread directs are attention, never this session's assignment.
 * Untrusted prose stays structurally separate from trusted typed metadata.
 * Generation is deterministic and model-free; nothing here calls a provider.
@@ -41,6 +44,12 @@ ASSIGNMENT_RESOLVED = "resolved"
 ASSIGNMENT_UNRESOLVED = "unresolved"
 ASSIGNMENT_CONFLICTED = "conflicted"
 ASSIGNMENT_STATES = (ASSIGNMENT_RESOLVED, ASSIGNMENT_UNRESOLVED, ASSIGNMENT_CONFLICTED)
+
+# When several locators from one session's own evidence agree, the most
+# structural one names the assignment: a held claim outranks a handed thread,
+# which outranks a bare session match. This only ever picks among the session's
+# own evidence, so it can never widen authority.
+_ORIGIN_PREFERENCE = {"kx_claim": 0, "thread": 1, "session": 2}
 
 AUTHORITATIVE_AUTHORITIES = ("user:explicit_scope", "kx:claim")
 
@@ -296,8 +305,40 @@ def _attention_item(message: dict[str, Any], observed_at: str) -> dict[str, Any]
     }
 
 
+def _claim_locator_index(
+    claims: list[dict[str, Any]], session_id: str | None
+) -> dict[str, dict[str, Any]]:
+    """Map each claim-derived locator to its owning session and lane.
+
+    Separates this session's own evidence from another session's. A locator that
+    only ever appears on a foreign claim must never resolve this session's
+    assignment. When the same string appears on both, the session's own claim
+    wins, so shared values (a branch name, a base SHA) cannot fabricate a
+    conflict out of legitimate overlap.
+    """
+    index: dict[str, dict[str, Any]] = {}
+    for claim in claims:
+        if not isinstance(claim, dict):
+            continue
+        lane = claim.get("lane") or claim.get("task_id")
+        owner = (
+            "own" if session_id and claim.get("session_id") == session_id else "foreign"
+        )
+        for key in ("id", "lane", "task_id", "branch", "base_sha"):
+            value = claim.get(key)
+            if not isinstance(value, str) or not value.strip():
+                continue
+            locator = value.strip()
+            previous = index.get(locator)
+            if previous is None or (previous["owner"] == "foreign" and owner == "own"):
+                index[locator] = {"owner": owner, "lane": lane}
+    return index
+
+
 def _correlated_scope(
-    message: dict[str, Any], tokens: dict[str, str]
+    message: dict[str, Any],
+    tokens: dict[str, str],
+    claim_locators: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     correlation = message["_correlation"]
     scope: dict[str, Any] = {
@@ -306,9 +347,12 @@ def _correlated_scope(
         "thread_root": message.get("parent_message_id") or message.get("id"),
         "lane": None,
         "candidate_ref": None,
+        "owner": "own",
     }
     if correlation["origin"] == "kx_claim":
-        scope["lane"] = correlation["locator"]
+        claim = claim_locators.get(str(correlation["locator"]))
+        scope["lane"] = claim.get("lane") if claim else correlation["locator"]
+        scope["owner"] = claim.get("owner") if claim else "foreign"
     return scope
 
 
@@ -324,6 +368,8 @@ def _resolve_assignment(
     inbox_error: str | None,
     observed_at: str,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    claim_locators = _claim_locator_index(claims, session_id)
+
     correlated_inbox, attention_messages = _message_scope_map(inbox, tokens)
     correlated_thread, _ = _message_scope_map(thread, tokens)
     correlated = _dedupe_messages(correlated_inbox, correlated_thread)
@@ -348,10 +394,11 @@ def _resolve_assignment(
             "thread_root": explicit_scope.get("thread") or explicit_scope.get("thread_root"),
             "lane": explicit_scope.get("lane") or explicit_scope.get("lane_id"),
             "candidate_ref": explicit_scope.get("candidate_ref") or explicit_scope.get("candidate"),
+            "owner": "own",
         }
 
     for message in correlated:
-        scope = _correlated_scope(message, tokens)
+        scope = _correlated_scope(message, tokens, claim_locators)
         evidence.append(
             _evidence_item(
                 "gar_message",
@@ -359,6 +406,7 @@ def _resolve_assignment(
                 _iso(message.get("created_at")) or observed_at,
                 correlation_locator=scope["locator"],
                 correlation_origin=scope["origin"],
+                correlation_owner=scope["owner"],
             )
         )
         scopes[(scope["origin"], str(scope["locator"]))] = scope
@@ -386,13 +434,46 @@ def _resolve_assignment(
             "thread_root": None,
             "lane": claim.get("lane") or claim.get("task_id"),
             "candidate_ref": claim.get("base_sha"),
+            "owner": "own",
         }
+
+    foreign_scopes = sorted(
+        {
+            f"{scope['origin']}:{scope['locator']}"
+            for scope in scopes.values()
+            if scope.get("owner") == "foreign"
+        }
+    )
+    own_lanes = sorted(
+        {
+            str(claim.get("lane") or claim.get("task_id")).strip()
+            for claim in session_claims
+            if str(claim.get("lane") or claim.get("task_id") or "").strip()
+        }
+    )
+    own_scopes = [scope for scope in scopes.values() if scope.get("owner") != "foreign"]
 
     if explicit_scope:
         chosen = scopes[("explicit_scope", "explicit_scope")]
         state = ASSIGNMENT_RESOLVED
         authority_source = "explicit_scope"
         reason = "explicit current user/session scope resolves this assignment"
+    elif foreign_scopes:
+        chosen = None
+        state = ASSIGNMENT_CONFLICTED
+        authority_source = None
+        reason = (
+            "correlated evidence points at locator(s) owned by another session, so this "
+            "session cannot adopt it: " + ", ".join(foreign_scopes)
+        )
+    elif len(own_lanes) > 1:
+        chosen = None
+        state = ASSIGNMENT_CONFLICTED
+        authority_source = None
+        reason = (
+            "this session holds active claims on more than one lane: "
+            + ", ".join(own_lanes)
+        )
     elif not scopes:
         chosen = None
         state = ASSIGNMENT_UNRESOLVED
@@ -407,19 +488,18 @@ def _resolve_assignment(
                 "no explicit scope and no exact scoped thread/handoff/lane/session/"
                 "candidate correlation; participant-wide directs are attention only"
             )
-    elif len(scopes) > 1:
-        chosen = None
-        state = ASSIGNMENT_CONFLICTED
-        authority_source = None
-        reason = (
-            "multiple distinct scoped locators correlate to this session: "
-            + ", ".join(sorted(f"{key[0]}:{key[1]}" for key in scopes))
-        )
     else:
-        chosen = next(iter(scopes.values()))
+        chosen = min(own_scopes, key=lambda scope: _ORIGIN_PREFERENCE.get(scope["origin"], 9))
         state = ASSIGNMENT_RESOLVED
         authority_source = chosen["origin"]
-        reason = f"exact {chosen['origin']} correlation resolves this assignment"
+        if len(own_scopes) > 1:
+            reason = (
+                f"exact {chosen['origin']} correlation resolves this assignment; "
+                f"{len(own_scopes) - 1} further locator(s) from this session's own "
+                "evidence agree instead of conflicting"
+            )
+        else:
+            reason = f"exact {chosen['origin']} correlation resolves this assignment"
 
     attention = [_attention_item(message, observed_at) for message in attention_messages]
 

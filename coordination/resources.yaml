@@ -55,6 +55,10 @@ resources:
     paths:
     - evals/project_sources/**
     - tests/test_project_source_eval.py
+  evaluation:review-fidelity:
+    paths:
+    - evals/codex_review_fidelity/**
+    - tests/test_codex_review_fidelity_eval.py
   image-lab:generation:
     paths:
     - gateway/image_*.py
@@ -130,6 +134,7 @@ resources:
     - scripts/hooks/**
     - scripts/kitty_backup.py
     - scripts/scan.py
+    - tests/conftest.py
     - tests/test_agent_coordination_acceptance.py
     - tests/test_agent_room_cli.py
     - tests/test_agent_room_lifecycle_hooks.py

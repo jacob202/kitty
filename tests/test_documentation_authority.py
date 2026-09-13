@@ -260,3 +260,22 @@ def test_agent_room_doctrine_keeps_broadcast_feed_out_of_assignment_inbox() -> N
     assert "do not bulk-ack" in coordination
     assert "presence is presence only" in coordination
     assert "does not replace builder execution state" in coordination
+
+
+def test_cross_client_startup_uses_shared_room_briefing_as_orientation_owner() -> None:
+    start_here = " ".join(_read("START_HERE.md").lower().split())
+    agents = " ".join(_read("AGENTS.md").lower().split())
+
+    for text in (start_here, agents):
+        assert "room briefing" in text
+        assert "participant-wide" in text
+        assert "attention" in text
+        assert "presence" in text
+        assert "never" in text
+
+    assert "./kitty room briefing --as <identity> --session-id <current-session> --json" in start_here
+    assert "shared orientation" in start_here
+    assert "native cloud chatgpt" in start_here
+    assert "local bridge" in start_here
+    assert "direct inbox first" not in agents
+    assert "unread direct inbox first" not in start_here

@@ -14,30 +14,38 @@ live evidence; it does not duplicate current state.
    `docs/reference/MULTI_AGENT_COORDINATION.md`, check its live coordination
    issue, and inspect the relevant Builder/local ownership state before
    claiming an implementation lane.
-3. Prove `workspace_global` access. Discover explicit assignments, handoffs,
-   and review asks through this agent's unread **direct** inbox first:
-   `./kitty room inbox --as <identity> --unread --direct-only --json`. MCP
-   clients use `room_inbox(unread_only=True, direct_only=True)` for the same
-   assignment discovery; do not treat the broadcast feed as an assignment
-   queue. If the assignment
-   supplies a durable locator, load that exact conversation with `room_thread`
-   or `./kitty room thread <message_id> --json`. Use recent messages only for
-   bounded shared situational context; the newest global window is not an
-   assignment index. Acknowledge messages actually received. If the room itself
-   is unavailable, report that rather than fabricating room state.
-4. Choose the receipt mode from the continuation source:
-   - GAR available **and** an unread handoff/known durable thread identifies the
-     assignment: code work uses `./kitty context --agent
+3. Prove `workspace_global` access by loading the shared Room Briefing first:
+   `./kitty room briefing --as <identity> --session-id <current-session> --json`.
+   The briefing is a scoped view of Kitty's shared orientation domain; clients
+   must not rebuild assignment, KX, Builder, Git, runtime, presence, or GAR truth
+   independently. Participant-wide direct messages are attention only unless
+   exact structural correlation independently resolves the assignment. Presence
+   is liveness only and never grants assignment or ownership. If the briefing
+   resolves or identifies a durable locator for an exact thread or handoff, load
+   that exact conversation with `room_thread` or `./kitty room thread <message_id> --json`.
+   Use `./kitty room inbox --as <identity> --unread --direct-only --json` only
+   to inspect unread direct attention/receipt items after briefing; MCP clients
+   use `room_inbox(unread_only=True, direct_only=True)` for that same attention
+   surface. Participant-wide directs remain attention, not assignment authority.
+   Acknowledge only
+   messages actually consumed. If the room or any required source is
+   unavailable, keep that state explicit rather than treating it as empty
+   success.
+4. Use the shared orientation result to choose any additional context receipt:
+   - For code work with a valid GAR continuation, use `./kitty context --agent
      --skip-legacy-continuity`; informational/planning work may add `--compact
      --skip-builder`.
-   - GAR available but there is **no** unread handoff or durable locator and the
-     legacy checkpoint is needed as the temporary continuation fallback: run
-     the strict `./kitty context --agent` receipt first and use that checkpoint
-     only if its validation succeeds.
-   - GAR unavailable: use the strict `./kitty context --agent` compatibility
-     receipt and report the room as unavailable.
+   - If Room Briefing cannot resolve a continuation and the legacy checkpoint is
+     genuinely required as a temporary fallback, run the strict `./kitty
+     context --agent` receipt and use that checkpoint only when validation
+     succeeds.
+   - If GAR is unavailable, use the strict compatibility receipt and report the
+     room as unavailable.
    A failed, unknown, stale, or contradictory required source remains
-   unverified; handoff prose cannot repair it.
+   unverified; handoff prose cannot repair it. Native cloud ChatGPT cannot know
+   local Kitty state before invoking the local bridge, so the first Kitty work
+   turn must invoke that bridge and obtain Room Briefing rather than assuming
+   repository or room state.
 5. Read only the authority files required by the task, using the receipt's
    order. For code changes, use the complete order below.
 6. Read `docs/ACTIVE_MISSION.md` when the task is product or implementation
@@ -97,8 +105,9 @@ not duplicate the staged-load procedure.
 
 ```bash
 git status --short --branch
-./kitty room inbox --as <identity> --unread --direct-only --json
-# Known GAR handoff/thread:
+./kitty room briefing --as <identity> --session-id <current-session> --json
+# If briefing identifies an exact handoff/thread, load it before mutation.
+# Then use a legacy-skipping context receipt for a valid GAR continuation:
 ./kitty context --agent --compact --skip-builder --skip-legacy-continuity
 # No GAR locator yet, or GAR unavailable and legacy fallback is required:
 ./kitty context --agent

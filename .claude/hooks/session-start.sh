@@ -92,55 +92,63 @@ bounded_messages() {
     | head -n 8 | head -c 6000
 }
 
-if [ -x "$ROOM_CLI" ]; then
-  RECENT_ERR=$(mktemp "${TMPDIR:-/tmp}/kitty-gar-recent.XXXXXX")
-  DIRECT_ERR=$(mktemp "${TMPDIR:-/tmp}/kitty-gar-direct.XXXXXX")
-  RECENT=$("$ROOM_CLI" room recent --limit 8 2>"$RECENT_ERR")
-  RECENT_RC=$?
-  if [ "$RECENT_RC" -ne 0 ]; then
-    RECENT=$("$ROOM_CLI" room recent --limit 8 2>"$RECENT_ERR")
-    RECENT_RC=$?
+if [ -x "$ROOM_CLI" ] && command -v jq >/dev/null 2>&1; then
+  # Shared orientation comes from Room Briefing exactly once. Assignment, KX,
+  # Builder, Git, runtime, presence and GAR truth are projected there; this
+  # client must not rebuild them from room recent, participant-wide directs or
+  # presence, which are attention/liveness surfaces only.
+  BRIEF_ERR=$(mktemp "${TMPDIR:-/tmp}/kitty-gar-brief.XXXXXX")
+  if [ -n "$SAFE_SESSION_ID" ]; then
+    BRIEFING=$("$ROOM_CLI" room briefing --as claude --session-id "$SAFE_SESSION_ID" --json 2>"$BRIEF_ERR")
+  else
+    BRIEFING=$("$ROOM_CLI" room briefing --as claude --json 2>"$BRIEF_ERR")
   fi
-  DIRECT=$("$ROOM_CLI" room inbox --as claude --unread --direct-only --limit 8 2>"$DIRECT_ERR")
-  DIRECT_RC=$?
-  if [ "$DIRECT_RC" -ne 0 ]; then
-    DIRECT=$("$ROOM_CLI" room inbox --as claude --unread --direct-only --limit 8 2>"$DIRECT_ERR")
-    DIRECT_RC=$?
-  fi
-
-  if [ "$RECENT_RC" -eq 0 ] && [ "$DIRECT_RC" -eq 0 ]; then
-    RECENT_BOUNDED=$(printf '%s\n' "$RECENT" | bounded_messages)
-    # Remove direct rows already present in the recent window before injection.
-    DIRECT_DEDUP=$(printf '%s\n' "$DIRECT" | awk -F: -v recent="$RECENT_BOUNDED" '
-      { id=$1; if (id != "" && index(recent, id ":") == 0) print $0 }
-    ')
-    DIRECT_BOUNDED=$(printf '%s\n' "$DIRECT_DEDUP" | bounded_messages)
+  BRIEF_RC=$?
+  if [ "$BRIEF_RC" -eq 0 ] && printf '%s' "$BRIEFING" | jq -e 'type == "object" and .kind == "room_briefing" and .schema_version == 1 and (.assignment | type == "object")' >/dev/null 2>&1; then
     echo ""
-    echo "[GAR] workspace_global recent:"
-    [ -n "$RECENT_BOUNDED" ] && echo "$RECENT_BOUNDED" || echo "(no recent messages)"
-    echo "[GAR] unread direct for claude:"
-    [ -n "$DIRECT_BOUNDED" ] && echo "$DIRECT_BOUNDED" || echo "(none; directs already shown above may still need ACK)"
+    echo "[GAR] shared briefing (the only shared orientation view; do not reconstruct assignment, KX, Builder, Git, runtime or presence truth yourself):"
+    printf '%s' "$BRIEFING" | jq -r '
+      (if (.assignment.state // "") != "" then "assignment.state: \(.assignment.state)" else empty end),
+      (if (.assignment.scope // null) == null then "assignment.scope: none (no explicit scope)" else "assignment.scope: \(.assignment.scope|tostring)" end),
+      (if (.assignment.authority_source // null) == null then "assignment.authority: none" else "assignment.authority: \(.assignment.authority_source|tostring)" end),
+      (if (.assignment.reason // "") != "" then "assignment.reason: \(.assignment.reason)" else empty end),
+      (if ((.degraded // []) | if type == "array" then length > 0 else . == true end) then "degraded: \(.degraded|tostring) — these sources are unknown, not healthy" else empty end),
+      ((.sources // {}) | to_entries[] | "source \(.key): \(if (.value|type)=="object" then (.value.state // .value.status // "present") else (.value|tostring) end)"),
+      (if (.next_continuation // null) == null then empty else "next_continuation: \(.next_continuation|tostring)" end),
+      ((.attention // [])[:6][] | "attention \(.kind) \(.message_id) <- \(.sender_id) [\(.trust)]: \(.reason)")
+    ' 2>/dev/null | awk '{ line=$0; if (length(line)>400) line=substr(line,1,400) "…"; print line }' | head -n 24 | head -c 6000
+    echo "[GAR] Exact thread/handoff content is loaded only when the briefing resolves or names its locator."
     if [ -n "$SAFE_SESSION_ID" ]; then
       echo "[GAR] session receipt token: gar-session:$SAFE_SESSION_ID"
       echo "[GAR] When substantial assigned work finishes, run /session-end and include that token in the workspace_global handoff/result. Do not wait for Jacob to say session end."
     fi
-    echo "[GAR] After consuming a direct: reply in-thread (records receipt), or run: $ROOM_CLI room ack --as claude <message_id>"
-    echo "[GAR] Do not ACK unread work you did not consume. ACK means receipt, not task completion. Builder executes work; #490 owns collisions."
-  else
-    echo "[GAR] workspace_global unavailable at session start; do not treat this as an empty room."
-    if [ "$RECENT_RC" -ne 0 ]; then
-      RECENT_DIAG=$(head -c 500 "$RECENT_ERR" 2>/dev/null || true)
-      echo "[GAR] recent failed (exit $RECENT_RC): ${RECENT_DIAG:-no diagnostic output}"
-    fi
-    if [ "$DIRECT_RC" -ne 0 ]; then
+    echo "[GAR] Unread direct below is an attention/receipt surface only. It never grants assignment or ownership."
+    DIRECT_ERR=$(mktemp "${TMPDIR:-/tmp}/kitty-gar-direct.XXXXXX")
+    DIRECT=$("$ROOM_CLI" room inbox --as claude --unread --direct-only --limit 8 2>"$DIRECT_ERR")
+    DIRECT_RC=$?
+    if [ "$DIRECT_RC" -eq 0 ]; then
+      DIRECT_BOUNDED=$(printf '%s\n' "$DIRECT" | bounded_messages)
+      echo "[GAR] unread direct for claude (attention/receipt only):"
+      [ -n "$DIRECT_BOUNDED" ] && echo "$DIRECT_BOUNDED" || echo "(none)"
+      echo "[GAR] After consuming a direct: reply in-thread (records receipt), or run: $ROOM_CLI room ack --as claude <message_id>"
+      echo "[GAR] Do not ACK unread work you did not consume. ACK means receipt, not task completion. Builder executes work; #490 owns collisions."
+    else
       DIRECT_DIAG=$(head -c 500 "$DIRECT_ERR" 2>/dev/null || true)
       echo "[GAR] direct inbox failed (exit $DIRECT_RC): ${DIRECT_DIAG:-no diagnostic output}"
     fi
+    rm -f "$DIRECT_ERR" 2>/dev/null || true
+  else
+    echo ""
+    echo "[GAR] shared briefing unavailable at session start; do not treat this as an empty room or as an absence of work."
+    BRIEF_DIAG=$(head -c 500 "$BRIEF_ERR" 2>/dev/null || true)
+    echo "[GAR] briefing failed (exit $BRIEF_RC): ${BRIEF_DIAG:-no diagnostic output}"
+    echo "[GAR] Do not reconstruct assignment from room recent, participant-wide directs, or presence."
+    echo "[GAR] Exact thread/handoff content is loaded only when the briefing resolves or names its locator."
     echo "[GAR] Any queued SessionEnd handoffs remain durable in $GAR_OUTBOX_DIR."
   fi
-  rm -f "$RECENT_ERR" "$DIRECT_ERR" 2>/dev/null || true
+  rm -f "$BRIEF_ERR" 2>/dev/null || true
 else
-  echo "[GAR] workspace_global unavailable at session start; Kitty room CLI not found."
+  echo "[GAR] workspace_global unavailable at session start; Kitty room CLI or jq not found."
 fi
 
 exit 0
