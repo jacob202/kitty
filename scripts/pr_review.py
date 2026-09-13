@@ -42,6 +42,11 @@ REVIEW_MODEL_TIMEOUT_SECONDS = int(os.environ.get("PR_REVIEW_MODEL_TIMEOUT_SECON
 # would leave the head with no verdict at all.
 REVIEW_TOTAL_TIMEOUT_SECONDS = int(os.environ.get("PR_REVIEW_TOTAL_TIMEOUT_SECONDS", "900"))
 REVIEW_FAILED = "__REVIEW_FAILED__"
+# Rendered into the comment bodies so a later write can tell "this head has no
+# verdict yet" from "this head has a verdict". The sentinel constants above are
+# never rendered, so sniffing them against a live body always said "verdict".
+PENDING_MARKER = "<!-- kitty-agent-pr-review-pending -->"
+FAILURE_MARKER = "<!-- kitty-agent-pr-review-no-verdict -->"
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
 NO_FINDINGS = "NO_ACTIONABLE_FINDINGS"
 REVIEW_PENDING = "__REVIEW_PENDING__"
@@ -465,14 +470,14 @@ def render_review_body(review: str, head_sha: str) -> str:
     if review.strip() == REVIEW_PENDING:
         target = f"`{head_sha}`" if head_sha else "the current PR head"
         return (
-            f"{COMMENT_MARKER}\n## Agent PR Review\n\n"
+            f"{COMMENT_MARKER}\n{PENDING_MARKER}\n## Agent PR Review\n\n"
             f"Review pending for commit {target}. Previous review evidence is stale "
             "until this current-head review completes."
         )
     if review.strip() == REVIEW_FAILED:
         target = f"`{head_sha}`" if head_sha else "the current PR head"
         return (
-            f"{COMMENT_MARKER}\n## Agent PR Review\n\n"
+            f"{COMMENT_MARKER}\n{FAILURE_MARKER}\n## Agent PR Review\n\n"
             f"No review verdict was produced for commit {target}. This is neither an approval nor "
             "a finding; the workflow log names the cause. Re-run the review, or use the documented "
             "exact-head override after an independent review."
@@ -481,6 +486,11 @@ def render_review_body(review: str, head_sha: str) -> str:
         review = "No actionable findings in this diff."
     reviewed = f"Reviewed commit `{head_sha}`." if head_sha else "Reviewed current PR head."
     return f"{COMMENT_MARKER}\n## Agent PR Review\n\n{review}\n\n_{reviewed}_"
+
+
+def _is_no_verdict_body(body: str) -> bool:
+    """True when a comment body is a pending or failure marker, not a verdict."""
+    return PENDING_MARKER in body or FAILURE_MARKER in body
 
 
 def _existing_review_comment(
@@ -620,7 +630,7 @@ def upsert_review(
             # already has evidence. Neither a pending marker nor a no-verdict
             # rerun may replace a completed verdict for that head: for an
             # unchanged head the existing verdict IS the current evidence.
-            if REVIEW_PENDING not in str(existing.get("body") or ""):
+            if not _is_no_verdict_body(str(existing.get("body") or "")):
                 print(
                     "This head already has review evidence; not replacing it with "
                     f"{'a failure' if review.strip() == REVIEW_FAILED else 'a pending marker'}.",

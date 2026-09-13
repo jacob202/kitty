@@ -651,6 +651,43 @@ def test_pending_publish_does_not_replace_an_existing_verdict(
     assert len(calls) == 1  # read only: the verdict survived
 
 
+def test_failure_publish_replaces_a_pending_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pending marker is not a verdict: a no-verdict run must still say so."""
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
+    pending = {
+        "id": 9,
+        "body": pr_review.render_review_body(pr_review.REVIEW_PENDING, "a" * 40),
+    }
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        pr_review,
+        "github_json",
+        lambda url, *_args, **kwargs: calls.append((url, str(kwargs.get("method"))))
+        or [pending],
+    )
+
+    published = pr_review.upsert_review(
+        pr_review.REVIEW_FAILED, 1, "owner", "repo", "a" * 40
+    )
+
+    assert published is True
+    assert calls[-1][1] == "PATCH"
+
+
+def test_marker_bodies_are_distinguishable_from_a_verdict() -> None:
+    """The rendered no-verdict bodies must carry their marker, and verdicts must not."""
+    pending = pr_review.render_review_body(pr_review.REVIEW_PENDING, "a" * 40)
+    failed = pr_review.render_review_body(pr_review.REVIEW_FAILED, "a" * 40)
+    verdict = pr_review.render_review_body(pr_review.NO_FINDINGS, "a" * 40)
+
+    assert pr_review._is_no_verdict_body(pending) is True
+    assert pr_review._is_no_verdict_body(failed) is True
+    assert pr_review._is_no_verdict_body(verdict) is False
+
+
 def test_failure_publish_does_not_replace_an_existing_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
