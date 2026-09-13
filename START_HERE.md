@@ -21,8 +21,8 @@ live evidence; it does not duplicate current state.
    independently. Participant-wide direct messages are attention only unless
    exact structural correlation independently resolves the assignment. Presence
    is liveness only and never grants assignment or ownership. If the briefing
-   resolves or identifies a durable thread/handoff locator, load that exact
-   conversation with `room_thread` or `./kitty room thread <message_id> --json`.
+   resolves or identifies a durable locator for an exact thread or handoff, load
+   that exact conversation with `room_thread` or `./kitty room thread <message_id> --json`.
    Use `./kitty room inbox --as <identity> --unread --direct-only --json` only
    to inspect unread direct attention/receipt items after briefing; MCP clients
    use `room_inbox(unread_only=True, direct_only=True)` for that same attention

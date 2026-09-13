@@ -45,8 +45,8 @@ independently reconstruct assignment, ownership, Builder, Git, runtime,
 presence, or GAR truth. Participant-wide directs are attention only unless
 exact structural correlation independently resolves the current assignment.
 Presence is liveness only and never establishes assignment or ownership. When
-Room Briefing resolves or identifies a durable thread/handoff locator, load
-that exact conversation with `room_thread` or `./kitty room thread
+Room Briefing resolves or identifies a durable locator for an exact thread or
+handoff, load that exact conversation with `room_thread` or `./kitty room thread
 <message_id> --json`. The unread direct inbox remains an attention/receipt
 surface after briefing; inspect it with `./kitty room inbox --as <identity>
 --unread --direct-only --json` or MCP
