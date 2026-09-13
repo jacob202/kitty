@@ -45,6 +45,22 @@ def test_find_existing_review_comment_is_scoped_to_the_head() -> None:
     assert pr_review.find_existing_review_comment(comments, "c" * 40) is None
 
 
+def test_issue_comments_follows_pagination(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A full first page must not hide the newest evidence from the gate."""
+    pages = {1: [{"id": i} for i in range(100)], 2: [{"id": 100}]}
+    seen: list[int] = []
+
+    def fake(url, *_args, **_kwargs):
+        page = int(str(url).rsplit("page=", 1)[1])
+        seen.append(page)
+        return pages[page]
+
+    monkeypatch.setattr(pr_review, "github_json", fake)
+
+    assert len(pr_review.issue_comments("owner", "repo", 1, "token")) == 101
+    assert seen == [1, 2]
+
+
 def test_prompt_requires_concrete_findings_and_exact_empty_result() -> None:
     assert "name the changed file" in pr_review.SYSTEM_PROMPT
     assert "specific failure mode" in pr_review.SYSTEM_PROMPT
@@ -564,11 +580,11 @@ def test_upsert_review_skips_the_write_when_the_head_moved(
     monkeypatch.setattr(
         pr_review,
         "github_json",
-        lambda url, *_args, **_kwargs: calls.append(url),
+        lambda url, *_args, **_kwargs: calls.append(url) or [],
     )
 
     pr_review.upsert_review(pr_review.NO_FINDINGS, 1, "owner", "repo", "a" * 40)
 
     # Only the read happened; no mutating request was ever attempted.
     assert len(calls) == 1
-    assert calls[0].endswith("/comments?per_page=100")
+    assert calls[0].endswith("/comments?per_page=100&page=1")

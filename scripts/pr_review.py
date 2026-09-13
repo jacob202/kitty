@@ -505,6 +505,30 @@ def find_existing_review_comment(
     return None
 
 
+def issue_comments(owner: str, repo: str, pr_number: int, token: str) -> list[dict[str, Any]]:
+    """Every issue comment on the PR, oldest first.
+
+    GitHub returns issue comments oldest-first, so a single page silently hides
+    the newest evidence once a PR passes 100 comments -- both the lookup here and
+    the trust gate would then miss the current head's verdict and publish or
+    demand a duplicate. Follow pagination to the end instead.
+    """
+    comments: list[dict[str, Any]] = []
+    page = 1
+    while True:
+        url = (
+            f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}"
+            f"/comments?per_page=100&page={page}"
+        )
+        payload = github_json(url, token)
+        if not isinstance(payload, list):
+            raise ValueError("GitHub issue-comments response was not a list")
+        comments.extend(item for item in payload if isinstance(item, dict))
+        if len(payload) < 100:
+            return comments
+        page += 1
+
+
 def github_json(
     url: str,
     token: str,
@@ -562,15 +586,11 @@ def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: 
         print("No GITHUB_TOKEN — cannot post review.", file=sys.stderr)
         raise SystemExit(1)
 
-    comments_url = (
-        f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments?per_page=100"
-    )
     body = render_review_body(review, head_sha)
 
     try:
-        comments = github_json(comments_url, token)
         existing_id = find_existing_review_comment(
-            comments if isinstance(comments, list) else [], head_sha
+            issue_comments(owner, repo, pr_number, token), head_sha
         )
         if not _head_still_current(pr_number, owner, repo, head_sha):
             return
