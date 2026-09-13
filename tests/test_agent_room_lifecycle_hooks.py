@@ -183,7 +183,13 @@ def test_session_start_does_not_invent_a_degraded_state_when_sources_are_healthy
 
 def test_session_start_rejects_valid_json_that_is_not_a_briefing(tmp_path: Path) -> None:
     """Syntactically valid JSON with no briefing contract must not read as success."""
-    for payload in ("{}", '"a string"', "[]"):
+    for payload in (
+        "{}",
+        '"a string"',
+        "[]",
+        '{"schema_version":999,"kind":"not_a_briefing","assignment":{}}',
+        '{"schema_version":1,"kind":"room_briefing"}',
+    ):
         result = _run(
             START_HOOK,
             {"session_id": "sess-shape", "hook_event_name": "SessionStart"},

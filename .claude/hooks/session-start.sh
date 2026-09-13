@@ -104,7 +104,7 @@ if [ -x "$ROOM_CLI" ] && command -v jq >/dev/null 2>&1; then
     BRIEFING=$("$ROOM_CLI" room briefing --as claude --json 2>"$BRIEF_ERR")
   fi
   BRIEF_RC=$?
-  if [ "$BRIEF_RC" -eq 0 ] && printf '%s' "$BRIEFING" | jq -e 'type == "object" and (.schema_version | type == "number") and (.assignment | type == "object")' >/dev/null 2>&1; then
+  if [ "$BRIEF_RC" -eq 0 ] && printf '%s' "$BRIEFING" | jq -e 'type == "object" and .kind == "room_briefing" and .schema_version == 1 and (.assignment | type == "object")' >/dev/null 2>&1; then
     echo ""
     echo "[GAR] shared briefing (the only shared orientation view; do not reconstruct assignment, KX, Builder, Git, runtime or presence truth yourself):"
     printf '%s' "$BRIEFING" | jq -r '
