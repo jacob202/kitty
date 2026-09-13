@@ -1007,6 +1007,9 @@ def publish_awareness(
     try:
         workspace_id = _required_text(workspace_id, "workspace_id", 200)
         actor_id = _required_text(actor_id, "actor_id", 200)
+        actor_error = _awareness_identifier_rejection("actor_id", actor_id)
+        if actor_error is not None:
+            return {"published": False, "reason": actor_error}
         if actor_kind not in {"user", "agent", "system"}:
             return {"published": False, "reason": f"actor_kind {actor_kind!r} is not supported"}
         if event_type not in AWARENESS_EVENT_TYPES:
@@ -1103,6 +1106,11 @@ def publish_awareness(
         payload = {**metadata, **envelope}
         shape_errors = []
         for key, value in sorted(payload.items()):
+            if key == "scope_key":
+                # Already validated against the evidence-derived scope contract and
+                # its own 240-character limit; the generic 200-character token rule
+                # would reject scopes that contract explicitly allows.
+                continue
             reason = _awareness_scalar_rejection(key, value)
             if reason is not None:
                 shape_errors.append(reason)
