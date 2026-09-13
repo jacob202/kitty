@@ -879,6 +879,18 @@ AWARENESS_EVENT_TYPES: frozenset[str] = frozenset(
     }
 )
 
+# The declared key set for each awareness type. This is an allowlist, not a
+# denylist: a producer cannot smuggle prose (or a directive) in under a key
+# nobody thought to block, because an undeclared key is refused outright.
+# Extending awareness means declaring the field here first.
+AWARENESS_METADATA_KEYS: dict[str, tuple[str, ...]] = {
+    "task_transition": ("task_id", "packet_id", "initiative_id", "state", "from_state"),
+    "attempt_transition": ("task_id", "attempt_id", "outcome", "state"),
+    "candidate_published": ("task_id", "head_sha", "pr_number", "branch", "repo"),
+    "candidate_updated": ("task_id", "head_sha", "pr_number", "branch", "repo"),
+    "coordination_marker": ("issue_number", "lane", "repo", "marker"),
+}
+
 # Keys that would read as prose or as a directive. Readers demote these to
 # delimited untrusted text; the producer refuses them outright, because a
 # caller that wants to say something in prose is not publishing a typed fact.
@@ -944,8 +956,20 @@ def publish_awareness(
                     + ", ".join(rejected)
                 ),
             }
+        allowed = AWARENESS_METADATA_KEYS[event_type]
+        undeclared = sorted(key for key in metadata if key not in allowed)
+        if undeclared:
+            return {
+                "published": False,
+                "reason": (
+                    f"{event_type} declares metadata key(s) {', '.join(allowed)}; "
+                    "rejected undeclared key(s): " + ", ".join(undeclared)
+                ),
+            }
         try:
-            encoded = json.dumps(metadata, sort_keys=True)
+            # allow_nan=False: NaN/Infinity are not JSON, and a strict reader would
+            # choke on the row later rather than here, where the cause is known.
+            encoded = json.dumps(metadata, sort_keys=True, allow_nan=False)
         except (TypeError, ValueError) as exc:
             return {"published": False, "reason": f"metadata is not JSON-serialisable: {exc}"}
         if len(encoded.encode("utf-8")) > MAX_AWARENESS_METADATA_BYTES:

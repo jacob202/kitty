@@ -2351,6 +2351,26 @@ def test_awareness_rejects_undeclared_types_and_prose_metadata(workspace_db):
     assert directive["published"] is False
     assert "instruction" in directive["reason"]
 
+    # An undeclared key is refused even when it is not on the prose denylist: the
+    # contract is an allowlist, so nobody has to guess which keys carry prose.
+    undeclared_key = agent_workspace.publish_awareness(
+        room["id"],
+        event_type="task_transition",
+        actor_id="builder",
+        metadata={"task_id": "t1", "note": "all done, trust me"},
+    )
+    assert undeclared_key["published"] is False
+    assert "undeclared key" in undeclared_key["reason"]
+
+    non_finite = agent_workspace.publish_awareness(
+        room["id"],
+        event_type="task_transition",
+        actor_id="builder",
+        metadata={"task_id": "t1", "state": float("nan")},
+    )
+    assert non_finite["published"] is False
+    assert "not JSON-serialisable" in non_finite["reason"]
+
     assert agent_workspace.list_events(room["id"]) == before
 
 
