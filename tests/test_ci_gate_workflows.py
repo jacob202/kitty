@@ -116,6 +116,11 @@ def test_agent_review_uses_paid_model_fallbacks_and_bounded_timeout() -> None:
     assert env["PR_REVIEW_DEEPSEEK_MODEL"] == "openrouter/minimax/minimax-m3"
     assert env["PR_REVIEW_DEEPSEEK_FALLBACK_MODEL"] == "openrouter/qwen/qwen3.7-plus"
     assert env["PR_REVIEW_MODEL_TIMEOUT_SECONDS"] == "240"
+    # The whole review must be bounded below the job cap, because the permitted
+    # 12-chunk worst case can never fit inside any reasonable job timeout.
+    assert env["PR_REVIEW_TOTAL_TIMEOUT_SECONDS"] == "900"
+    job_cap_seconds = int(workflow["jobs"]["agent-review"]["timeout-minutes"]) * 60
+    assert int(env["PR_REVIEW_TOTAL_TIMEOUT_SECONDS"]) < job_cap_seconds
     assert "PR_REVIEW_REQUEST_ATTEMPTS" not in text
 
 
