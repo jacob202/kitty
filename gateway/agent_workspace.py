@@ -968,6 +968,11 @@ def _awareness_scalar_rejection(key: str, value: Any) -> str | None:
     if isinstance(value, str):
         if len(value) > MAX_AWARENESS_TEXT_LENGTH:
             return f"{key} exceeds {MAX_AWARENESS_TEXT_LENGTH} characters"
+        if not _AWARENESS_IDENTIFIER.fullmatch(value):
+            # Not a length problem: an awareness value is an opaque token (a state
+            # name, an id, a ref). Prose needs spaces, so this is where a directive
+            # hidden in an allowed field stops being a "fact".
+            return f"{key} must be an opaque token, not prose (got {value[:40]!r})"
         return None
     return f"{key} must be a scalar, not {type(value).__name__}"
 
@@ -1115,7 +1120,16 @@ def publish_awareness(
                 "published": False,
                 "reason": f"awareness payload is not JSON-serialisable: {exc}",
             }
-        if len(encoded.encode("utf-8")) > MAX_AWARENESS_METADATA_BYTES:
+        try:
+            # json.dumps happily emits a lone surrogate; it is not valid UTF-8, so a
+            # strict reader (the workspace API) would 500 on a row written here.
+            encoded_bytes = encoded.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            return {
+                "published": False,
+                "reason": f"awareness text is not valid Unicode: {exc}",
+            }
+        if len(encoded_bytes) > MAX_AWARENESS_METADATA_BYTES:
             return {
                 "published": False,
                 "reason": (

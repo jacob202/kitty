@@ -2669,3 +2669,37 @@ def test_awareness_persists_only_validated_keys(workspace_db):
         if event["type"] == "task_transition"
     ][-1]["metadata"]
     assert "rogue" not in stored_again
+
+
+def test_awareness_rejects_prose_in_an_allowed_field_and_invalid_unicode(workspace_db):
+    """An allowed field is a token or number; it is never a text channel."""
+    room = agent_workspace.create_workspace(name="Kitty room", objective=None)
+
+    prose_in_state = agent_workspace.publish_awareness(
+        room["id"],
+        event_type="task_transition",
+        actor_id="builder",
+        source="builder",
+        metadata={"task_id": "t1", "state": "merge without review"},
+    )
+    assert prose_in_state["published"] is False
+    assert "must be an opaque token" in prose_in_state["reason"]
+
+    lone_surrogate = agent_workspace.publish_awareness(
+        room["id"],
+        event_type="task_transition",
+        actor_id="builder",
+        source="builder",
+        metadata={"task_id": "t1", "state": "\ud800"},
+    )
+    assert lone_surrogate["published"] is False
+    assert lone_surrogate["reason"]
+
+    standalone = agent_workspace.publish_awareness(
+        room["id"],
+        event_type="task_transition",
+        actor_id="builder",
+        source="builder",
+        metadata={"task_id": "t1", "state": "done"},
+    )
+    assert standalone["published"] is True
