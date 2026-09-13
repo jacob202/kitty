@@ -29,6 +29,7 @@ def _stub_cli(tmp_path: Path) -> tuple[Path, Path]:
 set -u
 printf '%s\\n' "$*" >> "$KITTY_STUB_LOG"
 case "$1 $2" in
+  "room briefing") printf '%s\n' "${KITTY_STUB_BRIEFING:-}"; printf '%s' "${KITTY_STUB_BRIEFING_ERR:-}" >&2; exit "${KITTY_STUB_BRIEFING_RC:-0}" ;;
   "room recent") printf '%s\\n' "${KITTY_STUB_RECENT:-[]}"; printf '%s' "${KITTY_STUB_RECENT_ERR:-}" >&2; exit "${KITTY_STUB_RECENT_RC:-0}" ;;
   "room inbox") printf '%s\\n' "${KITTY_STUB_INBOX:-[]}"; printf '%s' "${KITTY_STUB_INBOX_ERR:-}" >&2; exit "${KITTY_STUB_INBOX_RC:-0}" ;;
   "room post") exit "${KITTY_STUB_POST_RC:-0}" ;;
@@ -67,6 +68,18 @@ def _run(hook: Path, payload: dict[str, object], tmp_path: Path, **overrides: st
     )
 
 
+def _briefing() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "kind": "room_briefing",
+        "identity": "claude",
+        "degraded": False,
+        "assignment": {"state": "unresolved", "scope": None, "authority_source": None},
+        "sources": {},
+        "attention": [],
+    }
+
+
 def test_stop_uses_completion_prompt_instead_of_unconditional_session_end() -> None:
     prompts = [entry for entry in _hook_entries("Stop") if entry.get("type") == "prompt"]
     assert len(prompts) == 1
@@ -99,32 +112,52 @@ def test_session_start_requests_direct_unread_separately() -> None:
 
 
 def test_session_start_reports_command_failures(tmp_path: Path) -> None:
-    result = _run(
+    briefing_down = _run(
         START_HOOK,
         {"session_id": "sess-errors", "hook_event_name": "SessionStart"},
         tmp_path,
-        KITTY_STUB_RECENT_RC="1",
+        KITTY_STUB_BRIEFING_RC="1",
+        KITTY_STUB_BRIEFING_ERR="database locked",
         KITTY_STUB_INBOX_RC="2",
-        KITTY_STUB_RECENT_ERR="database locked",
         KITTY_STUB_INBOX_ERR="permission denied",
     )
-    assert result.returncode == 0
-    assert "recent failed (exit 1): database locked" in result.stdout
-    assert "direct inbox failed (exit 2): permission denied" in result.stdout
+    assert briefing_down.returncode == 0
+    assert "briefing failed (exit 1): database locked" in briefing_down.stdout
+
+    direct_down = _run(
+        START_HOOK,
+        {"session_id": "sess-errors", "hook_event_name": "SessionStart"},
+        tmp_path,
+        KITTY_STUB_BRIEFING=json.dumps(_briefing()),
+        KITTY_STUB_INBOX_RC="2",
+        KITTY_STUB_INBOX_ERR="permission denied",
+    )
+    assert direct_down.returncode == 0
+    assert "direct inbox failed (exit 2): permission denied" in direct_down.stdout
 
 
 def test_session_start_bounds_and_deduplicates_context(tmp_path: Path) -> None:
     huge = "x" * 5000
+    briefing = _briefing()
+    briefing["attention"] = [
+        {
+            "kind": "direct_attention",
+            "message_id": "message_same",
+            "sender_id": "jacob",
+            "trust": "untrusted",
+            "reason": huge,
+        }
+    ]
     result = _run(
         START_HOOK,
         {"session_id": "sess-budget", "hook_event_name": "SessionStart"},
         tmp_path,
-        KITTY_STUB_RECENT=f"message_same: jacob: {huge}",
+        KITTY_STUB_BRIEFING=json.dumps(briefing),
         KITTY_STUB_INBOX=f"message_same: jacob: {huge}\nmessage_direct: jacob: {huge}",
     )
     assert result.returncode == 0
-    assert result.stdout.count("message_same:") == 1
     assert "message_direct:" in result.stdout
+    # Both the briefing projection and the attention surface stay bounded.
     assert len(result.stdout) < 14000
 
 
