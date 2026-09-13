@@ -29,6 +29,7 @@ REQUIRED_RESOURCES = {
     "memory:continuity",
     "mission:runtime",
     "image-lab:generation",
+    "knowledge:retrieval",
     "review:agent-workflow",
 }
 
@@ -518,6 +519,21 @@ def test_registry_covers_mission_runtime_and_automation_execution() -> None:
         assert agent_coordination.resolve_paths_to_resources(
             [path], registry_path=TRACKED_REGISTRY
         ) == ["automation:execution"], path
+
+def test_registry_covers_knowledge_retrieval_owner() -> None:
+    paths = [
+        "gateway/archivist.py",
+        "gateway/hybrid_search.py",
+        "gateway/knowledge.py",
+        "gateway/routes/knowledge.py",
+        "tests/test_knowledge.py",
+        "tests/test_knowledge_routes.py",
+    ]
+    for path in paths:
+        assert agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ) == ["knowledge:retrieval"], path
+
 
 def test_registry_covers_agent_room_interfaces() -> None:
     runtime_paths = [

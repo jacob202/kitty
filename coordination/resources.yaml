@@ -69,6 +69,18 @@ resources:
     - mcp/imagen/requirements.txt
     - tests/test_image_*.py
     - workers/comfy_worker/requirements.txt
+  knowledge:retrieval:
+    paths:
+    - gateway/archivist.py
+    - gateway/hybrid_search.py
+    - gateway/ingestion_queue.py
+    - gateway/knowledge.py
+    - gateway/librarian.py
+    - gateway/pdf_pipeline.py
+    - gateway/routes/knowledge.py
+    - tests/test_knowledge.py
+    - tests/test_knowledge_experts.py
+    - tests/test_knowledge_routes.py
   memory:continuity:
     paths:
     - gateway/agent_workspace.py
