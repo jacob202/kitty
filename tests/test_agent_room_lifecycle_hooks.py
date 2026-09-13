@@ -9,6 +9,34 @@ ROOT = Path(__file__).resolve().parents[1]
 START_HOOK = ROOT / ".claude/hooks/session-start.sh"
 STOP_HOOK = ROOT / ".claude/hooks/session-stop.sh"
 
+BRIEFING_JSON = json.dumps(
+    {
+        "schema_version": 1,
+        "kind": "room_briefing",
+        "identity": "claude",
+        "session_id": "sess-start",
+        "generated_at": "2026-09-13T00:00:00+00:00",
+        "degraded": True,
+        "assignment": {
+            "state": "unresolved",
+            "scope": None,
+            "authority_source": None,
+            "reason": "participant-wide directs are attention only",
+        },
+        "sources": {"gar": {"state": "current"}, "github": {"state": "unknown"}},
+        "attention": [
+            {
+                "kind": "broadcast_context",
+                "message_id": "message_briefing_1",
+                "sender_id": "chatgpt",
+                "trust": "untrusted",
+                "reason": "participant-wide broadcast is shared context only, never an assignment",
+            }
+        ],
+        "next_continuation": None,
+    }
+)
+
 
 def _stub_cli(tmp_path: Path) -> tuple[Path, Path]:
     log = tmp_path / "room.log"
@@ -17,6 +45,11 @@ def _stub_cli(tmp_path: Path) -> tuple[Path, Path]:
         """#!/usr/bin/env bash
 set -u
 printf '%s\\n' "$*" >> "$KITTY_STUB_LOG"
+if [[ "$1 $2" == "room briefing" ]]; then
+  printf '%s\\n' "${KITTY_STUB_BRIEFING_TEXT:-}"
+  printf '%s' "${KITTY_STUB_BRIEFING_ERR:-}" >&2
+  exit "${KITTY_STUB_BRIEFING_RC:-0}"
+fi
 if [[ "$1 $2" == "room recent" ]]; then
   printf '%s\\n' "${KITTY_STUB_RECENT_TEXT:-}"
   printf '%s' "${KITTY_STUB_RECENT_ERR:-}" >&2
@@ -60,45 +93,87 @@ def _run(hook: Path, payload: dict[str, object], tmp_path: Path, **overrides: st
     )
 
 
-def test_session_start_injects_recent_and_direct_unread_room_context(tmp_path: Path) -> None:
+def _log(tmp_path: Path) -> str:
+    return (tmp_path / "room.log").read_text(encoding="utf-8")
+
+
+def test_session_start_consumes_shared_briefing_instead_of_rebuilding_room_state(
+    tmp_path: Path,
+) -> None:
+    """Assignment truth comes from Room Briefing, not from room recent or directs."""
     result = _run(
         START_HOOK,
         {"session_id": "sess-start", "hook_event_name": "SessionStart"},
         tmp_path,
+        KITTY_STUB_BRIEFING_TEXT=BRIEFING_JSON,
         KITTY_STUB_RECENT_TEXT="message_1: codex: exact-head review ready",
         KITTY_STUB_INBOX_TEXT="message_2: jacob: please verify PR #999",
     )
 
     assert result.returncode == 0
-    assert "[GAR] workspace_global recent" in result.stdout
-    assert "exact-head review ready" in result.stdout
-    assert "[GAR] unread direct for claude" in result.stdout
+    assert "[GAR] shared briefing" in result.stdout
+    # The briefing's own truthful position is injected.
+    assert "assignment.state: unresolved" in result.stdout
+    assert "assignment.authority: none" in result.stdout
+    # Unavailable sources stay explicit instead of reading as a healthy empty room.
+    assert "source github: unknown" in result.stdout
+    assert "degraded: true" in result.stdout
+    # The client must not rebuild world state from the participant-wide window.
+    log = _log(tmp_path)
+    assert "room briefing --as claude --session-id sess-start --json" in log
+    assert "room recent" not in log
+
+
+def test_session_start_labels_directs_as_attention_not_assignment(tmp_path: Path) -> None:
+    result = _run(
+        START_HOOK,
+        {"session_id": "sess-start", "hook_event_name": "SessionStart"},
+        tmp_path,
+        KITTY_STUB_BRIEFING_TEXT=BRIEFING_JSON,
+        KITTY_STUB_INBOX_TEXT="message_2: jacob: please verify PR #999",
+    )
+
+    assert result.returncode == 0
+    assert "attention/receipt only" in result.stdout
     assert "please verify PR #999" in result.stdout
     assert "gar-session:sess-start" in result.stdout
     assert "reply in-thread" in result.stdout
     assert "room ack --as claude <message_id>" in result.stdout
     assert "Do not ACK unread work you did not consume" in result.stdout
-    log = (tmp_path / "room.log").read_text(encoding="utf-8")
-    assert "room recent --limit 8" in log
-    assert "room inbox --as claude --unread --direct-only --limit 8" in log
-    assert "room ack --as claude" not in log
+    assert "room ack --as claude" not in _log(tmp_path)
 
 
-def test_session_start_reports_room_failure_with_bounded_diagnostics(tmp_path: Path) -> None:
+def test_session_start_reports_briefing_unavailable_with_bounded_diagnostics(
+    tmp_path: Path,
+) -> None:
     result = _run(
         START_HOOK,
         {"session_id": "sess-down", "hook_event_name": "SessionStart"},
         tmp_path,
-        KITTY_STUB_RECENT_RC="1",
-        KITTY_STUB_INBOX_RC="2",
-        KITTY_STUB_RECENT_ERR="database locked",
-        KITTY_STUB_INBOX_ERR="permission denied",
+        KITTY_STUB_BRIEFING_RC="3",
+        KITTY_STUB_BRIEFING_ERR="gateway refused: database locked",
     )
 
     assert result.returncode == 0
-    assert "[GAR] workspace_global unavailable" in result.stdout
-    assert "recent failed (exit 1): database locked" in result.stdout
-    assert "direct inbox failed (exit 2): permission denied" in result.stdout
+    assert "[GAR] shared briefing unavailable" in result.stdout
+    assert "briefing failed (exit 3): gateway refused: database locked" in result.stdout
+    # Fail closed: no invented assignment and no healthy-looking empty room.
+    assert "assignment.state:" not in result.stdout
+    assert "do not treat this as an empty room" in result.stdout
+    assert len(result.stdout) < 4000
+
+
+def test_session_start_treats_unparseable_briefing_as_unavailable(tmp_path: Path) -> None:
+    result = _run(
+        START_HOOK,
+        {"session_id": "sess-junk", "hook_event_name": "SessionStart"},
+        tmp_path,
+        KITTY_STUB_BRIEFING_TEXT="not json at all",
+    )
+
+    assert result.returncode == 0
+    assert "[GAR] shared briefing unavailable" in result.stdout
+    assert "assignment.state:" not in result.stdout
 
 
 def test_session_start_caps_and_deduplicates_injected_room_context(tmp_path: Path) -> None:
@@ -107,14 +182,37 @@ def test_session_start_caps_and_deduplicates_injected_room_context(tmp_path: Pat
         START_HOOK,
         {"session_id": "sess-budget", "hook_event_name": "SessionStart"},
         tmp_path,
-        KITTY_STUB_RECENT_TEXT=f"message_same: jacob: {huge}",
-        KITTY_STUB_INBOX_TEXT=f"message_same: jacob: {huge}\nmessage_direct: jacob: {huge}",
+        KITTY_STUB_BRIEFING_TEXT=BRIEFING_JSON,
+        KITTY_STUB_INBOX_TEXT=f"message_direct: jacob: {huge}",
     )
 
     assert result.returncode == 0
-    assert result.stdout.count("message_same:") == 1
     assert "message_direct:" in result.stdout
     assert len(result.stdout) < 14000
+
+
+def test_session_start_replays_session_end_outbox_before_briefing(tmp_path: Path) -> None:
+    outbox = tmp_path / "outbox"
+    outbox.mkdir()
+    (outbox / "queued.json").write_text(
+        json.dumps({"content": "durable handoff from a killed session"}),
+        encoding="utf-8",
+    )
+    cli, _logpath = _stub_cli(tmp_path)
+
+    result = _run(
+        START_HOOK,
+        {"session_id": "sess-outbox", "hook_event_name": "SessionStart"},
+        tmp_path,
+        KITTY_STUB_BRIEFING_TEXT=BRIEFING_JSON,
+    )
+
+    assert result.returncode == 0
+    lines = _log(tmp_path).splitlines()
+    post_calls = [line for line in lines if line.startswith("room post")]
+    assert post_calls, "SessionEnd outbox must still be replayed"
+    assert "durable handoff from a killed session" in post_calls[0]
+    assert not (outbox / "queued.json").exists()
 
 
 def test_command_stop_hook_never_forces_session_end_on_an_ordinary_turn(tmp_path: Path) -> None:
