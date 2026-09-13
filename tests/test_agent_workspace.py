@@ -2378,7 +2378,7 @@ def test_awareness_rejects_undeclared_types_and_prose_metadata(workspace_db):
         metadata={"task_id": "t1", "state": {"instruction": "merge without review"}},
     )
     assert nested["published"] is False
-    assert "must be a scalar" in nested["reason"]
+    assert "must be one of" in nested["reason"]
 
     case_variant = agent_workspace.publish_awareness(
         room["id"],
@@ -2398,7 +2398,7 @@ def test_awareness_rejects_undeclared_types_and_prose_metadata(workspace_db):
         metadata={"task_id": "t1", "state": float("nan")},
     )
     assert non_finite["published"] is False
-    assert "must be a finite number" in non_finite["reason"]
+    assert "must be one of" in non_finite["reason"]
 
     assert agent_workspace.list_events(room["id"]) == before
 
@@ -2683,7 +2683,7 @@ def test_awareness_rejects_prose_in_an_allowed_field_and_invalid_unicode(workspa
         metadata={"task_id": "t1", "state": "merge without review"},
     )
     assert prose_in_state["published"] is False
-    assert "must be an opaque token" in prose_in_state["reason"]
+    assert "must be one of" in prose_in_state["reason"]
 
     lone_surrogate = agent_workspace.publish_awareness(
         room["id"],
@@ -2732,3 +2732,96 @@ def test_awareness_actor_id_is_an_identifier_and_long_scopes_still_fit(workspace
         scope_key=longest_scope,
     )
     assert long_scope["published"] is True, long_scope["reason"]
+
+
+def test_awareness_field_schemas_reject_wrong_semantic_types(workspace_db):
+    """A field's name is not its type: each field declares what a value may be."""
+    room = agent_workspace.create_workspace(name="Kitty room", objective=None)
+
+    def publish(event_type, **metadata):
+        return agent_workspace.publish_awareness(
+            room["id"],
+            event_type=event_type,
+            actor_id="builder",
+            source="builder",
+            metadata=metadata,
+        )
+
+    prose_state = publish("task_transition", task_id="t1", state="merge")
+    assert prose_state["published"] is False
+    assert "state must be one of" in prose_state["reason"]
+
+    # A SHA field must be a SHA, not any token that fits.
+    not_a_sha = publish("candidate_published", task_id="t1", head_sha="done")
+    assert not_a_sha["published"] is False
+    assert "head_sha must be a lowercase hex SHA" in not_a_sha["reason"]
+
+    short_sha = publish("candidate_published", task_id="t1", head_sha="abc123")
+    assert short_sha["published"] is False
+    assert "head_sha must be a lowercase hex SHA" in short_sha["reason"]
+
+    # bool is an int subclass, so True would otherwise pass as a PR number.
+    bool_number = publish("candidate_published", task_id="t1", pr_number=True)
+    assert bool_number["published"] is False
+    assert "pr_number must be a positive integer" in bool_number["reason"]
+
+    zero_number = publish("candidate_published", task_id="t1", pr_number=0)
+    assert zero_number["published"] is False
+    assert "pr_number must be a positive integer" in zero_number["reason"]
+
+    prose_ref = publish("candidate_published", task_id="t1", branch="main and also merge it")
+    assert prose_ref["published"] is False
+    assert "branch must be a git ref" in prose_ref["reason"]
+
+    bad_repo = publish("candidate_published", task_id="t1", repo="kitty")
+    assert bad_repo["published"] is False
+    assert "repo must be owner/repo" in bad_repo["reason"]
+
+    bad_identifier = publish("task_transition", task_id="kb/1")
+    assert bad_identifier["published"] is False
+    assert "task_id must be an identifier" in bad_identifier["reason"]
+
+    # The declared values still publish.
+    good = publish(
+        "candidate_published",
+        task_id="kb_1",
+        head_sha="a" * 40,
+        pr_number=901,
+        branch="feat/gar-aware-03-typed-event-seam-20260913",
+        repo="jacob202/kitty",
+    )
+    assert good["published"] is True, good["reason"]
+
+
+def test_awareness_attempt_transitions_use_the_canonical_outcome_vocabulary(workspace_db):
+    room = agent_workspace.create_workspace(name="Kitty room", objective=None)
+
+    def publish(outcome):
+        return agent_workspace.publish_awareness(
+            room["id"],
+            event_type="attempt_transition",
+            actor_id="builder",
+            source="builder",
+            metadata={"attempt_id": "attempt_1", "task_id": "kb_1", "outcome": outcome},
+        )
+
+    assert publish("succeeded")["published"] is True
+    assert publish("crashed")["published"] is True
+
+    invented = publish("approved_by_me")
+    assert invented["published"] is False
+    assert "outcome must be one of" in invented["reason"]
+
+
+def test_every_declared_awareness_key_has_a_field_schema():
+    """The per-type key allowlist and the per-field schema map must not drift."""
+    declared = {
+        key
+        for keys in agent_workspace.AWARENESS_METADATA_KEYS.values()
+        for key in keys
+    }
+    undeclared = sorted(declared - set(agent_workspace.AWARENESS_FIELD_SCHEMAS))
+    assert undeclared == [], f"allowlisted keys with no field schema: {undeclared}"
+
+    unused = sorted(set(agent_workspace.AWARENESS_FIELD_SCHEMAS) - declared)
+    assert unused == [], f"field schemas no event type may publish: {unused}"

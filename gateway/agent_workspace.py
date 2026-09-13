@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import re
 import sqlite3
 import time
 import uuid
 from typing import Any, Protocol
 
+from gateway import builder_attempt as _builder_attempt
+from gateway import builder_queue_db as _builder_queue_db
 from gateway import db as kitty_db
 from gateway.paths import KITTY_DB_FILE
 
@@ -934,47 +935,113 @@ AWARENESS_SEVERITIES: frozenset[str] = frozenset({"info", "warning", "critical"}
 MAX_AWARENESS_METADATA_BYTES = 4_000
 MAX_AWARENESS_TEXT_LENGTH = 200
 
+# Canonical lifecycle vocabularies, imported rather than copied. A state added
+# upstream must stay publishable without editing this seam, and a vocabulary that
+# drifts would start rejecting real operational facts.
+TASK_STATES = frozenset(
+    {
+        _builder_queue_db.QUEUED,
+        _builder_queue_db.CLAIMED,
+        _builder_queue_db.RUNNING,
+        _builder_queue_db.PR_OPENED,
+        _builder_queue_db.AWAITING_REVIEW,
+        _builder_queue_db.DONE,
+        _builder_queue_db.FAILED,
+        _builder_queue_db.CANCELLED,
+        _builder_queue_db.BLOCKED,
+    }
+)
+ATTEMPT_OUTCOMES = frozenset(
+    {
+        _builder_attempt.ATTEMPT_SUCCEEDED,
+        _builder_attempt.ATTEMPT_FAILED,
+        _builder_attempt.ATTEMPT_ABORTED,
+        _builder_attempt.ATTEMPT_CRASHED,
+    }
+)
+
+# Per-field value schemas. Which fields may be published and what a value may be
+# is one contract, not two: a name-only allowlist still let ``{"state": "merge"}``
+# cross the trust boundary and be projected as a trusted fact.
+AWARENESS_FIELD_SCHEMAS: dict[str, tuple[str, frozenset[str]]] = {
+    "task_id": ("identifier", frozenset()),
+    "packet_id": ("identifier", frozenset()),
+    "initiative_id": ("identifier", frozenset()),
+    "attempt_id": ("identifier", frozenset()),
+    "lane": ("identifier", frozenset()),
+    "marker": ("identifier", frozenset()),
+    "repo": ("repo", frozenset()),
+    "state": ("enum", TASK_STATES),
+    "from_state": ("enum", TASK_STATES),
+    "outcome": ("enum", ATTEMPT_OUTCOMES),
+    "branch": ("ref", frozenset()),
+    "head_sha": ("sha", frozenset()),
+    "pr_number": ("positive_int", frozenset()),
+    "issue_number": ("positive_int", frozenset()),
+}
+
+_AWARENESS_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_AWARENESS_REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
+_AWARENESS_SHA = re.compile(r"^[0-9a-f]{7,40}$")
+_AWARENESS_REPO = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]{1,100}$")
+
+
+def _awareness_field_rejection(key: str, value: Any) -> str | None:
+    """Return why this value is unusable for its declared field schema, or None."""
+    schema = AWARENESS_FIELD_SCHEMAS.get(key)
+    if schema is None:
+        return f"{key} has no declared awareness field schema"
+    kind, allowed = schema
+    if kind == "enum":
+        if not isinstance(value, str) or value not in allowed:
+            return f"{key} must be one of {sorted(allowed)}, not {value!r}"
+        return None
+    if kind == "positive_int":
+        # bool is an int subclass; True must not pass as a PR number.
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            return f"{key} must be a positive integer, not {value!r}"
+        return None
+    if not isinstance(value, str):
+        return f"{key} must be a string, not {type(value).__name__}"
+    if kind == "sha":
+        if not _AWARENESS_SHA.match(value):
+            return f"{key} must be a lowercase hex SHA (7-40 characters), not {value[:40]!r}"
+        return None
+    if kind == "ref":
+        if not _AWARENESS_REF.match(value):
+            return f"{key} must be a git ref, not {value[:40]!r}"
+        return None
+    if kind == "repo":
+        if not _AWARENESS_REPO.match(value):
+            return f"{key} must be owner/repo, not {value[:40]!r}"
+        return None
+    if kind == "identifier":
+        if not _AWARENESS_IDENTIFIER.match(value):
+            return f"{key} must be an identifier, not {value[:40]!r}"
+        return None
+    return f"{key} declares an unknown awareness schema kind {kind!r}"
+
+
 # Envelope identifiers are opaque tokens: a task id, a SHA or ref, an event id or
 # locator. Requiring identifier shape is what stops an envelope field from being
 # used as a free-text channel for prose or a directive.
-_AWARENESS_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/#@-]{0,199}$")
+_AWARENESS_ENVELOPE_REFERENCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/#@-]{0,199}$")
 
 
 def _awareness_identifier_rejection(key: str, value: Any) -> str | None:
-    """Return why this envelope identifier is unusable, or None."""
+    """Return why this envelope reference is unusable, or None.
+
+    Deliberately looser than a field identifier: an envelope reference may be an
+    event id or an evidence locator such as ``gar:message_...``, so ``: / # @``
+    are allowed here. It is still a reference, not prose.
+    """
     if value is None:
         return None
     if not isinstance(value, str):
         return f"{key} must be an identifier string, not {type(value).__name__}"
-    if not _AWARENESS_IDENTIFIER.fullmatch(value):
+    if not _AWARENESS_ENVELOPE_REFERENCE.fullmatch(value):
         return f"{key} must be an opaque identifier (letters, digits, . _ : / # @ -), not prose"
     return None
-
-
-def _awareness_scalar_rejection(key: str, value: Any) -> str | None:
-    """Return why this value cannot be a trusted awareness fact, or None.
-
-    An allowlisted key is not enough: `state` could hold {"instruction": ...}
-    and the reader would surface the whole object under trusted_metadata with
-    no untrusted_text at all. Awareness values are therefore bounded scalars
-    only -- no containers, so there is nowhere to hide prose or a directive.
-    """
-    if value is None or isinstance(value, bool):
-        return None
-    if isinstance(value, float) and not math.isfinite(value):
-        return f"{key} must be a finite number"
-    if isinstance(value, int):
-        return None
-    if isinstance(value, str):
-        if len(value) > MAX_AWARENESS_TEXT_LENGTH:
-            return f"{key} exceeds {MAX_AWARENESS_TEXT_LENGTH} characters"
-        if not _AWARENESS_IDENTIFIER.fullmatch(value):
-            # Not a length problem: an awareness value is an opaque token (a state
-            # name, an id, a ref). Prose needs spaces, so this is where a directive
-            # hidden in an allowed field stops being a "fact".
-            return f"{key} must be an opaque token, not prose (got {value[:40]!r})"
-        return None
-    return f"{key} must be a scalar, not {type(value).__name__}"
 
 
 def publish_awareness(
@@ -1106,18 +1173,18 @@ def publish_awareness(
         payload = {**metadata, **envelope}
         shape_errors = []
         for key, value in sorted(payload.items()):
-            if key == "scope_key":
-                # Already validated against the evidence-derived scope contract and
-                # its own 240-character limit; the generic 200-character token rule
-                # would reject scopes that contract explicitly allows.
+            if key in AWARENESS_ENVELOPE_KEYS:
+                # Envelope fields are validated as declared parameters above, and
+                # scope_key against its own evidence-derived contract and length.
                 continue
-            reason = _awareness_scalar_rejection(key, value)
+            reason = _awareness_field_rejection(key, value)
             if reason is not None:
                 shape_errors.append(reason)
         if shape_errors:
             return {
                 "published": False,
-                "reason": "awareness values must be typed scalars: " + "; ".join(shape_errors),
+                "reason": "awareness values do not match their field schemas: "
+                + "; ".join(shape_errors),
             }
         try:
             # allow_nan=False: NaN/Infinity are not JSON, and a strict reader would
