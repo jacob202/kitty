@@ -60,7 +60,7 @@ def test_pending_review_body_invalidates_old_approval() -> None:
     assert "approve" not in body.lower()
 
 
-def test_main_marks_current_head_pending_and_fails_if_model_has_no_verdict(
+def test_main_publishes_an_explicit_failure_and_exits_when_no_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seen: list[str] = []
@@ -81,7 +81,7 @@ def test_main_marks_current_head_pending_and_fails_if_model_has_no_verdict(
         pr_review.main()
 
     assert exc.value.code == 1
-    assert seen == [pr_review.REVIEW_PENDING]
+    assert seen == [pr_review.REVIEW_PENDING, pr_review.REVIEW_FAILED]
 
 
 def test_main_blocks_actionable_findings_on_exact_head(
@@ -135,7 +135,7 @@ def test_review_diff_covers_every_chunk_and_aggregates_findings(
     seen: list[str] = []
     monkeypatch.setattr(pr_review, "MAX_REVIEW_CHARS", 12)
 
-    def fake_review_chunk(chunk: str) -> str:
+    def fake_review_chunk(chunk: str, **_kwargs: object) -> str:
         seen.append(chunk)
         return "finding-two" if "BBBB" in chunk else pr_review.NO_FINDINGS
 
@@ -154,7 +154,7 @@ def test_review_diff_fails_closed_when_any_chunk_has_no_verdict(
 ) -> None:
     monkeypatch.setattr(pr_review, "MAX_REVIEW_CHARS", 5)
     answers = iter([pr_review.NO_FINDINGS, None])
-    monkeypatch.setattr(pr_review, "_review_chunk", lambda _chunk: next(answers))
+    monkeypatch.setattr(pr_review, "_review_chunk", lambda _chunk, **_kwargs: next(answers))
 
     assert pr_review.review_diff("abcdefghij") is None
 
@@ -473,3 +473,29 @@ def test_exact_head_override_reads_live_pr_state_not_event_snapshot(tmp_path, mo
 
     monkeypatch.setattr(pr_review, "urlopen", lambda _request, timeout=0: FakeResponse())
     assert pr_review.get_exact_head_override(sha) == "independently verified provider outage"
+
+
+def test_review_diff_stops_at_the_total_budget_without_calling_a_model(monkeypatch) -> None:
+    """Exhausting the whole-review budget must fail explicitly, not run past it.
+
+    MAX_REVIEW_CHUNKS permits 12 chunks, so the permitted worst case cannot fit
+    inside any sane job timeout. The harness bounds its own total work instead.
+    """
+    monkeypatch.setattr(pr_review, "REVIEW_TOTAL_TIMEOUT_SECONDS", 0)
+    monkeypatch.setattr(pr_review, "_review_chunks", lambda _diff: ["a", "b"])
+    called: list[str] = []
+
+    def _fail(*_args, **_kwargs):
+        called.append("chunk")
+        raise AssertionError("no chunk may be reviewed after the budget is gone")
+
+    monkeypatch.setattr(pr_review, "_review_chunk", _fail)
+    assert pr_review.review_diff("diff") is None
+    assert called == []
+
+
+def test_failure_body_is_not_exact_head_review_evidence() -> None:
+    """A budget failure must read as unapproved, never as a completed review."""
+    body = pr_review.render_review_body(pr_review.REVIEW_FAILED, "a" * 40)
+    assert "Reviewed commit" not in body
+    assert "neither an approval nor a finding" in body

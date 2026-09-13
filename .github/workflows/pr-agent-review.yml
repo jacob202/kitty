@@ -70,12 +70,12 @@ jobs:
            github.event.action == 'reopened' ||
            github.event.action == 'ready_for_review') }}
     runs-on: ubuntu-latest
-    # Worst case is every chunk stalling on every model: MAX_REVIEW_CHUNKS is 12,
-    # and a real PR has produced 2 chunks. At PR_REVIEW_MODEL_TIMEOUT_SECONDS a
-    # chunk can spend 2 x 240s before giving up, so 20 minutes lets the fallback
-    # chain finish and report a truthful verdict instead of being cancelled
-    # mid-review (which posts nothing and leaves "Review pending" for a head that
-    # was never actually reviewed).
+    # MAX_REVIEW_CHUNKS permits 12 chunks, so the permitted worst case (12 x 2
+    # models x 240s) is 96 minutes and no reasonable job cap can cover it. The
+    # harness therefore bounds itself with PR_REVIEW_TOTAL_TIMEOUT_SECONDS (900s)
+    # and publishes an explicit failure comment, so a job is never cancelled
+    # mid-review with no verdict at all. This cap only has to sit above that
+    # self-imposed budget plus setup and comment overhead.
     timeout-minutes: 20
     continue-on-error: true
     steps:
@@ -111,6 +111,9 @@ jobs:
           # primary model timed out on every sufficiently large diff, the fallback
           # timed out too, and the job posted no verdict at all.
           PR_REVIEW_MODEL_TIMEOUT_SECONDS: "240"
+          # Bounds the whole review (all chunks, all fallback models) below the
+          # job cap, so the job always publishes a verdict or an explicit failure.
+          PR_REVIEW_TOTAL_TIMEOUT_SECONDS: "900"
           PR_REVIEW_AGENT: "pr-reviewer"
         run: python scripts/pr_review.py
 

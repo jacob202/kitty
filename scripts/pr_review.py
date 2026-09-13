@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -33,6 +34,14 @@ DEEPSEEK_INDEPENDENT_FALLBACK_MODEL = os.environ.get(
     "PR_REVIEW_DEEPSEEK_FALLBACK_MODEL", DEEPSEEK_REVIEW_FALLBACK_MODEL
 )
 REVIEW_MODEL_TIMEOUT_SECONDS = int(os.environ.get("PR_REVIEW_MODEL_TIMEOUT_SECONDS", "240"))
+# Hard ceiling on one whole review, across every chunk and every fallback model.
+# MAX_REVIEW_CHUNKS permits 12 chunks, so 12 x 2 models x 240s is 96 minutes: the
+# workflow's job cap can never cover the permitted worst case. Rather than size a
+# job for a pathological diff, the harness bounds its own work below the job cap
+# and reports an explicit failure instead of being cancelled mid-review, which
+# would leave the head with no verdict at all.
+REVIEW_TOTAL_TIMEOUT_SECONDS = int(os.environ.get("PR_REVIEW_TOTAL_TIMEOUT_SECONDS", "900"))
+REVIEW_FAILED = "__REVIEW_FAILED__"
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
 NO_FINDINGS = "NO_ACTIONABLE_FINDINGS"
 REVIEW_PENDING = "__REVIEW_PENDING__"
@@ -283,7 +292,7 @@ def _normalize_opencode_review(output: str) -> str | None:
     return text
 
 
-def _review_chunk(chunk: str) -> str | None:
+def _review_chunk(chunk: str, *, timeout_seconds: float | None = None) -> str | None:
     review_models = review_models_for_current_event()
     if not review_models:
         print("No independent PR reviewer model is configured.", file=sys.stderr)
@@ -320,7 +329,11 @@ def _review_chunk(chunk: str) -> str | None:
                 command,
                 capture_output=True,
                 text=True,
-                timeout=REVIEW_MODEL_TIMEOUT_SECONDS,
+                timeout=(
+                    REVIEW_MODEL_TIMEOUT_SECONDS
+                    if timeout_seconds is None
+                    else timeout_seconds
+                ),
                 check=False,
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
@@ -410,10 +423,22 @@ def review_diff(diff: str) -> str | None:
         )
         return None
 
+    deadline = time.monotonic() + REVIEW_TOTAL_TIMEOUT_SECONDS
     findings: list[str] = []
     for index, chunk in enumerate(chunks, start=1):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            print(
+                f"PR review exhausted its {REVIEW_TOTAL_TIMEOUT_SECONDS}s total budget before "
+                f"chunk {index}/{len(chunks)}; publishing an explicit failure instead of being "
+                "cancelled mid-review.",
+                file=sys.stderr,
+            )
+            return None
         print(f"Reviewing diff chunk {index}/{len(chunks)} ({len(chunk)} chars).")
-        verdict = _review_chunk(chunk)
+        verdict = _review_chunk(
+            chunk, timeout_seconds=min(REVIEW_MODEL_TIMEOUT_SECONDS, remaining)
+        )
         if not verdict:
             return None
         if verdict.strip() != NO_FINDINGS:
@@ -430,6 +455,14 @@ def render_review_body(review: str, head_sha: str) -> str:
             f"{COMMENT_MARKER}\n## Agent PR Review\n\n"
             f"Review pending for commit {target}. Previous review evidence is stale "
             "until this current-head review completes."
+        )
+    if review.strip() == REVIEW_FAILED:
+        target = f"`{head_sha}`" if head_sha else "the current PR head"
+        return (
+            f"{COMMENT_MARKER}\n## Agent PR Review\n\n"
+            f"No review verdict was produced for commit {target}: the reviewer exhausted its "
+            "configured time budget before finishing. This is neither an approval nor a finding. "
+            "Re-run the review, or use the documented exact-head override after an independent review."
         )
     if review.strip() == NO_FINDINGS:
         review = "No actionable findings in this diff."
@@ -514,6 +547,9 @@ def main() -> None:
 
     review = review_diff(diff)
     if not review:
+        # Publish the failure instead of leaving the stale "pending" marker: a head
+        # with no verdict must read as visibly unapproved, not silently ambiguous.
+        upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha)
         print("Current-head agent review did not produce a verdict.", file=sys.stderr)
         raise SystemExit(1)
 
