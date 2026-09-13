@@ -41,7 +41,18 @@ DEFAULT_FOCUS_LOCK = Path(tempfile.gettempdir()) / "kitty-local-review-focus.loc
 
 RISK_PATTERNS: dict[str, re.Pattern[str]] = {
     "spend": re.compile(r"\b(payment|charge|billing|spend|budget|paid provider|provider call|reservation)\b", re.I),
-    "auth_security": re.compile(r"\b(auth(?:entication|orization)?|credential|secret|api key|access token|security)\b", re.I),
+    # Credential requirements usually arrive as identifiers (`GITHUB_TOKEN`,
+    # `OPENAI_API_KEY`, `access_token`), not as space-separated prose, so match
+    # any separator between qualifier and noun. The identifier arm stays
+    # case-sensitive on purpose: with `re.I` a bare `_token` would also match
+    # unrelated parameters such as `max_tokens` and escalate nearly everything.
+    "auth_security": re.compile(
+        r"\b(?:auth(?:entication|orization)?|authorized|security|credentials?|secrets?|passwords?)\b"
+        r"|\b(?:api|access|auth|private|secret|signing|bearer|refresh|session|client)"
+        r"[\s_-]*(?:keys?|tokens?|secrets?|passwords?)\b"
+        r"|(?-i:\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_(?:KEY|TOKEN|SECRET|PASSWORD)S?\b)",
+        re.I,
+    ),
     "destructive": re.compile(r"\b(delete|drop|destroy|erase|purge|force[- ]?push|rewrite history)\b", re.I),
     "irreversible_external_effect": re.compile(r"\b(send (?:email|message)|publish|merge|push to main|external side effect|irreversible)\b", re.I),
     # A small local model must not clear work whose failure can corrupt durable

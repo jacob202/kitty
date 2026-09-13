@@ -113,6 +113,38 @@ def test_durable_state_requirements_escalate_before_local_inference() -> None:
     assert called is False
 
 
+@pytest.mark.parametrize(
+    "requirement",
+    [
+        "Add GITHUB_TOKEN support to the worker.",
+        "Rotate OPENAI_API_KEY before deploy.",
+        "Use access_token here.",
+        "Read API_KEY from the environment.",
+        "Send the bearer-token in a header.",
+        "Persist DB_PASSWORD safely.",
+    ],
+)
+def test_credential_identifiers_raise_the_auth_security_tag(requirement: str) -> None:
+    """Identifier-style names must tag, or an auth requirement reaches the small model
+    and is cleared as advisory_clear instead of escalating."""
+    assert "auth_security" in detect_risk_tags([requirement]), requirement
+
+
+@pytest.mark.parametrize(
+    "requirement",
+    [
+        "Increase max_tokens to 40000.",
+        "Generate at most 512 output tokens.",
+        "Sort rows by key.",
+        "Tokenize the input.",
+    ],
+)
+def test_token_parameters_do_not_raise_the_auth_security_tag(requirement: str) -> None:
+    """The inverse guard: `_token` in a generation parameter is not a credential, and
+    over-tagging would escalate routine work and defeat the shadow reviewer."""
+    assert "auth_security" not in detect_risk_tags([requirement]), requirement
+
+
 def test_explicit_high_risk_tags_and_same_model_family_escalate() -> None:
     assert detect_risk_tags(["Rotate an API credential safely."]) == {"auth_security"}
     assert model_family("openrouter/qwen/qwen3.5-coder") == "qwen"
