@@ -98,10 +98,9 @@ def test_main_reads_live_pr_and_comments(
             return [approved]
         raise AssertionError(url)
 
+    # Only this module's own transport seam is stubbed: the gate passes it into
+    # the paginated helper, so the seam is preserved rather than bypassed.
     monkeypatch.setattr(pr_review_gate, "_github_json", fake_json)
-    # The gate reads comments through the reviewer's paginated helper, so the
-    # shared JSON transport is what actually needs stubbing.
-    monkeypatch.setattr(pr_review, "github_json", fake_json)
     pr_review_gate.main()
 
     captured = capsys.readouterr()

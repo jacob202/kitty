@@ -45,19 +45,19 @@ def test_find_existing_review_comment_is_scoped_to_the_head() -> None:
     assert pr_review.find_existing_review_comment(comments, "c" * 40) is None
 
 
-def test_issue_comments_follows_pagination(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_issue_comments_follows_pagination() -> None:
     """A full first page must not hide the newest evidence from the gate."""
     pages = {1: [{"id": i} for i in range(100)], 2: [{"id": 100}]}
     seen: list[int] = []
 
-    def fake(url, *_args, **_kwargs):
+    def fetch(url, _token):
         page = int(str(url).rsplit("page=", 1)[1])
         seen.append(page)
         return pages[page]
 
-    monkeypatch.setattr(pr_review, "github_json", fake)
+    comments = pr_review.issue_comments("owner", "repo", 1, "token", fetch=fetch)
 
-    assert len(pr_review.issue_comments("owner", "repo", 1, "token")) == 101
+    assert len(comments) == 101
     assert seen == [1, 2]
 
 

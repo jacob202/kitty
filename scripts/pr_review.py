@@ -14,7 +14,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import Any
+from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -505,14 +505,26 @@ def find_existing_review_comment(
     return None
 
 
-def issue_comments(owner: str, repo: str, pr_number: int, token: str) -> list[dict[str, Any]]:
+def issue_comments(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    token: str,
+    *,
+    fetch: Callable[[str, str], Any] | None = None,
+) -> list[dict[str, Any]]:
     """Every issue comment on the PR, oldest first.
 
     GitHub returns issue comments oldest-first, so a single page silently hides
     the newest evidence once a PR passes 100 comments -- both the lookup here and
     the trust gate would then miss the current head's verdict and publish or
     demand a duplicate. Follow pagination to the end instead.
+
+    ``fetch`` is the same testable transport seam ``pr_scope.pull_request_files``
+    exposes, so callers such as the gate keep their own JSON seam instead of
+    having it bypassed.
     """
+    fetch = fetch or github_json
     comments: list[dict[str, Any]] = []
     page = 1
     while True:
@@ -520,7 +532,7 @@ def issue_comments(owner: str, repo: str, pr_number: int, token: str) -> list[di
             f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}"
             f"/comments?per_page=100&page={page}"
         )
-        payload = github_json(url, token)
+        payload = fetch(url, token)
         if not isinstance(payload, list):
             raise ValueError("GitHub issue-comments response was not a list")
         comments.extend(item for item in payload if isinstance(item, dict))
