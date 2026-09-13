@@ -499,3 +499,15 @@ def test_failure_body_is_not_exact_head_review_evidence() -> None:
     body = pr_review.render_review_body(pr_review.REVIEW_FAILED, "a" * 40)
     assert "Reviewed commit" not in body
     assert "neither an approval nor a finding" in body
+
+
+def test_model_timeout_is_reclipped_to_the_remaining_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each fallback attempt gets what is actually left, not a stale per-chunk value."""
+    monkeypatch.setattr(pr_review, "REVIEW_MODEL_TIMEOUT_SECONDS", 240)
+    now = pr_review.time.monotonic()
+    assert pr_review._model_timeout(None) == 240
+    assert pr_review._model_timeout(now + 1000) == 240
+    assert pr_review._model_timeout(now + 30) <= 30
+    assert pr_review._model_timeout(now - 1) <= 0

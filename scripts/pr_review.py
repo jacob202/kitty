@@ -292,7 +292,19 @@ def _normalize_opencode_review(output: str) -> str | None:
     return text
 
 
-def _review_chunk(chunk: str, *, timeout_seconds: float | None = None) -> str | None:
+def _model_timeout(deadline: float | None) -> float:
+    """Timeout for one reviewer attempt, re-clipped to what is left of the budget.
+
+    Recomputing per attempt matters: a chunk that starts with 200 seconds left
+    would otherwise hand the fallback model the same stale 200 seconds, letting a
+    nominally bounded review overrun its budget by a whole timeout per chunk.
+    """
+    if deadline is None:
+        return float(REVIEW_MODEL_TIMEOUT_SECONDS)
+    return min(float(REVIEW_MODEL_TIMEOUT_SECONDS), deadline - time.monotonic())
+
+
+def _review_chunk(chunk: str, *, deadline: float | None = None) -> str | None:
     review_models = review_models_for_current_event()
     if not review_models:
         print("No independent PR reviewer model is configured.", file=sys.stderr)
@@ -312,6 +324,13 @@ def _review_chunk(chunk: str, *, timeout_seconds: float | None = None) -> str | 
     )
 
     for index, review_model in enumerate(review_models, start=1):
+        attempt_timeout = _model_timeout(deadline)
+        if attempt_timeout <= 0:
+            print(
+                "PR review exhausted its total budget before the next reviewer attempt.",
+                file=sys.stderr,
+            )
+            return None
         command = [
             "opencode",
             "run",
@@ -329,11 +348,7 @@ def _review_chunk(chunk: str, *, timeout_seconds: float | None = None) -> str | 
                 command,
                 capture_output=True,
                 text=True,
-                timeout=(
-                    REVIEW_MODEL_TIMEOUT_SECONDS
-                    if timeout_seconds is None
-                    else timeout_seconds
-                ),
+                timeout=attempt_timeout,
                 check=False,
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
@@ -436,9 +451,7 @@ def review_diff(diff: str) -> str | None:
             )
             return None
         print(f"Reviewing diff chunk {index}/{len(chunks)} ({len(chunk)} chars).")
-        verdict = _review_chunk(
-            chunk, timeout_seconds=min(REVIEW_MODEL_TIMEOUT_SECONDS, remaining)
-        )
+        verdict = _review_chunk(chunk, deadline=deadline)
         if not verdict:
             return None
         if verdict.strip() != NO_FINDINGS:
@@ -460,9 +473,9 @@ def render_review_body(review: str, head_sha: str) -> str:
         target = f"`{head_sha}`" if head_sha else "the current PR head"
         return (
             f"{COMMENT_MARKER}\n## Agent PR Review\n\n"
-            f"No review verdict was produced for commit {target}: the reviewer exhausted its "
-            "configured time budget before finishing. This is neither an approval nor a finding. "
-            "Re-run the review, or use the documented exact-head override after an independent review."
+            f"No review verdict was produced for commit {target}. This is neither an approval nor "
+            "a finding; the workflow log names the cause. Re-run the review, or use the documented "
+            "exact-head override after an independent review."
         )
     if review.strip() == NO_FINDINGS:
         review = "No actionable findings in this diff."
