@@ -135,6 +135,50 @@ def test_tick_max_runs_bounded(repo: Path, db_path: Path) -> None:
     assert receipt["launched"][1]["initiative_id"] == "test-init-2"
 
 
+def test_tick_prefers_higher_priority_across_initiatives(
+    repo: Path, db_path: Path
+) -> None:
+    low = _packet("low")
+    low["policy"]["priority"] = 10
+    high = _packet("high")
+    high["policy"]["priority"] = 100
+    _apply(db_path, "a-low-priority", [low], repo_root=repo)
+    _apply(db_path, "z-high-priority", [high], repo_root=repo)
+    launched: list[dict[str, Any]] = []
+
+    def _fake_launch(packet: dict, **_kwargs: Any) -> dict[str, Any]:
+        launched.append(packet)
+        return {"run_id": "run-high", "status": "dispatched"}
+
+    with patch.object(bs, "_launch_run", _fake_launch):
+        receipt = bs.tick(db_path=db_path, repo_root=repo, max_runs=1)
+
+    assert len(receipt["launched"]) == 1
+    assert receipt["launched"][0]["initiative_id"] == "z-high-priority"
+    assert launched[0]["initiative_id"] == "z-high-priority"
+
+
+def test_select_packets_skips_a_task_that_vanishes_after_admission(
+    repo: Path, db_path: Path
+) -> None:
+    """A task missing at ranking time is recorded, never ranked at priority 0."""
+    _apply(db_path, "vanishing", [_packet("p")], repo_root=repo)
+    dispatched = {
+        "initiative_id": "vanishing",
+        "packet_id": "p",
+        "task_id": "kb_missing_task",
+    }
+    with (
+        patch.object(bs, "_dispatch_candidate", return_value=(dispatched, None)),
+        patch.object(bq, "get_task", return_value=None),
+    ):
+        selected, skipped = bs._select_packets(db_path=db_path, max_runs=1)
+
+    assert selected == []
+    assert [item["reason"] for item in skipped] == ["task_missing"]
+    assert skipped[0]["task_id"] == "kb_missing_task"
+
+
 def test_tick_concurrent_locked(db_path: Path) -> None:
     """Concurrent tick returns locked receipt with no launches."""
     with bs.SupervisorLock(db_path):
