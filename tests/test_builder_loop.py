@@ -3257,6 +3257,73 @@ def test_local_shadow_malformed_clear_is_downgraded_to_escalate(monkeypatch: pyt
     assert receipt["reason"] == "local_reviewer_malformed_result"
 
 
+def test_local_shadow_runtime_error_receipt_keeps_bounded_cause(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An unavailable shadow must not be indistinguishable from an expected abstention.
+
+    Both escalate, so the receipt has to carry the cause or an operator cannot tell a
+    missing/corrupt model from a deliberate high-risk escalation.
+    """
+    monkeypatch.setattr(
+        bl,
+        "_local_shadow_candidate",
+        lambda *_args, **_kwargs: "diff --git a/a.py b/a.py\n+safe = True\n",
+    )
+    monkeypatch.setattr(
+        bl,
+        "run_local_review",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            bl.LoopError("local-review candidate is empty")
+        ),
+    )
+    receipt = bl._run_local_shadow_review(
+        worktree=tmp_path,
+        packet_contract={"acceptance_criteria": ["safe"]},
+        cumulative={"base_sha": "a"*40, "review_sha": "b"*40, "diff_sha256": "c"*64, "changed_paths": ["a.py"]},
+        implementation_model="openrouter/deepseek/deepseek-v4-flash",
+        implementation_provenance="builder_controlled_dsh_adapter",
+        governor_risk_class="routine",
+    )
+    assert receipt["decision"] == "escalate"
+    assert receipt["reason"] == "local_reviewer_runtime_error"
+    assert "LoopError" in receipt["error"]
+    assert "local-review candidate is empty" in receipt["error"]
+
+
+def test_local_shadow_clear_receipt_has_no_error_cause(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The bounded cause is present only for a real runtime failure."""
+    monkeypatch.setattr(
+        bl,
+        "_local_shadow_candidate",
+        lambda *_args, **_kwargs: "diff --git a/a.py b/a.py\n+safe = True\n",
+    )
+    monkeypatch.setattr(
+        bl,
+        "run_local_review",
+        lambda *_args, **_kwargs: {
+            "authoritative": False,
+            "decision": "escalate",
+            "reason": "high_risk_requires_strong_review",
+            "requirements": [],
+            "reviewer_fingerprint": None,
+            "risk_tags": [],
+        },
+    )
+    receipt = bl._run_local_shadow_review(
+        worktree=tmp_path,
+        packet_contract={"acceptance_criteria": ["safe"]},
+        cumulative={"base_sha": "a"*40, "review_sha": "b"*40, "diff_sha256": "c"*64, "changed_paths": ["a.py"]},
+        implementation_model="openrouter/deepseek/deepseek-v4-flash",
+        implementation_provenance="builder_controlled_dsh_adapter",
+        governor_risk_class="routine",
+    )
+    assert receipt["reason"] == "high_risk_requires_strong_review"
+    assert receipt["error"] is None
+
+
 def test_local_shadow_sensitive_scope_escalates_without_inference(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(bl, "run_local_review", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("inference ran")))
     receipt = bl._run_local_shadow_review(
