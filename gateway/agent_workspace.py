@@ -862,6 +862,380 @@ def _list_events(conn: Any, workspace_id: str, *, limit: int) -> list[dict[str, 
     return events
 
 
+# Machine-awareness publication is a typed seam over the same durable event
+# table the room already uses. Awareness events are structural evidence about
+# another authority's transition -- never conversation, never an assignment --
+# so the producer is allowed to declare only known types and only trusted
+# scalar metadata. There is deliberately no second event store, broker or
+# outbox: the existing read-reconstruction over agent_workspace_events is
+# enough, and a parallel channel would be a competing authority.
+AWARENESS_EVENT_TYPES: frozenset[str] = frozenset(
+    {
+        "task_transition",
+        "attempt_transition",
+        "candidate_published",
+        "candidate_updated",
+        "coordination_marker",
+    }
+)
+
+# The declared key set for each awareness type. This is an allowlist, not a
+# denylist: a producer cannot smuggle prose (or a directive) in under a key
+# nobody thought to block, because an undeclared key is refused outright.
+# Extending awareness means declaring the field here first.
+AWARENESS_METADATA_KEYS: dict[str, tuple[str, ...]] = {
+    "task_transition": ("task_id", "packet_id", "initiative_id", "state", "from_state"),
+    "attempt_transition": ("task_id", "attempt_id", "outcome", "state"),
+    "candidate_published": ("task_id", "head_sha", "pr_number", "branch", "repo"),
+    "candidate_updated": ("task_id", "head_sha", "pr_number", "branch", "repo"),
+    "coordination_marker": ("issue_number", "lane", "repo", "marker"),
+}
+
+# Keys that would read as prose or as a directive. Readers demote these to
+# delimited untrusted text; the producer refuses them outright, because a
+# caller that wants to say something in prose is not publishing a typed fact.
+AWARENESS_UNTRUSTED_METADATA_KEYS: frozenset[str] = frozenset(
+    {
+        "content",
+        "text",
+        "body",
+        "message",
+        "prose",
+        "summary",
+        "instruction",
+        "instructions",
+        "directive",
+        "command",
+        "authorization",
+        "authority",
+        "action",
+    }
+)
+
+# The declared envelope from the shared-operational-awareness event contract.
+# These are first-class parameters, not metadata keys: authority, scope and
+# candidate attribution must be expressible without every client inventing its
+# own meaning for per-type metadata.
+AWARENESS_ENVELOPE_KEYS: tuple[str, ...] = (
+    "source",
+    "subject",
+    "scope_key",
+    "candidate_ref",
+    "caused_by",
+    "supersedes",
+    "severity",
+)
+AWARENESS_SOURCES: frozenset[str] = frozenset(
+    {"builder", "kx", "git", "github", "runtime", "gar"}
+)
+AWARENESS_SEVERITIES: frozenset[str] = frozenset({"info", "warning", "critical"})
+
+MAX_AWARENESS_METADATA_BYTES = 4_000
+MAX_AWARENESS_TEXT_LENGTH = 200
+
+# Canonical lifecycle vocabularies. Declared here rather than imported so this
+# shared room module keeps its intentionally minimal runtime dependency set --
+# tests/test_agent_coordination_hook.py builds a fresh worktree from exactly
+# gateway/{__init__,agent_coordination,agent_coordination_cli,agent_workspace,
+# db,paths}.py, and importing the Builder modules would pull the whole queue
+# chain into that surface. Drift is caught by
+# tests/test_agent_workspace.py::test_awareness_vocabularies_match_their_owners,
+# which compares these sets against the owning modules.
+TASK_STATES = frozenset(
+    {
+        "queued",
+        "claimed",
+        "running",
+        "pr_opened",
+        "awaiting_review",
+        "done",
+        "failed",
+        "cancelled",
+        "blocked",
+    }
+)
+ATTEMPT_OUTCOMES = frozenset({"succeeded", "failed", "aborted", "crashed"})
+
+# Per-field value schemas. Which fields may be published and what a value may be
+# is one contract, not two: a name-only allowlist still let ``{"state": "merge"}``
+# cross the trust boundary and be projected as a trusted fact.
+AWARENESS_FIELD_SCHEMAS: dict[str, tuple[str, frozenset[str]]] = {
+    "task_id": ("identifier", frozenset()),
+    "packet_id": ("identifier", frozenset()),
+    "initiative_id": ("identifier", frozenset()),
+    "attempt_id": ("identifier", frozenset()),
+    "lane": ("identifier", frozenset()),
+    "marker": ("identifier", frozenset()),
+    "repo": ("repo", frozenset()),
+    "state": ("enum", TASK_STATES),
+    "from_state": ("enum", TASK_STATES),
+    "outcome": ("enum", ATTEMPT_OUTCOMES),
+    "branch": ("ref", frozenset()),
+    "head_sha": ("sha", frozenset()),
+    "pr_number": ("positive_int", frozenset()),
+    "issue_number": ("positive_int", frozenset()),
+}
+
+_AWARENESS_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_AWARENESS_REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
+_AWARENESS_SHA = re.compile(r"^[0-9a-f]{7,40}$")
+_AWARENESS_REPO = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]{1,100}$")
+
+
+def _awareness_field_rejection(key: str, value: Any) -> str | None:
+    """Return why this value is unusable for its declared field schema, or None."""
+    schema = AWARENESS_FIELD_SCHEMAS.get(key)
+    if schema is None:
+        return f"{key} has no declared awareness field schema"
+    kind, allowed = schema
+    if kind == "enum":
+        if not isinstance(value, str) or value not in allowed:
+            return f"{key} must be one of {sorted(allowed)}, not {value!r}"
+        return None
+    if kind == "positive_int":
+        # bool is an int subclass; True must not pass as a PR number.
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            return f"{key} must be a positive integer, not {value!r}"
+        return None
+    if not isinstance(value, str):
+        return f"{key} must be a string, not {type(value).__name__}"
+    if kind == "sha":
+        if not _AWARENESS_SHA.match(value):
+            return f"{key} must be a lowercase hex SHA (7-40 characters), not {value[:40]!r}"
+        return None
+    if kind == "ref":
+        if not _AWARENESS_REF.match(value):
+            return f"{key} must be a git ref, not {value[:40]!r}"
+        return None
+    if kind == "repo":
+        if not _AWARENESS_REPO.match(value):
+            return f"{key} must be owner/repo, not {value[:40]!r}"
+        return None
+    if kind == "identifier":
+        if not _AWARENESS_IDENTIFIER.match(value):
+            return f"{key} must be an identifier, not {value[:40]!r}"
+        return None
+    return f"{key} declares an unknown awareness schema kind {kind!r}"
+
+
+# Envelope identifiers are opaque tokens: a task id, a SHA or ref, an event id or
+# locator. Requiring identifier shape is what stops an envelope field from being
+# used as a free-text channel for prose or a directive.
+_AWARENESS_ENVELOPE_REFERENCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/#@-]{0,199}$")
+
+
+def _awareness_identifier_rejection(key: str, value: Any) -> str | None:
+    """Return why this envelope reference is unusable, or None.
+
+    Deliberately looser than a field identifier: an envelope reference may be an
+    event id or an evidence locator such as ``gar:message_...``, so ``: / # @``
+    are allowed here. It is still a reference, not prose.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return f"{key} must be an identifier string, not {type(value).__name__}"
+    if not _AWARENESS_ENVELOPE_REFERENCE.fullmatch(value):
+        return f"{key} must be an opaque identifier (letters, digits, . _ : / # @ -), not prose"
+    return None
+
+
+def publish_awareness(
+    workspace_id: str,
+    *,
+    event_type: str,
+    actor_id: str,
+    metadata: dict[str, Any],
+    source: str,
+    actor_kind: str = "agent",
+    subject: str | None = None,
+    scope_key: str | None = None,
+    candidate_ref: str | None = None,
+    caused_by: str | None = None,
+    supersedes: str | None = None,
+    severity: str = "info",
+) -> dict[str, Any]:
+    """Publish one typed machine-awareness event. Never raises.
+
+    Call this only *after* the authoritative transition has committed. Awareness
+    is evidence about another owner's truth, not that truth itself, so a failed
+    publication must not fail, roll back or block a KX/Builder/Git/GitHub
+    transition that already succeeded. That is why this returns a verdict
+    instead of raising: ``{"published": bool, "reason": str | None}``.
+
+    Fail-soft here is not silent: every rejection is named in the returned
+    reason and every unexpected failure is logged with its exception. If this
+    ever needs to raise, the caller has the wrong contract, not this function.
+    """
+    try:
+        workspace_id = _required_text(workspace_id, "workspace_id", 200)
+        actor_id = _required_text(actor_id, "actor_id", 200)
+        actor_error = _awareness_identifier_rejection("actor_id", actor_id)
+        if actor_error is not None:
+            return {"published": False, "reason": actor_error}
+        if actor_kind not in {"user", "agent", "system"}:
+            return {"published": False, "reason": f"actor_kind {actor_kind!r} is not supported"}
+        if event_type not in AWARENESS_EVENT_TYPES:
+            return {
+                "published": False,
+                "reason": f"event_type {event_type!r} is not a declared awareness type",
+            }
+        if not isinstance(metadata, dict):
+            return {"published": False, "reason": "metadata must be an object"}
+        try:
+            # Snapshot before validating anything. The caller's mapping may be
+            # shared with another thread, and iterating it separately for the
+            # allowlist check and for the payload would let a key appear between
+            # the two -- validated as absent, then persisted.
+            metadata = dict(metadata)
+        except RuntimeError as exc:
+            return {
+                "published": False,
+                "reason": f"metadata changed while being copied: {exc}",
+            }
+        rejected = sorted(key for key in metadata if key in AWARENESS_UNTRUSTED_METADATA_KEYS)
+        if rejected:
+            return {
+                "published": False,
+                "reason": (
+                    "awareness metadata is typed, not prose or directives; rejected key(s): "
+                    + ", ".join(rejected)
+                ),
+            }
+        reserved = sorted(key for key in metadata if key in AWARENESS_ENVELOPE_KEYS)
+        if reserved:
+            return {
+                "published": False,
+                "reason": (
+                    "envelope fields are declared parameters, not metadata key(s): "
+                    + ", ".join(reserved)
+                ),
+            }
+        allowed = AWARENESS_METADATA_KEYS[event_type]
+        undeclared = sorted(key for key in metadata if key not in allowed)
+        if undeclared:
+            return {
+                "published": False,
+                "reason": (
+                    f"{event_type} declares metadata key(s) {', '.join(allowed)}; "
+                    "rejected undeclared key(s): " + ", ".join(undeclared)
+                ),
+            }
+        if source not in AWARENESS_SOURCES:
+            return {
+                "published": False,
+                "reason": (
+                    f"source {source!r} is not a declared awareness authority; declared: "
+                    + ", ".join(sorted(AWARENESS_SOURCES))
+                ),
+            }
+        if severity not in AWARENESS_SEVERITIES:
+            return {
+                "published": False,
+                "reason": (
+                    f"severity {severity!r} is not one of: "
+                    + ", ".join(sorted(AWARENESS_SEVERITIES))
+                ),
+            }
+        for key, value in (
+            ("subject", subject),
+            ("candidate_ref", candidate_ref),
+            ("caused_by", caused_by),
+            ("supersedes", supersedes),
+        ):
+            identifier_error = _awareness_identifier_rejection(key, value)
+            if identifier_error is not None:
+                return {"published": False, "reason": identifier_error}
+
+        envelope: dict[str, Any] = {"source": source, "severity": severity}
+        for key, value in (
+            ("subject", subject),
+            ("scope_key", scope_key),
+            ("candidate_ref", candidate_ref),
+            ("caused_by", caused_by),
+            ("supersedes", supersedes),
+        ):
+            if value is not None:
+                envelope[key] = value
+        try:
+            validated_scope = _optional_scope_key(envelope.get("scope_key"))
+        except AgentWorkspaceError as exc:
+            return {"published": False, "reason": f"scope_key rejected: {exc}"}
+        if validated_scope is None:
+            envelope.pop("scope_key", None)
+        else:
+            envelope["scope_key"] = validated_scope
+
+        payload = {**metadata, **envelope}
+        shape_errors = []
+        for key, value in sorted(payload.items()):
+            if key in AWARENESS_ENVELOPE_KEYS:
+                # Envelope fields are validated as declared parameters above, and
+                # scope_key against its own evidence-derived contract and length.
+                continue
+            reason = _awareness_field_rejection(key, value)
+            if reason is not None:
+                shape_errors.append(reason)
+        if shape_errors:
+            return {
+                "published": False,
+                "reason": "awareness values do not match their field schemas: "
+                + "; ".join(shape_errors),
+            }
+        try:
+            # allow_nan=False: NaN/Infinity are not JSON, and a strict reader would
+            # choke on the row later rather than here, where the cause is known.
+            encoded = json.dumps(payload, sort_keys=True, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            return {
+                "published": False,
+                "reason": f"awareness payload is not JSON-serialisable: {exc}",
+            }
+        try:
+            # json.dumps happily emits a lone surrogate; it is not valid UTF-8, so a
+            # strict reader (the workspace API) would 500 on a row written here.
+            encoded_bytes = encoded.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            return {
+                "published": False,
+                "reason": f"awareness text is not valid Unicode: {exc}",
+            }
+        if len(encoded_bytes) > MAX_AWARENESS_METADATA_BYTES:
+            return {
+                "published": False,
+                "reason": (
+                    f"metadata exceeds {MAX_AWARENESS_METADATA_BYTES} bytes; "
+                    "awareness facts are bounded"
+                ),
+            }
+
+        init_db()
+        with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+            _require_workspace(conn, workspace_id)
+            _append_event(
+                conn,
+                workspace_id=workspace_id,
+                event_type=event_type,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                # The validated snapshot, never the caller's live mapping: a
+                # mapping shared with another thread could otherwise be mutated
+                # between validation and this second serialisation.
+                metadata=json.loads(encoded),
+                now=time.time(),
+            )
+            conn.commit()
+        return {"published": True, "reason": None}
+    except Exception as exc:  # noqa: BLE001  # awareness must never fail its caller
+        logger.warning(
+            "awareness publication failed for workspace=%s type=%s: %s",
+            workspace_id,
+            event_type,
+            exc,
+        )
+        return {"published": False, "reason": f"{type(exc).__name__}: {exc}"}
+
+
 def list_turns(workspace_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
     workspace_id = _required_text(workspace_id, "workspace_id", 200)
     if isinstance(limit, bool) or limit <= 0 or limit > 500:

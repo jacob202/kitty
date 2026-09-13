@@ -920,3 +920,36 @@ def test_room_briefing_collection_does_not_reconcile_expired_kx_claim(
         ).fetchone()
     assert stored == ("active",)
     assert projected == []
+
+
+def test_awareness_envelope_is_projected_separately_from_metadata():
+    """Authority/scope/candidate attribution is its own object, not metadata."""
+    events = [
+        {
+            "id": "event_2",
+            "type": "candidate_published",
+            "actor_kind": "agent",
+            "actor_id": "builder",
+            "message_id": None,
+            "metadata": {
+                "source": "github",
+                "severity": "warning",
+                "scope_key": "github:pr:901",
+                "candidate_ref": "b" * 40,
+                "pr_number": 901,
+            },
+            "created_at": 1_789_000_001.0,
+        }
+    ]
+    orientation = _build("chatgpt", evidence=_evidence(events=events), session_id="session-a")
+
+    item = orientation["events"]["items"][0]
+    assert item["envelope"] == {
+        "source": "github",
+        "severity": "warning",
+        "scope_key": "github:pr:901",
+        "candidate_ref": "b" * 40,
+    }
+    assert item["trusted_metadata"] == {"pr_number": 901}
+    assert item["untrusted_text"] is None
+    assert item["is_assignment"] is False
