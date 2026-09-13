@@ -191,3 +191,4 @@ resources:
     - tests/test_ci_gate_workflows.py
     - tests/test_pr_review.py
     - tests/test_pr_review_file_chunks.py
+    - tests/test_pr_review_gate.py
