@@ -540,17 +540,15 @@ def _head_still_current(pr_number: int, owner: str, repo: str, head_sha: str) ->
 def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: str) -> None:
     """Create the review comment once, then replace it on later pushes.
 
-    The live-head check lives here, as the last step before the write, so a run
-    that reviewed an older head cannot clobber a newer head's evidence. Keeping
-    it anywhere earlier would leave the whole model call between the check and
-    the publish.
+    The live-head check runs as the last step before the mutating request, after
+    the comment lookup, so a run that reviewed an older head cannot clobber a
+    newer head's evidence. Checking earlier would leave this run's own API
+    round-trips, and the whole model call, between the check and the write.
     """
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         print("No GITHUB_TOKEN — cannot post review.", file=sys.stderr)
         raise SystemExit(1)
-    if not _head_still_current(pr_number, owner, repo, head_sha):
-        return
 
     comments_url = (
         f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments?per_page=100"
@@ -560,6 +558,8 @@ def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: 
     try:
         comments = github_json(comments_url, token)
         existing_id = find_existing_review_comment(comments if isinstance(comments, list) else [])
+        if not _head_still_current(pr_number, owner, repo, head_sha):
+            return
         if existing_id is None:
             post_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
             github_json(post_url, token, method="POST", payload={"body": body})

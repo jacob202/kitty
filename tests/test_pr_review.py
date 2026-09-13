@@ -557,4 +557,6 @@ def test_upsert_review_skips_the_write_when_the_head_moved(
 
     pr_review.upsert_review(pr_review.NO_FINDINGS, 1, "owner", "repo", "a" * 40)
 
-    assert calls == []
+    # Only the read happened; no mutating request was ever attempted.
+    assert len(calls) == 1
+    assert calls[0].endswith("/comments?per_page=100")
