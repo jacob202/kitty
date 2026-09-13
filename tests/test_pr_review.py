@@ -540,3 +540,21 @@ def test_head_lookup_failure_is_loud_not_silent(
     monkeypatch.setattr(pr_review, "_fetch_current_pr", _boom)
     with pytest.raises(OSError, match="api down"):
         pr_review._head_still_current(1, "owner", "repo", "a" * 40)
+
+
+def test_upsert_review_skips_the_write_when_the_head_moved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The guard sits last before the write, so a stale run touches nothing."""
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: False)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        pr_review,
+        "github_json",
+        lambda url, *_args, **_kwargs: calls.append(url),
+    )
+
+    pr_review.upsert_review(pr_review.NO_FINDINGS, 1, "owner", "repo", "a" * 40)
+
+    assert calls == []

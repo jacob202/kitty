@@ -538,11 +538,19 @@ def _head_still_current(pr_number: int, owner: str, repo: str, head_sha: str) ->
 
 
 def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: str) -> None:
-    """Create the review comment once, then replace it on later pushes."""
+    """Create the review comment once, then replace it on later pushes.
+
+    The live-head check lives here, as the last step before the write, so a run
+    that reviewed an older head cannot clobber a newer head's evidence. Keeping
+    it anywhere earlier would leave the whole model call between the check and
+    the publish.
+    """
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         print("No GITHUB_TOKEN — cannot post review.", file=sys.stderr)
         raise SystemExit(1)
+    if not _head_still_current(pr_number, owner, repo, head_sha):
+        return
 
     comments_url = (
         f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments?per_page=100"
@@ -587,13 +595,11 @@ def main() -> None:
     if not review:
         # Publish the failure instead of leaving the stale "pending" marker: a head
         # with no verdict must read as visibly unapproved, not silently ambiguous.
-        if _head_still_current(pr_number, owner, repo, head_sha):
-            upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha)
+        upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha)
         print("Current-head agent review did not produce a verdict.", file=sys.stderr)
         raise SystemExit(1)
 
-    if _head_still_current(pr_number, owner, repo, head_sha):
-        upsert_review(review, pr_number, owner, repo, head_sha)
+    upsert_review(review, pr_number, owner, repo, head_sha)
     if review.strip() != NO_FINDINGS:
         print("Actionable review findings block this exact PR head.", file=sys.stderr)
         raise SystemExit(1)
