@@ -91,13 +91,15 @@ def test_main_reads_live_pr_and_comments(
         user_type="Bot",
     )
 
-    def fake_json(url: str, _token: str):
+    def fake_json(url: str, _token: str = "", **_kwargs):
         if url.endswith("/pulls/510"):
             return current_pr
-        if url.endswith("/issues/510/comments?per_page=100"):
+        if "/issues/510/comments?" in url:
             return [approved]
         raise AssertionError(url)
 
+    # Only this module's own transport seam is stubbed: the gate passes it into
+    # the paginated helper, so the seam is preserved rather than bypassed.
     monkeypatch.setattr(pr_review_gate, "_github_json", fake_json)
     pr_review_gate.main()
 

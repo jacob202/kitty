@@ -70,6 +70,15 @@ def test_marking_a_pull_request_ready_starts_required_ci_without_another_push() 
         assert required in types, required
 
 
+def test_agent_review_runs_are_serialized_per_pull_request() -> None:
+    """Overlapping reviews of one PR can publish contradictory evidence."""
+    _, workflow = _workflow("pr-agent-review.yml")
+    concurrency = workflow["concurrency"]
+    assert "github.event.pull_request.number" in concurrency["group"]
+    assert "github.event.action" not in concurrency["group"]
+    assert concurrency["cancel-in-progress"] is False
+
+
 def test_converting_back_to_draft_cancels_superseded_pull_request_work() -> None:
     _, workflow = _workflow("tests.yml")
     concurrency = workflow["concurrency"]
@@ -115,7 +124,15 @@ def test_agent_review_uses_paid_model_fallbacks_and_bounded_timeout() -> None:
     assert env["PR_REVIEW_FALLBACK_MODEL"] == "openrouter/minimax/minimax-m3"
     assert env["PR_REVIEW_DEEPSEEK_MODEL"] == "openrouter/minimax/minimax-m3"
     assert env["PR_REVIEW_DEEPSEEK_FALLBACK_MODEL"] == "openrouter/qwen/qwen3.7-plus"
-    assert env["PR_REVIEW_MODEL_TIMEOUT_SECONDS"] == "90"
+    assert env["PR_REVIEW_MODEL_TIMEOUT_SECONDS"] == "240"
+    # The whole review must be bounded below the job cap, because the permitted
+    # 12-chunk worst case can never fit inside any reasonable job timeout.
+    assert env["PR_REVIEW_TOTAL_TIMEOUT_SECONDS"] == "900"
+    job_cap_seconds = int(workflow["jobs"]["agent-review"]["timeout-minutes"]) * 60
+    # And the cap must leave real headroom above that budget for the GitHub API
+    # ceilings (diff, pending marker, override probe, failure comment) and setup,
+    # or the job gets cancelled before it can publish anything at all.
+    assert job_cap_seconds - int(env["PR_REVIEW_TOTAL_TIMEOUT_SECONDS"]) >= 300
     assert "PR_REVIEW_REQUEST_ATTEMPTS" not in text
 
 

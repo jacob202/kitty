@@ -13,7 +13,8 @@ import os
 import re
 import subprocess
 import sys
-from typing import Any
+import time
+from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -32,7 +33,20 @@ DEEPSEEK_INDEPENDENT_MODEL = os.environ.get(
 DEEPSEEK_INDEPENDENT_FALLBACK_MODEL = os.environ.get(
     "PR_REVIEW_DEEPSEEK_FALLBACK_MODEL", DEEPSEEK_REVIEW_FALLBACK_MODEL
 )
-REVIEW_MODEL_TIMEOUT_SECONDS = int(os.environ.get("PR_REVIEW_MODEL_TIMEOUT_SECONDS", "90"))
+REVIEW_MODEL_TIMEOUT_SECONDS = int(os.environ.get("PR_REVIEW_MODEL_TIMEOUT_SECONDS", "240"))
+# Hard ceiling on one whole review, across every chunk and every fallback model.
+# MAX_REVIEW_CHUNKS permits 12 chunks, so 12 x 2 models x 240s is 96 minutes: the
+# workflow's job cap can never cover the permitted worst case. Rather than size a
+# job for a pathological diff, the harness bounds its own work below the job cap
+# and reports an explicit failure instead of being cancelled mid-review, which
+# would leave the head with no verdict at all.
+REVIEW_TOTAL_TIMEOUT_SECONDS = int(os.environ.get("PR_REVIEW_TOTAL_TIMEOUT_SECONDS", "900"))
+REVIEW_FAILED = "__REVIEW_FAILED__"
+# Rendered into the comment bodies so a later write can tell "this head has no
+# verdict yet" from "this head has a verdict". The sentinel constants above are
+# never rendered, so sniffing them against a live body always said "verdict".
+PENDING_MARKER = "<!-- kitty-agent-pr-review-pending -->"
+FAILURE_MARKER = "<!-- kitty-agent-pr-review-no-verdict -->"
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
 NO_FINDINGS = "NO_ACTIONABLE_FINDINGS"
 REVIEW_PENDING = "__REVIEW_PENDING__"
@@ -283,7 +297,19 @@ def _normalize_opencode_review(output: str) -> str | None:
     return text
 
 
-def _review_chunk(chunk: str) -> str | None:
+def _model_timeout(deadline: float | None) -> float:
+    """Timeout for one reviewer attempt, re-clipped to what is left of the budget.
+
+    Recomputing per attempt matters: a chunk that starts with 200 seconds left
+    would otherwise hand the fallback model the same stale 200 seconds, letting a
+    nominally bounded review overrun its budget by a whole timeout per chunk.
+    """
+    if deadline is None:
+        return float(REVIEW_MODEL_TIMEOUT_SECONDS)
+    return min(float(REVIEW_MODEL_TIMEOUT_SECONDS), deadline - time.monotonic())
+
+
+def _review_chunk(chunk: str, *, deadline: float | None = None) -> str | None:
     review_models = review_models_for_current_event()
     if not review_models:
         print("No independent PR reviewer model is configured.", file=sys.stderr)
@@ -303,6 +329,13 @@ def _review_chunk(chunk: str) -> str | None:
     )
 
     for index, review_model in enumerate(review_models, start=1):
+        attempt_timeout = _model_timeout(deadline)
+        if attempt_timeout <= 0:
+            print(
+                "PR review exhausted its total budget before the next reviewer attempt.",
+                file=sys.stderr,
+            )
+            return None
         command = [
             "opencode",
             "run",
@@ -320,7 +353,7 @@ def _review_chunk(chunk: str) -> str | None:
                 command,
                 capture_output=True,
                 text=True,
-                timeout=REVIEW_MODEL_TIMEOUT_SECONDS,
+                timeout=attempt_timeout,
                 check=False,
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
@@ -410,10 +443,20 @@ def review_diff(diff: str) -> str | None:
         )
         return None
 
+    deadline = time.monotonic() + REVIEW_TOTAL_TIMEOUT_SECONDS
     findings: list[str] = []
     for index, chunk in enumerate(chunks, start=1):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            print(
+                f"PR review exhausted its {REVIEW_TOTAL_TIMEOUT_SECONDS}s total budget before "
+                f"chunk {index}/{len(chunks)}; publishing an explicit failure instead of being "
+                "cancelled mid-review.",
+                file=sys.stderr,
+            )
+            return None
         print(f"Reviewing diff chunk {index}/{len(chunks)} ({len(chunk)} chars).")
-        verdict = _review_chunk(chunk)
+        verdict = _review_chunk(chunk, deadline=deadline)
         if not verdict:
             return None
         if verdict.strip() != NO_FINDINGS:
@@ -427,9 +470,17 @@ def render_review_body(review: str, head_sha: str) -> str:
     if review.strip() == REVIEW_PENDING:
         target = f"`{head_sha}`" if head_sha else "the current PR head"
         return (
-            f"{COMMENT_MARKER}\n## Agent PR Review\n\n"
+            f"{COMMENT_MARKER}\n{PENDING_MARKER}\n## Agent PR Review\n\n"
             f"Review pending for commit {target}. Previous review evidence is stale "
             "until this current-head review completes."
+        )
+    if review.strip() == REVIEW_FAILED:
+        target = f"`{head_sha}`" if head_sha else "the current PR head"
+        return (
+            f"{COMMENT_MARKER}\n{FAILURE_MARKER}\n## Agent PR Review\n\n"
+            f"No review verdict was produced for commit {target}. This is neither an approval nor "
+            "a finding; the workflow log names the cause. Re-run the review, or use the documented "
+            "exact-head override after an independent review."
         )
     if review.strip() == NO_FINDINGS:
         review = "No actionable findings in this diff."
@@ -437,14 +488,84 @@ def render_review_body(review: str, head_sha: str) -> str:
     return f"{COMMENT_MARKER}\n## Agent PR Review\n\n{review}\n\n_{reviewed}_"
 
 
-def find_existing_review_comment(comments: list[dict[str, Any]]) -> int | None:
-    """Return the existing workflow-owned issue comment id, if present."""
+def _is_no_verdict_body(body: str) -> bool:
+    """True when a comment body is a pending or failure marker, not a verdict."""
+    return PENDING_MARKER in body or FAILURE_MARKER in body
+
+
+def _has_findings(body: str) -> bool:
+    """True when a completed verdict body reports findings rather than a clean pass."""
+    if _is_no_verdict_body(body):
+        return False
+    if "Reviewed commit" not in body and "Reviewed current PR head" not in body:
+        return False
+    return "No actionable findings in this diff." not in body
+
+
+def _existing_review_comment(
+    comments: list[dict[str, Any]], head_sha: str = ""
+) -> dict[str, Any] | None:
+    """This head's workflow-owned comment, if present.
+
+    Evidence is kept per head. The workflow deliberately lets runs for different
+    heads overlap (its concurrency group includes the event action), so one shared
+    comment would let a slower run for an older head overwrite a newer head's
+    verdict. Head-scoped comments make that impossible by construction, and
+    ``pr_review_gate`` already scans every comment for the exact SHA it needs.
+    """
     for comment in comments:
         body = comment.get("body")
         comment_id = comment.get("id")
-        if isinstance(body, str) and COMMENT_MARKER in body and isinstance(comment_id, int):
-            return comment_id
+        if not (isinstance(body, str) and COMMENT_MARKER in body and isinstance(comment_id, int)):
+            continue
+        if head_sha and f"`{head_sha}`" not in body:
+            continue
+        return comment
     return None
+
+
+def find_existing_review_comment(
+    comments: list[dict[str, Any]], head_sha: str = ""
+) -> int | None:
+    """Return this head's workflow-owned issue comment id, if present."""
+    found = _existing_review_comment(comments, head_sha)
+    return int(found["id"]) if found is not None else None
+
+
+def issue_comments(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    token: str,
+    *,
+    fetch: Callable[[str, str], Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Every issue comment on the PR, oldest first.
+
+    GitHub returns issue comments oldest-first, so a single page silently hides
+    the newest evidence once a PR passes 100 comments -- both the lookup here and
+    the trust gate would then miss the current head's verdict and publish or
+    demand a duplicate. Follow pagination to the end instead.
+
+    ``fetch`` is the same testable transport seam ``pr_scope.pull_request_files``
+    exposes, so callers such as the gate keep their own JSON seam instead of
+    having it bypassed.
+    """
+    fetch = fetch or github_json
+    comments: list[dict[str, Any]] = []
+    page = 1
+    while True:
+        url = (
+            f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}"
+            f"/comments?per_page=100&page={page}"
+        )
+        payload = fetch(url, token)
+        if not isinstance(payload, list):
+            raise ValueError("GitHub issue-comments response was not a list")
+        comments.extend(item for item in payload if isinstance(item, dict))
+        if len(payload) < 100:
+            return comments
+        page += 1
 
 
 def github_json(
@@ -466,21 +587,78 @@ def github_json(
     return json.loads(raw) if raw else None
 
 
-def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: str) -> None:
-    """Create the review comment once, then replace it on later pushes."""
+def _head_still_current(pr_number: int, owner: str, repo: str, head_sha: str) -> bool:
+    """True only while the live PR head is still the commit under review.
+
+    Every run publishes into one shared comment, and the workflow's concurrency
+    group is per event action, so a slower run that reviewed an older head can
+    finish after a newer head already has valid approval. Publishing then would
+    erase that approval and block the PR until another review ran.
+
+    A moved head is an ordinary outcome and returns False. An unreadable head is
+    raised, never converted to a silent skip: swallowing it would let a clean
+    review exit successfully while publishing nothing, concealing the API failure.
+    """
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+    current = _fetch_current_pr(url, os.environ.get("GITHUB_TOKEN") or "")
+    live = str((current.get("head") or {}).get("sha") or "")
+    if live != head_sha:
+        print(
+            f"PR head moved to {live or 'unknown'} since {head_sha}; "
+            "not publishing stale review evidence.",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
+def upsert_review(
+    review: str, pr_number: int, owner: str, repo: str, head_sha: str
+) -> bool:
+    """Create this head's review comment, or replace the one it already has.
+
+    Returns True once the write happened and False when it was declined because
+    the head had already moved on. A caller that ignores False would carry on
+    doing work whose result can never be published.
+    """
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         print("No GITHUB_TOKEN — cannot post review.", file=sys.stderr)
         raise SystemExit(1)
 
-    comments_url = (
-        f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments?per_page=100"
-    )
     body = render_review_body(review, head_sha)
 
     try:
-        comments = github_json(comments_url, token)
-        existing_id = find_existing_review_comment(comments if isinstance(comments, list) else [])
+        existing = _existing_review_comment(
+            issue_comments(owner, repo, pr_number, token), head_sha
+        )
+        if not _head_still_current(pr_number, owner, repo, head_sha):
+            return False
+        if existing is not None:
+            existing_body = str(existing.get("body") or "")
+            if review.strip() in (REVIEW_PENDING, REVIEW_FAILED):
+                # Two runs can target the same head, and so can a rerun of a head
+                # that already has evidence. Neither a pending marker nor a
+                # no-verdict rerun may replace a completed verdict for that head:
+                # for an unchanged head the existing verdict IS the evidence.
+                if not _is_no_verdict_body(existing_body):
+                    print(
+                        "This head already has review evidence; not replacing it with "
+                        f"{'a failure' if review.strip() == REVIEW_FAILED else 'a pending marker'}.",
+                        file=sys.stderr,
+                    )
+                    return False
+            elif review.strip() == NO_FINDINGS and _has_findings(existing_body):
+                # Same head, two overlapping runs, opposite outcomes. Overwriting
+                # the finding with a clean verdict would let policy-gate approve a
+                # head that still has an unresolved finding against it.
+                print(
+                    "An existing finding for this head is preserved; not replacing it "
+                    "with a clean verdict.",
+                    file=sys.stderr,
+                )
+                return False
+        existing_id = int(existing["id"]) if existing is not None else None
         if existing_id is None:
             post_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
             github_json(post_url, token, method="POST", payload={"body": body})
@@ -492,32 +670,62 @@ def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: 
     except (HTTPError, URLError, TimeoutError, OSError) as exc:
         print(f"GitHub API error updating review: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
+    return True
 
 
 def main() -> None:
     diff, pr_number, owner, repo, head_sha = get_pr_diff()
 
     # Invalidate older approval-looking evidence before any external model call.
-    upsert_review(REVIEW_PENDING, pr_number, owner, repo, head_sha)
+    if not upsert_review(REVIEW_PENDING, pr_number, owner, repo, head_sha):
+        if not _head_still_current(pr_number, owner, repo, head_sha):
+            # The head moved before this run could mark itself current. Stop before
+            # the model: neither this marker nor a later verdict could be published
+            # for this head, so the paid review would be pure waste.
+            print(
+                f"PR head moved past {head_sha} before the pending marker could be "
+                "published; aborting without a model review.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        # The head is current and already carries evidence (normally its own
+        # verdict from an earlier run). There is nothing to add or replace.
+        print(
+            f"{head_sha} already has review evidence on this PR; nothing to do.",
+            file=sys.stderr,
+        )
+        return
 
     override_reason = get_exact_head_override(head_sha)
     if override_reason:
-        upsert_review(
+        if not upsert_review(
             "Exact-head review override approved for "
             f"`{head_sha}`.\n\nReason: {override_reason}",
             pr_number,
             owner,
             repo,
             head_sha,
-        )
+        ):
+            print(f"PR head moved past {head_sha}; override not published.", file=sys.stderr)
+            raise SystemExit(1)
         return
 
     review = review_diff(diff)
     if not review:
+        # Publish the failure instead of leaving the stale "pending" marker: a head
+        # with no verdict must read as visibly unapproved, not silently ambiguous.
+        if not upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha):
+            print(f"PR head moved past {head_sha}; failure not published.", file=sys.stderr)
         print("Current-head agent review did not produce a verdict.", file=sys.stderr)
         raise SystemExit(1)
 
-    upsert_review(review, pr_number, owner, repo, head_sha)
+    if not upsert_review(review, pr_number, owner, repo, head_sha):
+        print(
+            f"Review evidence for {head_sha} was not published: the head moved, or more "
+            "conservative evidence is already recorded for it.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     if review.strip() != NO_FINDINGS:
         print("Actionable review findings block this exact PR head.", file=sys.stderr)
         raise SystemExit(1)

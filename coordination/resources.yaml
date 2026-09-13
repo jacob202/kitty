@@ -186,6 +186,15 @@ resources:
     - tests/test_conversation_handoff_routes.py
     - tests/test_library_chat_001.py
     - tests/test_work_projection.py
+  review:agent-workflow:
+    paths:
+    - .github/workflows/pr-agent-review.yml
+    - scripts/pr_review.py
+    - scripts/pr_review_gate.py
+    - tests/test_ci_gate_workflows.py
+    - tests/test_pr_review.py
+    - tests/test_pr_review_file_chunks.py
+    - tests/test_pr_review_gate.py
   review:scope-classification:
     paths:
     - scripts/pr_scope.py

@@ -12,12 +12,20 @@ permissions:
   issues: write
 
 concurrency:
-  # review-concurrency-class: metadata events must not cancel a code-head review.
-  # Repeated events of the same type still cancel their own superseded run.
+  # review-concurrency-class: one review run per PR at a time.
+  # Grouping by event action let runs for the same PR -- and the same head --
+  # overlap, and two overlapping runs can publish contradictory evidence into the
+  # same comment: a clean run could erase a real finding and let policy-gate
+  # approve the head. Serialising removes that race by construction, so the
+  # guards in scripts/pr_review.py are defence in depth rather than the only
+  # protection. GitHub keeps one pending run per group, so bursty events collapse
+  # to the newest queued run instead of cancelling the review already in flight;
+  # a cancelled review produces no verdict, which is the failure mode this
+  # workflow exists to avoid.
   # merge_group carries no pull_request.number; head_ref is unique per queue
   # entry (gh-readonly-queue/<base>/pr-<N>-<sha>) so entries stay independent.
-  group: pr-agent-review-${{ github.event.pull_request.number || github.event.merge_group.head_ref }}-${{ github.event.action }}
-  cancel-in-progress: true
+  group: pr-agent-review-${{ github.event.pull_request.number || github.event.merge_group.head_ref }}
+  cancel-in-progress: false
 
 jobs:
   scope:
@@ -70,7 +78,14 @@ jobs:
            github.event.action == 'reopened' ||
            github.event.action == 'ready_for_review') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    # A review can spend up to PR_REVIEW_TOTAL_TIMEOUT_SECONDS on models, plus
+    # several 30-second GitHub API ceilings for the diff, the pending marker, the
+    # override probe and the failure comment, plus checkout/Python/Bun/OpenCode
+    # setup. 25 minutes leaves real slack above that 900s budget instead of ~60
+    # seconds, so the job publishes a verdict or an explicit failure rather than
+    # being cancelled mid-review. tests/test_ci_gate_workflows.py asserts the
+    # reserve so these numbers cannot drift apart.
+    timeout-minutes: 25
     continue-on-error: true
     steps:
       - name: Checkout trusted default-branch reviewer
@@ -100,7 +115,14 @@ jobs:
           PR_REVIEW_FALLBACK_MODEL: "openrouter/minimax/minimax-m3"
           PR_REVIEW_DEEPSEEK_MODEL: "openrouter/minimax/minimax-m3"
           PR_REVIEW_DEEPSEEK_FALLBACK_MODEL: "openrouter/qwen/qwen3.7-plus"
-          PR_REVIEW_MODEL_TIMEOUT_SECONDS: "90"
+          # Measured on a real 53 KB review chunk (PR #853, 106 KB / 2 chunks):
+          # deepseek-v4-flash answered in 163s. The previous 90s ceiling meant the
+          # primary model timed out on every sufficiently large diff, the fallback
+          # timed out too, and the job posted no verdict at all.
+          PR_REVIEW_MODEL_TIMEOUT_SECONDS: "240"
+          # Bounds the whole review (all chunks, all fallback models) below the
+          # job cap, so the job always publishes a verdict or an explicit failure.
+          PR_REVIEW_TOTAL_TIMEOUT_SECONDS: "900"
           PR_REVIEW_AGENT: "pr-reviewer"
         run: python scripts/pr_review.py
 

@@ -782,6 +782,14 @@ def _project_events(
     items = []
     for row in events or []:
         metadata = dict(row.get("metadata") or {})
+        # The declared event envelope is projected as its own object instead of
+        # being flattened into per-type metadata, so a reader can attribute an
+        # event to its authority, scope and candidate head without guessing.
+        envelope = {
+            key: metadata.pop(key)
+            for key in agent_workspace.AWARENESS_ENVELOPE_KEYS
+            if key in metadata
+        }
         untrusted_parts: list[str] = []
         typed = {}
         demoted: list[str] = []
@@ -802,6 +810,7 @@ def _project_events(
                 "occurred_at": _iso(row.get("created_at")),
                 "actor": {"kind": row.get("actor_kind"), "id": row.get("actor_id")},
                 "message_id": row.get("message_id"),
+                "envelope": envelope,
                 "evidence_locator": f"agent_workspace_events:{row.get('id')}",
                 "trusted_metadata": typed,
                 "untrusted_text": "\n".join(untrusted_parts) if untrusted_parts else None,

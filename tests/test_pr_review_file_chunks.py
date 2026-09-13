@@ -13,7 +13,7 @@ def test_review_diff_keeps_complete_file_diffs_together(monkeypatch) -> None:
     monkeypatch.setattr(
         pr_review,
         "_review_chunk",
-        lambda chunk: seen.append(chunk) or pr_review.NO_FINDINGS,
+        lambda chunk, **_kwargs: seen.append(chunk) or pr_review.NO_FINDINGS,
     )
 
     assert pr_review.review_diff(file_a + file_b) == pr_review.NO_FINDINGS
@@ -30,7 +30,7 @@ def test_review_diff_only_splits_a_file_when_that_file_exceeds_budget(monkeypatc
     monkeypatch.setattr(
         pr_review,
         "_review_chunk",
-        lambda chunk: seen.append(chunk) or pr_review.NO_FINDINGS,
+        lambda chunk, **_kwargs: seen.append(chunk) or pr_review.NO_FINDINGS,
     )
 
     assert pr_review.review_diff(oversized + tail) == pr_review.NO_FINDINGS

@@ -156,11 +156,11 @@ def main() -> None:
         name = str(repo["name"])
         number = int(event_pr["number"])
         pr_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{number}"
-        comments_url = (
-            f"https://api.github.com/repos/{owner}/{name}/issues/{number}/comments?per_page=100"
-        )
         pr = _github_json(pr_url, token)
-        comments = _github_json(comments_url, token)
+        # Paginated: issue comments are oldest-first, so a single page hides the
+        # newest head's evidence once a PR passes 100 comments, and the gate would
+        # report no trusted approval for a head that actually has one.
+        comments = pr_review.issue_comments(owner, name, number, token, fetch=_github_json)
         if not isinstance(pr, dict) or not isinstance(comments, list):
             raise ValueError("GitHub returned invalid PR/review-evidence data")
     except (KeyError, ValueError, TypeError, OSError, json.JSONDecodeError) as exc:
