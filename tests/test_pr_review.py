@@ -688,6 +688,57 @@ def test_marker_bodies_are_distinguishable_from_a_verdict() -> None:
     assert pr_review._is_no_verdict_body(verdict) is False
 
 
+def test_clean_verdict_does_not_replace_an_existing_finding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A clean rerun must not erase a finding and unblock the head."""
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
+    finding = {
+        "id": 9,
+        "body": pr_review.render_review_body("A real problem in this diff.", "a" * 40),
+    }
+    calls: list[str] = []
+    monkeypatch.setattr(
+        pr_review,
+        "github_json",
+        lambda url, *_args, **_kwargs: calls.append(url) or [finding],
+    )
+
+    published = pr_review.upsert_review(
+        pr_review.NO_FINDINGS, 1, "owner", "repo", "a" * 40
+    )
+
+    assert published is False
+    assert len(calls) == 1  # read only: the finding survived
+
+
+def test_finding_verdict_does_replace_a_clean_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The conservative direction stays open so a finding can always land."""
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
+    clean = {
+        "id": 9,
+        "body": pr_review.render_review_body(pr_review.NO_FINDINGS, "a" * 40),
+    }
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        pr_review,
+        "github_json",
+        lambda url, *_args, **kwargs: calls.append((url, str(kwargs.get("method"))))
+        or [clean],
+    )
+
+    published = pr_review.upsert_review(
+        "A real problem in this diff.", 1, "owner", "repo", "a" * 40
+    )
+
+    assert published is True
+    assert calls[-1][1] == "PATCH"
+
+
 def test_failure_publish_does_not_replace_an_existing_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

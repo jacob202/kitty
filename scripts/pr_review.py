@@ -493,6 +493,15 @@ def _is_no_verdict_body(body: str) -> bool:
     return PENDING_MARKER in body or FAILURE_MARKER in body
 
 
+def _has_findings(body: str) -> bool:
+    """True when a completed verdict body reports findings rather than a clean pass."""
+    if _is_no_verdict_body(body):
+        return False
+    if "Reviewed commit" not in body and "Reviewed current PR head" not in body:
+        return False
+    return "No actionable findings in this diff." not in body
+
+
 def _existing_review_comment(
     comments: list[dict[str, Any]], head_sha: str = ""
 ) -> dict[str, Any] | None:
@@ -625,15 +634,27 @@ def upsert_review(
         )
         if not _head_still_current(pr_number, owner, repo, head_sha):
             return False
-        if existing is not None and review.strip() in (REVIEW_PENDING, REVIEW_FAILED):
-            # Two runs can target the same head, and so can a rerun of a head that
-            # already has evidence. Neither a pending marker nor a no-verdict
-            # rerun may replace a completed verdict for that head: for an
-            # unchanged head the existing verdict IS the current evidence.
-            if not _is_no_verdict_body(str(existing.get("body") or "")):
+        if existing is not None:
+            existing_body = str(existing.get("body") or "")
+            if review.strip() in (REVIEW_PENDING, REVIEW_FAILED):
+                # Two runs can target the same head, and so can a rerun of a head
+                # that already has evidence. Neither a pending marker nor a
+                # no-verdict rerun may replace a completed verdict for that head:
+                # for an unchanged head the existing verdict IS the evidence.
+                if not _is_no_verdict_body(existing_body):
+                    print(
+                        "This head already has review evidence; not replacing it with "
+                        f"{'a failure' if review.strip() == REVIEW_FAILED else 'a pending marker'}.",
+                        file=sys.stderr,
+                    )
+                    return False
+            elif review.strip() == NO_FINDINGS and _has_findings(existing_body):
+                # Same head, two overlapping runs, opposite outcomes. Overwriting
+                # the finding with a clean verdict would let policy-gate approve a
+                # head that still has an unresolved finding against it.
                 print(
-                    "This head already has review evidence; not replacing it with "
-                    f"{'a failure' if review.strip() == REVIEW_FAILED else 'a pending marker'}.",
+                    "An existing finding for this head is preserved; not replacing it "
+                    "with a clean verdict.",
                     file=sys.stderr,
                 )
                 return False
@@ -699,7 +720,11 @@ def main() -> None:
         raise SystemExit(1)
 
     if not upsert_review(review, pr_number, owner, repo, head_sha):
-        print(f"PR head moved past {head_sha}; verdict not published.", file=sys.stderr)
+        print(
+            f"Review evidence for {head_sha} was not published: the head moved, or more "
+            "conservative evidence is already recorded for it.",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
     if review.strip() != NO_FINDINGS:
         print("Actionable review findings block this exact PR head.", file=sys.stderr)
