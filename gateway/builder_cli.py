@@ -2226,6 +2226,9 @@ def _queue_disabled() -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from gateway import builder_queue as bq
+
+    bq.install_awareness_sink()
     parser = build_parser()
     # Workaround for Python 3.11 argparse bug: `--` followed by positional
     # args with nargs="*" doesn't work in deeply nested subparsers.  Extract
