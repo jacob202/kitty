@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Optional
+import json
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,51 @@ class LibrarianReport(BaseModel):
     primary_topic: str = ""
     needs_vision: bool = False
     pollution_warning: Optional[str] = None
+
+
+class EvidenceMetadata(BaseModel):
+    """Provenance and safety metadata that must survive evidence retrieval."""
+
+    source_id: str
+    source_sha256: str = ""
+    logical_unit_id: str
+    work_id: Optional[str] = None
+    series_id: Optional[str] = None
+    series_order: Optional[int] = None
+    retrieval_title: str = ""
+    publication_year: Optional[int] = None
+    edition: str = ""
+    metadata_basis: str = ""
+    domains: list[str] = Field(default_factory=list)
+    subjects: list[str] = Field(default_factory=list)
+    expert_profiles: list[str] = Field(default_factory=list)
+    authority_tier: str = ""
+    authority_status: str = ""
+    currency_sensitivity: str = ""
+    currency_status: str = ""
+    evidence_role: str = ""
+    clinical_use_policy: str = ""
+    work_relation: str = ""
+
+    def to_chroma(self) -> dict[str, Any]:
+        data = self.model_dump(exclude_none=True)
+        for key in ("domains", "subjects", "expert_profiles"):
+            data[f"{key}_json"] = json.dumps(data.pop(key), separators=(",", ":"))
+        return {key: value for key, value in data.items() if value != ""}
+
+    @classmethod
+    def from_chroma(cls, metadata: dict[str, Any]) -> "EvidenceMetadata":
+        data: dict[str, Any] = {}
+        for field in cls.model_fields:
+            if field in {"domains", "subjects", "expert_profiles"}:
+                raw = metadata.get(f"{field}_json", "[]")
+                try:
+                    data[field] = json.loads(raw) if isinstance(raw, str) else list(raw or [])
+                except (TypeError, json.JSONDecodeError):
+                    data[field] = []
+            elif field in metadata:
+                data[field] = metadata[field]
+        return cls.model_validate(data)
 
 
 class KnowledgeMetadata(BaseModel):

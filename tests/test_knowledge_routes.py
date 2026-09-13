@@ -619,3 +619,57 @@ class TestSSRFProtection:
         payload = r.json()
         assert payload["status"] == "failed"
         assert "blocked url" in payload["reason"]
+
+
+def test_ingest_preserves_evidence_safety_metadata(client, mock_kb_collection, tmp_path):
+    sample = tmp_path / "health_reference.txt"
+    sample.write_text(
+        "Historical botanical reference material for identification and context only.",
+        encoding="utf-8",
+    )
+    evidence = {
+        "source_id": "source-health-1",
+        "source_sha256": "a" * 64,
+        "logical_unit_id": "work:health-example",
+        "work_id": "work:health-example",
+        "domains": ["health_biology_medicine"],
+        "subjects": ["botanical_medicine"],
+        "expert_profiles": ["health_biology"],
+        "retrieval_title": "Historical Botanical Reference",
+        "publication_year": 1998,
+        "edition": "2",
+        "metadata_basis": "curated_bibliographic_review",
+        "authority_tier": "contextual_or_traditional_health_reference",
+        "authority_status": "named_author_needs_bibliographic_review",
+        "currency_sensitivity": "high_health_or_clinical",
+        "currency_status": "authority_and_recency_review_required",
+        "evidence_role": "contextual_reference_not_current_clinical_authority",
+        "clinical_use_policy": "verify_current_clinical_guidance_externally_before_action",
+    }
+
+    cms = _patched_ingest_with_coll(mock_kb_collection, [0.1, 0.2, 0.3, 0.4])
+    _enter_all(cms)
+    try:
+        response = client.post(
+            "/knowledge/ingest",
+            json={
+                "path": str(sample),
+                "source_label": "Historical Botanical Reference",
+                "collection": "expert_corpus_evidence",
+                "evidence": evidence,
+            },
+        )
+    finally:
+        _exit_all(cms)
+
+    assert response.status_code == 200, response.text
+    stored = mock_kb_collection.add.call_args.kwargs["metadatas"]
+    assert stored
+    first = stored[0]
+    assert first["source_id"] == evidence["source_id"]
+    assert first["source_sha256"] == evidence["source_sha256"]
+    assert first["logical_unit_id"] == evidence["logical_unit_id"]
+    assert json.loads(first["domains_json"]) == evidence["domains"]
+    assert first["authority_tier"] == evidence["authority_tier"]
+    assert first["currency_status"] == evidence["currency_status"]
+    assert first["clinical_use_policy"] == evidence["clinical_use_policy"]

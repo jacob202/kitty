@@ -490,3 +490,145 @@ async def test_ingest_same_second_refresh_uses_disjoint_replacement_ids(tmp_path
     assert result.status == "success"
     assert added_ids
     assert set(added_ids).isdisjoint(old_ids)
+
+
+@pytest.mark.asyncio
+async def test_search_returns_typed_evidence_metadata(tmp_path, monkeypatch):
+    import chromadb
+
+    from contracts.knowledge_pipeline import EvidenceMetadata, LibrarianReport
+    from gateway import knowledge
+
+    collection = chromadb.EphemeralClient().get_or_create_collection(
+        "kitty_test_evidence_metadata", metadata={"hnsw:space": "cosine"}
+    )
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: collection)
+    monkeypatch.setattr(knowledge.archivist, "_embed", lambda texts, timeout=120: [[1.0, 0.0] for _ in texts])
+    monkeypatch.setattr(knowledge.archivist, "_embed_cached", lambda text: (1.0, 0.0))
+    monkeypatch.setattr(
+        knowledge.librarian,
+        "generate_source_summary",
+        lambda *args: LibrarianReport(summary="source", authority_score=0.5),
+    )
+
+    source = tmp_path / "herbal.txt"
+    source.write_text("Herbal reference material discussing botanical preparations and safety context.")
+    evidence = EvidenceMetadata(
+        source_id="health-src",
+        source_sha256="b" * 64,
+        logical_unit_id="work:health-src",
+        retrieval_title="Historical Herbal Reference",
+        domains=["health_biology_medicine"],
+        expert_profiles=["health_biology"],
+        authority_tier="contextual_or_traditional_health_reference",
+        authority_status="named_author_needs_bibliographic_review",
+        currency_sensitivity="high_health_or_clinical",
+        currency_status="authority_and_recency_review_required",
+        clinical_use_policy="verify_current_clinical_guidance_externally_before_action",
+    )
+    result = await knowledge.ingest(source, source_label="Historical Herbal Reference", evidence=evidence)
+    assert result.status == "success"
+
+    hits = await knowledge.search("botanical preparations", limit=1, stitch_context=False)
+    assert hits[0]["evidence"]["source_id"] == "health-src"
+    assert hits[0]["evidence"]["logical_unit_id"] == "work:health-src"
+    assert hits[0]["evidence"]["authority_tier"] == "contextual_or_traditional_health_reference"
+    assert hits[0]["evidence"]["clinical_use_policy"] == "verify_current_clinical_guidance_externally_before_action"
+
+
+@pytest.mark.asyncio
+async def test_search_uses_active_corpus_fts_when_vector_embedding_fails(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text, "
+            "tokenize='porter unicode61')"
+        )
+        conn.execute(
+            "INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "chunk-1",
+                "health-src",
+                "work:health-src",
+                "Historical Herbal Reference",
+                "Historical Herbal Reference",
+                "work:health-src",
+                "Historical Herbal Reference",
+                "health_biology_medicine",
+                "botanical_medicine",
+                "textbook",
+                "12",
+                "13",
+                "Herbal medicine adverse effects interactions and pharmacology require careful safety review.",
+            ),
+        )
+
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text(
+        json.dumps(
+            {
+                "source_id": "health-src",
+                "sha256": "c" * 64,
+                "logical_unit_id": "work:health-src",
+                "work_id": "work:health-src",
+                "series_id": None,
+                "series_order": None,
+                "retrieval_title": "Historical Herbal Reference",
+                "publication_year": 1998,
+                "edition": "2",
+                "metadata_basis": "curated_bibliographic_review",
+                "domains": ["health_biology_medicine"],
+                "subjects": ["botanical_medicine"],
+                "expert_profiles": ["health_biology"],
+                "authority_tier": "contextual_or_traditional_health_reference",
+                "authority_status": "named_author_needs_bibliographic_review",
+                "currency_sensitivity": "high_health_or_clinical",
+                "currency_status": "authority_and_recency_review_required",
+                "evidence_role": "contextual_reference_not_current_clinical_authority",
+                "clinical_use_policy": "verify_current_clinical_guidance_externally_before_action",
+                "work_relation": "unique_or_unresolved",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    projection = tmp_path / "projection.json"
+    projection.write_text(
+        json.dumps(
+            {
+                "schema": "kitty.runtime-retrieval-projection.v1",
+                "status": "active",
+                "fts_db": str(db),
+                "source_manifest": str(manifest),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+    monkeypatch.setattr(
+        knowledge.archivist,
+        "_embed_cached",
+        lambda query: (_ for _ in ()).throw(RuntimeError("embedding unavailable")),
+    )
+
+    hits = await knowledge.search(
+        "herbal medicine adverse effects interactions pharmacology",
+        limit=2,
+        stitch_context=False,
+    )
+
+    assert hits
+    assert hits[0]["source"] == "Historical Herbal Reference"
+    assert hits[0]["retrieval_method"] == "fts"
+    assert hits[0]["evidence"]["source_id"] == "health-src"
+    assert hits[0]["evidence"]["logical_unit_id"] == "work:health-src"
+    assert hits[0]["evidence"]["clinical_use_policy"] == "verify_current_clinical_guidance_externally_before_action"
+    assert hits[0]["metadata"]["locator_start"] == "12"

@@ -15,6 +15,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import re
+import sqlite3
 import time
 import uuid
 from pathlib import Path
@@ -23,12 +26,13 @@ from typing import Any, Callable, Dict, List, Optional
 import httpx
 
 from contracts.knowledge_pipeline import (
+    EvidenceMetadata,
     IngestionResult,
     KnowledgeMetadata,
     LibrarianReport,
 )
 from gateway import archivist, clerk, librarian
-from gateway.paths import PROJECT_ROOT
+from gateway.paths import DATA_DIR, PROJECT_ROOT
 
 logger = logging.getLogger("kitty.knowledge")
 
@@ -95,6 +99,106 @@ class UnknownExpertError(ExpertAnswerError):
     """Raised when a caller requests an expert profile that does not exist."""
 
 
+def _resolve_corpus_path(value: str) -> Path:
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else DATA_DIR / path
+
+
+def _manifest_evidence(row: dict[str, Any]) -> EvidenceMetadata:
+    quality = row.get("quality_dimensions") or {}
+    return EvidenceMetadata(
+        source_id=str(row["source_id"]),
+        source_sha256=str(row.get("sha256") or row.get("source_sha256") or ""),
+        logical_unit_id=str(row["logical_unit_id"]),
+        work_id=row.get("work_id"),
+        series_id=row.get("series_id"),
+        series_order=row.get("series_order"),
+        retrieval_title=str(row.get("retrieval_title") or row.get("title") or ""),
+        publication_year=row.get("publication_year"),
+        edition=str(row.get("edition") or ""),
+        metadata_basis=str(row.get("metadata_basis") or ""),
+        domains=list(row.get("domains") or []),
+        subjects=list(row.get("subjects") or []),
+        expert_profiles=list(row.get("expert_profiles") or []),
+        authority_tier=str(row.get("authority_tier") or quality.get("authority_credibility") or ""),
+        authority_status=str(row.get("authority_status") or quality.get("authority_credibility") or ""),
+        currency_sensitivity=str(row.get("currency_sensitivity") or quality.get("date_sensitivity") or ""),
+        currency_status=str(row.get("currency_status") or quality.get("currency_status") or ""),
+        evidence_role=str(row.get("evidence_role") or quality.get("evidence_role") or ""),
+        clinical_use_policy=str(row.get("clinical_use_policy") or quality.get("clinical_use_policy") or ""),
+        work_relation=str(row.get("work_relation") or ""),
+    )
+
+
+def _fts_query(query: str) -> str:
+    terms = re.findall(r"[A-Za-z0-9]+(?:[-_.][A-Za-z0-9]+)*", query)
+    return " ".join(terms)
+
+
+def _search_active_corpus_fts(query: str, limit: int) -> Optional[list[dict[str, Any]]]:
+    projection_path = Path(
+        os.environ.get(
+            "KITTY_CORPUS_RETRIEVAL_PROJECTION",
+            str(DATA_DIR / "books_corpus/manifests/runtime_retrieval_projection_active.json"),
+        )
+    ).expanduser()
+    if not projection_path.exists():
+        return None
+    projection = json.loads(projection_path.read_text(encoding="utf-8"))
+    if projection.get("status") != "active":
+        return None
+    db_path = _resolve_corpus_path(str(projection["fts_db"]))
+    manifest_path = _resolve_corpus_path(str(projection["source_manifest"]))
+    source_rows = {
+        row["source_id"]: row
+        for row in (json.loads(line) for line in manifest_path.read_text(encoding="utf-8").splitlines() if line.strip())
+    }
+    match_query = _fts_query(query)
+    if not match_query:
+        return []
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        rows = conn.execute(
+            "SELECT chunk_id,source_id,logical_unit_id,source_title,retrieval_title,work_id,work_title,"
+            "domains,subjects,doc_type,locator_start,locator_end,text,bm25(chunks) "
+            "FROM chunks WHERE chunks MATCH ? ORDER BY bm25(chunks) LIMIT ?",
+            (match_query, max(limit * 8, limit)),
+        ).fetchall()
+    hits: list[dict[str, Any]] = []
+    seen_units: set[str] = set()
+    for rank, row in enumerate(rows, start=1):
+        chunk_id, source_id, logical_unit_id, source_title, retrieval_title, work_id, work_title, domains, subjects, doc_type, locator_start, locator_end, text, bm25_score = row
+        if logical_unit_id in seen_units:
+            continue
+        seen_units.add(logical_unit_id)
+        source_row = source_rows.get(source_id)
+        if source_row is None:
+            continue
+        evidence = _manifest_evidence(source_row)
+        metadata = evidence.to_chroma()
+        metadata.update({
+            "chunk_id": chunk_id,
+            "locator_start": locator_start,
+            "locator_end": locator_end,
+            "work_title": work_title or "",
+            "source_title": source_title or "",
+        })
+        hits.append({
+            "text": text,
+            "source": retrieval_title or source_title or evidence.retrieval_title or source_id,
+            "doc_type": doc_type or "general",
+            "score": 1.0 / rank,
+            "fts_score": bm25_score,
+            "ingested_at": 0,
+            "index": 0,
+            "metadata": metadata,
+            "evidence": evidence.model_dump(),
+            "retrieval_method": "fts",
+        })
+        if len(hits) >= limit:
+            break
+    return hits
+
+
 async def ingest(
     file_path: str | Path,
     sensitivity: str = "low",
@@ -102,6 +206,7 @@ async def ingest(
     doc_type: Optional[str] = None,
     collection: str = "general",
     tags: Optional[list[str]] = None,
+    evidence: Optional[EvidenceMetadata] = None,
     force_refresh: bool = False,
 ) -> IngestionResult:
     """High-leverage entry point for document ingestion."""
@@ -167,6 +272,7 @@ async def ingest(
         content_hash,
         taste_report,
         chunk_metadatas,
+        evidence,
     )
     # Store the replacement first. Only after the new chunks are durable do we
     # remove the previous source ids. A cleanup failure rolls back the new ids,
@@ -204,6 +310,15 @@ async def search(
     stitch_context: bool = True,
 ) -> List[Dict[str, Any]]:
     """Unified search with optional context stitching."""
+    use_corpus_projection = (
+        sort_by == "relevance"
+        and sensitivity_filter in (None, "low")
+        and (not collections or set(collections) == {"expert_corpus_evidence"})
+    )
+    if use_corpus_projection:
+        corpus_hits = _search_active_corpus_fts(query, limit)
+        if corpus_hits is not None:
+            return corpus_hits
     try:
         query_embedding = list(archivist._embed_cached(query))
         where = _build_search_filter(sensitivity_filter, collections)
@@ -229,6 +344,11 @@ async def search(
                 "index": meta.get("chunk_index", 0),
                 "metadata": meta,
             }
+            if meta.get("source_id") and meta.get("logical_unit_id"):
+                try:
+                    chunk_data["evidence"] = EvidenceMetadata.from_chroma(meta).model_dump()
+                except Exception:
+                    logger.warning("Ignoring malformed evidence metadata for source=%r", meta.get("source"))
 
             if (
                 stitch_context
@@ -525,6 +645,7 @@ def _prepare_metadatas(
     content_hash: str,
     taste: LibrarianReport,
     chunk_metadatas: list[dict],
+    evidence: Optional[EvidenceMetadata] = None,
 ) -> list[dict]:
     """Standardize metadata for all chunks using KnowledgeMetadata contract."""
     try:
@@ -555,7 +676,10 @@ def _prepare_metadatas(
             analysis_type=meta.get("analysis_type"),
             pollution_warning=taste.pollution_warning,
         )
-        final.append(km.to_chroma())
+        prepared = km.to_chroma()
+        if evidence is not None:
+            prepared.update(evidence.to_chroma())
+        final.append(prepared)
     return final
 
 

@@ -21,6 +21,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from contracts.knowledge_pipeline import EvidenceMetadata
 from gateway.paths import KNOWLEDGE_DIR
 
 logger = logging.getLogger("kitty.routes.knowledge")
@@ -123,6 +124,7 @@ class IngestRequest(BaseModel):
     doc_type: Optional[str] = None
     collection: str = Field(default="general", pattern=r"^[a-z][a-z0-9_]{0,63}$")
     tags: list[str] = Field(default_factory=list, max_length=20)
+    evidence: Optional[EvidenceMetadata] = None
     force_refresh: bool = False
 
     @model_validator(mode="after")
@@ -202,6 +204,7 @@ async def post_ingest(body: IngestRequest) -> IngestResponse:
             doc_type=body.doc_type,
             collection=body.collection,
             tags=body.tags,
+            evidence=body.evidence,
             force_refresh=body.force_refresh,
         )
     except Exception as exc:  # noqa: BLE001 — surface real failure, not a default
