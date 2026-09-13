@@ -934,6 +934,22 @@ AWARENESS_SEVERITIES: frozenset[str] = frozenset({"info", "warning", "critical"}
 MAX_AWARENESS_METADATA_BYTES = 4_000
 MAX_AWARENESS_TEXT_LENGTH = 200
 
+# Envelope identifiers are opaque tokens: a task id, a SHA or ref, an event id or
+# locator. Requiring identifier shape is what stops an envelope field from being
+# used as a free-text channel for prose or a directive.
+_AWARENESS_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/#@-]{0,199}$")
+
+
+def _awareness_identifier_rejection(key: str, value: Any) -> str | None:
+    """Return why this envelope identifier is unusable, or None."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return f"{key} must be an identifier string, not {type(value).__name__}"
+    if not _AWARENESS_IDENTIFIER.fullmatch(value):
+        return f"{key} must be an opaque identifier (letters, digits, . _ : / # @ -), not prose"
+    return None
+
 
 def _awareness_scalar_rejection(key: str, value: Any) -> str | None:
     """Return why this value cannot be a trusted awareness fact, or None.
@@ -995,6 +1011,17 @@ def publish_awareness(
             }
         if not isinstance(metadata, dict):
             return {"published": False, "reason": "metadata must be an object"}
+        try:
+            # Snapshot before validating anything. The caller's mapping may be
+            # shared with another thread, and iterating it separately for the
+            # allowlist check and for the payload would let a key appear between
+            # the two -- validated as absent, then persisted.
+            metadata = dict(metadata)
+        except RuntimeError as exc:
+            return {
+                "published": False,
+                "reason": f"metadata changed while being copied: {exc}",
+            }
         rejected = sorted(key for key in metadata if key in AWARENESS_UNTRUSTED_METADATA_KEYS)
         if rejected:
             return {
@@ -1039,6 +1066,16 @@ def publish_awareness(
                     + ", ".join(sorted(AWARENESS_SEVERITIES))
                 ),
             }
+        for key, value in (
+            ("subject", subject),
+            ("candidate_ref", candidate_ref),
+            ("caused_by", caused_by),
+            ("supersedes", supersedes),
+        ):
+            identifier_error = _awareness_identifier_rejection(key, value)
+            if identifier_error is not None:
+                return {"published": False, "reason": identifier_error}
+
         envelope: dict[str, Any] = {"source": source, "severity": severity}
         for key, value in (
             ("subject", subject),
