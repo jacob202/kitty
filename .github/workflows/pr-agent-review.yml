@@ -70,7 +70,13 @@ jobs:
            github.event.action == 'reopened' ||
            github.event.action == 'ready_for_review') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    # Worst case is every chunk stalling on every model: MAX_REVIEW_CHUNKS is 12,
+    # and a real PR has produced 2 chunks. At PR_REVIEW_MODEL_TIMEOUT_SECONDS a
+    # chunk can spend 2 x 240s before giving up, so 20 minutes lets the fallback
+    # chain finish and report a truthful verdict instead of being cancelled
+    # mid-review (which posts nothing and leaves "Review pending" for a head that
+    # was never actually reviewed).
+    timeout-minutes: 20
     continue-on-error: true
     steps:
       - name: Checkout trusted default-branch reviewer
@@ -100,7 +106,11 @@ jobs:
           PR_REVIEW_FALLBACK_MODEL: "openrouter/minimax/minimax-m3"
           PR_REVIEW_DEEPSEEK_MODEL: "openrouter/minimax/minimax-m3"
           PR_REVIEW_DEEPSEEK_FALLBACK_MODEL: "openrouter/qwen/qwen3.7-plus"
-          PR_REVIEW_MODEL_TIMEOUT_SECONDS: "90"
+          # Measured on a real 53 KB review chunk (PR #853, 106 KB / 2 chunks):
+          # deepseek-v4-flash answered in 163s. The previous 90s ceiling meant the
+          # primary model timed out on every sufficiently large diff, the fallback
+          # timed out too, and the job posted no verdict at all.
+          PR_REVIEW_MODEL_TIMEOUT_SECONDS: "240"
           PR_REVIEW_AGENT: "pr-reviewer"
         run: python scripts/pr_review.py
 

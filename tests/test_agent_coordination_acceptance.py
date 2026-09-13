@@ -28,6 +28,7 @@ REQUIRED_RESOURCES = {
     "memory:continuity",
     "mission:runtime",
     "image-lab:generation",
+    "review:agent-workflow",
 }
 
 

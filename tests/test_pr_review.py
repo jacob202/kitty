@@ -356,7 +356,7 @@ def test_review_chunk_falls_back_to_different_model_once(monkeypatch: pytest.Mon
         "openrouter/deepseek/deepseek-v4-flash",
         "openrouter/minimax/minimax-m3",
     ]
-    assert [timeout for _command, timeout in calls] == [90, 90]
+    assert [timeout for _command, timeout in calls] == [240, 240]
 
 
 
