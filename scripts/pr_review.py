@@ -483,10 +483,10 @@ def render_review_body(review: str, head_sha: str) -> str:
     return f"{COMMENT_MARKER}\n## Agent PR Review\n\n{review}\n\n_{reviewed}_"
 
 
-def find_existing_review_comment(
+def _existing_review_comment(
     comments: list[dict[str, Any]], head_sha: str = ""
-) -> int | None:
-    """Return this head's workflow-owned issue comment id, if present.
+) -> dict[str, Any] | None:
+    """This head's workflow-owned comment, if present.
 
     Evidence is kept per head. The workflow deliberately lets runs for different
     heads overlap (its concurrency group includes the event action), so one shared
@@ -501,8 +501,16 @@ def find_existing_review_comment(
             continue
         if head_sha and f"`{head_sha}`" not in body:
             continue
-        return comment_id
+        return comment
     return None
+
+
+def find_existing_review_comment(
+    comments: list[dict[str, Any]], head_sha: str = ""
+) -> int | None:
+    """Return this head's workflow-owned issue comment id, if present."""
+    found = _existing_review_comment(comments, head_sha)
+    return int(found["id"]) if found is not None else None
 
 
 def issue_comments(
@@ -602,11 +610,21 @@ def upsert_review(
     body = render_review_body(review, head_sha)
 
     try:
-        existing_id = find_existing_review_comment(
+        existing = _existing_review_comment(
             issue_comments(owner, repo, pr_number, token), head_sha
         )
         if not _head_still_current(pr_number, owner, repo, head_sha):
             return False
+        if existing is not None and review.strip() == REVIEW_FAILED:
+            # Two runs can target the same head. A rerun that produced no verdict
+            # must not turn an existing valid verdict into "no verdict".
+            if REVIEW_PENDING not in str(existing.get("body") or ""):
+                print(
+                    "A verdict already exists for this head; not replacing it with a failure.",
+                    file=sys.stderr,
+                )
+                return False
+        existing_id = int(existing["id"]) if existing is not None else None
         if existing_id is None:
             post_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
             github_json(post_url, token, method="POST", payload={"body": body})

@@ -607,3 +607,28 @@ def test_main_aborts_before_the_model_when_the_pending_write_is_rejected(
         pr_review.main()
 
     assert exc.value.code == 1
+
+
+def test_failure_publish_does_not_replace_an_existing_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rerun that found no verdict must not erase a good one for the same head."""
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
+    existing = {
+        "id": 9,
+        "body": pr_review.render_review_body(pr_review.NO_FINDINGS, "a" * 40),
+    }
+    calls: list[str] = []
+    monkeypatch.setattr(
+        pr_review,
+        "github_json",
+        lambda url, *_args, **_kwargs: calls.append(url) or [existing],
+    )
+
+    published = pr_review.upsert_review(
+        pr_review.REVIEW_FAILED, 1, "owner", "repo", "a" * 40
+    )
+
+    assert published is False
+    assert len(calls) == 1  # read only: the existing verdict was left alone
