@@ -115,7 +115,7 @@ def test_agent_review_uses_paid_model_fallbacks_and_bounded_timeout() -> None:
     assert env["PR_REVIEW_FALLBACK_MODEL"] == "openrouter/minimax/minimax-m3"
     assert env["PR_REVIEW_DEEPSEEK_MODEL"] == "openrouter/minimax/minimax-m3"
     assert env["PR_REVIEW_DEEPSEEK_FALLBACK_MODEL"] == "openrouter/qwen/qwen3.7-plus"
-    assert env["PR_REVIEW_MODEL_TIMEOUT_SECONDS"] == "90"
+    assert env["PR_REVIEW_MODEL_TIMEOUT_SECONDS"] == "240"
     assert "PR_REVIEW_REQUEST_ATTEMPTS" not in text
 
 

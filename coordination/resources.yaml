@@ -187,4 +187,5 @@ resources:
     paths:
     - .github/workflows/pr-agent-review.yml
     - scripts/pr_review.py
+    - tests/test_ci_gate_workflows.py
     - tests/test_pr_review.py
