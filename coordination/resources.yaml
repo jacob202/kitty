@@ -133,6 +133,7 @@ resources:
     - scripts/hooks/**
     - scripts/kitty_backup.py
     - scripts/scan.py
+    - tests/conftest.py
     - tests/test_agent_coordination_acceptance.py
     - tests/test_agent_room_cli.py
     - tests/test_agent_room_lifecycle_hooks.py

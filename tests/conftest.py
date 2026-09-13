@@ -41,6 +41,24 @@ _PAID_PROVIDER_KEYS = (
 for _key in _PAID_PROVIDER_KEYS:
     os.environ.pop(_key, None)
 
+# Credentials are not the only ambient state that leaks. A developer shell that exports
+# provider *configuration* also changes routing and readiness decisions, so assertions
+# about which model a role resolves to pass in CI and fail locally. That made the local
+# pre-push gate permanently red on a correctly configured machine, which trains everyone
+# to bypass it with --no-verify and leaves no cheap check ahead of CI. Scrub configuration
+# alongside credentials so the suite depends only on what a test sets for itself.
+_AMBIENT_PROVIDER_CONFIG_KEYS = (
+    "KITTY_OPENROUTER_DIRECT_MODEL",
+    "AIRFORCE_MODEL",
+    "FAL_MODEL",
+    "KITTY_IMAGE_AIRFORCE_ENABLED",
+    "KITTY_IMAGE_FAL_ENABLED",
+    "KITTY_IMAGE_FLUX_ENABLED",
+    "KITTY_IMAGE_FLUX2_ENABLED",
+)
+for _key in _AMBIENT_PROVIDER_CONFIG_KEYS:
+    os.environ.pop(_key, None)
+
 import kitty_test_guard as _test_guard  # noqa: E402
 
 _test_guard.install_test_guards()
@@ -52,7 +70,7 @@ def enforce_controlled_live_contract(request, monkeypatch):
     marker = request.node.get_closest_marker("controlled_live")
     if marker is None:
         monkeypatch.delenv("KITTY_TEST_CONTROLLED_LIVE_ACTIVE", raising=False)
-        for key in _PAID_PROVIDER_KEYS:
+        for key in (*_PAID_PROVIDER_KEYS, *_AMBIENT_PROVIDER_CONFIG_KEYS):
             monkeypatch.delenv(key, raising=False)
         monkeypatch.setenv("KITTY_IMAGE_PAID_ENABLED", "0")
         return
