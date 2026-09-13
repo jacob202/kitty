@@ -913,6 +913,24 @@ AWARENESS_UNTRUSTED_METADATA_KEYS: frozenset[str] = frozenset(
     }
 )
 
+# The declared envelope from the shared-operational-awareness event contract.
+# These are first-class parameters, not metadata keys: authority, scope and
+# candidate attribution must be expressible without every client inventing its
+# own meaning for per-type metadata.
+AWARENESS_ENVELOPE_KEYS: tuple[str, ...] = (
+    "source",
+    "subject",
+    "scope_key",
+    "candidate_ref",
+    "caused_by",
+    "supersedes",
+    "severity",
+)
+AWARENESS_SOURCES: frozenset[str] = frozenset(
+    {"builder", "kx", "git", "github", "runtime", "gar"}
+)
+AWARENESS_SEVERITIES: frozenset[str] = frozenset({"info", "warning", "critical"})
+
 MAX_AWARENESS_METADATA_BYTES = 4_000
 MAX_AWARENESS_TEXT_LENGTH = 200
 
@@ -944,7 +962,14 @@ def publish_awareness(
     event_type: str,
     actor_id: str,
     metadata: dict[str, Any],
+    source: str,
     actor_kind: str = "agent",
+    subject: str | None = None,
+    scope_key: str | None = None,
+    candidate_ref: str | None = None,
+    caused_by: str | None = None,
+    supersedes: str | None = None,
+    severity: str = "info",
 ) -> dict[str, Any]:
     """Publish one typed machine-awareness event. Never raises.
 
@@ -979,6 +1004,15 @@ def publish_awareness(
                     + ", ".join(rejected)
                 ),
             }
+        reserved = sorted(key for key in metadata if key in AWARENESS_ENVELOPE_KEYS)
+        if reserved:
+            return {
+                "published": False,
+                "reason": (
+                    "envelope fields are declared parameters, not metadata key(s): "
+                    + ", ".join(reserved)
+                ),
+            }
         allowed = AWARENESS_METADATA_KEYS[event_type]
         undeclared = sorted(key for key in metadata if key not in allowed)
         if undeclared:
@@ -989,11 +1023,47 @@ def publish_awareness(
                     "rejected undeclared key(s): " + ", ".join(undeclared)
                 ),
             }
-        shape_errors = [
-            reason
-            for key, value in sorted(metadata.items())
-            if (reason := _awareness_scalar_rejection(key, value)) is not None
-        ]
+        if source not in AWARENESS_SOURCES:
+            return {
+                "published": False,
+                "reason": (
+                    f"source {source!r} is not a declared awareness authority; declared: "
+                    + ", ".join(sorted(AWARENESS_SOURCES))
+                ),
+            }
+        if severity not in AWARENESS_SEVERITIES:
+            return {
+                "published": False,
+                "reason": (
+                    f"severity {severity!r} is not one of: "
+                    + ", ".join(sorted(AWARENESS_SEVERITIES))
+                ),
+            }
+        envelope: dict[str, Any] = {"source": source, "severity": severity}
+        for key, value in (
+            ("subject", subject),
+            ("scope_key", scope_key),
+            ("candidate_ref", candidate_ref),
+            ("caused_by", caused_by),
+            ("supersedes", supersedes),
+        ):
+            if value is not None:
+                envelope[key] = value
+        try:
+            validated_scope = _optional_scope_key(envelope.get("scope_key"))
+        except AgentWorkspaceError as exc:
+            return {"published": False, "reason": f"scope_key rejected: {exc}"}
+        if validated_scope is None:
+            envelope.pop("scope_key", None)
+        else:
+            envelope["scope_key"] = validated_scope
+
+        payload = {**metadata, **envelope}
+        shape_errors = []
+        for key, value in sorted(payload.items()):
+            reason = _awareness_scalar_rejection(key, value)
+            if reason is not None:
+                shape_errors.append(reason)
         if shape_errors:
             return {
                 "published": False,
@@ -1002,9 +1072,12 @@ def publish_awareness(
         try:
             # allow_nan=False: NaN/Infinity are not JSON, and a strict reader would
             # choke on the row later rather than here, where the cause is known.
-            encoded = json.dumps(metadata, sort_keys=True, allow_nan=False)
+            encoded = json.dumps(payload, sort_keys=True, allow_nan=False)
         except (TypeError, ValueError) as exc:
-            return {"published": False, "reason": f"metadata is not JSON-serialisable: {exc}"}
+            return {
+                "published": False,
+                "reason": f"awareness payload is not JSON-serialisable: {exc}",
+            }
         if len(encoded.encode("utf-8")) > MAX_AWARENESS_METADATA_BYTES:
             return {
                 "published": False,
@@ -1023,7 +1096,10 @@ def publish_awareness(
                 event_type=event_type,
                 actor_kind=actor_kind,
                 actor_id=actor_id,
-                metadata=metadata,
+                # The validated snapshot, never the caller's live mapping: a
+                # mapping shared with another thread could otherwise be mutated
+                # between validation and this second serialisation.
+                metadata=json.loads(encoded),
                 now=time.time(),
             )
             conn.commit()
