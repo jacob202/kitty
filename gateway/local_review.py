@@ -4,6 +4,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -18,6 +19,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Literal, Sequence
+
+logger = logging.getLogger("kitty.local_review")
 
 DEFAULT_REVIEWER_MODEL = "Qwen3.5-9B-Q3_K_M"
 DEFAULT_OLLAMA_URLS = ("http://127.0.0.1:11434", "http://127.0.0.1:11435")
@@ -612,6 +615,7 @@ class LocalLlamaServer:
             time.sleep(0.2)
         detail = self._log_tail()
         self._stop()
+        self._discard_log()
         raise RuntimeError(f"local reviewer failed to start: {last_error}; log={detail}")
 
     def ask(self, requirement: str, candidate: str) -> str:
@@ -624,7 +628,10 @@ class LocalLlamaServer:
         )
         tokens = tokenized.get("tokens")
         if not isinstance(tokens, list):
-            raise RuntimeError(f"local reviewer tokenizer returned malformed response: {tokenized}")
+            raise RuntimeError(
+                "local reviewer tokenizer returned malformed response: "
+                f"response={type(tokenized).__name__} tokens={type(tokens).__name__}"
+            )
         if len(tokens) > MAX_PROMPT_TOKENS:
             raise RuntimeError(
                 f"local reviewer input too large: {len(tokens)} tokens exceeds {MAX_PROMPT_TOKENS}"
@@ -641,12 +648,21 @@ class LocalLlamaServer:
             },
             timeout=self._bounded_timeout(self.request_timeout),
         )
+        choices = response.get("choices") if isinstance(response, dict) else None
         try:
             choice = response["choices"][0]
             content = str(choice["message"]["content"])
             finish_reason = choice.get("finish_reason")
         except (KeyError, IndexError, TypeError) as exc:
-            raise RuntimeError(f"local reviewer returned malformed completion: {response}") from exc
+            # Report only the shape. Interpolating `response` would embed model output
+            # derived from the candidate, and this message reaches a durable Builder
+            # manifest via run_local_review()'s `error` field.
+            first = choices[0] if isinstance(choices, list) and choices else None
+            shape = sorted(first)[:8] if isinstance(first, dict) else type(first).__name__
+            raise RuntimeError(
+                "local reviewer returned malformed completion: "
+                f"response={type(response).__name__} choices={type(choices).__name__} first={shape}"
+            ) from exc
         if finish_reason != "stop":
             raise RuntimeError(
                 f"local reviewer returned incomplete completion: finish_reason={finish_reason!r}"
@@ -677,8 +693,26 @@ class LocalLlamaServer:
             self.process.kill()
             self.process.wait(timeout=5)
 
+    def _discard_log(self) -> None:
+        """Remove this review's server log.
+
+        Every enabled shadow review creates one and no receipt retains its path, so
+        without this they accumulate in the temp directory indefinitely.
+        """
+        if self.log_path is None:
+            return
+        path = self.log_path
+        self.log_path = None
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("could not remove local review log %s: %s", path, exc)
+
     def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -> Literal[False]:
         self._stop()
+        self._discard_log()
         return False
 
 

@@ -73,6 +73,7 @@ def test_trust_bearing_paths_are_sensitive(path: str) -> None:
         "gateway/builder_contract_gate.py",
         "gateway/builder_attempt.py",
         "gateway/builder_initiative.py",
+        "gateway/builder_scope.py",
     ],
 )
 def test_spend_and_builder_authority_surfaces_are_sensitive(path: str) -> None:

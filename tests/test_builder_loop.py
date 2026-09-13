@@ -3270,12 +3270,11 @@ def test_local_shadow_runtime_error_receipt_keeps_bounded_cause(
         "_local_shadow_candidate",
         lambda *_args, **_kwargs: "diff --git a/a.py b/a.py\n+safe = True\n",
     )
+    leaked = "CANDIDATE_PROSE_MUST_NOT_REACH_THE_MANIFEST"
     monkeypatch.setattr(
         bl,
         "run_local_review",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            bl.LoopError("local-review candidate is empty")
-        ),
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(bl.LoopError(leaked)),
     )
     receipt = bl._run_local_shadow_review(
         worktree=tmp_path,
@@ -3287,8 +3286,10 @@ def test_local_shadow_runtime_error_receipt_keeps_bounded_cause(
     )
     assert receipt["decision"] == "escalate"
     assert receipt["reason"] == "local_reviewer_runtime_error"
-    assert "LoopError" in receipt["error"]
-    assert "local-review candidate is empty" in receipt["error"]
+    assert receipt["error_type"] == "LoopError"
+    # The cause is diagnosable without persisting exception text, which can embed
+    # model output derived from the candidate.
+    assert leaked not in json.dumps(receipt)
 
 
 def test_local_shadow_clear_receipt_has_no_error_cause(
@@ -3321,7 +3322,7 @@ def test_local_shadow_clear_receipt_has_no_error_cause(
         governor_risk_class="routine",
     )
     assert receipt["reason"] == "high_risk_requires_strong_review"
-    assert receipt["error"] is None
+    assert receipt["error_type"] is None
 
 
 def test_local_shadow_sensitive_scope_escalates_without_inference(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

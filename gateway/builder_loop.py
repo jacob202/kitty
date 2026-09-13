@@ -1626,9 +1626,10 @@ def _local_shadow_receipt(
         "authoritative": False,
         "decision": raw.get("decision", "escalate"),
         "reason": raw.get("reason", "local_reviewer_malformed_result"),
-        # Bounded cause for a runtime error; None on every other path. Kept
-        # separate from `reason` so calibration failures stay diagnosable.
-        "error": (str(raw["error"])[:200] if raw.get("error") else None),
+        # Bounded, non-textual cause for a runtime error; None on every other path.
+        # Deliberately NOT run_local_review()'s `error` message: that string can carry
+        # model output derived from the candidate, and this receipt is durable.
+        "error_type": raw.get("error_type"),
         "risk_tags": list(raw.get("risk_tags") or []),
         "reviewer_fingerprint": safe_fingerprint,
         "requirements": answers,
@@ -1736,8 +1737,9 @@ def _run_local_shadow_review(
     except Exception as exc:
         # Fail closed, but keep the cause. An unavailable shadow and an expected
         # abstention both surface as "escalate", and discarding the exception makes
-        # them indistinguishable to an operator. The message is truncated so no diff
-        # or requirement prose reaches the receipt.
+        # them indistinguishable to an operator. Only the exception TYPE is retained:
+        # messages can embed model output derived from the candidate, and the receipt
+        # is durable, so the detail goes to the log instead of the manifest.
         logger.warning(
             "local shadow review unavailable: %s: %s", type(exc).__name__, exc
         )
@@ -1746,7 +1748,7 @@ def _run_local_shadow_review(
             "authoritative": False,
             "decision": "escalate",
             "reason": "local_reviewer_runtime_error",
-            "error": f"{type(exc).__name__}: {exc}"[:200],
+            "error_type": type(exc).__name__,
             "risk_tags": risk_tags,
             "requirements": [],
         }

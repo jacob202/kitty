@@ -621,6 +621,42 @@ def test_oversized_input_abstains_before_generation() -> None:
     assert request.call_count == 1
 
 
+def test_malformed_completion_reports_shape_not_payload() -> None:
+    """This message reaches a durable Builder manifest via run_local_review()'s
+    `error` field, so it must not carry server output derived from the candidate."""
+    server = LocalLlamaServer(Path("not-loaded.gguf"), port=18080)
+    secret = "CANDIDATE_PROSE_MUST_NOT_APPEAR"
+    with patch("gateway.local_review._request_json", side_effect=[
+        {"tokens": [1, 2, 3]},
+        {"choices": [{"message": {"unexpected": secret}}]},
+    ]):
+        with pytest.raises(RuntimeError, match="malformed completion") as caught:
+            server.ask("The parser preserves rows.", "candidate")
+    assert secret not in str(caught.value)
+    assert "choices=list" in str(caught.value)
+
+
+def test_malformed_tokenizer_response_reports_shape_not_payload() -> None:
+    server = LocalLlamaServer(Path("not-loaded.gguf"), port=18080)
+    secret = "CANDIDATE_PROSE_MUST_NOT_APPEAR"
+    with patch("gateway.local_review._request_json", return_value={"tokens": secret}):
+        with pytest.raises(RuntimeError, match="malformed response") as caught:
+            server.ask("The parser preserves rows.", "candidate")
+    assert secret not in str(caught.value)
+
+
+def test_reviewer_removes_its_log_file_on_exit(tmp_path: Path) -> None:
+    """Every review writes a delete=False temp log and no receipt keeps its path,
+    so without cleanup they accumulate in the temp directory forever."""
+    server = LocalLlamaServer(Path("not-loaded.gguf"), port=18080)
+    log = tmp_path / "kitty-local-review-test.log"
+    log.write_text("server output", encoding="utf-8")
+    server.log_path = log
+    server.__exit__(None, None, None)
+    assert not log.exists()
+    assert server.log_path is None
+
+
 def test_default_model_path_prefers_persistent_kitty_model_dir(tmp_path: Path, monkeypatch) -> None:
     home = tmp_path
     model = home / "Library/Application Support/Kitty/models/local-reviewer/Qwen3.5-9B-Q3_K_M.gguf"
