@@ -70,6 +70,15 @@ def test_marking_a_pull_request_ready_starts_required_ci_without_another_push() 
         assert required in types, required
 
 
+def test_agent_review_runs_are_serialized_per_pull_request() -> None:
+    """Overlapping reviews of one PR can publish contradictory evidence."""
+    _, workflow = _workflow("pr-agent-review.yml")
+    concurrency = workflow["concurrency"]
+    assert "github.event.pull_request.number" in concurrency["group"]
+    assert "github.event.action" not in concurrency["group"]
+    assert concurrency["cancel-in-progress"] is False
+
+
 def test_converting_back_to_draft_cancels_superseded_pull_request_work() -> None:
     _, workflow = _workflow("tests.yml")
     concurrency = workflow["concurrency"]
