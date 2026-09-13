@@ -2825,3 +2825,35 @@ def test_every_declared_awareness_key_has_a_field_schema():
 
     unused = sorted(set(agent_workspace.AWARENESS_FIELD_SCHEMAS) - declared)
     assert unused == [], f"field schemas no event type may publish: {unused}"
+
+
+def test_awareness_vocabularies_match_their_owners():
+    """The seam declares the vocabularies; the owning modules stay the source.
+
+    agent_workspace deliberately does not import the Builder modules (the room
+    keeps a minimal runtime dependency set), so this test is what stops the
+    declared vocabularies from drifting away from the queue and attempt owners.
+    """
+    from gateway import builder_attempt, builder_queue_db
+
+    assert agent_workspace.TASK_STATES == frozenset(
+        {
+            builder_queue_db.QUEUED,
+            builder_queue_db.CLAIMED,
+            builder_queue_db.RUNNING,
+            builder_queue_db.PR_OPENED,
+            builder_queue_db.AWAITING_REVIEW,
+            builder_queue_db.DONE,
+            builder_queue_db.FAILED,
+            builder_queue_db.CANCELLED,
+            builder_queue_db.BLOCKED,
+        }
+    )
+    assert agent_workspace.ATTEMPT_OUTCOMES == frozenset(
+        {
+            builder_attempt.ATTEMPT_SUCCEEDED,
+            builder_attempt.ATTEMPT_FAILED,
+            builder_attempt.ATTEMPT_ABORTED,
+            builder_attempt.ATTEMPT_CRASHED,
+        }
+    )

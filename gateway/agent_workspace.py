@@ -14,8 +14,6 @@ import time
 import uuid
 from typing import Any, Protocol
 
-from gateway import builder_attempt as _builder_attempt
-from gateway import builder_queue_db as _builder_queue_db
 from gateway import db as kitty_db
 from gateway.paths import KITTY_DB_FILE
 
@@ -935,30 +933,28 @@ AWARENESS_SEVERITIES: frozenset[str] = frozenset({"info", "warning", "critical"}
 MAX_AWARENESS_METADATA_BYTES = 4_000
 MAX_AWARENESS_TEXT_LENGTH = 200
 
-# Canonical lifecycle vocabularies, imported rather than copied. A state added
-# upstream must stay publishable without editing this seam, and a vocabulary that
-# drifts would start rejecting real operational facts.
+# Canonical lifecycle vocabularies. Declared here rather than imported so this
+# shared room module keeps its intentionally minimal runtime dependency set --
+# tests/test_agent_coordination_hook.py builds a fresh worktree from exactly
+# gateway/{__init__,agent_coordination,agent_coordination_cli,agent_workspace,
+# db,paths}.py, and importing the Builder modules would pull the whole queue
+# chain into that surface. Drift is caught by
+# tests/test_agent_workspace.py::test_awareness_vocabularies_match_their_owners,
+# which compares these sets against the owning modules.
 TASK_STATES = frozenset(
     {
-        _builder_queue_db.QUEUED,
-        _builder_queue_db.CLAIMED,
-        _builder_queue_db.RUNNING,
-        _builder_queue_db.PR_OPENED,
-        _builder_queue_db.AWAITING_REVIEW,
-        _builder_queue_db.DONE,
-        _builder_queue_db.FAILED,
-        _builder_queue_db.CANCELLED,
-        _builder_queue_db.BLOCKED,
+        "queued",
+        "claimed",
+        "running",
+        "pr_opened",
+        "awaiting_review",
+        "done",
+        "failed",
+        "cancelled",
+        "blocked",
     }
 )
-ATTEMPT_OUTCOMES = frozenset(
-    {
-        _builder_attempt.ATTEMPT_SUCCEEDED,
-        _builder_attempt.ATTEMPT_FAILED,
-        _builder_attempt.ATTEMPT_ABORTED,
-        _builder_attempt.ATTEMPT_CRASHED,
-    }
-)
+ATTEMPT_OUTCOMES = frozenset({"succeeded", "failed", "aborted", "crashed"})
 
 # Per-field value schemas. Which fields may be published and what a value may be
 # is one contract, not two: a name-only allowlist still let ``{"state": "merge"}``
