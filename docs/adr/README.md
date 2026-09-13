@@ -50,6 +50,7 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0038 | [Builder Crash-Recovery Durability Contract](0038-builder-crash-recovery-durability.md)        | Accepted                       | 2026-08-05 |
 | 0039 | [Kitty Owns The Canonical Product Surface](0039-kitty-native-product-surface.md)               | Accepted                       | 2026-08-17 |
 | 0040 | [Image Lab Uses FLUX.2-First Intent Compilation And Native References](0040-image-lab-flux2-execution-architecture.md) | Accepted | 2026-08-18 |
+| 0041 | [Attributable Agent Identity for Human-Only Controls](0041-attributable-agent-identity.md) | Proposed | 2026-09-13 |
 
 ## Cross-cutting decisions
 
