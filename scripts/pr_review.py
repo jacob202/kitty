@@ -615,12 +615,15 @@ def upsert_review(
         )
         if not _head_still_current(pr_number, owner, repo, head_sha):
             return False
-        if existing is not None and review.strip() == REVIEW_FAILED:
-            # Two runs can target the same head. A rerun that produced no verdict
-            # must not turn an existing valid verdict into "no verdict".
+        if existing is not None and review.strip() in (REVIEW_PENDING, REVIEW_FAILED):
+            # Two runs can target the same head, and so can a rerun of a head that
+            # already has evidence. Neither a pending marker nor a no-verdict
+            # rerun may replace a completed verdict for that head: for an
+            # unchanged head the existing verdict IS the current evidence.
             if REVIEW_PENDING not in str(existing.get("body") or ""):
                 print(
-                    "A verdict already exists for this head; not replacing it with a failure.",
+                    "This head already has review evidence; not replacing it with "
+                    f"{'a failure' if review.strip() == REVIEW_FAILED else 'a pending marker'}.",
                     file=sys.stderr,
                 )
                 return False
@@ -644,15 +647,23 @@ def main() -> None:
 
     # Invalidate older approval-looking evidence before any external model call.
     if not upsert_review(REVIEW_PENDING, pr_number, owner, repo, head_sha):
-        # The head moved before this run could even mark itself current. Stop
-        # before the model: neither this marker nor a later verdict could be
-        # published for this head, so the paid review would be pure waste.
+        if not _head_still_current(pr_number, owner, repo, head_sha):
+            # The head moved before this run could mark itself current. Stop before
+            # the model: neither this marker nor a later verdict could be published
+            # for this head, so the paid review would be pure waste.
+            print(
+                f"PR head moved past {head_sha} before the pending marker could be "
+                "published; aborting without a model review.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        # The head is current and already carries evidence (normally its own
+        # verdict from an earlier run). There is nothing to add or replace.
         print(
-            f"PR head moved past {head_sha} before the pending marker could be "
-            "published; aborting without a model review.",
+            f"{head_sha} already has review evidence on this PR; nothing to do.",
             file=sys.stderr,
         )
-        raise SystemExit(1)
+        return
 
     override_reason = get_exact_head_override(head_sha)
     if override_reason:

@@ -599,6 +599,7 @@ def test_main_aborts_before_the_model_when_the_pending_write_is_rejected(
         pr_review, "get_pr_diff", lambda: ("diff", 12, "owner", "repo", "a" * 40)
     )
     monkeypatch.setattr(pr_review, "upsert_review", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(
         pr_review, "review_diff", lambda _diff: pytest.fail("model review must not run")
     )
@@ -607,6 +608,47 @@ def test_main_aborts_before_the_model_when_the_pending_write_is_rejected(
         pr_review.main()
 
     assert exc.value.code == 1
+
+
+def test_main_does_nothing_when_the_head_already_has_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A same-head rerun with existing evidence must not re-run the model."""
+    monkeypatch.setattr(
+        pr_review, "get_pr_diff", lambda: ("diff", 12, "owner", "repo", "a" * 40)
+    )
+    monkeypatch.setattr(pr_review, "upsert_review", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        pr_review, "review_diff", lambda _diff: pytest.fail("model review must not run")
+    )
+
+    pr_review.main()
+
+
+def test_pending_publish_does_not_replace_an_existing_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rerun's pending marker must not erase this head's own verdict."""
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
+    existing = {
+        "id": 9,
+        "body": pr_review.render_review_body(pr_review.NO_FINDINGS, "a" * 40),
+    }
+    calls: list[str] = []
+    monkeypatch.setattr(
+        pr_review,
+        "github_json",
+        lambda url, *_args, **_kwargs: calls.append(url) or [existing],
+    )
+
+    published = pr_review.upsert_review(
+        pr_review.REVIEW_PENDING, 1, "owner", "repo", "a" * 40
+    )
+
+    assert published is False
+    assert len(calls) == 1  # read only: the verdict survived
 
 
 def test_failure_publish_does_not_replace_an_existing_verdict(
