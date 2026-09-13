@@ -120,7 +120,10 @@ def test_agent_review_uses_paid_model_fallbacks_and_bounded_timeout() -> None:
     # 12-chunk worst case can never fit inside any reasonable job timeout.
     assert env["PR_REVIEW_TOTAL_TIMEOUT_SECONDS"] == "900"
     job_cap_seconds = int(workflow["jobs"]["agent-review"]["timeout-minutes"]) * 60
-    assert int(env["PR_REVIEW_TOTAL_TIMEOUT_SECONDS"]) < job_cap_seconds
+    # And the cap must leave real headroom above that budget for the GitHub API
+    # ceilings (diff, pending marker, override probe, failure comment) and setup,
+    # or the job gets cancelled before it can publish anything at all.
+    assert job_cap_seconds - int(env["PR_REVIEW_TOTAL_TIMEOUT_SECONDS"]) >= 300
     assert "PR_REVIEW_REQUEST_ATTEMPTS" not in text
 
 

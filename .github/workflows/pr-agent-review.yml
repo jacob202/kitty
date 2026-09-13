@@ -70,13 +70,14 @@ jobs:
            github.event.action == 'reopened' ||
            github.event.action == 'ready_for_review') }}
     runs-on: ubuntu-latest
-    # MAX_REVIEW_CHUNKS permits 12 chunks, so the permitted worst case (12 x 2
-    # models x 240s) is 96 minutes and no reasonable job cap can cover it. The
-    # harness therefore bounds itself with PR_REVIEW_TOTAL_TIMEOUT_SECONDS (900s)
-    # and publishes an explicit failure comment, so a job is never cancelled
-    # mid-review with no verdict at all. This cap only has to sit above that
-    # self-imposed budget plus setup and comment overhead.
-    timeout-minutes: 20
+    # A review can spend up to PR_REVIEW_TOTAL_TIMEOUT_SECONDS on models, plus
+    # several 30-second GitHub API ceilings for the diff, the pending marker, the
+    # override probe and the failure comment, plus checkout/Python/Bun/OpenCode
+    # setup. 25 minutes leaves real slack above that 900s budget instead of ~60
+    # seconds, so the job publishes a verdict or an explicit failure rather than
+    # being cancelled mid-review. tests/test_ci_gate_workflows.py asserts the
+    # reserve so these numbers cannot drift apart.
+    timeout-minutes: 25
     continue-on-error: true
     steps:
       - name: Checkout trusted default-branch reviewer
