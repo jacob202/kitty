@@ -163,6 +163,38 @@ def test_session_start_reports_briefing_unavailable_with_bounded_diagnostics(
     assert len(result.stdout) < 4000
 
 
+def test_session_start_does_not_invent_a_degraded_state_when_sources_are_healthy(
+    tmp_path: Path,
+) -> None:
+    """`degraded` is a list of degraded sources; an empty list is healthy."""
+    briefing = json.loads(BRIEFING_JSON)
+    briefing["degraded"] = []
+    result = _run(
+        START_HOOK,
+        {"session_id": "sess-healthy", "hook_event_name": "SessionStart"},
+        tmp_path,
+        KITTY_STUB_BRIEFING_TEXT=json.dumps(briefing),
+    )
+
+    assert result.returncode == 0
+    assert "[GAR] shared briefing" in result.stdout
+    assert "degraded:" not in result.stdout
+
+
+def test_session_start_rejects_valid_json_that_is_not_a_briefing(tmp_path: Path) -> None:
+    """Syntactically valid JSON with no briefing contract must not read as success."""
+    for payload in ("{}", '"a string"', "[]"):
+        result = _run(
+            START_HOOK,
+            {"session_id": "sess-shape", "hook_event_name": "SessionStart"},
+            tmp_path,
+            KITTY_STUB_BRIEFING_TEXT=payload,
+        )
+        assert result.returncode == 0, payload
+        assert "[GAR] shared briefing unavailable" in result.stdout, payload
+        assert "assignment.state:" not in result.stdout, payload
+
+
 def test_session_start_treats_unparseable_briefing_as_unavailable(tmp_path: Path) -> None:
     result = _run(
         START_HOOK,

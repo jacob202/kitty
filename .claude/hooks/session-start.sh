@@ -104,7 +104,7 @@ if [ -x "$ROOM_CLI" ] && command -v jq >/dev/null 2>&1; then
     BRIEFING=$("$ROOM_CLI" room briefing --as claude --json 2>"$BRIEF_ERR")
   fi
   BRIEF_RC=$?
-  if [ "$BRIEF_RC" -eq 0 ] && printf '%s' "$BRIEFING" | jq -e . >/dev/null 2>&1; then
+  if [ "$BRIEF_RC" -eq 0 ] && printf '%s' "$BRIEFING" | jq -e 'type == "object" and (.schema_version | type == "number") and (.assignment | type == "object")' >/dev/null 2>&1; then
     echo ""
     echo "[GAR] shared briefing (the only shared orientation view; do not reconstruct assignment, KX, Builder, Git, runtime or presence truth yourself):"
     printf '%s' "$BRIEFING" | jq -r '
@@ -112,7 +112,7 @@ if [ -x "$ROOM_CLI" ] && command -v jq >/dev/null 2>&1; then
       (if (.assignment.scope // null) == null then "assignment.scope: none (no explicit scope)" else "assignment.scope: \(.assignment.scope|tostring)" end),
       (if (.assignment.authority_source // null) == null then "assignment.authority: none" else "assignment.authority: \(.assignment.authority_source|tostring)" end),
       (if (.assignment.reason // "") != "" then "assignment.reason: \(.assignment.reason)" else empty end),
-      (if (.degraded // false) then "degraded: true — missing sources below are unknown, not healthy" else empty end),
+      (if ((.degraded // []) | if type == "array" then length > 0 else . == true end) then "degraded: \(.degraded|tostring) — these sources are unknown, not healthy" else empty end),
       ((.sources // {}) | to_entries[] | "source \(.key): \(if (.value|type)=="object" then (.value.state // .value.status // "present") else (.value|tostring) end)"),
       (if (.next_continuation // null) == null then empty else "next_continuation: \(.next_continuation|tostring)" end),
       ((.attention // [])[:6][] | "attention \(.kind) \(.message_id) <- \(.sender_id) [\(.trust)]: \(.reason)")
