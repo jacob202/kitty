@@ -522,6 +522,7 @@ def test_registry_covers_mission_runtime_and_automation_execution() -> None:
 
 def test_registry_covers_knowledge_retrieval_owner() -> None:
     paths = [
+        "contracts/knowledge_pipeline.py",
         "gateway/archivist.py",
         "gateway/hybrid_search.py",
         "gateway/knowledge.py",

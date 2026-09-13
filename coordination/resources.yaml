@@ -71,6 +71,7 @@ resources:
     - workers/comfy_worker/requirements.txt
   knowledge:retrieval:
     paths:
+    - contracts/knowledge_pipeline.py
     - gateway/archivist.py
     - gateway/hybrid_search.py
     - gateway/ingestion_queue.py
