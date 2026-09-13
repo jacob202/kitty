@@ -71,6 +71,7 @@ def test_main_publishes_an_explicit_failure_and_exits_when_no_verdict(
     )
     monkeypatch.setattr(pr_review, "review_diff", lambda _diff: None)
     monkeypatch.setattr(pr_review, "get_exact_head_override", lambda _sha: None)
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         pr_review,
         "upsert_review",
@@ -96,6 +97,7 @@ def test_main_blocks_actionable_findings_on_exact_head(
     )
     monkeypatch.setattr(pr_review, "review_diff", lambda _diff: finding)
     monkeypatch.setattr(pr_review, "get_exact_head_override", lambda _sha: None)
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         pr_review,
         "upsert_review",
@@ -118,6 +120,7 @@ def test_main_passes_only_no_findings_on_exact_head(monkeypatch: pytest.MonkeyPa
     )
     monkeypatch.setattr(pr_review, "review_diff", lambda _diff: pr_review.NO_FINDINGS)
     monkeypatch.setattr(pr_review, "get_exact_head_override", lambda _sha: None)
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         pr_review,
         "upsert_review",
@@ -511,3 +514,26 @@ def test_model_timeout_is_reclipped_to_the_remaining_budget(
     assert pr_review._model_timeout(now + 1000) == 240
     assert pr_review._model_timeout(now + 30) <= 30
     assert pr_review._model_timeout(now - 1) <= 0
+
+
+def test_stale_runs_do_not_overwrite_a_newer_heads_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One shared comment: a run for an old head must not clobber the current one."""
+    monkeypatch.setattr(
+        pr_review,
+        "_fetch_current_pr",
+        lambda *_args, **_kwargs: {"head": {"sha": "b" * 40}},
+    )
+    assert pr_review._head_still_current(1, "owner", "repo", "a" * 40) is False
+    assert pr_review._head_still_current(1, "owner", "repo", "b" * 40) is True
+
+
+def test_head_check_fails_closed_when_the_live_head_cannot_be_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _boom(*_args, **_kwargs):
+        raise OSError("api down")
+
+    monkeypatch.setattr(pr_review, "_fetch_current_pr", _boom)
+    assert pr_review._head_still_current(1, "owner", "repo", "a" * 40) is False

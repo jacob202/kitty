@@ -512,6 +512,40 @@ def github_json(
     return json.loads(raw) if raw else None
 
 
+def _head_still_current(pr_number: int, owner: str, repo: str, head_sha: str) -> bool:
+    """True only while the live PR head is still the commit under review.
+
+    Every run publishes into one shared comment, and the workflow's concurrency
+    group is per event action, so a slower run that reviewed an older head can
+    finish after a newer head already has valid approval. Publishing then would
+    erase that approval and block the PR until another review ran. Fail closed:
+    if the live head cannot be read, do not publish.
+    """
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+    try:
+        current = _fetch_current_pr(url, os.environ.get("GITHUB_TOKEN") or "")
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        HTTPError,
+        URLError,
+        TimeoutError,
+        json.JSONDecodeError,
+    ):
+        print("Could not re-read the live PR head; not publishing review evidence.", file=sys.stderr)
+        return False
+    live = str((current.get("head") or {}).get("sha") or "")
+    if live != head_sha:
+        print(
+            f"PR head moved to {live or 'unknown'} since {head_sha}; "
+            "not publishing stale review evidence.",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
 def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: str) -> None:
     """Create the review comment once, then replace it on later pushes."""
     token = os.environ.get("GITHUB_TOKEN")
@@ -562,11 +596,13 @@ def main() -> None:
     if not review:
         # Publish the failure instead of leaving the stale "pending" marker: a head
         # with no verdict must read as visibly unapproved, not silently ambiguous.
-        upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha)
+        if _head_still_current(pr_number, owner, repo, head_sha):
+            upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha)
         print("Current-head agent review did not produce a verdict.", file=sys.stderr)
         raise SystemExit(1)
 
-    upsert_review(review, pr_number, owner, repo, head_sha)
+    if _head_still_current(pr_number, owner, repo, head_sha):
+        upsert_review(review, pr_number, owner, repo, head_sha)
     if review.strip() != NO_FINDINGS:
         print("Actionable review findings block this exact PR head.", file=sys.stderr)
         raise SystemExit(1)
