@@ -529,11 +529,14 @@ def test_stale_runs_do_not_overwrite_a_newer_heads_evidence(
     assert pr_review._head_still_current(1, "owner", "repo", "b" * 40) is True
 
 
-def test_head_check_fails_closed_when_the_live_head_cannot_be_read(
+def test_head_lookup_failure_is_loud_not_silent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """An unreadable head must raise: a silent skip would hide the API failure."""
+
     def _boom(*_args, **_kwargs):
         raise OSError("api down")
 
     monkeypatch.setattr(pr_review, "_fetch_current_pr", _boom)
-    assert pr_review._head_still_current(1, "owner", "repo", "a" * 40) is False
+    with pytest.raises(OSError, match="api down"):
+        pr_review._head_still_current(1, "owner", "repo", "a" * 40)

@@ -518,23 +518,14 @@ def _head_still_current(pr_number: int, owner: str, repo: str, head_sha: str) ->
     Every run publishes into one shared comment, and the workflow's concurrency
     group is per event action, so a slower run that reviewed an older head can
     finish after a newer head already has valid approval. Publishing then would
-    erase that approval and block the PR until another review ran. Fail closed:
-    if the live head cannot be read, do not publish.
+    erase that approval and block the PR until another review ran.
+
+    A moved head is an ordinary outcome and returns False. An unreadable head is
+    raised, never converted to a silent skip: swallowing it would let a clean
+    review exit successfully while publishing nothing, concealing the API failure.
     """
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
-    try:
-        current = _fetch_current_pr(url, os.environ.get("GITHUB_TOKEN") or "")
-    except (
-        OSError,
-        ValueError,
-        TypeError,
-        HTTPError,
-        URLError,
-        TimeoutError,
-        json.JSONDecodeError,
-    ):
-        print("Could not re-read the live PR head; not publishing review evidence.", file=sys.stderr)
-        return False
+    current = _fetch_current_pr(url, os.environ.get("GITHUB_TOKEN") or "")
     live = str((current.get("head") or {}).get("sha") or "")
     if live != head_sha:
         print(
