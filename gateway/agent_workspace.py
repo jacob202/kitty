@@ -862,6 +862,125 @@ def _list_events(conn: Any, workspace_id: str, *, limit: int) -> list[dict[str, 
     return events
 
 
+# Machine-awareness publication is a typed seam over the same durable event
+# table the room already uses. Awareness events are structural evidence about
+# another authority's transition -- never conversation, never an assignment --
+# so the producer is allowed to declare only known types and only trusted
+# scalar metadata. There is deliberately no second event store, broker or
+# outbox: the existing read-reconstruction over agent_workspace_events is
+# enough, and a parallel channel would be a competing authority.
+AWARENESS_EVENT_TYPES: frozenset[str] = frozenset(
+    {
+        "task_transition",
+        "attempt_transition",
+        "candidate_published",
+        "candidate_updated",
+        "coordination_marker",
+    }
+)
+
+# Keys that would read as prose or as a directive. Readers demote these to
+# delimited untrusted text; the producer refuses them outright, because a
+# caller that wants to say something in prose is not publishing a typed fact.
+AWARENESS_UNTRUSTED_METADATA_KEYS: frozenset[str] = frozenset(
+    {
+        "content",
+        "text",
+        "body",
+        "message",
+        "prose",
+        "summary",
+        "instruction",
+        "instructions",
+        "directive",
+        "command",
+        "authorization",
+        "authority",
+        "action",
+    }
+)
+
+MAX_AWARENESS_METADATA_BYTES = 4_000
+
+
+def publish_awareness(
+    workspace_id: str,
+    *,
+    event_type: str,
+    actor_id: str,
+    metadata: dict[str, Any],
+    actor_kind: str = "agent",
+) -> dict[str, Any]:
+    """Publish one typed machine-awareness event. Never raises.
+
+    Call this only *after* the authoritative transition has committed. Awareness
+    is evidence about another owner's truth, not that truth itself, so a failed
+    publication must not fail, roll back or block a KX/Builder/Git/GitHub
+    transition that already succeeded. That is why this returns a verdict
+    instead of raising: ``{"published": bool, "reason": str | None}``.
+
+    Fail-soft here is not silent: every rejection is named in the returned
+    reason and every unexpected failure is logged with its exception. If this
+    ever needs to raise, the caller has the wrong contract, not this function.
+    """
+    try:
+        workspace_id = _required_text(workspace_id, "workspace_id", 200)
+        actor_id = _required_text(actor_id, "actor_id", 200)
+        if actor_kind not in {"user", "agent", "system"}:
+            return {"published": False, "reason": f"actor_kind {actor_kind!r} is not supported"}
+        if event_type not in AWARENESS_EVENT_TYPES:
+            return {
+                "published": False,
+                "reason": f"event_type {event_type!r} is not a declared awareness type",
+            }
+        if not isinstance(metadata, dict):
+            return {"published": False, "reason": "metadata must be an object"}
+        rejected = sorted(key for key in metadata if key in AWARENESS_UNTRUSTED_METADATA_KEYS)
+        if rejected:
+            return {
+                "published": False,
+                "reason": (
+                    "awareness metadata is typed, not prose or directives; rejected key(s): "
+                    + ", ".join(rejected)
+                ),
+            }
+        try:
+            encoded = json.dumps(metadata, sort_keys=True)
+        except (TypeError, ValueError) as exc:
+            return {"published": False, "reason": f"metadata is not JSON-serialisable: {exc}"}
+        if len(encoded.encode("utf-8")) > MAX_AWARENESS_METADATA_BYTES:
+            return {
+                "published": False,
+                "reason": (
+                    f"metadata exceeds {MAX_AWARENESS_METADATA_BYTES} bytes; "
+                    "awareness facts are bounded"
+                ),
+            }
+
+        init_db()
+        with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+            _require_workspace(conn, workspace_id)
+            _append_event(
+                conn,
+                workspace_id=workspace_id,
+                event_type=event_type,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                metadata=metadata,
+                now=time.time(),
+            )
+            conn.commit()
+        return {"published": True, "reason": None}
+    except Exception as exc:  # noqa: BLE001  # awareness must never fail its caller
+        logger.warning(
+            "awareness publication failed for workspace=%s type=%s: %s",
+            workspace_id,
+            event_type,
+            exc,
+        )
+        return {"published": False, "reason": f"{type(exc).__name__}: {exc}"}
+
+
 def list_turns(workspace_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
     workspace_id = _required_text(workspace_id, "workspace_id", 200)
     if isinstance(limit, bool) or limit <= 0 or limit > 500:
