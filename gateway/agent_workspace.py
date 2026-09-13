@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import sqlite3
 import time
@@ -913,6 +914,28 @@ AWARENESS_UNTRUSTED_METADATA_KEYS: frozenset[str] = frozenset(
 )
 
 MAX_AWARENESS_METADATA_BYTES = 4_000
+MAX_AWARENESS_TEXT_LENGTH = 200
+
+
+def _awareness_scalar_rejection(key: str, value: Any) -> str | None:
+    """Return why this value cannot be a trusted awareness fact, or None.
+
+    An allowlisted key is not enough: `state` could hold {"instruction": ...}
+    and the reader would surface the whole object under trusted_metadata with
+    no untrusted_text at all. Awareness values are therefore bounded scalars
+    only -- no containers, so there is nowhere to hide prose or a directive.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, float) and not math.isfinite(value):
+        return f"{key} must be a finite number"
+    if isinstance(value, int):
+        return None
+    if isinstance(value, str):
+        if len(value) > MAX_AWARENESS_TEXT_LENGTH:
+            return f"{key} exceeds {MAX_AWARENESS_TEXT_LENGTH} characters"
+        return None
+    return f"{key} must be a scalar, not {type(value).__name__}"
 
 
 def publish_awareness(
@@ -965,6 +988,16 @@ def publish_awareness(
                     f"{event_type} declares metadata key(s) {', '.join(allowed)}; "
                     "rejected undeclared key(s): " + ", ".join(undeclared)
                 ),
+            }
+        shape_errors = [
+            reason
+            for key, value in sorted(metadata.items())
+            if (reason := _awareness_scalar_rejection(key, value)) is not None
+        ]
+        if shape_errors:
+            return {
+                "published": False,
+                "reason": "awareness values must be typed scalars: " + "; ".join(shape_errors),
             }
         try:
             # allow_nan=False: NaN/Infinity are not JSON, and a strict reader would
