@@ -585,13 +585,14 @@ def _head_still_current(pr_number: int, owner: str, repo: str, head_sha: str) ->
     return True
 
 
-def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: str) -> None:
-    """Create the review comment once, then replace it on later pushes.
+def upsert_review(
+    review: str, pr_number: int, owner: str, repo: str, head_sha: str
+) -> bool:
+    """Create this head's review comment, or replace the one it already has.
 
-    The live-head check runs as the last step before the mutating request, after
-    the comment lookup, so a run that reviewed an older head cannot clobber a
-    newer head's evidence. Checking earlier would leave this run's own API
-    round-trips, and the whole model call, between the check and the write.
+    Returns True once the write happened and False when it was declined because
+    the head had already moved on. A caller that ignores False would carry on
+    doing work whose result can never be published.
     """
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
@@ -605,7 +606,7 @@ def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: 
             issue_comments(owner, repo, pr_number, token), head_sha
         )
         if not _head_still_current(pr_number, owner, repo, head_sha):
-            return
+            return False
         if existing_id is None:
             post_url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
             github_json(post_url, token, method="POST", payload={"body": body})
@@ -617,35 +618,50 @@ def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: 
     except (HTTPError, URLError, TimeoutError, OSError) as exc:
         print(f"GitHub API error updating review: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
+    return True
 
 
 def main() -> None:
     diff, pr_number, owner, repo, head_sha = get_pr_diff()
 
     # Invalidate older approval-looking evidence before any external model call.
-    upsert_review(REVIEW_PENDING, pr_number, owner, repo, head_sha)
+    if not upsert_review(REVIEW_PENDING, pr_number, owner, repo, head_sha):
+        # The head moved before this run could even mark itself current. Stop
+        # before the model: neither this marker nor a later verdict could be
+        # published for this head, so the paid review would be pure waste.
+        print(
+            f"PR head moved past {head_sha} before the pending marker could be "
+            "published; aborting without a model review.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     override_reason = get_exact_head_override(head_sha)
     if override_reason:
-        upsert_review(
+        if not upsert_review(
             "Exact-head review override approved for "
             f"`{head_sha}`.\n\nReason: {override_reason}",
             pr_number,
             owner,
             repo,
             head_sha,
-        )
+        ):
+            print(f"PR head moved past {head_sha}; override not published.", file=sys.stderr)
+            raise SystemExit(1)
         return
 
     review = review_diff(diff)
     if not review:
         # Publish the failure instead of leaving the stale "pending" marker: a head
         # with no verdict must read as visibly unapproved, not silently ambiguous.
-        upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha)
+        if not upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha):
+            print(f"PR head moved past {head_sha}; failure not published.", file=sys.stderr)
         print("Current-head agent review did not produce a verdict.", file=sys.stderr)
         raise SystemExit(1)
 
-    upsert_review(review, pr_number, owner, repo, head_sha)
+    if not upsert_review(review, pr_number, owner, repo, head_sha):
+        print(f"PR head moved past {head_sha}; verdict not published.", file=sys.stderr)
+        raise SystemExit(1)
     if review.strip() != NO_FINDINGS:
         print("Actionable review findings block this exact PR head.", file=sys.stderr)
         raise SystemExit(1)

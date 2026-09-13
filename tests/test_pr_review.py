@@ -103,7 +103,7 @@ def test_main_publishes_an_explicit_failure_and_exits_when_no_verdict(
     monkeypatch.setattr(
         pr_review,
         "upsert_review",
-        lambda review, *_args: seen.append(review),
+        lambda review, *_args: seen.append(review) or True,
     )
 
     with pytest.raises(SystemExit) as exc:
@@ -129,7 +129,7 @@ def test_main_blocks_actionable_findings_on_exact_head(
     monkeypatch.setattr(
         pr_review,
         "upsert_review",
-        lambda review, *_args: seen.append(review),
+        lambda review, *_args: seen.append(review) or True,
     )
 
     with pytest.raises(SystemExit) as exc:
@@ -152,7 +152,7 @@ def test_main_passes_only_no_findings_on_exact_head(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(
         pr_review,
         "upsert_review",
-        lambda review, *_args: seen.append(review),
+        lambda review, *_args: seen.append(review) or True,
     )
 
     pr_review.main()
@@ -318,7 +318,7 @@ def test_main_allows_explicit_exact_head_override_without_model_call(
         "review_diff",
         lambda _diff: (_ for _ in ()).throw(AssertionError("model should not run")),
     )
-    monkeypatch.setattr(pr_review, "upsert_review", lambda review, *_args: seen.append(review))
+    monkeypatch.setattr(pr_review, "upsert_review", lambda review, *_args: seen.append(review) or True)
 
     pr_review.main()
 
@@ -583,8 +583,27 @@ def test_upsert_review_skips_the_write_when_the_head_moved(
         lambda url, *_args, **_kwargs: calls.append(url) or [],
     )
 
-    pr_review.upsert_review(pr_review.NO_FINDINGS, 1, "owner", "repo", "a" * 40)
+    published = pr_review.upsert_review(pr_review.NO_FINDINGS, 1, "owner", "repo", "a" * 40)
 
     # Only the read happened; no mutating request was ever attempted.
+    assert published is False
     assert len(calls) == 1
     assert calls[0].endswith("/comments?per_page=100&page=1")
+
+
+def test_main_aborts_before_the_model_when_the_pending_write_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale head must stop the run before the paid review, not after it."""
+    monkeypatch.setattr(
+        pr_review, "get_pr_diff", lambda: ("diff", 12, "owner", "repo", "a" * 40)
+    )
+    monkeypatch.setattr(pr_review, "upsert_review", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        pr_review, "review_diff", lambda _diff: pytest.fail("model review must not run")
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pr_review.main()
+
+    assert exc.value.code == 1
