@@ -285,15 +285,44 @@ def get_pr_diff() -> tuple[str, int, str, str, str]:
     return diff, pr_number, owner, name, head_sha
 
 
+# The reviewer contract has exactly two conforming shapes: the no-findings sentinel,
+# or a reportable finding carrying the rubric's structured fields. Anything else is
+# narration, a truncated answer, or an off-contract response -- not a verdict.
+FINDING_FIELD_MARKERS = (
+    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Failure Mode(?:\*\*)?\s*:",
+    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Corrective Action(?:\*\*)?\s*:",
+)
+
+
+def is_reportable_finding(text: str) -> bool:
+    """True when text carries the rubric's structured finding fields."""
+    return any(re.search(pattern, text) for pattern in FINDING_FIELD_MARKERS)
+
+
 def _normalize_opencode_review(output: str) -> str | None:
-    """Normalize OpenCode's final text into the deterministic review contract."""
+    """Normalize OpenCode's final text into the deterministic review contract.
+
+    Returns None when the response is not a verdict, so the workflow publishes an
+    explicit failure. Returning the text instead would publish narration as a
+    finding, and the gate would then report a defect that was never produced.
+    """
     text = output.strip()
     if not text:
         return None
+    finding = is_reportable_finding(text)
     if re.search(rf"(?m)^\s*{re.escape(NO_FINDINGS)}\s*$", text):
-        finding_markers = ("Failure Mode:", "Corrective Action:")
-        if not any(marker.lower() in text.lower() for marker in finding_markers):
-            return NO_FINDINGS
+        # A sentinel that also carries finding fields stays blocking downstream; only a
+        # sentinel without them is a clean pass.
+        return text if finding else NO_FINDINGS
+    if not finding:
+        print(
+            f"Reviewer returned no verdict ({len(text)} chars): the response carries "
+            f"neither the {NO_FINDINGS} sentinel nor the rubric's Failure Mode / "
+            "Corrective Action fields. Treating this as a failed review rather than "
+            "publishing it as a finding.",
+            file=sys.stderr,
+        )
+        return None
     return text
 
 

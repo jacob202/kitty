@@ -762,3 +762,48 @@ def test_failure_publish_does_not_replace_an_existing_verdict(
 
     assert published is False
     assert len(calls) == 1  # read only: the existing verdict was left alone
+
+
+def test_off_contract_output_is_not_published_as_a_finding() -> None:
+    """Regression: narration must fail loud, not become a finding.
+
+    Observed live on PR #869 and again on #873: the reviewer returned process
+    narration, the workflow published it as a review body, and the gate then reported
+    a blocking finding for a defect that was never produced. Naming a file does not
+    make narration a finding either.
+    """
+    assert pr_review._normalize_opencode_review(
+        "Looking at this diff, I need to verify the claims made in the comments and "
+        "check for concrete defects. Let me examine the actual code."
+    ) is None
+    assert pr_review._normalize_opencode_review(
+        "I'll review the PR diff chunk carefully. Let me first understand what's being "
+        "changed by examining the repository structure and the relevant files."
+    ) is None
+    assert pr_review._normalize_opencode_review(
+        "I need to inspect scripts/pr_review_gate.py before deciding."
+    ) is None
+
+
+def test_conforming_review_shapes_all_survive_normalization() -> None:
+    """The two conforming shapes are unchanged, including the contradictory one."""
+    assert (
+        pr_review._normalize_opencode_review(pr_review.NO_FINDINGS)
+        == pr_review.NO_FINDINGS
+    )
+    finding = "Failure Mode: the retry loop double-charges on timeout."
+    assert pr_review._normalize_opencode_review(finding) == finding
+    contradictory = f"{pr_review.NO_FINDINGS}\n\nFailure Mode: the loop double-charges."
+    assert pr_review._normalize_opencode_review(contradictory) == contradictory
+
+
+def test_gate_and_workflow_share_one_finding_definition() -> None:
+    """The producer and the reader must not drift apart."""
+    from scripts import pr_review_gate
+
+    assert pr_review_gate._agent_body_has_rubric_fields(
+        "Failure Mode: the loop double-charges."
+    )
+    assert not pr_review_gate._agent_body_has_rubric_fields(
+        "I need to inspect scripts/pr_review_gate.py before deciding."
+    )
