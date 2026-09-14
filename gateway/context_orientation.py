@@ -649,7 +649,10 @@ def _project_candidate_evidence(
     projected = []
     for item in items:
         ref = item.get("candidate_ref")
-        if not ref:
+        if item.get("source_available") is False:
+            state = SOURCE_UNAVAILABLE
+            reason = item.get("diagnostic") or "evidence source unavailable"
+        elif not ref:
             state = SOURCE_UNKNOWN
             reason = "evidence declares no candidate_ref, so exact-head binding is unknown"
         elif not head:
@@ -1250,35 +1253,22 @@ def assemble_orientation(
 _CANDIDATE_TASK_STATES = ("pr_opened", "awaiting_review")
 
 
-def _collect_candidate_evidence(git: dict[str, Any]) -> list[dict[str, Any]]:
+def _collect_candidate_evidence(
+    git: dict[str, Any], *, include_builder: bool = True
+) -> list[dict[str, Any]]:
     """Gather owner evidence bound to an exact candidate ref.
 
-    Each owner stays authoritative: Builder contributes its in-flight published
-    tasks, Git contributes the current candidate head. Nothing is copied into a
+    Each owner stays authoritative: Git contributes the current candidate head,
+    Builder contributes its in-flight published tasks. Nothing is copied into a
     competing store -- these are read surfaces, and the projection binds each
     item to the current head and marks it stale when the candidate moves.
 
-    A task that published no ref still contributes an item, with no
-    ``candidate_ref``, so the projection reports an unverifiable binding instead
-    of letting the evidence vanish into an empty healthy state.
+    Git is collected first and unconditionally, so a Builder failure cannot take
+    the Git evidence down with it; the Builder failure is contributed as its own
+    item carrying the diagnostic. A task that published no ref still contributes
+    an item, so an unverifiable binding is visible instead of vanishing.
     """
-    from gateway import builder_queue
-
     items: list[dict[str, Any]] = []
-    for state in _CANDIDATE_TASK_STATES:
-        for task in builder_queue.list_tasks(state=state):
-            items.append(
-                {
-                    "source": "gateway.builder_queue",
-                    "owner": "builder",
-                    "kind": "task_candidate",
-                    "locator": f"builder:task:{task.get('id')}",
-                    "task_id": task.get("id"),
-                    "builder_state": task.get("state"),
-                    "candidate_ref": task.get("workflow_sha"),
-                    "branch": task.get("workflow_ref"),
-                }
-            )
 
     head = git.get("head")
     if head:
@@ -1291,9 +1281,60 @@ def _collect_candidate_evidence(git: dict[str, Any]) -> list[dict[str, Any]]:
                 "locator": "git:candidate:head",
                 "candidate_ref": head,
                 "branch": git.get("branch"),
-                "origin_main_head": origin_main.get("head"),
+                "origin_main_sha": origin_main.get("sha"),
             }
         )
+
+    if not include_builder:
+        return items
+
+    from gateway import builder_queue
+
+    try:
+        for state in _CANDIDATE_TASK_STATES:
+            for task in builder_queue.list_tasks(state=state):
+                task_id = str(task.get("id"))
+                links = builder_queue.get_pr_links(task_id)
+                latest = links[-1] if links else {}
+                items.append(
+                    {
+                        "source": "gateway.builder_queue",
+                        "owner": "builder",
+                        "kind": "task_candidate",
+                        "locator": f"builder:task:{task_id}",
+                        "task_id": task_id,
+                        "builder_state": task.get("state"),
+                        # The published commit is what the candidate actually is;
+                        # workflow_sha is only a fallback because task creation
+                        # does not populate it.
+                        "candidate_ref": latest.get("head_sha")
+                        or task.get("workflow_sha"),
+                        "branch": task.get("workflow_ref"),
+                        "publication": {
+                            "pr_number": latest.get("pr_number"),
+                            "pr_url": latest.get("pr_url"),
+                            "head_sha": latest.get("head_sha"),
+                            "checks_state": latest.get("checks_state"),
+                            "review_state": latest.get("review_state"),
+                            "merged": bool(latest.get("merged")),
+                        }
+                        if latest
+                        else None,
+                    }
+                )
+    except Exception as exc:  # noqa: BLE001 - contributed as its own item
+        items.append(
+            {
+                "source": "gateway.builder_queue",
+                "owner": "builder",
+                "kind": "source_error",
+                "locator": "builder:queue",
+                "candidate_ref": None,
+                "diagnostic": f"{type(exc).__name__}: {exc}",
+                "source_available": False,
+            }
+        )
+
     return items
 
 
@@ -1356,7 +1397,7 @@ def collect_orientation_evidence(
     try:
         receipt = dict(evidence.context_receipt or {})
         evidence.candidate_evidence = _collect_candidate_evidence(
-            dict(receipt.get("git") or {})
+            dict(receipt.get("git") or {}), include_builder=include_builder
         )
     except Exception as exc:  # noqa: BLE001 - attributed as an explicit source failure
         evidence.candidate_evidence_error = f"{type(exc).__name__}: {exc}"
@@ -1439,6 +1480,7 @@ def build_room_briefing(
             "attention": orientation["attention"],
             "lanes": orientation["lanes"],
             "candidate": orientation["candidate"],
+            "candidate_evidence": orientation["candidate_evidence"],
             "runtime": orientation["runtime"],
             "presence": orientation["presence"],
             "events": orientation["events"],
@@ -1493,6 +1535,7 @@ def build_room_briefing(
         else None,
         "lanes": filtered_lanes,
         "candidate": orientation["candidate"],
+        "candidate_evidence": _filter(orientation["candidate_evidence"], "items"),
         "runtime": orientation["runtime"],
         "presence": _filter(orientation["presence"], "sessions"),
         "events": orientation["events"],

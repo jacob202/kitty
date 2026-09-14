@@ -964,18 +964,31 @@ def _task(state="pr_opened", sha=HEAD_A, ref="feat/x"):
     return {"id": "kb_1", "state": state, "workflow_sha": sha, "workflow_ref": ref}
 
 
-def test_collected_candidate_evidence_binds_builder_and_git_to_the_head(monkeypatch):
+def _stub_builder(monkeypatch, tasks, links=None):
     from gateway import builder_queue
 
     monkeypatch.setattr(
-        builder_queue, "list_tasks", lambda state=None, **kwargs: [_task(state=state)]
+        builder_queue,
+        "list_tasks",
+        # A task holds exactly one state, so filter as the real read does.
+        lambda state=None, **kwargs: [
+            dict(task, state=state) for task in tasks if task.get("state") == state
+        ],
     )
+    monkeypatch.setattr(
+        builder_queue, "get_pr_links", lambda task_id, **kwargs: list(links or [])
+    )
+
+
+def test_collected_candidate_evidence_binds_builder_and_git_to_the_head(monkeypatch):
+    _stub_builder(monkeypatch, [_task()])
     items = co._collect_candidate_evidence(
-        {"head": HEAD_A, "branch": "feat/x", "origin_main": {"head": HEAD_B}}
+        {"head": HEAD_A, "branch": "feat/x", "origin_main": {"sha": HEAD_B}}
     )
     by_locator = {item["locator"]: item for item in items}
     assert by_locator["builder:task:kb_1"]["candidate_ref"] == HEAD_A
     assert by_locator["git:candidate:head"]["candidate_ref"] == HEAD_A
+    assert by_locator["git:candidate:head"]["origin_main_sha"] == HEAD_B
 
     orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
     states = {
@@ -986,12 +999,32 @@ def test_collected_candidate_evidence_binds_builder_and_git_to_the_head(monkeypa
     assert states["git:candidate:head"] == co.SOURCE_CURRENT
 
 
-def test_collected_candidate_evidence_goes_stale_when_the_candidate_moves(monkeypatch):
-    from gateway import builder_queue
-
-    monkeypatch.setattr(
-        builder_queue, "list_tasks", lambda state=None, **kwargs: [_task(sha=HEAD_B)]
+def test_builder_evidence_binds_to_the_published_pr_head_over_workflow_sha(monkeypatch):
+    _stub_builder(
+        monkeypatch,
+        [_task(sha="0" * 40)],
+        links=[
+            {
+                "pr_number": 900,
+                "pr_url": "https://example.invalid/900",
+                "head_sha": HEAD_A,
+                "checks_state": "success",
+                "review_state": "approved",
+                "merged": 1,
+            }
+        ],
     )
+    items = co._collect_candidate_evidence({"head": HEAD_A})
+    item = next(entry for entry in items if entry["locator"] == "builder:task:kb_1")
+
+    assert item["candidate_ref"] == HEAD_A
+    assert item["publication"]["pr_number"] == 900
+    assert item["publication"]["checks_state"] == "success"
+    assert item["publication"]["merged"] is True
+
+
+def test_collected_candidate_evidence_goes_stale_when_the_candidate_moves(monkeypatch):
+    _stub_builder(monkeypatch, [_task(sha=HEAD_B)])
     items = co._collect_candidate_evidence({"head": HEAD_A})
     orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
 
@@ -1005,11 +1038,7 @@ def test_collected_candidate_evidence_goes_stale_when_the_candidate_moves(monkey
 
 
 def test_collected_candidate_evidence_without_a_ref_reports_unknown_binding(monkeypatch):
-    from gateway import builder_queue
-
-    monkeypatch.setattr(
-        builder_queue, "list_tasks", lambda state=None, **kwargs: [_task(sha=None)]
-    )
+    _stub_builder(monkeypatch, [_task(sha=None)])
     items = co._collect_candidate_evidence({"head": HEAD_A})
     orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
 
@@ -1022,18 +1051,63 @@ def test_collected_candidate_evidence_without_a_ref_reports_unknown_binding(monk
     assert "no candidate_ref" in item["reason"]
 
 
-def test_candidate_evidence_source_failure_is_attributed_not_empty_healthy(monkeypatch):
+def test_include_builder_false_never_queries_the_builder_queue(monkeypatch):
+    from gateway import builder_queue
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        builder_queue, "list_tasks", lambda *a, **k: calls.append("list") or []
+    )
+    monkeypatch.setattr(
+        builder_queue, "get_pr_links", lambda *a, **k: calls.append("links") or []
+    )
+
+    items = co._collect_candidate_evidence({"head": HEAD_A}, include_builder=False)
+
+    assert calls == []
+    assert [item["locator"] for item in items] == ["git:candidate:head"]
+
+
+def test_builder_failure_keeps_git_evidence_and_is_attributed(monkeypatch):
     from gateway import builder_queue
 
     def boom(*args, **kwargs):
         raise sqlite3.OperationalError("queue database is locked")
 
     monkeypatch.setattr(builder_queue, "list_tasks", boom)
-    evidence = co.collect_orientation_evidence("chatgpt")
+    items = co._collect_candidate_evidence({"head": HEAD_A})
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
 
-    assert evidence.candidate_evidence == []
-    assert "OperationalError" in evidence.candidate_evidence_error
+    states = {
+        item["locator"]: item["state"]
+        for item in orientation["candidate_evidence"]["items"]
+    }
+    assert states["git:candidate:head"] == co.SOURCE_CURRENT
+    assert states["builder:queue"] == co.SOURCE_UNAVAILABLE
 
-    orientation = _build("chatgpt", evidence=evidence)
-    assert orientation["candidate_evidence"]["state"] == co.SOURCE_UNAVAILABLE
-    assert "locked" in orientation["candidate_evidence"]["diagnostic"]
+    error_item = next(
+        entry
+        for entry in orientation["candidate_evidence"]["items"]
+        if entry["locator"] == "builder:queue"
+    )
+    assert "locked" in error_item["reason"]
+
+
+def test_room_briefing_exposes_candidate_evidence(monkeypatch):
+    _stub_builder(monkeypatch, [_task()])
+    items = co._collect_candidate_evidence({"head": HEAD_A})
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
+
+    briefing = co.build_room_briefing(orientation, identity="chatgpt", session_id="s")
+    assert [item["locator"] for item in briefing["candidate_evidence"]["items"]] == [
+        "git:candidate:head",
+        "builder:task:kb_1",
+    ]
+
+    scoped = co.build_room_briefing(
+        orientation, identity="chatgpt", session_id="s", scope="builder:task:kb_1"
+    )
+    assert [item["locator"] for item in scoped["candidate_evidence"]["items"]] == [
+        "builder:task:kb_1"
+    ]
+    assert scoped["candidate_evidence"]["filter_total"] == 2
