@@ -40,10 +40,11 @@ def _verifying_mission(db_path: Path, *, mission_id: str = "r3-acceptance") -> d
     return memory_mission.get_mission(mission_id, db_path=db_path)
 
 
-def _candidate(*, review_sha: str = "d" * 40) -> dict[str, str]:
+def _candidate(*, base_sha: str = "a" * 40, review_sha: str = "d" * 40) -> dict[str, str]:
     base = {
         "artifact_id": "builder_result_builder-task-1_attempt-7",
         "content_hash": "c" * 64,
+        "base_sha": base_sha,
         "review_sha": review_sha,
         "diff_sha256": "e" * 64,
     }
@@ -61,11 +62,13 @@ def _passing_evidence() -> dict:
 
 
 def test_candidate_digest_changes_when_review_revision_changes() -> None:
-    first = _candidate(review_sha="d" * 40)
-    second = _candidate(review_sha="f" * 40)
+    first = _candidate(base_sha="a" * 40, review_sha="d" * 40)
+    rereviewed = _candidate(base_sha="a" * 40, review_sha="f" * 40)
+    rebased = _candidate(base_sha="b" * 40, review_sha="d" * 40)
 
-    assert first["content_hash"] == second["content_hash"]
-    assert first["candidate_digest"] != second["candidate_digest"]
+    assert first["content_hash"] == rereviewed["content_hash"] == rebased["content_hash"]
+    assert first["candidate_digest"] != rereviewed["candidate_digest"]
+    assert first["candidate_digest"] != rebased["candidate_digest"]
 
 
 def test_production_http_acceptance_is_not_authoritative(
@@ -119,6 +122,7 @@ def test_local_operator_stamps_trusted_identity_and_exact_provenance(
     assert proof["data_root"] == str(isolated_data.resolve())
     assert proof["candidate_ref"] == candidate_ref
     assert proof["candidate_digest"] == candidate["candidate_digest"]
+    assert proof["artifact_provenance"]["base_sha"] == "a" * 40
     assert proof["artifact_provenance"]["review_sha"] == "d" * 40
 
 

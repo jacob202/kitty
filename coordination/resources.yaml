@@ -104,6 +104,7 @@ resources:
     - gateway/routes/missions.py
     - tests/test_mission_runtime.py
     - tests/test_missions_routes.py
+    - tests/test_r3_acceptance_authority.py
   runtime:provenance:
     paths:
     - .claude/hooks/**

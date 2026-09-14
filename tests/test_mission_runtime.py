@@ -691,6 +691,7 @@ def test_reviewed_builder_result_rehashes_registered_artifact_and_rejects_tamper
                 "initiative_id": "builder-initiative-1",
                 "task_id": "builder-task-1",
                 "attempt_id": 7,
+                "base_sha": "a" * 40,
                 "review_sha": "d" * 40,
                 "diff_sha256": "e" * 64,
                 "result_patch_sha256": digest,
