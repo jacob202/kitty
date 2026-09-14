@@ -3271,6 +3271,8 @@ def test_local_shadow_budget_covers_model_load_before_it_can_review() -> None:
     M1 reference machine plus the diff-capture cap, not a target.
     """
     observed_worst_model_load_s = 64.5
+    # The cold-cache load exceeded this, which is what made the previous default broken.
+    insufficient_previous_startup_s = 75.0
     diff_capture_cap_s = 30.0
     assert bl.LOCAL_SHADOW_MAX_WALL_SECONDS - diff_capture_cap_s > observed_worst_model_load_s
     # And the per-server startup allowance must clear the same worst case, since
@@ -3278,7 +3280,9 @@ def test_local_shadow_budget_covers_model_load_before_it_can_review() -> None:
     server = local_review.LocalLlamaServer(
         Path("not-loaded.gguf"), runtime_profile=local_review.CPU_SHADOW_RUNTIME_PROFILE
     )
-    assert server.startup_timeout > observed_worst_model_load_s
+    # Compared against the old default, not the warm measurement: `75.0 > 64.5` is
+    # true, so the weaker form left a revert to the broken value passing.
+    assert server.startup_timeout > insufficient_previous_startup_s
 
 
 def test_local_shadow_runtime_error_receipt_keeps_bounded_cause(
