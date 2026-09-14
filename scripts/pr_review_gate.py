@@ -33,6 +33,35 @@ def _agent_exact_head_body(comment: dict[str, Any], head_sha: str) -> str | None
     return body
 
 
+_AGENT_FINDING_MARKERS = (
+    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Failure Mode(?:\*\*)?\s*:",
+    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Corrective Action(?:\*\*)?\s*:",
+)
+
+
+def _agent_body_has_rubric_fields(body: str) -> bool:
+    """True when the body carries the rubric's explicit finding fields.
+
+    This is the only signal that may affect the decision. A clean verdict is allowed
+    to mention file paths while explaining why an observation was *not* promoted to a
+    finding, so a path mention must never veto a sentinel.
+    """
+    return any(re.search(pattern, body) for pattern in _AGENT_FINDING_MARKERS)
+
+
+def agent_review_confirmed_finding(comment: dict[str, Any], head_sha: str) -> bool:
+    """A marker-bound exact-head review carrying the rubric's explicit finding fields.
+
+    Used ONLY to choose the failure message; it never decides whether to block. A
+    path mention is deliberately NOT sufficient: stalled process narration routinely
+    names a file ("I need to inspect scripts/pr_review_gate.py before deciding"), and
+    treating that as a finding reproduces the misdiagnosis this change exists to
+    remove.
+    """
+    body = _agent_exact_head_body(comment, head_sha)
+    return bool(body and _agent_body_has_rubric_fields(body))
+
+
 def _agent_body_has_no_findings(body: str) -> bool:
     """Accept a no-findings sentinel unless the same evidence contains a real finding block.
 
@@ -45,12 +74,7 @@ def _agent_body_has_no_findings(body: str) -> bool:
         return True
     if not re.search(rf"(?m)^\s*{re.escape(pr_review.NO_FINDINGS)}\s*$", body):
         return False
-
-    finding_markers = (
-        r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Failure Mode(?:\*\*)?\s*:",
-        r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Corrective Action(?:\*\*)?\s*:",
-    )
-    return not any(re.search(pattern, body) for pattern in finding_markers)
+    return not _agent_body_has_rubric_fields(body)
 
 
 def agent_review_approved(comment: dict[str, Any], head_sha: str) -> bool:
@@ -63,6 +87,20 @@ def agent_review_blocked(comment: dict[str, Any], head_sha: str) -> bool:
     """Treat any exact-head workflow verdict other than no-findings as blocking."""
     body = _agent_exact_head_body(comment, head_sha)
     return bool(body and not _agent_body_has_no_findings(body))
+
+
+def agent_review_unusable(comment: dict[str, Any], head_sha: str) -> bool:
+    """A marker-bound exact-head review that is neither a verdict nor a finding.
+
+    A stalled or truncated review can post the marker and the `Reviewed commit` line
+    without the no-findings sentinel and without any structured finding. That is not
+    evidence of a defect, and reporting it as one sends an operator looking for a
+    finding that was never produced. It still fails the gate -- an unusable review is
+    not an approval -- but it is reported as what it is.
+    """
+    return agent_review_blocked(comment, head_sha) and not agent_review_confirmed_finding(
+        comment, head_sha
+    )
 
 
 def builder_review_verdict(
@@ -119,8 +157,20 @@ def evaluate_review_gate(
         return True, f"Exact-head review override approved for {head_sha}: {override}"
 
     trusted = _trusted_builder_actors(repo_owner)
-    if any(agent_review_blocked(comment, head_sha) for comment in comments):
-        return False, f"Blocking GitHub agent review finding exists for exact head {head_sha}."
+    blocking = [comment for comment in comments if agent_review_blocked(comment, head_sha)]
+    if blocking:
+        # Both outcomes block. The distinction is diagnostic: a stalled review that
+        # emitted nothing usable must not be reported as a defect that was found.
+        if any(agent_review_confirmed_finding(comment, head_sha) for comment in blocking):
+            return False, (
+                f"Blocking GitHub agent review finding exists for exact head {head_sha}."
+            )
+        return False, (
+            f"GitHub agent review for exact head {head_sha} is not a parseable verdict "
+            "and no finding could be confirmed: the bound comment carries neither the "
+            "no-findings sentinel nor the rubric's Failure Mode / Corrective Action "
+            "fields, so any claim in it is unverified."
+        )
     if any(
         builder_review_verdict(comment, head_sha, trusted) in {"request_changes", "reject"}
         for comment in comments
