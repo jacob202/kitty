@@ -80,7 +80,13 @@ from scripts import pr_scope
 logger = logging.getLogger("kitty.builder_loop")
 
 DEFAULT_REVIEW_TIMEOUT = 240
-LOCAL_SHADOW_MAX_WALL_SECONDS = 90.0
+# The shadow's own wall budget covers model load, diff capture and inference. A 9B
+# Q3_K_M artifact measured 14.1s to 64.5s just to load on an 8-GB M1, and exceeded
+# the previous 90s total budget when the page cache was cold, so the shadow failed
+# closed on its first review and often after. Raised with margin; authoritative
+# review time is still reserved by _local_shadow_deadline, which refuses the shadow
+# entirely when the reservation would not fit.
+LOCAL_SHADOW_MAX_WALL_SECONDS = 300.0
 LOCAL_SHADOW_MAX_CANDIDATE_BYTES = 128 * 1024
 
 # P027: consecutive identical infrastructure crashes tolerated before the
