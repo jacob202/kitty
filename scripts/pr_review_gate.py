@@ -39,14 +39,24 @@ _AGENT_FINDING_MARKERS = (
 )
 
 
-def _agent_body_has_finding_structure(body: str) -> bool:
-    """True when the body could be a rubric-conformant finding.
+def _agent_body_has_rubric_fields(body: str) -> bool:
+    """True when the body carries the rubric's explicit finding fields.
 
-    The rubric requires a finding to name the changed file, so either the explicit
-    fields or a file/path-shaped token counts. Only used to choose the message; it
+    This is the only signal that may affect the decision. A clean verdict is allowed
+    to mention file paths while explaining why an observation was *not* promoted to a
+    finding, so a path mention must never veto a sentinel.
+    """
+    return any(re.search(pattern, body) for pattern in _AGENT_FINDING_MARKERS)
+
+
+def _agent_body_could_be_a_finding(body: str) -> bool:
+    """True when a body without the sentinel could plausibly be a finding.
+
+    The rubric requires a finding to name the changed file, so the explicit fields or
+    a file/path-shaped token qualify. Used ONLY to choose the failure message; it
     never decides whether to block.
     """
-    if any(re.search(pattern, body) for pattern in _AGENT_FINDING_MARKERS):
+    if _agent_body_has_rubric_fields(body):
         return True
     return bool(re.search(
         r"(?:[\w.-]+/)+[\w.-]+|[\w-]+\.(?:py|ts|tsx|js|jsx|json|ya?ml|md|sql|sh|toml|cfg|ini|txt)\b",
@@ -66,7 +76,7 @@ def _agent_body_has_no_findings(body: str) -> bool:
         return True
     if not re.search(rf"(?m)^\s*{re.escape(pr_review.NO_FINDINGS)}\s*$", body):
         return False
-    return not _agent_body_has_finding_structure(body)
+    return not _agent_body_has_rubric_fields(body)
 
 
 def agent_review_approved(comment: dict[str, Any], head_sha: str) -> bool:
@@ -94,7 +104,7 @@ def agent_review_unusable(comment: dict[str, Any], head_sha: str) -> bool:
     return bool(
         body
         and not _agent_body_has_no_findings(body)
-        and not _agent_body_has_finding_structure(body)
+        and not _agent_body_could_be_a_finding(body)
     )
 
 

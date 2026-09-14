@@ -211,3 +211,32 @@ def test_blocking_set_is_unchanged_by_the_reason_split() -> None:
     assert pr_review_gate.agent_review_blocked(finding, SHA)
     assert not pr_review_gate.agent_review_approved(stalled, SHA)
     assert not pr_review_gate.agent_review_approved(finding, SHA)
+
+
+def test_clean_verdict_that_mentions_a_path_is_still_clean() -> None:
+    """A sentinel verdict may discuss a file without becoming a finding.
+
+    Regression (review finding): routing the path heuristic through the approval
+    decision meant a clean verdict that merely mentioned `gateway/x.py` while
+    explaining why nothing was actionable was treated as a blocking finding. A path
+    mention must never veto a sentinel; only the rubric's explicit fields may.
+    """
+    body = pr_review.render_review_body(
+        "Checked gateway/x.py and the changed hunk is correct.\n\n"
+        f"{pr_review.NO_FINDINGS}",
+        SHA,
+    )
+    comment = _comment(body, "github-actions[bot]", user_type="Bot")
+    assert pr_review_gate.agent_review_approved(comment, SHA)
+    assert not pr_review_gate.agent_review_blocked(comment, SHA)
+
+
+def test_sentinel_with_rubric_fields_is_still_blocking() -> None:
+    """The documented contradiction case is unchanged by the reason split."""
+    body = pr_review.render_review_body(
+        f"{pr_review.NO_FINDINGS}\n\nFailure Mode: the retry loop double-charges.",
+        SHA,
+    )
+    comment = _comment(body, "github-actions[bot]", user_type="Bot")
+    assert not pr_review_gate.agent_review_approved(comment, SHA)
+    assert pr_review_gate.agent_review_blocked(comment, SHA)
