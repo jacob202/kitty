@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from gateway import memory_mission
+from gateway.config import is_test_env
 
 router = APIRouter(tags=["missions"])
 _SUPERVISOR_ID = "kitty"
@@ -90,12 +91,18 @@ def get_mission(mission_id: str) -> dict:
 
 @router.post("/missions/{mission_id}/acceptance")
 def record_acceptance(mission_id: str, body: AcceptanceRequest) -> dict:
-    """Record exact-candidate evidence from an independent acceptance operator.
+    """Legacy test-only route; production acceptance uses the local operator boundary.
 
-    This endpoint never performs acceptance itself. The caller must already have
-    completed the running-product review and supplies its evidence; Mission owns
-    the exact-digest and supervisor-independence checks.
+    Normal Gateway clients are authenticated for product use, not endowed with
+    independent-review authority. Production therefore refuses this route. The
+    test-only branch remains so route contract tests can exercise Mission's
+    lower-level exact-digest behavior without creating a second credential.
     """
+    if not is_test_env():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Mission acceptance is restricted to the local acceptance operator.",
+        )
     try:
         mission = memory_mission.get_mission(
             mission_id, db_path=memory_mission.MISSION_DB_FILE
