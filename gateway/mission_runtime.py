@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -18,10 +19,14 @@ from gateway import (
     memory_mission,
 )
 from gateway import builder_initiative as bi
+from gateway.paths import DATA_DIR
 from mcp.builder import repo_tools
 
 ACTION_NAME = "mission.review_pending"
 _REVIEW_TIMEOUT_SECONDS = 240
+_LOCAL_ACCEPTANCE_REVIEWER_ID = "local:r3-running-product-operator"
+_REQUIRED_RUNNING_STATES = ("desktop", "iphone_class", "happy", "degraded", "reload", "recovery")
+logger = logging.getLogger("kitty.mission_runtime")
 
 
 def _parse_review_json(raw: str) -> Any:
@@ -85,7 +90,6 @@ async def review_pending_action(payload: dict[str, Any]) -> automation_actions.A
     )
 
 
-
 async def request_plan_review(mission_id: str) -> dict[str, Any]:
     """Dispatch one exact plan review through durable Automation authority.
 
@@ -130,7 +134,22 @@ async def request_pending_reviews() -> list[dict[str, Any]]:
             continue
         locator = mission.get("builder_locator") or {}
         if mission["status"] in {"EXECUTING", "VERIFYING", "REPAIRING"} and locator.get("task_id"):
-            receipt = reconcile_result_candidate(mission["mission_id"])
+            try:
+                receipt = reconcile_result_candidate(mission["mission_id"])
+            except ResultCandidateUnavailable as exc:
+                logger.error(
+                    "Mission %s result reconciliation unavailable: %s",
+                    mission["mission_id"],
+                    exc,
+                )
+                receipts.append(
+                    {
+                        "status": "source_unavailable",
+                        "mission_id": mission["mission_id"],
+                        "error": str(exc),
+                    }
+                )
+                continue
             if receipt.get("status") != "not_pending":
                 receipts.append(receipt)
     return receipts
@@ -143,6 +162,18 @@ def _hex_digest(value: Any, length: int) -> str | None:
     if len(normalized) != length or any(ch not in "0123456789abcdef" for ch in normalized):
         return None
     return normalized
+
+
+def _candidate_provenance_digest(candidate: dict[str, str]) -> str:
+    """Bind Mission acceptance to artifact and reviewed revision, not patch bytes alone."""
+    payload = {
+        "artifact_id": candidate["artifact_id"],
+        "content_hash": candidate["content_hash"],
+        "review_sha": candidate["review_sha"],
+        "diff_sha256": candidate["diff_sha256"],
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _reviewed_builder_result(mission: dict[str, Any]) -> dict[str, Any] | None:
@@ -219,12 +250,13 @@ def _reviewed_builder_result(mission: dict[str, Any]) -> dict[str, Any] | None:
         raise ResultCandidateUnavailable("Builder result artifact no longer matches its registered digest")
     if metadata.get("result_patch_sha256") != content_hash or metadata.get("result_patch_size_bytes") != len(content):
         raise ResultCandidateUnavailable("Builder result artifact manifest does not match its content")
-    return {
+    candidate = {
         "artifact_id": artifact_id,
         "content_hash": content_hash,
         "review_sha": review_sha,
         "diff_sha256": diff_sha256,
     }
+    return {**candidate, "candidate_digest": _candidate_provenance_digest(candidate)}
 
 
 def reconcile_result_candidate(mission_id: str) -> dict[str, Any]:
@@ -232,20 +264,18 @@ def reconcile_result_candidate(mission_id: str) -> dict[str, Any]:
     mission = memory_mission.get_mission(mission_id, db_path=memory_mission.MISSION_DB_FILE)
     if mission["status"] in {"DONE", "STOPPED"}:
         return {"status": "not_pending", "mission_id": mission_id}
-    try:
-        candidate = _reviewed_builder_result(mission)
-    except ResultCandidateUnavailable as exc:
-        return {"status": "source_unavailable", "mission_id": mission_id, "error": str(exc)}
+    candidate = _reviewed_builder_result(mission)
     if candidate is None:
         return {"status": "not_pending", "mission_id": mission_id}
     candidate_ref = f"artifact:{candidate['artifact_id']}"
+    candidate_digest = candidate.get("candidate_digest") or candidate["content_hash"]
     current = mission.get("candidate") or {}
-    if current.get("ref") == candidate_ref and current.get("digest") == candidate["content_hash"]:
+    if current.get("ref") == candidate_ref and current.get("digest") == candidate_digest:
         return {"status": "already_bound", "mission_id": mission_id, "candidate": current}
     mission = memory_mission.record_candidate(
         mission_id,
         candidate_ref=candidate_ref,
-        candidate_digest=candidate["content_hash"],
+        candidate_digest=candidate_digest,
         db_path=memory_mission.MISSION_DB_FILE,
     )
     return {
@@ -254,6 +284,92 @@ def reconcile_result_candidate(mission_id: str) -> dict[str, Any]:
         "candidate": mission["candidate"],
         "acceptance_state": mission["acceptance"]["state"],
     }
+
+
+def _validated_running_product_evidence(evidence: dict[str, Any], *, verdict: str) -> dict[str, Any]:
+    if not isinstance(evidence, dict) or not evidence:
+        raise memory_mission.MissionError("running-product acceptance evidence must be a non-empty object")
+    steps = evidence.get("steps")
+    if not isinstance(steps, list) or not steps or not all(isinstance(step, str) and step.strip() for step in steps):
+        raise memory_mission.MissionError("running-product evidence requires non-empty steps")
+    normalized = dict(evidence)
+    for key in _REQUIRED_RUNNING_STATES:
+        state = evidence.get(key)
+        if not isinstance(state, dict):
+            raise memory_mission.MissionError(f"running-product evidence requires {key} state")
+        status_value = state.get("state")
+        evidence_ref = state.get("evidence")
+        if status_value not in {"passed", "failed", "unverified"}:
+            raise memory_mission.MissionError(f"running-product evidence has invalid {key} state")
+        if not isinstance(evidence_ref, str) or not evidence_ref.strip():
+            raise memory_mission.MissionError(f"running-product evidence requires {key} evidence")
+    unmet_gates = evidence.get("unmet_gates")
+    if not isinstance(unmet_gates, list) or not all(isinstance(item, str) and item.strip() for item in unmet_gates):
+        raise memory_mission.MissionError("running-product evidence requires an unmet_gates list")
+    if verdict == "accepted":
+        if unmet_gates:
+            raise memory_mission.MissionError("accepted running-product evidence cannot contain unmet gates")
+        failed = [
+            key for key in _REQUIRED_RUNNING_STATES
+            if evidence[key]["state"] != "passed"
+        ]
+        if failed:
+            raise memory_mission.MissionError(
+                "accepted running-product evidence has unpassed states: " + ", ".join(failed)
+            )
+    return normalized
+
+
+def record_running_product_acceptance(
+    mission_id: str,
+    *,
+    candidate_ref: str,
+    candidate_digest: str,
+    verdict: str,
+    evidence: dict[str, Any],
+) -> dict[str, Any]:
+    """Trusted local-operator boundary for exact running-product acceptance.
+
+    This is deliberately not exposed as normal Gateway HTTP authority. Reviewer
+    identity, runtime checkout identity, data-root identity, and artifact
+    provenance are derived here rather than accepted from a product client.
+    """
+    if verdict not in {"accepted", "rejected"}:
+        raise memory_mission.MissionError("acceptance verdict must be accepted or rejected")
+    mission = memory_mission.get_mission(mission_id, db_path=memory_mission.MISSION_DB_FILE)
+    current = mission.get("candidate") or {}
+    if current.get("ref") != candidate_ref or current.get("digest") != candidate_digest:
+        raise memory_mission.MissionError("stale candidate reference or digest")
+    reviewed = _reviewed_builder_result(mission)
+    if reviewed is None:
+        raise ResultCandidateUnavailable("bound Builder result is not complete")
+    reviewed_ref = f"artifact:{reviewed['artifact_id']}"
+    reviewed_digest = reviewed.get("candidate_digest") or reviewed["content_hash"]
+    if reviewed_ref != candidate_ref or reviewed_digest != candidate_digest:
+        raise memory_mission.MissionError("acceptance candidate does not match reviewed Builder provenance")
+    validated = _validated_running_product_evidence(evidence, verdict=verdict)
+    validated.update(
+        {
+            "candidate_ref": candidate_ref,
+            "candidate_digest": candidate_digest,
+            "running_sha": repo_tools.repo_head(),
+            "data_root": str(DATA_DIR.resolve()),
+            "artifact_provenance": {
+                "artifact_id": reviewed["artifact_id"],
+                "content_hash": reviewed["content_hash"],
+                "review_sha": reviewed["review_sha"],
+                "diff_sha256": reviewed["diff_sha256"],
+            },
+        }
+    )
+    return memory_mission.record_acceptance(
+        mission_id,
+        reviewer_id=_LOCAL_ACCEPTANCE_REVIEWER_ID,
+        candidate_digest=candidate_digest,
+        verdict=verdict,
+        evidence=validated,
+        db_path=memory_mission.MISSION_DB_FILE,
+    )
 
 
 def review_plan(mission_id: str) -> dict[str, Any]:
