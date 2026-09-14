@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+from pathlib import Path
 from typing import Any
 
-from gateway import automation_actions, automation_runs, builder_loop, memory_mission
+from gateway import (
+    artifact_store,
+    automation_actions,
+    automation_runs,
+    builder_loop,
+    builder_queue,
+    builder_status_readonly,
+    memory_mission,
+)
 from gateway import builder_initiative as bi
 from mcp.builder import repo_tools
 
@@ -27,6 +37,10 @@ def _parse_review_json(raw: str) -> Any:
 
 class PlanVerifierUnavailable(RuntimeError):
     """No trustworthy zero-cost independent plan verifier is available."""
+
+
+class ResultCandidateUnavailable(RuntimeError):
+    """The exact reviewed Builder result cannot be bound as a Mission candidate."""
 
 
 def register_action() -> None:
@@ -106,12 +120,141 @@ async def request_plan_review(mission_id: str) -> dict[str, Any]:
 
 
 async def request_pending_reviews() -> list[dict[str, Any]]:
-    """Restart recovery: fence stale runs, then re-dispatch unreviewed plans."""
+    """Restart recovery for plan review and finished Builder result binding."""
     automation_runs.reconcile_interrupted_runs()
     receipts: list[dict[str, Any]] = []
-    for mission in reversed(_pending_missions()):
-        receipts.append(await request_plan_review(mission["mission_id"]))
+    missions = memory_mission.list_missions(db_path=memory_mission.MISSION_DB_FILE)
+    for mission in reversed(missions):
+        if mission["status"] == "PLAN_REVIEW" and mission["plan"]["review_state"] == "unreviewed":
+            receipts.append(await request_plan_review(mission["mission_id"]))
+            continue
+        locator = mission.get("builder_locator") or {}
+        if mission["status"] in {"EXECUTING", "VERIFYING", "REPAIRING"} and locator.get("task_id"):
+            receipt = reconcile_result_candidate(mission["mission_id"])
+            if receipt.get("status") != "not_pending":
+                receipts.append(receipt)
     return receipts
+
+
+def _hex_digest(value: Any, length: int) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower()
+    if len(normalized) != length or any(ch not in "0123456789abcdef" for ch in normalized):
+        return None
+    return normalized
+
+
+def _reviewed_builder_result(mission: dict[str, Any]) -> dict[str, Any] | None:
+    """Resolve and re-hash the exact independently reviewed Builder result artifact."""
+    locator = mission.get("builder_locator") or {}
+    initiative_id = locator.get("initiative_id")
+    task_id = locator.get("task_id")
+    if not all(isinstance(value, str) and value for value in (initiative_id, task_id)):
+        raise ResultCandidateUnavailable("Mission has no complete Builder task binding")
+    try:
+        snapshot = builder_status_readonly.build_status_snapshot_readonly(
+            db_path=builder_queue.BUILDER_QUEUE_DB
+        )
+    except Exception as exc:
+        raise ResultCandidateUnavailable(f"Builder result store is unavailable: {exc}") from exc
+    initiative = next(
+        (item for item in snapshot.get("initiatives", []) if item.get("initiative_id") == initiative_id),
+        None,
+    )
+    packet = next(
+        (item for item in (initiative or {}).get("packets", []) if item.get("task_id") == task_id),
+        None,
+    )
+    if packet is None:
+        raise ResultCandidateUnavailable("bound Builder task is unavailable")
+    if packet.get("task_state") != "done":
+        return None
+    attempt = next(
+        (
+            item for item in packet.get("attempt_history", [])
+            if item.get("outcome") == "succeeded"
+            and item.get("review_verdict") == "approve"
+            and isinstance(item.get("result_artifact"), dict)
+            and item["result_artifact"].get("state") == "ready"
+        ),
+        None,
+    )
+    if attempt is None:
+        raise ResultCandidateUnavailable(
+            "completed Builder task has no independently reviewed ready result artifact"
+        )
+    artifact_id = attempt["result_artifact"].get("artifact_id")
+    if not isinstance(artifact_id, str) or not artifact_id:
+        raise ResultCandidateUnavailable("Builder result artifact identity is unavailable")
+    try:
+        artifact = artifact_store.get_artifact(artifact_id)
+    except Exception as exc:
+        raise ResultCandidateUnavailable(f"Builder result artifact is unavailable: {exc}") from exc
+    if artifact is None or artifact.get("state") != "ready" or artifact.get("kind") != "builder_result":
+        raise ResultCandidateUnavailable("Builder result artifact is not ready")
+    metadata = artifact.get("metadata")
+    if not isinstance(metadata, dict):
+        raise ResultCandidateUnavailable("Builder result artifact metadata is malformed")
+    for key, expected in {
+        "initiative_id": initiative_id,
+        "task_id": task_id,
+        "attempt_id": attempt.get("id"),
+    }.items():
+        if metadata.get(key) != expected:
+            raise ResultCandidateUnavailable(
+                f"Builder result artifact {key} does not match the reviewed attempt"
+            )
+    content_hash = _hex_digest(artifact.get("content_hash"), 64)
+    review_sha = _hex_digest(metadata.get("review_sha"), 40)
+    diff_sha256 = _hex_digest(metadata.get("diff_sha256"), 64)
+    if not all((content_hash, review_sha, diff_sha256)):
+        raise ResultCandidateUnavailable("Builder result artifact is missing review provenance")
+    path = Path(str(artifact.get("storage_uri") or ""))
+    try:
+        content = path.read_bytes()
+    except OSError as exc:
+        raise ResultCandidateUnavailable(f"Builder result artifact cannot be read: {exc}") from exc
+    if hashlib.sha256(content).hexdigest() != content_hash or len(content) != artifact.get("size_bytes"):
+        raise ResultCandidateUnavailable("Builder result artifact no longer matches its registered digest")
+    if metadata.get("result_patch_sha256") != content_hash or metadata.get("result_patch_size_bytes") != len(content):
+        raise ResultCandidateUnavailable("Builder result artifact manifest does not match its content")
+    return {
+        "artifact_id": artifact_id,
+        "content_hash": content_hash,
+        "review_sha": review_sha,
+        "diff_sha256": diff_sha256,
+    }
+
+
+def reconcile_result_candidate(mission_id: str) -> dict[str, Any]:
+    """Bind finished reviewed Builder work as the exact Mission candidate, never acceptance."""
+    mission = memory_mission.get_mission(mission_id, db_path=memory_mission.MISSION_DB_FILE)
+    if mission["status"] in {"DONE", "STOPPED"}:
+        return {"status": "not_pending", "mission_id": mission_id}
+    try:
+        candidate = _reviewed_builder_result(mission)
+    except ResultCandidateUnavailable as exc:
+        return {"status": "source_unavailable", "mission_id": mission_id, "error": str(exc)}
+    if candidate is None:
+        return {"status": "not_pending", "mission_id": mission_id}
+    candidate_ref = f"artifact:{candidate['artifact_id']}"
+    current = mission.get("candidate") or {}
+    if current.get("ref") == candidate_ref and current.get("digest") == candidate["content_hash"]:
+        return {"status": "already_bound", "mission_id": mission_id, "candidate": current}
+    mission = memory_mission.record_candidate(
+        mission_id,
+        candidate_ref=candidate_ref,
+        candidate_digest=candidate["content_hash"],
+        db_path=memory_mission.MISSION_DB_FILE,
+    )
+    return {
+        "status": "candidate_bound",
+        "mission_id": mission_id,
+        "candidate": mission["candidate"],
+        "acceptance_state": mission["acceptance"]["state"],
+    }
+
 
 def review_plan(mission_id: str) -> dict[str, Any]:
     """Run one independent verifier and bind its verdict to the exact plan digest."""

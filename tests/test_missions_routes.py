@@ -427,3 +427,89 @@ def test_mission_for_initiative_is_none_for_unbound_work(tmp_path: Path) -> None
     )
 
     assert memory_mission.mission_for_initiative("no-such-initiative", db_path=db_path) is None
+
+
+def _seed_verifying_mission(db_path: Path, *, mission_id: str = "mission-accept") -> str:
+    memory_mission.create_mission(
+        mission_id=mission_id,
+        objective="Accept only the running result",
+        definition_of_done=["Independent running-product evidence passes."],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    memory_mission.set_plan(
+        mission_id,
+        plan_ref="docs/plan.md@" + "a" * 40,
+        plan_digest="b" * 64,
+        db_path=db_path,
+    )
+    memory_mission.record_plan_review(
+        mission_id,
+        reviewer_id="plan-reviewer",
+        plan_digest="b" * 64,
+        verdict="approved",
+        db_path=db_path,
+    )
+    memory_mission.begin_execution(mission_id, db_path=db_path)
+    digest = "c" * 64
+    memory_mission.record_candidate(
+        mission_id,
+        candidate_ref="artifact:builder-result-1",
+        candidate_digest=digest,
+        db_path=db_path,
+    )
+    return digest
+
+
+def test_acceptance_route_records_exact_independent_running_product_evidence(
+    client: TestClient, tmp_path: Path
+) -> None:
+    digest = _seed_verifying_mission(tmp_path / "kitty.db")
+    response = client.post(
+        "/missions/mission-accept/acceptance",
+        json={
+            "reviewer_id": "r3-running-product-reviewer",
+            "candidate_digest": digest,
+            "verdict": "accepted",
+            "evidence": {
+                "running_sha": "d" * 40,
+                "data_root": "/private/tmp/r3-data",
+                "desktop": "passed",
+                "iphone_class": "passed",
+                "reload": "passed",
+                "recovery": "passed",
+                "artifact_provenance": "artifact:builder-result-1",
+                "unmet_gates": [],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    mission = response.json()
+    assert mission["status"] == "DONE"
+    assert mission["acceptance"]["state"] == "accepted"
+    assert mission["acceptance"]["reviewer_id"] == "r3-running-product-reviewer"
+    assert mission["acceptance"]["evidence"]["running_sha"] == "d" * 40
+    assert mission["acceptance"]["evidence"]["candidate_ref"] == "artifact:builder-result-1"
+    assert mission["acceptance"]["evidence"]["candidate_digest"] == digest
+
+
+def test_acceptance_route_rejects_self_review_stale_digest_and_empty_evidence(
+    client: TestClient, tmp_path: Path
+) -> None:
+    digest = _seed_verifying_mission(tmp_path / "kitty.db", mission_id="mission-accept-guards")
+    payload = {
+        "reviewer_id": "kitty",
+        "candidate_digest": digest,
+        "verdict": "accepted",
+        "evidence": {"running_sha": "d" * 40},
+    }
+    assert client.post("/missions/mission-accept-guards/acceptance", json=payload).status_code == 409
+
+    payload["reviewer_id"] = "independent-reviewer"
+    payload["candidate_digest"] = "e" * 64
+    assert client.post("/missions/mission-accept-guards/acceptance", json=payload).status_code == 409
+
+    payload["candidate_digest"] = digest
+    payload["evidence"] = {}
+    assert client.post("/missions/mission-accept-guards/acceptance", json=payload).status_code == 422

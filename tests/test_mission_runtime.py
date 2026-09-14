@@ -552,3 +552,188 @@ def test_paid_review_guard_refuses_on_policy_even_with_valid_provider_key(
         builder_loop.run_independent_readonly_review("Review this exact plan.", root=tmp_path)
 
     assert spawned == []
+
+
+def _executing_bound_result_mission(db_path: Path, *, mission_id: str = "mission-result") -> dict:
+    memory_mission.create_mission(
+        mission_id=mission_id,
+        objective="Ship one accepted running result",
+        definition_of_done=["The running product journey is independently accepted."],
+        supervisor_id="kitty",
+        db_path=db_path,
+    )
+    memory_mission.bind_builder_locator(
+        mission_id,
+        initiative_id="builder-initiative-1",
+        task_id="builder-task-1",
+        db_path=db_path,
+    )
+    memory_mission.set_plan(
+        mission_id,
+        plan_ref="docs/plan.md@" + "a" * 40,
+        plan_digest="b" * 64,
+        db_path=db_path,
+    )
+    memory_mission.record_plan_review(
+        mission_id,
+        reviewer_id="independent-plan-reviewer",
+        plan_digest="b" * 64,
+        verdict="approved",
+        db_path=db_path,
+    )
+    return memory_mission.begin_execution(mission_id, db_path=db_path)
+
+
+def test_reconcile_result_candidate_binds_exact_artifact_without_accepting(
+    mission_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _executing_bound_result_mission(mission_db)
+    candidate = {
+        "artifact_id": "builder_result_builder-task-1_attempt-7",
+        "content_hash": "c" * 64,
+        "review_sha": "d" * 40,
+        "diff_sha256": "e" * 64,
+    }
+    monkeypatch.setattr(mission_runtime, "_reviewed_builder_result", lambda mission: candidate)
+
+    first = mission_runtime.reconcile_result_candidate("mission-result")
+    repeated = mission_runtime.reconcile_result_candidate("mission-result")
+    current = memory_mission.get_mission("mission-result", db_path=mission_db)
+
+    assert first["status"] == "candidate_bound"
+    assert repeated["status"] == "already_bound"
+    assert current["status"] == "VERIFYING"
+    assert current["candidate"] == {
+        "ref": "artifact:builder_result_builder-task-1_attempt-7",
+        "digest": "c" * 64,
+    }
+    assert current["acceptance"]["state"] == "unreviewed"
+    assert current["acceptance"]["reviewer_id"] is None
+
+
+def test_reconcile_same_rejected_candidate_does_not_reopen_acceptance(
+    mission_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _executing_bound_result_mission(mission_db, mission_id="mission-rejected-result")
+    candidate = {
+        "artifact_id": "builder_result_builder-task-1_attempt-7",
+        "content_hash": "c" * 64,
+        "review_sha": "d" * 40,
+        "diff_sha256": "e" * 64,
+    }
+    monkeypatch.setattr(mission_runtime, "_reviewed_builder_result", lambda mission: candidate)
+    mission_runtime.reconcile_result_candidate("mission-rejected-result")
+    memory_mission.record_acceptance(
+        "mission-rejected-result",
+        reviewer_id="running-product-reviewer",
+        candidate_digest="c" * 64,
+        verdict="rejected",
+        evidence={"failed_gate": "reload"},
+        db_path=mission_db,
+    )
+
+    replay = mission_runtime.reconcile_result_candidate("mission-rejected-result")
+    current = memory_mission.get_mission("mission-rejected-result", db_path=mission_db)
+
+    assert replay["status"] == "already_bound"
+    assert current["status"] == "REPAIRING"
+    assert current["acceptance"]["state"] == "rejected"
+
+
+def test_reviewed_builder_result_rehashes_registered_artifact_and_rejects_tamper(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    patch = tmp_path / "result.patch"
+    content = b"diff --git a/proof.txt b/proof.txt\n+done\n"
+    patch.write_bytes(content)
+    import hashlib
+
+    digest = hashlib.sha256(content).hexdigest()
+    mission = {
+        "builder_locator": {
+            "initiative_id": "builder-initiative-1",
+            "task_id": "builder-task-1",
+        }
+    }
+    monkeypatch.setattr(
+        mission_runtime.builder_status_readonly,
+        "build_status_snapshot_readonly",
+        lambda **kwargs: {
+            "initiatives": [{
+                "initiative_id": "builder-initiative-1",
+                "packets": [{
+                    "task_id": "builder-task-1",
+                    "task_state": "done",
+                    "attempt_history": [{
+                        "id": 7,
+                        "outcome": "succeeded",
+                        "review_verdict": "approve",
+                        "result_artifact": {
+                            "state": "ready",
+                            "artifact_id": "artifact-1",
+                        },
+                    }],
+                }],
+            }],
+        },
+    )
+    monkeypatch.setattr(
+        mission_runtime.artifact_store,
+        "get_artifact",
+        lambda artifact_id: {
+            "id": artifact_id,
+            "state": "ready",
+            "kind": "builder_result",
+            "storage_uri": str(patch),
+            "content_hash": digest,
+            "size_bytes": len(content),
+            "metadata": {
+                "initiative_id": "builder-initiative-1",
+                "task_id": "builder-task-1",
+                "attempt_id": 7,
+                "review_sha": "d" * 40,
+                "diff_sha256": "e" * 64,
+                "result_patch_sha256": digest,
+                "result_patch_size_bytes": len(content),
+            },
+        },
+    )
+
+    resolved = mission_runtime._reviewed_builder_result(mission)
+    assert resolved is not None
+    assert resolved["artifact_id"] == "artifact-1"
+    assert resolved["content_hash"] == digest
+
+    patch.write_bytes(content + b"tampered")
+    with pytest.raises(mission_runtime.ResultCandidateUnavailable, match="registered digest"):
+        mission_runtime._reviewed_builder_result(mission)
+
+
+@pytest.mark.asyncio
+async def test_startup_recovery_reconciles_finished_bound_candidate_without_model_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import automation_runs
+
+    monkeypatch.setattr(automation_runs, "reconcile_interrupted_runs", lambda: 0)
+    monkeypatch.setattr(
+        memory_mission,
+        "list_missions",
+        lambda **kwargs: [{
+            "mission_id": "mission-recover-result",
+            "status": "EXECUTING",
+            "plan": {"review_state": "approved"},
+            "builder_locator": {"task_id": "builder-task-1"},
+        }],
+    )
+    seen: list[str] = []
+
+    def reconcile(mission_id: str) -> dict:
+        seen.append(mission_id)
+        return {"status": "candidate_bound", "mission_id": mission_id}
+
+    monkeypatch.setattr(mission_runtime, "reconcile_result_candidate", reconcile)
+    receipts = await mission_runtime.request_pending_reviews()
+
+    assert seen == ["mission-recover-result"]
+    assert receipts == [{"status": "candidate_bound", "mission_id": "mission-recover-result"}]

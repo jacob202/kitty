@@ -295,3 +295,67 @@ def test_compile_route_forwards_explicit_request_scoped_provider_fallback(client
 
     assert response.status_code == 200
     assert received == {"request": "Add proof.txt", "allow_provider_fallback": True}
+
+
+def test_resume_completed_builder_job_schedules_candidate_reconciliation_for_gateway_mission(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reconciled: list[str] = []
+    monkeypatch.setattr(
+        conversation_handoff,
+        "resume",
+        lambda **kwargs: {
+            "ok": True,
+            "builder_task_complete": True,
+            "awaiting_acceptance": True,
+            "mission": {"id": "builder-initiative-1"},
+            "mission_acceptance": {
+                "state": "unreviewed",
+                "mission_id": "gateway-conversation:builder-initiative-1",
+                "reviewer_id": None,
+                "error": None,
+            },
+        },
+    )
+
+    def reconcile(mission_id: str) -> dict:
+        reconciled.append(mission_id)
+        return {"status": "candidate_bound"}
+
+    monkeypatch.setattr(mission_runtime, "reconcile_result_candidate", reconcile)
+    response = client.get("/builder/conversation/resume", params={"mission_id": "builder-initiative-1"})
+
+    assert response.status_code == 200
+    assert reconciled == ["gateway-conversation:builder-initiative-1"]
+
+
+def test_resume_does_not_reconcile_without_exact_pending_gateway_binding(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reconciled: list[str] = []
+    monkeypatch.setattr(
+        conversation_handoff,
+        "resume",
+        lambda **kwargs: {
+            "ok": True,
+            "builder_task_complete": True,
+            "awaiting_acceptance": True,
+            "mission": {"id": "builder-initiative-1"},
+            "mission_acceptance": {
+                "state": "unavailable",
+                "mission_id": None,
+                "reviewer_id": None,
+                "error": "binding missing",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        mission_runtime,
+        "reconcile_result_candidate",
+        lambda mission_id: reconciled.append(mission_id),
+    )
+
+    response = client.get("/builder/conversation/resume", params={"mission_id": "builder-initiative-1"})
+
+    assert response.status_code == 200
+    assert reconciled == []

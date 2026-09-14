@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -20,6 +21,13 @@ class CreateMissionRequest(BaseModel):
 
 class ReasonRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=2_000)
+
+
+class AcceptanceRequest(BaseModel):
+    reviewer_id: str = Field(min_length=1, max_length=200)
+    candidate_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    verdict: Literal["accepted", "rejected"]
+    evidence: dict[str, Any] = Field(min_length=1)
 
 
 def _translate(exc: memory_mission.MissionError) -> HTTPException:
@@ -76,6 +84,33 @@ def missions_by_origin(conversation_id: str | None = None, project_id: int | Non
 def get_mission(mission_id: str) -> dict:
     try:
         return memory_mission.get_mission(mission_id, db_path=memory_mission.MISSION_DB_FILE)
+    except memory_mission.MissionError as exc:
+        raise _translate(exc) from exc
+
+
+@router.post("/missions/{mission_id}/acceptance")
+def record_acceptance(mission_id: str, body: AcceptanceRequest) -> dict:
+    """Record exact-candidate evidence from an independent acceptance operator.
+
+    This endpoint never performs acceptance itself. The caller must already have
+    completed the running-product review and supplies its evidence; Mission owns
+    the exact-digest and supervisor-independence checks.
+    """
+    try:
+        mission = memory_mission.get_mission(
+            mission_id, db_path=memory_mission.MISSION_DB_FILE
+        )
+        evidence = dict(body.evidence)
+        evidence["candidate_ref"] = mission["candidate"]["ref"]
+        evidence["candidate_digest"] = body.candidate_digest
+        return memory_mission.record_acceptance(
+            mission_id,
+            reviewer_id=body.reviewer_id,
+            candidate_digest=body.candidate_digest,
+            verdict=body.verdict,
+            evidence=evidence,
+            db_path=memory_mission.MISSION_DB_FILE,
+        )
     except memory_mission.MissionError as exc:
         raise _translate(exc) from exc
 
