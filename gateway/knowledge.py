@@ -130,9 +130,24 @@ def _manifest_evidence(row: dict[str, Any]) -> EvidenceMetadata:
     )
 
 
+_FTS_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "do", "does", "for",
+    "from", "get", "how", "i", "in", "is", "it", "of", "on", "or", "out",
+    "the", "this", "to", "what", "when", "where", "which", "why", "with",
+}
+
+
 def _fts_query(query: str) -> str:
-    terms = re.findall(r"[A-Za-z0-9]+(?:[-_.][A-Za-z0-9]+)*", query)
-    return " ".join(terms)
+    """Build a safe broad-match FTS5 query from untrusted user text."""
+    terms = [
+        term.lower()
+        for term in re.findall(r"[A-Za-z0-9]+", query)
+        if term.lower() not in _FTS_STOPWORDS
+    ]
+    # FTS5 MATCH has its own query language. Quote every token so punctuation
+    # from user text cannot become syntax, then use OR so natural-language
+    # paraphrases need not contain every filler word to retrieve candidates.
+    return " OR ".join(f'"{term}"' for term in dict.fromkeys(terms))
 
 
 def _search_active_corpus_fts(query: str, limit: int) -> Optional[list[dict[str, Any]]]:

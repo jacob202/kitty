@@ -632,3 +632,47 @@ async def test_search_uses_active_corpus_fts_when_vector_embedding_fails(tmp_pat
     assert hits[0]["evidence"]["logical_unit_id"] == "work:health-src"
     assert hits[0]["evidence"]["clinical_use_policy"] == "verify_current_clinical_guidance_externally_before_action"
     assert hits[0]["metadata"]["locator_start"] == "12"
+
+@pytest.mark.asyncio
+async def test_active_corpus_fts_treats_hyphenated_query_as_literal_terms(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text, "
+            "tokenize='porter unicode61')"
+        )
+        conn.execute(
+            "INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "chunk-1", "vehicle-src", "work:vehicle", "Vehicle Manual", "Vehicle Manual",
+                "work:vehicle", "Vehicle Manual", "automotive", "fuel_system", "service_manual",
+                "44", "45", "Remove the in-tank fuel pump and sending unit from the pickup fuel tank.",
+            ),
+        )
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text(json.dumps({
+        "source_id":"vehicle-src", "sha256":"d"*64, "logical_unit_id":"work:vehicle",
+        "work_id":"work:vehicle", "retrieval_title":"Vehicle Manual", "domains":["automotive"],
+        "expert_profiles":["automotive"], "metadata_basis":"curated",
+    }) + "\n")
+    projection = tmp_path / "projection.json"
+    projection.write_text(json.dumps({
+        "status":"active", "fts_db":str(db), "source_manifest":str(manifest)
+    }))
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+
+    hits = await knowledge.search(
+        "How do I get the in-tank gasoline sending unit out of a pickup?",
+        limit=3,
+        stitch_context=False,
+    )
+    assert hits
+    assert hits[0]["source"] == "Vehicle Manual"
