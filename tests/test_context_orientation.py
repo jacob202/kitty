@@ -1263,3 +1263,100 @@ def test_coordination_marker_is_not_duplicated_as_a_pr():
 
     assert calls == [900, 490]
     assert {item["locator"] for item in items} == {"github:pr:900", "github:issue:490"}
+
+
+def test_a_successful_refresh_is_reflected_in_the_github_source():
+    items = [
+        {
+            "source": "github",
+            "owner": "github",
+            "kind": "pull_request",
+            "locator": "github:pr:900",
+            "candidate_ref": HEAD_A,
+        }
+    ]
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
+
+    assert orientation["sources"]["github"]["state"] == co.SOURCE_CURRENT
+    assert "github" not in orientation["degraded"]
+
+
+def test_a_failed_refresh_is_unavailable_not_healthy_and_not_unknown():
+    items = [
+        {
+            "source": "github",
+            "owner": "github",
+            "kind": "pull_request",
+            "locator": "github:pr:900",
+            "candidate_ref": None,
+            "source_available": False,
+            "diagnostic": "the gh CLI is not installed in this environment",
+        }
+    ]
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
+
+    source = orientation["sources"]["github"]
+    assert source["state"] == co.SOURCE_UNAVAILABLE
+    assert "not installed" in source["diagnostic"]
+    assert "github" in orientation["degraded"]
+
+
+def test_no_refresh_still_reports_unknown():
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=[]))
+
+    assert orientation["sources"]["github"]["state"] == co.SOURCE_UNKNOWN
+    assert "no live GitHub query" in orientation["sources"]["github"]["diagnostic"]
+
+
+def test_live_lookup_runs_gh_without_ambient_tokens_from_the_checkout(monkeypatch):
+    seen: dict = {}
+
+    class Result:
+        returncode = 0
+        stderr = ""
+        stdout = json.dumps({"number": 900, "headRefOid": HEAD_A, "state": "OPEN",
+                             "statusCheckRollup": [
+                                 {"name": "pytest", "conclusion": "SUCCESS"},
+                                 {"name": "lint", "conclusion": ""},
+                             ]})
+
+    def capture(args, **kwargs):
+        seen["args"] = args
+        seen.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr(co.shutil, "which", lambda _name: "/usr/bin/gh")
+    monkeypatch.setenv("GITHUB_TOKEN", "ambient-but-untrusted")
+    monkeypatch.setenv("GH_TOKEN", "ambient-but-untrusted")
+    monkeypatch.setattr(co.subprocess, "run", capture)
+
+    facet = co.live_github_lookup()(900)
+
+    # gh prefers an ambient token over keyring auth, so it must not be inherited.
+    assert "GITHUB_TOKEN" not in seen["env"]
+    assert "GH_TOKEN" not in seen["env"]
+    # A stdio client can be launched outside the checkout, so pin the cwd.
+    assert seen["cwd"] == str(co._REPO_ROOT)
+    assert "--repo" not in seen["args"]
+
+    assert facet["checks"]["counts"]["success"] == 1
+    assert facet["checks"]["counts"]["pending"] == 1
+    assert [check["name"] for check in facet["checks"]["checks"]] == ["pytest", "lint"]
+
+
+def test_live_lookup_passes_an_explicit_repo_when_given(monkeypatch):
+    seen: dict = {}
+
+    class Result:
+        returncode = 0
+        stderr = ""
+        stdout = json.dumps({"number": 900, "headRefOid": HEAD_A, "state": "OPEN"})
+
+    monkeypatch.setattr(co.shutil, "which", lambda _name: "/usr/bin/gh")
+    monkeypatch.setattr(
+        co.subprocess, "run", lambda args, **kwargs: seen.update(args=args) or Result()
+    )
+
+    co.live_github_lookup("jacob202/kitty")(900)
+
+    assert seen["args"][-2:] == ["--repo", "jacob202/kitty"]

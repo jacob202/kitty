@@ -24,6 +24,7 @@ Invariants:
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -193,6 +194,17 @@ COORDINATION_ISSUE_NUMBER = 490
 _GITHUB_PR_FIELDS = (
     "number,state,headRefOid,url,title,mergedAt,reviewDecision,statusCheckRollup"
 )
+# Run gh from the checkout so a stdio client launched elsewhere still resolves
+# the repository; --repo overrides it when a caller supplies one.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_MAX_ROLLUP_CHECKS = 40
+_SUCCESS_CONCLUSIONS = frozenset({"SUCCESS", "NEUTRAL"})
+_FAILURE_CONCLUSIONS = frozenset(
+    {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
+)
+_PENDING_CONCLUSIONS = frozenset(
+    {"", "PENDING", "QUEUED", "IN_PROGRESS", "EXPECTED", "WAITING", "REQUESTED"}
+)
 _GITHUB_ISSUE_FIELDS = "number,state,title,url,updatedAt,labels"
 _GITHUB_FACET_FIELDS = (
     "number",
@@ -204,13 +216,46 @@ _GITHUB_FACET_FIELDS = (
     "merged",
     "updated_at",
     "labels",
+    "checks",
 )
+
+
+def _normalize_check_rollup(rollup: Any) -> dict[str, Any] | None:
+    """Summarize a statusCheckRollup so each required check can be inspected."""
+    if not isinstance(rollup, list):
+        return None
+    counts = {"success": 0, "failure": 0, "pending": 0, "skipped": 0, "other": 0}
+    checks: list[dict[str, Any]] = []
+    for entry in rollup:
+        if not isinstance(entry, dict):
+            continue
+        conclusion = str(entry.get("conclusion") or entry.get("state") or "").upper()
+        if conclusion in _SUCCESS_CONCLUSIONS:
+            bucket = "success"
+        elif conclusion in _FAILURE_CONCLUSIONS:
+            bucket = "failure"
+        elif conclusion in _PENDING_CONCLUSIONS:
+            bucket = "pending"
+        elif conclusion == "SKIPPED":
+            bucket = "skipped"
+        else:
+            bucket = "other"
+        counts[bucket] += 1
+        name = entry.get("name") or entry.get("context")
+        if name:
+            checks.append({"name": str(name), "conclusion": conclusion or None})
+    return {"counts": counts, "checks": checks[:_MAX_ROLLUP_CHECKS]}
 
 
 def _run_gh_json(args: list[str]) -> tuple[dict[str, Any] | None, str | None]:
     """Run a bounded ``gh`` read and return ``(payload, error)``. Never raises."""
     if shutil.which("gh") is None:
         return None, "the gh CLI is not installed in this environment"
+    env = dict(os.environ)
+    # gh must use stored/keyring auth, never an ambient or stale token inherited
+    # by this process (repo AGENTS.md requirement, matching builder_publish).
+    env.pop("GITHUB_TOKEN", None)
+    env.pop("GH_TOKEN", None)
     try:
         result = subprocess.run(
             args,
@@ -218,6 +263,8 @@ def _run_gh_json(args: list[str]) -> tuple[dict[str, Any] | None, str | None]:
             text=True,
             timeout=GITHUB_LOOKUP_TIMEOUT_SECONDS,
             check=False,
+            cwd=str(_REPO_ROOT),
+            env=env,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return None, f"gh could not be run: {type(exc).__name__}: {exc}"
@@ -268,6 +315,7 @@ def live_github_lookup(repo: str | None = None):
             "url": payload.get("url"),
             "review_decision": payload.get("reviewDecision"),
             "merged": bool(payload.get("mergedAt")),
+            "checks": _normalize_check_rollup(payload.get("statusCheckRollup")),
         }
 
     return lookup
@@ -1295,6 +1343,49 @@ def _project_next_continuation(
     }
 
 
+def _github_source(evidence: OrientationEvidence, observed_at: str) -> dict[str, Any]:
+    """Report GitHub truthfulness from the evidence actually collected.
+
+    A successful opt-in refresh must not still read as ``unknown``, and a partial
+    one must not read as healthy: the facet follows the items rather than a
+    constant, so the source never contradicts the PR/issue evidence beside it.
+    """
+    items = [
+        item
+        for item in (evidence.candidate_evidence or [])
+        if item.get("owner") == "github"
+    ]
+    if not items:
+        return _source(
+            SOURCE_UNKNOWN,
+            "github",
+            observed_at,
+            diagnostic=(
+                "no live GitHub query was performed; publication state requires a refresh"
+            ),
+        )
+    failed = [item for item in items if item.get("source_available") is False]
+    if failed:
+        return _source(
+            SOURCE_UNAVAILABLE,
+            "github",
+            observed_at,
+            diagnostic=(
+                failed[0].get("diagnostic") or "a GitHub lookup failed"
+            )
+            + (f" ({len(failed)} of {len(items)} lookups failed)" if len(failed) > 1 else ""),
+            item_count=len(items),
+            locators=[item["locator"] for item in items],
+        )
+    return _source(
+        SOURCE_CURRENT,
+        "github",
+        observed_at,
+        item_count=len(items),
+        locators=[item["locator"] for item in items],
+    )
+
+
 def assemble_orientation(
     identity: str,
     *,
@@ -1372,14 +1463,7 @@ def assemble_orientation(
             branch=candidate.get("branch"),
             head=head,
         ),
-        "github": _source(
-            SOURCE_UNKNOWN,
-            "github",
-            observed_at,
-            diagnostic=(
-                "no live GitHub query was performed; publication state requires a refresh"
-            ),
-        ),
+        "github": _github_source(evidence, observed_at),
         "kx": _project_lanes(claims, evidence.claims_error, observed_at),
         "builder": _project_builder(receipt, evidence.context_receipt_error, observed_at),
         "runtime": _project_runtime(
