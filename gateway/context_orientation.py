@@ -197,7 +197,6 @@ _GITHUB_PR_FIELDS = (
 # Run gh from the checkout so a stdio client launched elsewhere still resolves
 # the repository; --repo overrides it when a caller supplies one.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_MAX_ROLLUP_CHECKS = 40
 _SUCCESS_CONCLUSIONS = frozenset({"SUCCESS", "NEUTRAL"})
 _FAILURE_CONCLUSIONS = frozenset(
     {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
@@ -244,7 +243,7 @@ def _normalize_check_rollup(rollup: Any) -> dict[str, Any] | None:
         name = entry.get("name") or entry.get("context")
         if name:
             checks.append({"name": str(name), "conclusion": conclusion or None})
-    return {"counts": counts, "checks": checks[:_MAX_ROLLUP_CHECKS]}
+    return {"counts": counts, "checks": checks}
 
 
 def _run_gh_json(args: list[str]) -> tuple[dict[str, Any] | None, str | None]:
@@ -269,8 +268,13 @@ def _run_gh_json(args: list[str]) -> tuple[dict[str, Any] | None, str | None]:
     except (OSError, subprocess.SubprocessError) as exc:
         return None, f"gh could not be run: {type(exc).__name__}: {exc}"
     if result.returncode != 0:
-        detail = (result.stderr or "").strip().splitlines()
-        return None, (detail[0][:200] if detail else f"gh exited {result.returncode}")
+        command = " ".join(str(arg).replace("\n", " ")[:120] for arg in args[1:])
+        stderr = " ".join((result.stderr or "").strip().split())[:400] or "<empty>"
+        stdout = " ".join((result.stdout or "").strip().split())[:400] or "<empty>"
+        return None, (
+            f"gh exit {result.returncode}; args={command}; "
+            f"stderr={stderr}; stdout={stdout}"
+        )
     try:
         payload = json.loads(result.stdout or "{}")
     except ValueError as exc:
@@ -1620,6 +1624,7 @@ def collect_orientation_evidence(
     identity: str,
     *,
     session_id: str | None = None,
+    explicit_scope: dict[str, Any] | str | None = None,
     thread_or_handoff: str | None = None,
     repo_root: Path | None = None,
     include_builder: bool = True,
@@ -1696,6 +1701,21 @@ def collect_orientation_evidence(
                 if isinstance(item.get("publication"), dict)
                 and isinstance((publication := item["publication"]).get("pr_number"), int)
             ]
+            scope = _normalize_explicit_scope(explicit_scope)
+            if scope:
+                scope_key = scope.get("scope_key")
+                if isinstance(scope_key, str):
+                    match = re.fullmatch(r"github:pr:([1-9][0-9]*)", scope_key.strip())
+                    if match:
+                        candidate_pr_numbers.append(int(match.group(1)))
+                for key in ("pr", "pr_ref"):
+                    value = scope.get(key)
+                    if isinstance(value, int) and value > 0:
+                        candidate_pr_numbers.append(value)
+                    elif isinstance(value, str):
+                        match = re.fullmatch(r"(?:github:pr:|#)?([1-9][0-9]*)", value.strip())
+                        if match:
+                            candidate_pr_numbers.append(int(match.group(1)))
             candidate_items += _github_evidence_items(
                 github_lookup, issue_lookup, candidate_pr_numbers, coordination_issue
             )
@@ -1730,6 +1750,7 @@ def build_orientation_receipt(
     bundle = evidence or collect_orientation_evidence(
         identity,
         session_id=session_id,
+        explicit_scope=explicit_scope,
         thread_or_handoff=thread_or_handoff,
         repo_root=repo_root,
         include_builder=include_builder,

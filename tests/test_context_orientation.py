@@ -1130,6 +1130,61 @@ def test_github_evidence_is_absent_unless_a_caller_asks_for_it(monkeypatch):
     )
 
 
+def test_explicit_interactive_pr_scope_is_included_in_live_refresh(monkeypatch):
+    calls: list[int] = []
+    monkeypatch.setattr(context_receipt, "build_context_receipt", lambda *a, **k: _receipt())
+    monkeypatch.setattr(agent_coordination, "read_current_claims", lambda **k: [])
+    monkeypatch.setattr(agent_workspace, "list_inbox", lambda *a, **k: [])
+    monkeypatch.setattr(agent_workspace, "list_presence", lambda *a, **k: [])
+    monkeypatch.setattr(agent_workspace, "list_events", lambda *a, **k: [])
+
+    def pr_lookup(number: int) -> dict:
+        calls.append(number)
+        return {"state": co.SOURCE_CURRENT, "number": number, "head_sha": HEAD_A, "pr_state": "OPEN"}
+
+    evidence = co.collect_orientation_evidence(
+        "chatgpt",
+        include_builder=False,
+        explicit_scope={"scope_key": "github:pr:872"},
+        github_lookup=pr_lookup,
+        issue_lookup=None,
+        coordination_issue=None,
+    )
+
+    assert calls == [872]
+    assert any(item.get("locator") == "github:pr:872" for item in evidence.candidate_evidence)
+
+
+def test_check_rollup_preserves_every_returned_check():
+    rollup = [{"name": f"check-{index}", "conclusion": "SUCCESS"} for index in range(45)]
+
+    normalized = co._normalize_check_rollup(rollup)
+
+    assert normalized is not None
+    assert normalized["counts"]["success"] == 45
+    assert len(normalized["checks"]) == 45
+    assert normalized["checks"][-1]["name"] == "check-44"
+
+
+def test_failed_gh_read_preserves_exit_status_arguments_and_bounded_response(monkeypatch):
+    class Result:
+        returncode = 4
+        stderr = "authentication failed\nsecond diagnostic line"
+        stdout = "partial response context"
+
+    monkeypatch.setattr(co.shutil, "which", lambda _name: "/usr/bin/gh")
+    monkeypatch.setattr(co.subprocess, "run", lambda *a, **k: Result())
+
+    payload, error = co._run_gh_json(["gh", "pr", "view", "872", "--json", "state"])
+
+    assert payload is None
+    assert error is not None
+    assert "exit 4" in error
+    assert "pr view 872" in error
+    assert "second diagnostic line" in error
+    assert "partial response context" in error
+
+
 def test_github_evidence_items_bind_a_pr_and_the_coordination_marker():
     def pr_lookup(number):
         return {
