@@ -678,6 +678,112 @@ async def test_active_corpus_fts_treats_hyphenated_query_as_literal_terms(tmp_pa
     assert hits[0]["source"] == "Vehicle Manual"
 
 
+
+@pytest.mark.asyncio
+async def test_active_corpus_fts_filters_selected_expert_before_ranking(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text, "
+            "tokenize='porter unicode61')"
+        )
+        conn.execute(
+            "CREATE TABLE expert_membership ("
+            "expert TEXT NOT NULL, source_id TEXT NOT NULL, logical_unit_id TEXT NOT NULL, "
+            "PRIMARY KEY (expert, source_id))"
+        )
+        conn.executemany(
+            "INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                ("audio", "audio-src", "work:audio", "Audio Manual", "Audio Manual", "work:audio", "Audio Manual", "audio", "power", "manual", "1", "1", "power supply transistor service"),
+                ("vehicle", "vehicle-src", "work:vehicle", "Vehicle Manual", "Vehicle Manual", "work:vehicle", "Vehicle Manual", "automotive", "fuel", "service_manual", "44", "45", "power supply fuel service vehicle"),
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO expert_membership VALUES (?,?,?)",
+            [
+                ("electronics_audio", "audio-src", "work:audio"),
+                ("automotive", "vehicle-src", "work:vehicle"),
+                ("general_research", "audio-src", "work:audio"),
+                ("general_research", "vehicle-src", "work:vehicle"),
+            ],
+        )
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text("\n".join([
+        json.dumps({"source_id":"audio-src","sha256":"a"*64,"logical_unit_id":"work:audio","retrieval_title":"Audio Manual","expert_profiles":["electronics_audio","general_research"]}),
+        json.dumps({"source_id":"vehicle-src","sha256":"b"*64,"logical_unit_id":"work:vehicle","retrieval_title":"Vehicle Manual","expert_profiles":["automotive","general_research"]}),
+    ]) + "\n")
+    projection = tmp_path / "projection.json"
+    projection.write_text(json.dumps({"status":"active","fts_db":str(db),"source_manifest":str(manifest)}))
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+
+    hits = await knowledge.search("power supply service", limit=3, expert_profile="automotive")
+
+    assert [hit["source"] for hit in hits] == ["Vehicle Manual"]
+    assert hits[0]["evidence"]["expert_profiles"] == ["automotive", "general_research"]
+
+    general_hits = await knowledge.search(
+        "power supply service", limit=3, expert_profile="general_research"
+    )
+    assert {hit["source"] for hit in general_hits} == {"Audio Manual", "Vehicle Manual"}
+
+
+def test_active_corpus_experts_are_derived_from_active_manifest(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE expert_membership (expert TEXT, source_id TEXT, logical_unit_id TEXT)")
+        conn.executemany("INSERT INTO expert_membership VALUES (?,?,?)", [
+            ("automotive", "s1", "work:a"),
+            ("automotive", "s2", "work:a"),
+            ("automotive", "s3", "work:b"),
+        ])
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text("\n".join([
+        json.dumps({"source_id":"s1","logical_unit_id":"work:a","retrieval_title":"Manual A","expert_profiles":["automotive"],"subjects":["brakes"],"format":".pdf"}),
+        json.dumps({"source_id":"s2","logical_unit_id":"work:a","retrieval_title":"Manual A chapter","expert_profiles":["automotive"],"subjects":["brakes"],"format":".pdf"}),
+        json.dumps({"source_id":"s3","logical_unit_id":"work:b","retrieval_title":"Manual B","expert_profiles":["automotive"],"subjects":["fuel_system"],"format":".pdf"}),
+    ]) + "\n")
+    projection = tmp_path / "projection.json"
+    projection.write_text(json.dumps({"status":"active","fts_db":str(db),"source_manifest":str(manifest)}))
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+
+    state = knowledge.active_corpus_experts()
+
+    assert state["status"] == "active"
+    assert state["experts"] == [
+        {
+            "id": "automotive",
+            "label": "Automotive",
+            "book_count": 2,
+            "source_count": 3,
+            "tags": ["brakes", "fuel_system"],
+            "formats": [".pdf"],
+            "sample_title": "Manual A",
+        },
+        {
+            "id": "general_research",
+            "label": "General Research",
+            "book_count": 2,
+            "source_count": 3,
+            "tags": ["brakes", "fuel_system"],
+            "formats": [".pdf"],
+            "sample_title": "Manual A",
+        },
+    ]
+
 @pytest.mark.parametrize(
     ("query", "task_type", "competencies", "freshness", "authority", "diversity"),
     [

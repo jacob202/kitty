@@ -20,6 +20,7 @@ import re
 import sqlite3
 import time
 import uuid
+from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -97,7 +98,28 @@ class ExpertAnswerError(RuntimeError):
 
 
 class UnknownExpertError(ExpertAnswerError):
-    """Raised when a caller requests an expert profile that does not exist."""
+    """Raised when a caller requests a legacy local expert profile that does not exist."""
+
+
+class CorpusProjectionUnavailableError(KnowledgeSearchError):
+    """Raised when a selected corpus expert cannot reach an active evidence projection."""
+
+
+class UnknownCorpusExpertError(KnowledgeSearchError):
+    """Raised when a selected corpus retrieval profile is not active."""
+
+
+_EXPERT_LABELS = {
+    "electronics_audio": "Electronics & Audio",
+    "automotive": "Automotive",
+    "mechanical_systems": "Mechanical Systems",
+    "ai_software": "AI & Software",
+    "math_physics": "Math & Physics",
+    "mind_learning_communication": "Mind, Learning & Communication",
+    "health_biology": "Health & Biology",
+    "philosophy_humanities": "Philosophy & Humanities",
+    "general_research": "General Research",
+}
 
 
 _CURRENTNESS_WORDS = {"current", "today", "latest", "recent", "now", "2026"}
@@ -319,7 +341,7 @@ def _fts_query(query: str) -> str:
     return " OR ".join(f'"{term}"' for term in dict.fromkeys(terms))
 
 
-def _search_active_corpus_fts(query: str, limit: int) -> Optional[list[dict[str, Any]]]:
+def _active_corpus_projection() -> Optional[tuple[dict[str, Any], Path, Path]]:
     projection_path = Path(
         os.environ.get(
             "KITTY_CORPUS_RETRIEVAL_PROJECTION",
@@ -328,11 +350,124 @@ def _search_active_corpus_fts(query: str, limit: int) -> Optional[list[dict[str,
     ).expanduser()
     if not projection_path.exists():
         return None
-    projection = json.loads(projection_path.read_text(encoding="utf-8"))
-    if projection.get("status") != "active":
+    try:
+        projection = json.loads(projection_path.read_text(encoding="utf-8"))
+        if projection.get("status") != "active":
+            return None
+        db_path = _resolve_corpus_path(str(projection["fts_db"]))
+        manifest_path = _resolve_corpus_path(str(projection["source_manifest"]))
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise CorpusProjectionUnavailableError(
+            f"active expert corpus projection is unreadable: {type(exc).__name__}: {exc}"
+        ) from exc
+    if not db_path.exists() or not manifest_path.exists():
+        raise CorpusProjectionUnavailableError("active expert corpus projection is incomplete")
+    return projection, db_path, manifest_path
+
+
+def require_active_corpus_expert(expert_profile: str) -> str:
+    expert = expert_profile.strip()
+    if not expert:
+        raise UnknownCorpusExpertError("expert profile must be non-empty")
+    active = _active_corpus_projection()
+    if active is None:
+        raise CorpusProjectionUnavailableError("expert source corpus is not active")
+    _, db_path, _ = active
+    if expert == "general_research":
+        return expert
+    try:
+        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+            found = conn.execute(
+                "SELECT 1 FROM expert_membership WHERE expert=? LIMIT 1", (expert,)
+            ).fetchone()
+    except sqlite3.Error as exc:
+        raise CorpusProjectionUnavailableError(
+            f"active expert membership index is unavailable: {type(exc).__name__}: {exc}"
+        ) from exc
+    if found is None:
+        raise UnknownCorpusExpertError(f"unknown expert profile {expert!r}")
+    return expert
+
+
+def active_corpus_experts() -> dict[str, Any]:
+    """Project the active corpus's retrieval profiles for the product UI."""
+    active = _active_corpus_projection()
+    if active is None:
+        return {
+            "status": "unavailable",
+            "experts": [],
+            "message": "Expert source corpus is not active.",
+        }
+    _, _, manifest_path = active
+    try:
+        rows = [
+            json.loads(line)
+            for line in manifest_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    except (OSError, ValueError, TypeError) as exc:
+        raise CorpusProjectionUnavailableError(
+            f"active expert source manifest is unreadable: {type(exc).__name__}: {exc}"
+        ) from exc
+
+    aggregate: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        source_id = str(row.get("source_id") or "")
+        logical_unit_id = str(row.get("logical_unit_id") or source_id)
+        title = str(row.get("retrieval_title") or row.get("title") or "")
+        profiles = [
+            expert for expert in (row.get("expert_profiles") or [])
+            if isinstance(expert, str) and expert
+        ]
+        if "general_research" not in profiles:
+            profiles.append("general_research")
+        for expert in profiles:
+            info = aggregate.setdefault(
+                expert,
+                {
+                    "source_ids": set(),
+                    "logical_units": set(),
+                    "subjects": Counter(),
+                    "formats": set(),
+                    "sample_title": "",
+                },
+            )
+            if source_id:
+                info["source_ids"].add(source_id)
+            if logical_unit_id:
+                info["logical_units"].add(logical_unit_id)
+            info["subjects"].update(str(item) for item in row.get("subjects") or [] if item)
+            fmt = str(row.get("format") or "")
+            if fmt:
+                info["formats"].add(fmt)
+            if title and not info["sample_title"]:
+                info["sample_title"] = title
+
+    experts: list[dict[str, Any]] = []
+    for expert, info in aggregate.items():
+        tags = sorted(info["subjects"], key=lambda tag: (-info["subjects"][tag], tag))[:5]
+        experts.append(
+            {
+                "id": expert,
+                "label": _EXPERT_LABELS.get(expert, expert.replace("_", " ").title()),
+                "book_count": len(info["logical_units"]),
+                "source_count": len(info["source_ids"]),
+                "tags": tags,
+                "formats": sorted(info["formats"]),
+                "sample_title": info["sample_title"],
+            }
+        )
+    experts.sort(key=lambda item: (-int(item["book_count"]), str(item["label"])))
+    return {"status": "active", "experts": experts}
+
+
+def _search_active_corpus_fts(
+    query: str, limit: int, *, expert_profile: str | None = None
+) -> Optional[list[dict[str, Any]]]:
+    active = _active_corpus_projection()
+    if active is None:
         return None
-    db_path = _resolve_corpus_path(str(projection["fts_db"]))
-    manifest_path = _resolve_corpus_path(str(projection["source_manifest"]))
+    _, db_path, manifest_path = active
     source_rows = {
         row["source_id"]: row
         for row in (json.loads(line) for line in manifest_path.read_text(encoding="utf-8").splitlines() if line.strip())
@@ -341,12 +476,23 @@ def _search_active_corpus_fts(query: str, limit: int) -> Optional[list[dict[str,
     if not match_query:
         return []
     with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
-        rows = conn.execute(
-            "SELECT chunk_id,source_id,logical_unit_id,source_title,retrieval_title,work_id,work_title,"
-            "domains,subjects,doc_type,locator_start,locator_end,text,bm25(chunks) "
-            "FROM chunks WHERE chunks MATCH ? ORDER BY bm25(chunks) LIMIT ?",
-            (match_query, max(limit * 8, limit)),
-        ).fetchall()
+        expert = require_active_corpus_expert(expert_profile) if expert_profile else None
+        if expert and expert != "general_research":
+            rows = conn.execute(
+                "SELECT chunks.chunk_id,chunks.source_id,chunks.logical_unit_id,chunks.source_title,"
+                "chunks.retrieval_title,chunks.work_id,chunks.work_title,chunks.domains,chunks.subjects,"
+                "chunks.doc_type,chunks.locator_start,chunks.locator_end,chunks.text,bm25(chunks) "
+                "FROM chunks JOIN expert_membership em ON em.source_id=chunks.source_id "
+                "WHERE chunks MATCH ? AND em.expert=? ORDER BY bm25(chunks) LIMIT ?",
+                (match_query, expert, max(limit * 8, limit)),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT chunk_id,source_id,logical_unit_id,source_title,retrieval_title,work_id,work_title,"
+                "domains,subjects,doc_type,locator_start,locator_end,text,bm25(chunks) "
+                "FROM chunks WHERE chunks MATCH ? ORDER BY bm25(chunks) LIMIT ?",
+                (match_query, max(limit * 8, limit)),
+            ).fetchall()
     hits: list[dict[str, Any]] = []
     seen_units: set[str] = set()
     for rank, row in enumerate(rows, start=1):
@@ -492,6 +638,7 @@ async def search(
     collections: Optional[list[str]] = None,
     sort_by: str = "relevance",
     stitch_context: bool = True,
+    expert_profile: str | None = None,
 ) -> List[Dict[str, Any]]:
     """Unified search with optional context stitching."""
     use_corpus_projection = (
@@ -499,10 +646,18 @@ async def search(
         and sensitivity_filter in (None, "low")
         and (not collections or set(collections) == {"expert_corpus_evidence"})
     )
+    if expert_profile and not use_corpus_projection:
+        raise KnowledgeSearchError(
+            "expert-scoped retrieval requires the active corpus relevance index"
+        )
     if use_corpus_projection:
-        corpus_hits = _search_active_corpus_fts(query, limit)
+        corpus_hits = _search_active_corpus_fts(
+            query, limit, expert_profile=expert_profile
+        )
         if corpus_hits is not None:
             return corpus_hits
+        if expert_profile:
+            raise CorpusProjectionUnavailableError("expert source corpus is not active")
     try:
         query_embedding = list(archivist._embed_cached(query))
         where = _build_search_filter(sensitivity_filter, collections)

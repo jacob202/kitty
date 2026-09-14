@@ -510,6 +510,30 @@ def test_expert_route_rejects_whitespace_query(client):
     assert response.status_code == 422
 
 
+
+def test_experts_route_reports_unavailable_instead_of_empty_success(client):
+    with patch("gateway.knowledge.active_corpus_experts", return_value={
+        "status": "unavailable", "experts": [], "message": "Expert source corpus is not active."
+    }):
+        response = client.get("/knowledge/experts")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "unavailable", "experts": [], "message": "Expert source corpus is not active."
+    }
+
+
+def test_experts_route_returns_active_corpus_profiles(client):
+    profile = {
+        "id": "automotive", "label": "Automotive", "book_count": 18, "source_count": 18,
+        "tags": ["automotive_diagnostics"], "formats": [".pdf"], "sample_title": "Honda Ridgeline Service Manual",
+    }
+    with patch("gateway.knowledge.active_corpus_experts", return_value={"status": "active", "experts": [profile]}):
+        response = client.get("/knowledge/experts")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "active", "experts": [profile]}
+
 # --- SSRF protection regression tests (issue #158) ---
 
 

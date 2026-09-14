@@ -270,7 +270,10 @@ class MemoryAdapter(StoreAdapter):
 
 
 class KnowledgeAdapter(StoreAdapter):
-    """Adapter for ChromaDB-based knowledge store."""
+    """Adapter for knowledge retrieval, optionally scoped to one corpus profile."""
+
+    def __init__(self, expert_profile: str | None = None):
+        self._expert_profile = expert_profile
 
     @property
     def name(self) -> str:
@@ -279,7 +282,10 @@ class KnowledgeAdapter(StoreAdapter):
     async def fetch(self, query: str) -> list[Item]:
         from gateway.knowledge import search
 
-        rows = await search(query, limit=5)
+        if self._expert_profile:
+            rows = await search(query, limit=5, expert_profile=self._expert_profile)
+        else:
+            rows = await search(query, limit=5)
         items: list[Item] = []
         for c in rows:
             if not isinstance(c, dict):
@@ -582,13 +588,13 @@ class WeaveAdapter(StoreAdapter):
 # --- Adapter registry ---
 
 
-def _default_adapters() -> list[StoreAdapter]:
+def _default_adapters(*, knowledge_profile: str | None = None) -> list[StoreAdapter]:
     """The active store adapters. MemPalace is appended only when enabled."""
     adapters: list[StoreAdapter] = [
         ProjectAdapter(),
         ExplicitMemoryAdapter(),
         MemoryAdapter(),
-        KnowledgeAdapter(),
+        KnowledgeAdapter(expert_profile=knowledge_profile),
         JournalAdapter(),
         TracesAdapter(),
         TodosAdapter(),

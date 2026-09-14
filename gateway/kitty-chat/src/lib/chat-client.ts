@@ -107,6 +107,7 @@ export async function* streamChat(
   userMessageId?: string,
   conversationTitle?: string,
   attachmentIds?: string[],
+  expertId?: string,
 ): AsyncGenerator<StreamChunk> {
   const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user');
   const latestAttachments = latestUserMessage?.attachments ?? [];
@@ -137,6 +138,7 @@ export async function* streamChat(
       ...(conversationTitle === undefined ? {} : { conversation_title: conversationTitle }),
       ...(attachmentIds === undefined ? {} : { attachment_ids: attachmentIds }),
       ...(pilotAttachmentIds === undefined ? {} : { image_attachment_ids: pilotAttachmentIds }),
+      ...(expertId === undefined ? {} : { expert_id: expertId }),
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     }),
     signal,

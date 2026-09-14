@@ -412,6 +412,61 @@ def test_thread_objective_reaches_lifecycle_and_context():
     assert mock_assemble.call_args.kwargs["objective"] == "Submit one application"
 
 
+
+def test_selected_expert_is_validated_scoped_into_context_and_not_forwarded_upstream():
+    seen = {}
+    mock_assemble = AsyncMock(return_value=ContextBundle(system="EXPERT_SYSTEM"))
+
+    async def fake_stream(payload):
+        seen.update(payload)
+        yield DONE_CHUNK
+
+    with patch("gateway.routes.completions.classify_domain", return_value="soul"), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.knowledge.require_active_corpus_expert", return_value=None
+    ) as validate, patch(
+        "gateway.context_assembler.assemble_context", new=mock_assemble
+    ), patch(
+        "gateway.routes.completions.iter_chat_completions_stream", new=fake_stream
+    ):
+        from gateway.app import app
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "model": "kitty-default",
+                "stream": True,
+                "expert_id": "automotive",
+                "messages": [{"role": "user", "content": "rear brake service"}],
+            },
+        )
+
+    assert response.status_code == 200
+    validate.assert_called_once_with("automotive")
+    assert mock_assemble.call_args.kwargs["expert_profile"] == "automotive"
+    assert "expert_id" not in seen
+
+
+def test_selected_expert_fails_closed_when_profile_is_not_active():
+    from gateway.knowledge import UnknownCorpusExpertError
+
+    with patch(
+        "gateway.knowledge.require_active_corpus_expert",
+        side_effect=UnknownCorpusExpertError("unknown expert profile 'made_up'"),
+    ):
+        from gateway.app import app
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "stream": False,
+                "expert_id": "made_up",
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+
+    assert response.status_code == 400
+    assert "unknown expert profile" in response.json()["detail"]
+
 def test_chat_completions_non_stream_health_uses_route_model_and_passes_domain():
     """Health domain goes through route_model (no longer hardcoded kitty-private)."""
     mock_resp = MagicMock()

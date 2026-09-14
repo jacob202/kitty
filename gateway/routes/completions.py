@@ -560,6 +560,24 @@ async def chat_completions(request: Request):
     on_request_start()
 
     body = await request.json()
+    raw_expert_id = body.get("expert_id")
+    if raw_expert_id is not None and (
+        not isinstance(raw_expert_id, str) or not raw_expert_id.strip()
+    ):
+        raise HTTPException(status_code=400, detail="expert_id must be a non-empty string")
+    expert_id = raw_expert_id.strip() if isinstance(raw_expert_id, str) else None
+    if expert_id:
+        from gateway import knowledge
+
+        try:
+            knowledge.require_active_corpus_expert(expert_id)
+        except knowledge.UnknownCorpusExpertError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except knowledge.CorpusProjectionUnavailableError as exc:
+            raise HTTPException(
+                status_code=503, detail="Expert sources are unavailable right now."
+            ) from exc
+
     raw_project_id = body.get("project_id")
     if raw_project_id is not None and (
         isinstance(raw_project_id, bool)
@@ -649,6 +667,9 @@ async def chat_completions(request: Request):
         on_request_error()
         raise
     tier = classification.tier
+    if expert_id and tier == "trivial":
+        # Selecting an expert is an explicit request for source-grounded context.
+        tier = "standard"
     trigger = classification.trigger
     t_classified = time.monotonic()
     logger.info(
@@ -801,6 +822,7 @@ async def chat_completions(request: Request):
             domain=domain,
             objective=thread_objective,
             tier=tier,
+            expert_profile=expert_id,
         )
         assert_not_total_failure(bundle)
         if explicit_context_warnings:
@@ -871,6 +893,7 @@ async def chat_completions(request: Request):
         "user_message_id",
         "content_class",
         "image_attachment_ids",
+        "expert_id",
     }
     if not caller_supplies_tools:
         # Nothing on this side executes a tool call, so an unaccompanied schema
@@ -921,6 +944,7 @@ async def chat_completions(request: Request):
       "message_content_chars": upstream_chars,
       "system_prompt_chars": len(system_prompt),
       "memory_items_injected": len(bundle.injected_memory_items),
+      "expert_profile": expert_id,
       "preprocessing_ms": int((time.monotonic() - t_start) * 1000),
       "tool_execution": "caller" if caller_supplies_tools else "unavailable",
   },
