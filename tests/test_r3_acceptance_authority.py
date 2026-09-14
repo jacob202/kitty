@@ -103,9 +103,34 @@ def test_local_operator_stamps_trusted_identity_and_exact_provenance(
         db_path=db_path,
     )
     monkeypatch.setattr(mission_runtime, "_reviewed_builder_result", lambda mission: candidate)
-    monkeypatch.setattr(mission_runtime.repo_tools, "repo_head", lambda: "f" * 40)
     isolated_data = tmp_path / "isolated-data"
-    monkeypatch.setattr(mission_runtime, "DATA_DIR", isolated_data)
+    runtime_identity = {
+        "gateway": {
+            "pid": 101,
+            "cwd": str(tmp_path),
+            "root": str(tmp_path),
+            "commit": "d" * 40,
+            "manifest_revision": "runtime-proof",
+        },
+        "ui": {
+            "pid": "202",
+            "root": str(tmp_path),
+            "build_id": "ui-proof",
+            "commit": "d" * 40,
+        },
+        "data_root": str(isolated_data.resolve()),
+    }
+    seen_review_shas: list[str] = []
+
+    def runtime_probe(expected_review_sha: str) -> dict:
+        seen_review_shas.append(expected_review_sha)
+        return runtime_identity
+
+    monkeypatch.setattr(
+        mission_runtime,
+        "_running_product_runtime_identity",
+        runtime_probe,
+    )
 
     accepted = mission_runtime.record_running_product_acceptance(
         "r3-acceptance",
@@ -118,8 +143,10 @@ def test_local_operator_stamps_trusted_identity_and_exact_provenance(
     assert accepted["status"] == "DONE"
     assert accepted["acceptance"]["reviewer_id"] == mission_runtime._LOCAL_ACCEPTANCE_REVIEWER_ID
     proof = accepted["acceptance"]["evidence"]
-    assert proof["running_sha"] == "f" * 40
+    assert seen_review_shas == ["d" * 40]
     assert proof["data_root"] == str(isolated_data.resolve())
+    assert proof["running_sha"] == "d" * 40
+    assert proof["runtime_identity"] == runtime_identity
     assert proof["candidate_ref"] == candidate_ref
     assert proof["candidate_digest"] == candidate["candidate_digest"]
     assert proof["artifact_provenance"]["base_sha"] == "a" * 40
@@ -193,3 +220,145 @@ def test_reconcile_result_candidate_propagates_source_failure(
 
     with pytest.raises(mission_runtime.ResultCandidateUnavailable, match="artifact disappeared"):
         mission_runtime.reconcile_result_candidate("r3-source-failure")
+
+
+def _runtime_manifest(root: Path, data_root: Path, sha: str) -> dict:
+    return {
+        "revision": "runtime-proof",
+        "context": {
+            "repository": {
+                "state": "available",
+                "value": {
+                    "root": str(root),
+                    "branch": "acceptance",
+                    "commit": sha,
+                    "dirty": False,
+                    "changed_paths": 0,
+                },
+            }
+        },
+        "storage": {
+            "data_root": {
+                "state": "available",
+                "value": str(data_root),
+            }
+        },
+    }
+
+
+def _ui_runtime(root: Path, sha: str) -> dict[str, str]:
+    return {
+        "state": "checkout-current",
+        "build_id": "ui-build-proof",
+        "build_source": sha,
+        "source_sha": sha,
+        "source_state": "clean",
+        "runtime_root": str(root),
+        "runtime_pid": "202",
+    }
+
+
+def test_runtime_identity_binds_actual_gateway_and_ui_to_reviewed_sha(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "candidate"
+    root.mkdir()
+    data_root = tmp_path / "isolated-data"
+    sha = "d" * 40
+    monkeypatch.setattr(mission_runtime, "DATA_DIR", data_root)
+    monkeypatch.setattr(
+        mission_runtime.doctor,
+        "_gateway_process_info",
+        lambda **kwargs: {"state": "running", "pid": 101, "cwd": str(root)},
+    )
+    monkeypatch.setattr(
+        mission_runtime,
+        "_gateway_runtime_manifest",
+        lambda **kwargs: _runtime_manifest(root, data_root, sha),
+    )
+    monkeypatch.setattr(
+        mission_runtime.doctor,
+        "_ui_runtime_provenance",
+        lambda **kwargs: _ui_runtime(root, sha),
+    )
+
+    identity = mission_runtime._running_product_runtime_identity(sha)
+
+    assert identity["gateway"]["commit"] == sha
+    assert identity["ui"]["commit"] == sha
+    assert identity["gateway"]["root"] == identity["ui"]["root"] == str(root.resolve())
+    assert identity["data_root"] == str(data_root.resolve())
+
+
+def test_runtime_identity_rejects_gateway_at_other_sha(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "candidate"
+    root.mkdir()
+    data_root = tmp_path / "isolated-data"
+    monkeypatch.setattr(mission_runtime, "DATA_DIR", data_root)
+    monkeypatch.setattr(
+        mission_runtime.doctor,
+        "_gateway_process_info",
+        lambda **kwargs: {"state": "running", "pid": 101, "cwd": str(root)},
+    )
+    monkeypatch.setattr(
+        mission_runtime,
+        "_gateway_runtime_manifest",
+        lambda **kwargs: _runtime_manifest(root, data_root, "e" * 40),
+    )
+
+    with pytest.raises(mission_runtime.ResultCandidateUnavailable, match="expected reviewed SHA"):
+        mission_runtime._running_product_runtime_identity("d" * 40)
+
+
+def test_runtime_identity_rejects_ui_at_other_sha(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "candidate"
+    root.mkdir()
+    data_root = tmp_path / "isolated-data"
+    sha = "d" * 40
+    monkeypatch.setattr(mission_runtime, "DATA_DIR", data_root)
+    monkeypatch.setattr(
+        mission_runtime.doctor,
+        "_gateway_process_info",
+        lambda **kwargs: {"state": "running", "pid": 101, "cwd": str(root)},
+    )
+    monkeypatch.setattr(
+        mission_runtime,
+        "_gateway_runtime_manifest",
+        lambda **kwargs: _runtime_manifest(root, data_root, sha),
+    )
+    monkeypatch.setattr(
+        mission_runtime.doctor,
+        "_ui_runtime_provenance",
+        lambda **kwargs: _ui_runtime(root, "e" * 40),
+    )
+
+    with pytest.raises(mission_runtime.ResultCandidateUnavailable, match="UI is not serving"):
+        mission_runtime._running_product_runtime_identity(sha)
+
+
+def test_runtime_identity_rejects_other_gateway_data_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "candidate"
+    root.mkdir()
+    expected_data = tmp_path / "expected-data"
+    actual_data = tmp_path / "other-data"
+    sha = "d" * 40
+    monkeypatch.setattr(mission_runtime, "DATA_DIR", expected_data)
+    monkeypatch.setattr(
+        mission_runtime.doctor,
+        "_gateway_process_info",
+        lambda **kwargs: {"state": "running", "pid": 101, "cwd": str(root)},
+    )
+    monkeypatch.setattr(
+        mission_runtime,
+        "_gateway_runtime_manifest",
+        lambda **kwargs: _runtime_manifest(root, actual_data, sha),
+    )
+
+    with pytest.raises(mission_runtime.ResultCandidateUnavailable, match="does not match operator data root"):
+        mission_runtime._running_product_runtime_identity(sha)

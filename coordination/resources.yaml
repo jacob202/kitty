@@ -154,6 +154,7 @@ resources:
     - tests/test_mcp_builder_repo_tools.py
     - tests/test_paths_builder_canonical.py
     - tests/test_pre_push_gate.py
+    - tests/test_runtime_manifest.py
     - tests/test_session_end_audit.py
     - tests/test_skill_registry.py
     - tests/test_start_ui_script.py

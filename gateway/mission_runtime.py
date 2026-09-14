@@ -6,8 +6,11 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
+
+import httpx
 
 from gateway import (
     artifact_store,
@@ -16,6 +19,7 @@ from gateway import (
     builder_loop,
     builder_queue,
     builder_status_readonly,
+    doctor,
     memory_mission,
 )
 from gateway import builder_initiative as bi
@@ -328,6 +332,130 @@ def _validated_running_product_evidence(evidence: dict[str, Any], *, verdict: st
     return normalized
 
 
+def _runtime_port(name: str, default: int) -> int:
+    raw = os.environ.get(name, str(default)).strip()
+    try:
+        port = int(raw)
+    except ValueError as exc:
+        raise ResultCandidateUnavailable(f"invalid {name}: {raw!r}") from exc
+    if not 1 <= port <= 65535:
+        raise ResultCandidateUnavailable(f"invalid {name}: {port}")
+    return port
+
+
+def _gateway_runtime_manifest(*, port: int) -> dict[str, Any]:
+    secret = os.environ.get("GATEWAY_SECRET", "").strip()
+    if not secret:
+        raise ResultCandidateUnavailable("GATEWAY_SECRET is unavailable for runtime identity probe")
+    try:
+        response = httpx.get(
+            f"http://127.0.0.1:{port}/runtime/manifest",
+            headers={"Authorization": f"Bearer {secret}"},
+            timeout=3.0,
+        )
+    except httpx.HTTPError as exc:
+        raise ResultCandidateUnavailable(f"Gateway runtime manifest probe failed: {exc}") from exc
+    if response.status_code != 200:
+        raise ResultCandidateUnavailable(
+            f"Gateway runtime manifest probe returned HTTP {response.status_code}"
+        )
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise ResultCandidateUnavailable("Gateway runtime manifest returned invalid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ResultCandidateUnavailable("Gateway runtime manifest is malformed")
+    return payload
+
+
+def _running_product_runtime_identity(expected_review_sha: str) -> dict[str, Any]:
+    """Prove the actual Gateway/UI listeners are serving the reviewed candidate."""
+    gateway_port = _runtime_port("GATEWAY_PORT", 8000)
+    ui_port = _runtime_port("UI_PORT", 4000)
+
+    process = doctor._gateway_process_info(port=gateway_port)
+    if process.get("state") != "running":
+        raise ResultCandidateUnavailable(
+            "Gateway runtime identity is unavailable: "
+            + str(process.get("error") or process.get("state"))
+        )
+
+    manifest = _gateway_runtime_manifest(port=gateway_port)
+    context = manifest.get("context")
+    if not isinstance(context, dict):
+        raise ResultCandidateUnavailable("Gateway runtime context is malformed")
+    repository = context.get("repository")
+    if not isinstance(repository, dict) or repository.get("state") != "available":
+        raise ResultCandidateUnavailable("Gateway runtime repository identity is unavailable")
+    repo_value = repository.get("value")
+    if not isinstance(repo_value, dict):
+        raise ResultCandidateUnavailable("Gateway runtime repository identity is malformed")
+    runtime_root_raw = repo_value.get("root")
+    running_sha = repo_value.get("commit")
+    if not isinstance(runtime_root_raw, str) or not runtime_root_raw.strip():
+        raise ResultCandidateUnavailable("Gateway runtime root is unavailable")
+    runtime_root = Path(runtime_root_raw).resolve()
+    if running_sha != expected_review_sha:
+        raise ResultCandidateUnavailable(
+            f"Gateway is serving {running_sha!r}, expected reviewed SHA {expected_review_sha}"
+        )
+    if repo_value.get("dirty") is not False:
+        raise ResultCandidateUnavailable("Gateway runtime checkout is not clean")
+
+    cwd_raw = process.get("cwd")
+    if not isinstance(cwd_raw, str) or not cwd_raw.strip():
+        raise ResultCandidateUnavailable("Gateway listener cwd is unavailable")
+    cwd = Path(cwd_raw).resolve()
+    if cwd != runtime_root and runtime_root not in cwd.parents:
+        raise ResultCandidateUnavailable("Gateway listener cwd does not belong to runtime checkout")
+
+    storage = manifest.get("storage")
+    if not isinstance(storage, dict):
+        raise ResultCandidateUnavailable("Gateway runtime storage identity is malformed")
+    data_root_fact = storage.get("data_root")
+    if not isinstance(data_root_fact, dict) or data_root_fact.get("state") != "available":
+        raise ResultCandidateUnavailable("Gateway runtime data-root identity is unavailable")
+    runtime_data_root_raw = data_root_fact.get("value")
+    if not isinstance(runtime_data_root_raw, str) or not runtime_data_root_raw.strip():
+        raise ResultCandidateUnavailable("Gateway runtime data-root identity is malformed")
+    runtime_data_root = Path(runtime_data_root_raw).resolve()
+    expected_data_root = DATA_DIR.resolve()
+    if runtime_data_root != expected_data_root:
+        raise ResultCandidateUnavailable(
+            f"Gateway data root {runtime_data_root} does not match operator data root {expected_data_root}"
+        )
+
+    ui = doctor._ui_runtime_provenance(port=ui_port)
+    if ui.get("state") != "checkout-current":
+        raise ResultCandidateUnavailable(
+            "UI runtime identity is unavailable or stale: " + str(ui.get("state"))
+        )
+    if ui.get("build_source") != expected_review_sha or ui.get("source_sha") != expected_review_sha:
+        raise ResultCandidateUnavailable("UI is not serving the reviewed candidate SHA")
+    if ui.get("source_state") != "clean":
+        raise ResultCandidateUnavailable("UI runtime checkout is not clean")
+    ui_root_raw = ui.get("runtime_root")
+    if not isinstance(ui_root_raw, str) or Path(ui_root_raw).resolve() != runtime_root:
+        raise ResultCandidateUnavailable("Gateway and UI are not serving the same runtime checkout")
+
+    return {
+        "gateway": {
+            "pid": process.get("pid"),
+            "cwd": str(cwd),
+            "root": str(runtime_root),
+            "commit": running_sha,
+            "manifest_revision": manifest.get("revision"),
+        },
+        "ui": {
+            "pid": ui.get("runtime_pid"),
+            "root": str(runtime_root),
+            "build_id": ui.get("build_id"),
+            "commit": ui.get("build_source"),
+        },
+        "data_root": str(runtime_data_root),
+    }
+
+
 def record_running_product_acceptance(
     mission_id: str,
     *,
@@ -356,12 +484,14 @@ def record_running_product_acceptance(
     if reviewed_ref != candidate_ref or reviewed_digest != candidate_digest:
         raise memory_mission.MissionError("acceptance candidate does not match reviewed Builder provenance")
     validated = _validated_running_product_evidence(evidence, verdict=verdict)
+    runtime_identity = _running_product_runtime_identity(reviewed["review_sha"])
     validated.update(
         {
             "candidate_ref": candidate_ref,
             "candidate_digest": candidate_digest,
-            "running_sha": repo_tools.repo_head(),
-            "data_root": str(DATA_DIR.resolve()),
+            "running_sha": runtime_identity["gateway"]["commit"],
+            "data_root": runtime_identity["data_root"],
+            "runtime_identity": runtime_identity,
             "artifact_provenance": {
                 "artifact_id": reviewed["artifact_id"],
                 "content_hash": reviewed["content_hash"],
