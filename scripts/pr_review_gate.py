@@ -49,19 +49,17 @@ def _agent_body_has_rubric_fields(body: str) -> bool:
     return any(re.search(pattern, body) for pattern in _AGENT_FINDING_MARKERS)
 
 
-def _agent_body_could_be_a_finding(body: str) -> bool:
-    """True when a body without the sentinel could plausibly be a finding.
+def agent_review_confirmed_finding(comment: dict[str, Any], head_sha: str) -> bool:
+    """A marker-bound exact-head review carrying the rubric's explicit finding fields.
 
-    The rubric requires a finding to name the changed file, so the explicit fields or
-    a file/path-shaped token qualify. Used ONLY to choose the failure message; it
-    never decides whether to block.
+    Used ONLY to choose the failure message; it never decides whether to block. A
+    path mention is deliberately NOT sufficient: stalled process narration routinely
+    names a file ("I need to inspect scripts/pr_review_gate.py before deciding"), and
+    treating that as a finding reproduces the misdiagnosis this change exists to
+    remove.
     """
-    if _agent_body_has_rubric_fields(body):
-        return True
-    return bool(re.search(
-        r"(?:[\w.-]+/)+[\w.-]+|[\w-]+\.(?:py|ts|tsx|js|jsx|json|ya?ml|md|sql|sh|toml|cfg|ini|txt)\b",
-        body,
-    ))
+    body = _agent_exact_head_body(comment, head_sha)
+    return bool(body and _agent_body_has_rubric_fields(body))
 
 
 def _agent_body_has_no_findings(body: str) -> bool:
@@ -100,11 +98,8 @@ def agent_review_unusable(comment: dict[str, Any], head_sha: str) -> bool:
     finding that was never produced. It still fails the gate -- an unusable review is
     not an approval -- but it is reported as what it is.
     """
-    body = _agent_exact_head_body(comment, head_sha)
-    return bool(
-        body
-        and not _agent_body_has_no_findings(body)
-        and not _agent_body_could_be_a_finding(body)
+    return agent_review_blocked(comment, head_sha) and not agent_review_confirmed_finding(
+        comment, head_sha
     )
 
 
@@ -166,14 +161,15 @@ def evaluate_review_gate(
     if blocking:
         # Both outcomes block. The distinction is diagnostic: a stalled review that
         # emitted nothing usable must not be reported as a defect that was found.
-        if any(not agent_review_unusable(comment, head_sha) for comment in blocking):
+        if any(agent_review_confirmed_finding(comment, head_sha) for comment in blocking):
             return False, (
                 f"Blocking GitHub agent review finding exists for exact head {head_sha}."
             )
         return False, (
-            f"GitHub agent review produced no usable verdict for exact head {head_sha}: "
-            "a marker-bound comment carries neither the no-findings sentinel nor a "
-            "structured finding, so the review stalled or was truncated."
+            f"GitHub agent review for exact head {head_sha} is not a parseable verdict "
+            "and no finding could be confirmed: the bound comment carries neither the "
+            "no-findings sentinel nor the rubric's Failure Mode / Corrective Action "
+            "fields, so any claim in it is unverified."
         )
     if any(
         builder_review_verdict(comment, head_sha, trusted) in {"request_changes", "reject"}

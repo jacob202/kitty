@@ -173,14 +173,40 @@ def test_stalled_review_is_reported_as_no_verdict_not_a_finding() -> None:
 
     ok, reason = pr_review_gate.evaluate_review_gate(pr, [stalled], repo_owner="jacob202")
     assert not ok, "an unusable review must never approve"
-    assert "no usable verdict" in reason
+    assert "not a parseable verdict" in reason
+    assert "no finding could be confirmed" in reason
     assert "Blocking GitHub agent review finding exists" not in reason
 
 
-def test_finding_without_rubric_fields_still_reports_a_blocking_finding() -> None:
-    """The distinction is diagnostic only: a body naming a file is still a finding."""
+def test_path_bearing_narration_is_not_reported_as_a_finding() -> None:
+    """Naming a file must not turn stalled narration into a finding.
+
+    Regression (review finding): a path-only heuristic classified
+    "I need to inspect scripts/pr_review_gate.py before deciding" as a finding, so the
+    operator still saw a nonexistent blocking defect. Only the rubric's explicit
+    fields confirm a finding now.
+    """
+    narration = _comment(
+        pr_review.render_review_body(
+            "I need to inspect scripts/pr_review_gate.py before deciding.", SHA
+        ),
+        "github-actions[bot]",
+        user_type="Bot",
+    )
+    pr = {"head": {"sha": SHA}, "body": "", "labels": []}
+
+    ok, reason = pr_review_gate.evaluate_review_gate(pr, [narration], repo_owner="jacob202")
+    assert not ok
+    assert "not a parseable verdict" in reason
+    assert "Blocking GitHub agent review finding exists" not in reason
+
+
+def test_rubric_field_finding_still_reports_a_blocking_finding() -> None:
+    """A body carrying the rubric's fields is a confirmed finding."""
     finding = _comment(
-        pr_review.render_review_body("- gateway/x.py: exact broken outcome", SHA),
+        pr_review.render_review_body(
+            "Failure Mode: the retry loop double-charges on timeout.", SHA
+        ),
         "github-actions[bot]",
         user_type="Bot",
     )
