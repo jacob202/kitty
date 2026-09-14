@@ -29,6 +29,7 @@ from mcp.builder import repo_tools
 ACTION_NAME = "mission.review_pending"
 _REVIEW_TIMEOUT_SECONDS = 240
 _LOCAL_ACCEPTANCE_REVIEWER_ID = "local:r3-running-product-operator"
+_RESULT_CANDIDATE_ACTIVE_STATUSES = ("EXECUTING", "VERIFYING", "REPAIRING")
 _REQUIRED_RUNNING_STATES = ("desktop", "iphone_class", "happy", "degraded", "reload", "recovery")
 logger = logging.getLogger("kitty.mission_runtime")
 
@@ -274,7 +275,7 @@ def _reviewed_builder_result(mission: dict[str, Any]) -> dict[str, Any] | None:
 def reconcile_result_candidate(mission_id: str) -> dict[str, Any]:
     """Bind finished reviewed Builder work as the exact Mission candidate, never acceptance."""
     mission = memory_mission.get_mission(mission_id, db_path=memory_mission.MISSION_DB_FILE)
-    if mission["status"] in {"DONE", "STOPPED"}:
+    if mission["status"] not in _RESULT_CANDIDATE_ACTIVE_STATUSES:
         return {"status": "not_pending", "mission_id": mission_id}
     candidate = _reviewed_builder_result(mission)
     if candidate is None:
@@ -284,12 +285,19 @@ def reconcile_result_candidate(mission_id: str) -> dict[str, Any]:
     current = mission.get("candidate") or {}
     if current.get("ref") == candidate_ref and current.get("digest") == candidate_digest:
         return {"status": "already_bound", "mission_id": mission_id, "candidate": current}
-    mission = memory_mission.record_candidate(
-        mission_id,
-        candidate_ref=candidate_ref,
-        candidate_digest=candidate_digest,
-        db_path=memory_mission.MISSION_DB_FILE,
-    )
+    try:
+        mission = memory_mission.record_candidate(
+            mission_id,
+            candidate_ref=candidate_ref,
+            candidate_digest=candidate_digest,
+            expected_statuses=_RESULT_CANDIDATE_ACTIVE_STATUSES,
+            db_path=memory_mission.MISSION_DB_FILE,
+        )
+    except memory_mission.MissionError:
+        latest = memory_mission.get_mission(mission_id, db_path=memory_mission.MISSION_DB_FILE)
+        if latest["status"] not in _RESULT_CANDIDATE_ACTIVE_STATUSES:
+            return {"status": "not_pending", "mission_id": mission_id}
+        raise
     return {
         "status": "candidate_bound",
         "mission_id": mission_id,

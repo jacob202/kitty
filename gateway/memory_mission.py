@@ -986,6 +986,7 @@ def record_notification_delivery(
 
 def record_candidate(
     mission_id: str, *, candidate_ref: str, candidate_digest: str,
+    expected_statuses: tuple[str, ...] | None = None,
     db_path: Path = MISSION_DB_FILE,
 ) -> dict[str, Any]:
     candidate_ref = _required_text(candidate_ref, "candidate_ref")
@@ -995,16 +996,29 @@ def record_candidate(
         raise MissionError("stopped Mission cannot receive a candidate")
     if mission["status"] == "DONE":
         raise MissionError("completed Mission cannot receive a candidate")
+    if expected_statuses is not None:
+        expected_statuses = tuple(_required_text(value, "expected_status") for value in expected_statuses)
+        if not expected_statuses:
+            raise MissionError("expected_statuses cannot be empty")
+        if mission["status"] not in expected_statuses:
+            raise MissionError("Mission status changed before candidate update")
     now = time.time()
     with kitty_db.connect(db_path) as conn:
+        where = "WHERE mission_id=? AND status NOT IN ('STOPPED','DONE')"
+        params: tuple[Any, ...] = (candidate_ref, candidate_digest, now, mission_id)
+        if expected_statuses is not None:
+            placeholders = ",".join("?" for _ in expected_statuses)
+            where += f" AND status IN ({placeholders})"
+            params = (*params, *expected_statuses)
         cursor = conn.execute(
             "UPDATE missions SET candidate_ref=?, candidate_digest=?, "
             "acceptance_state='unreviewed', acceptance_reviewer_id=NULL, "
-            "acceptance_evidence_json=NULL, status='VERIFYING', updated_at=? "
-            "WHERE mission_id=? AND status NOT IN ('STOPPED','DONE')",
-            (candidate_ref, candidate_digest, now, mission_id),
+            "acceptance_evidence_json=NULL, status='VERIFYING', updated_at=? " + where,
+            params,
         )
         if cursor.rowcount != 1:
+            if expected_statuses is not None:
+                raise MissionError("Mission status changed before candidate update")
             raise MissionError("Mission became stopped or completed before candidate update")
         _append_event(
             conn, mission_id=mission_id, event_type="candidate_recorded",

@@ -611,6 +611,56 @@ def test_reconcile_result_candidate_binds_exact_artifact_without_accepting(
     assert current["acceptance"]["reviewer_id"] is None
 
 
+def test_reconcile_result_candidate_does_not_resume_paused_mission(
+    mission_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _executing_bound_result_mission(mission_db, mission_id="mission-paused-result")
+    memory_mission.pause_mission(
+        "mission-paused-result", reason="operator hold", db_path=mission_db
+    )
+
+    def unexpected(_mission):
+        raise AssertionError("paused Mission must not inspect Builder result")
+
+    monkeypatch.setattr(mission_runtime, "_reviewed_builder_result", unexpected)
+
+    receipt = mission_runtime.reconcile_result_candidate("mission-paused-result")
+    current = memory_mission.get_mission("mission-paused-result", db_path=mission_db)
+
+    assert receipt["status"] == "not_pending"
+    assert current["status"] == "PAUSED"
+    assert current["paused_from_status"] == "EXECUTING"
+    assert current["candidate"]["ref"] is None
+
+
+def test_reconcile_result_candidate_pause_race_cannot_bind_candidate(
+    mission_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _executing_bound_result_mission(mission_db, mission_id="mission-pause-race")
+    candidate = {
+        "artifact_id": "builder_result_builder-task-1_attempt-7",
+        "content_hash": "c" * 64,
+        "review_sha": "d" * 40,
+        "diff_sha256": "e" * 64,
+    }
+
+    def pause_then_return(_mission):
+        memory_mission.pause_mission(
+            "mission-pause-race", reason="operator hold", db_path=mission_db
+        )
+        return candidate
+
+    monkeypatch.setattr(mission_runtime, "_reviewed_builder_result", pause_then_return)
+
+    receipt = mission_runtime.reconcile_result_candidate("mission-pause-race")
+    current = memory_mission.get_mission("mission-pause-race", db_path=mission_db)
+
+    assert receipt["status"] == "not_pending"
+    assert current["status"] == "PAUSED"
+    assert current["paused_from_status"] == "EXECUTING"
+    assert current["candidate"]["ref"] is None
+
+
 def test_reconcile_same_rejected_candidate_does_not_reopen_acceptance(
     mission_db: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
