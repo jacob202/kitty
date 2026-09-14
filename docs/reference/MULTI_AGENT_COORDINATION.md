@@ -100,6 +100,35 @@ to discard work.
 Never reconstruct unpublished local work from prose, summaries, or remembered
 diffs when the original work is recoverable.
 
+### INTEGRATE and the mutation gate
+
+`INTEGRATE` covers merge and conflict work, and it needs a claim shape that `OWN`
+does not provide. `.githooks/pre-commit` runs `./kitty agent preflight --staged`,
+which requires every staged path to sit inside a claimed path fence and to resolve
+to a claimed registered resource. There is no `pre-merge-commit` hook, so a clean
+merge is not inspected, but a merge finished by `git commit` after resolving a
+conflict **is** checked against `git diff --cached` — and that contains every path
+the merge brings in, not only the files this lane resolved.
+
+An authored `OWN` fence never covers those incoming paths, so the check cannot be
+satisfied that way. Do not answer with `--no-verify`: the gate is satisfiable
+honestly, and bypassing it also conceals a real collision. Before the resolving
+commit:
+
+1. List the incoming paths:
+   `git diff --cached --name-only --no-renames --diff-filter=ACMRD`.
+2. Resolve them per resource against the **worktree's** registry copy —
+   `resolve_paths_to_resources(paths, registry_path=<worktree>/coordination/resources.yaml)`.
+   Resolving against the canonical checkout's copy reports paths as unresolvable
+   that resolve fine, because the two copies can differ.
+3. Claim each incoming resource with role `INTEGRATE` and the incoming paths,
+   keeping `OWN` claims for work this lane authored.
+
+Two mechanics to know: `acquire` returns `CONFLICT` for a resource the calling
+session already holds and does not widen paths, so widening means `release` —
+which drops every claim for that session — followed by re-claiming; and `release`
+itself takes no arguments.
+
 ## Adjacent findings and initiative
 
 This section is the canonical normative wording for adjacent-work initiative. Agent skills may summarize it, but should point here rather than duplicate the full policy.
@@ -155,3 +184,33 @@ architecture before merge.
 Do not make Jacob manually relay agent state when shared evidence can resolve
 ownership. If overlap is discovered, change lanes automatically and continue
 useful non-conflicting work.
+
+### Human-only approvals are currently unenforceable, so they are behavioural
+
+Sensitive PRs require "explicit exact-head **human** approval" plus trusted
+independent review (`scripts/pr_policy.py`). Mechanically the human half is a
+label plus a self-written body line, and neither `_exact_head_approval` nor
+`parse_exact_head_override` is actor-bound: both parse text, so any actor able to
+edit the body or apply the label can supply them.
+
+The guard that seems obvious — require the approving actor to differ from the PR
+author — cannot work here. Every PR is authored by `jacob202`, and agents push,
+label, and comment using the owner's own credentials. GitHub therefore cannot
+distinguish an approval Jacob wrote from one an agent wrote on his behalf, and no
+change to the gate can recover a distinction the platform never recorded.
+
+Until that identity gap is closed, hold to the behavioural rule:
+
+- An agent must not write a `Risk approval:` line or apply
+  `review/override-approved` for work it implemented, rebased, or reviewed. It may
+  *record* a human's decision in the human's terms after asking; it must not
+  originate the decision or infer consent from a general instruction to continue.
+- Ask for approval explicitly and at the exact head, and state what is being
+  approved. A green gate is not evidence that this rule was followed.
+- Self-approval is a process failure even when the gate returns green, and even
+  when the change is genuinely good.
+
+Closing the gap needs attributable agent actions: agents operating under a
+distinct GitHub identity would make "approval from an actor other than the PR
+author and other than the implementing lane" mechanically checkable. That is an
+auth/identity change requiring deliberate intent, not an agent's unilateral edit.

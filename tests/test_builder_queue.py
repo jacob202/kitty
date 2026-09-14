@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from gateway import _id_helpers
+from gateway import _id_helpers, agent_workspace
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
@@ -3251,3 +3251,134 @@ class TestRecoverDurableIssues:
         )
         assert result["done_with_unmerged_pr_marked_merged"] == [task["id"]]
         assert bq.get_pr_links(task["id"], db_path=db_path)[0]["merged"] == 1
+
+
+@pytest.fixture(autouse=True)
+def _no_inherited_awareness_sink():
+    """Establish the sink precondition instead of assuming a pristine process.
+
+    Installing the sink is process-wide by design (an entry point installs it
+    once at startup), so a test that runs after anything that installs it would
+    otherwise inherit it. Clear before *and* after.
+    """
+    bq.set_awareness_sink(None)
+    bq.set_awareness_sink(None)
+    yield
+    bq.set_awareness_sink(None)
+
+
+def _record(monkeypatch) -> list[dict]:
+    calls: list[dict] = []
+
+    def fake_publish(workspace_id, **kwargs):
+        calls.append({"workspace_id": workspace_id, **kwargs})
+        return {"published": True, "reason": None}
+
+    monkeypatch.setattr(
+        agent_workspace, "ensure_global_workspace",
+        lambda: {"id": agent_workspace.GLOBAL_WORKSPACE_ID},
+    )
+    monkeypatch.setattr(agent_workspace, "publish_awareness", fake_publish)
+    return calls
+
+
+def test_no_sink_installed_means_the_queue_touches_no_room_state(
+    db_path: Path, monkeypatch
+) -> None:
+    calls = _record(monkeypatch)
+    task = bq.create_task("Ship the seam", db_path=db_path)
+
+    bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+
+    assert calls == [], "an uninstalled sink must publish nothing"
+
+
+def test_committed_transition_publishes_typed_evidence_bound_to_the_task(
+    db_path: Path, monkeypatch
+) -> None:
+    calls = _record(monkeypatch)
+    bq.set_awareness_sink(bq.publish_task_transition)
+    task = bq.create_task("Ship the seam", db_path=db_path)
+
+    bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+
+    assert len(calls) == 1
+    published = calls[0]
+    assert published["workspace_id"] == agent_workspace.GLOBAL_WORKSPACE_ID
+    assert published["event_type"] == "task_transition"
+    assert published["source"] == "builder"
+    assert published["actor_id"] == "builder"
+    assert published["subject"] == task["id"]
+    assert published["metadata"] == {
+        "task_id": task["id"],
+        "state": bq.CLAIMED,
+        "from_state": bq.QUEUED,
+    }
+
+
+def test_a_transition_that_did_not_commit_publishes_nothing(
+    db_path: Path, monkeypatch
+) -> None:
+    calls = _record(monkeypatch)
+    bq.set_awareness_sink(bq.publish_task_transition)
+    task = bq.create_task("Ship the seam", db_path=db_path)
+
+    with pytest.raises(ValueError):
+        bq.transition_task(task["id"], "not_a_state", db_path=db_path)
+
+    assert calls == [], "no committed transition means no evidence to publish"
+    assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.QUEUED
+
+
+def test_producer_failure_never_fails_the_transition(db_path: Path, monkeypatch) -> None:
+    def explode():
+        raise RuntimeError("room database is unavailable")
+
+    monkeypatch.setattr(agent_workspace, "ensure_global_workspace", explode)
+    bq.set_awareness_sink(bq.publish_task_transition)
+    task = bq.create_task("Ship the seam", db_path=db_path)
+
+    updated = bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+
+    assert updated["state"] == bq.CLAIMED
+    assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.CLAIMED
+
+
+def test_sink_failure_never_fails_the_transition(db_path: Path, monkeypatch) -> None:
+    def explode(task, from_state):
+        raise RuntimeError("sink exploded")
+
+    bq.set_awareness_sink(explode)
+    task = bq.create_task("Ship the seam", db_path=db_path)
+
+    updated = bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+
+    assert updated["state"] == bq.CLAIMED
+    assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.CLAIMED
+
+
+def test_unpublishable_evidence_is_reported_not_swallowed(monkeypatch, caplog) -> None:
+    """A rejected awareness verdict is logged, so a silent no-op is visible."""
+    monkeypatch.setattr(
+        agent_workspace, "ensure_global_workspace",
+        lambda: {"id": agent_workspace.GLOBAL_WORKSPACE_ID},
+    )
+    monkeypatch.setattr(
+        agent_workspace, "publish_awareness",
+        lambda *a, **k: {"published": False, "reason": "state must be one of [...]"},
+    )
+
+    with caplog.at_level("WARNING"):
+        bq.publish_task_transition(
+            {"id": "kb_1", "state": "claimed"}, bq.QUEUED
+        )
+
+    assert "awareness was not published" in caplog.text
+
+
+def test_install_registers_the_builder_producer() -> None:
+    bq.set_awareness_sink(None)
+
+    bq.install_awareness_sink()
+
+    assert bq._awareness_sink is bq.publish_task_transition
