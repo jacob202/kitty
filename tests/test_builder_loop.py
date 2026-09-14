@@ -17,7 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from gateway import agent_coordination as ac
-from gateway import artifact_store
+from gateway import artifact_store, local_review
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
@@ -3149,7 +3149,12 @@ def test_local_shadow_uses_one_deadline_across_candidate_capture_and_inference(
         deadline_monotonic=deadline,
     )
     assert receipt["decision"] == "escalate"
-    assert observed["max_wall_seconds"] == pytest.approx(65.0)
+    # Capture consumed 25s of the one shadow deadline, so inference gets the rest.
+    # Derived from the constant rather than hardcoded, so tuning the budget does not
+    # silently break the property this test exists to protect.
+    assert observed["max_wall_seconds"] == pytest.approx(
+        bl.LOCAL_SHADOW_MAX_WALL_SECONDS - 25.0
+    )
 
 
 def test_local_shadow_candidate_stops_when_aggregate_deadline_expires(
@@ -3255,6 +3260,29 @@ def test_local_shadow_malformed_clear_is_downgraded_to_escalate(monkeypatch: pyt
     )
     assert receipt["decision"] == "escalate"
     assert receipt["reason"] == "local_reviewer_malformed_result"
+
+
+def test_local_shadow_budget_covers_model_load_before_it_can_review() -> None:
+    """The shadow must be able to load the model and still have time to work.
+
+    Regression: the budget was 90s against a measured 14.1s-64.5s model load, so a
+    cold page cache exhausted the whole budget during load and the reviewer failed
+    closed before reviewing anything. These are the observed worst case on the 8-GB
+    M1 reference machine plus the diff-capture cap, not a target.
+    """
+    observed_worst_model_load_s = 64.5
+    # The cold-cache load exceeded this, which is what made the previous default broken.
+    insufficient_previous_startup_s = 75.0
+    diff_capture_cap_s = 30.0
+    assert bl.LOCAL_SHADOW_MAX_WALL_SECONDS - diff_capture_cap_s > observed_worst_model_load_s
+    # And the per-server startup allowance must clear the same worst case, since
+    # raising only the outer budget would leave startup capped at the old value.
+    server = local_review.LocalLlamaServer(
+        Path("not-loaded.gguf"), runtime_profile=local_review.CPU_SHADOW_RUNTIME_PROFILE
+    )
+    # Compared against the old default, not the warm measurement: `75.0 > 64.5` is
+    # true, so the weaker form left a revert to the broken value passing.
+    assert server.startup_timeout > insufficient_previous_startup_s
 
 
 def test_local_shadow_runtime_error_receipt_keeps_bounded_cause(

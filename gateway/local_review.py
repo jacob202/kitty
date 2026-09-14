@@ -548,7 +548,12 @@ class LocalLlamaServer:
         model_path: Path,
         *,
         port: int | None = None,
-        startup_timeout: float = 75.0,
+        # Loading the calibrated 9B artifact measured 14.1s to 64.5s warm on an
+        # 8-GB M1 and exceeded 75s with a cold page cache, which surfaced as
+        # "local reviewer failed to start" with /health still 503. The effective
+        # deadline is still min(this, deadline_monotonic), so a caller with an
+        # aggregate budget keeps its own bound.
+        startup_timeout: float = 180.0,
         request_timeout: float | None = None,
         runtime_profile: str = DEFAULT_RUNTIME_PROFILE,
         deadline_monotonic: float | None = None,
