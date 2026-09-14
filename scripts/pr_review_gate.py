@@ -33,6 +33,27 @@ def _agent_exact_head_body(comment: dict[str, Any], head_sha: str) -> str | None
     return body
 
 
+_AGENT_FINDING_MARKERS = (
+    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Failure Mode(?:\*\*)?\s*:",
+    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Corrective Action(?:\*\*)?\s*:",
+)
+
+
+def _agent_body_has_finding_structure(body: str) -> bool:
+    """True when the body could be a rubric-conformant finding.
+
+    The rubric requires a finding to name the changed file, so either the explicit
+    fields or a file/path-shaped token counts. Only used to choose the message; it
+    never decides whether to block.
+    """
+    if any(re.search(pattern, body) for pattern in _AGENT_FINDING_MARKERS):
+        return True
+    return bool(re.search(
+        r"(?:[\w.-]+/)+[\w.-]+|[\w-]+\.(?:py|ts|tsx|js|jsx|json|ya?ml|md|sql|sh|toml|cfg|ini|txt)\b",
+        body,
+    ))
+
+
 def _agent_body_has_no_findings(body: str) -> bool:
     """Accept a no-findings sentinel unless the same evidence contains a real finding block.
 
@@ -45,12 +66,7 @@ def _agent_body_has_no_findings(body: str) -> bool:
         return True
     if not re.search(rf"(?m)^\s*{re.escape(pr_review.NO_FINDINGS)}\s*$", body):
         return False
-
-    finding_markers = (
-        r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Failure Mode(?:\*\*)?\s*:",
-        r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Corrective Action(?:\*\*)?\s*:",
-    )
-    return not any(re.search(pattern, body) for pattern in finding_markers)
+    return not _agent_body_has_finding_structure(body)
 
 
 def agent_review_approved(comment: dict[str, Any], head_sha: str) -> bool:
@@ -63,6 +79,23 @@ def agent_review_blocked(comment: dict[str, Any], head_sha: str) -> bool:
     """Treat any exact-head workflow verdict other than no-findings as blocking."""
     body = _agent_exact_head_body(comment, head_sha)
     return bool(body and not _agent_body_has_no_findings(body))
+
+
+def agent_review_unusable(comment: dict[str, Any], head_sha: str) -> bool:
+    """A marker-bound exact-head review that is neither a verdict nor a finding.
+
+    A stalled or truncated review can post the marker and the `Reviewed commit` line
+    without the no-findings sentinel and without any structured finding. That is not
+    evidence of a defect, and reporting it as one sends an operator looking for a
+    finding that was never produced. It still fails the gate -- an unusable review is
+    not an approval -- but it is reported as what it is.
+    """
+    body = _agent_exact_head_body(comment, head_sha)
+    return bool(
+        body
+        and not _agent_body_has_no_findings(body)
+        and not _agent_body_has_finding_structure(body)
+    )
 
 
 def builder_review_verdict(
@@ -119,8 +152,19 @@ def evaluate_review_gate(
         return True, f"Exact-head review override approved for {head_sha}: {override}"
 
     trusted = _trusted_builder_actors(repo_owner)
-    if any(agent_review_blocked(comment, head_sha) for comment in comments):
-        return False, f"Blocking GitHub agent review finding exists for exact head {head_sha}."
+    blocking = [comment for comment in comments if agent_review_blocked(comment, head_sha)]
+    if blocking:
+        # Both outcomes block. The distinction is diagnostic: a stalled review that
+        # emitted nothing usable must not be reported as a defect that was found.
+        if any(not agent_review_unusable(comment, head_sha) for comment in blocking):
+            return False, (
+                f"Blocking GitHub agent review finding exists for exact head {head_sha}."
+            )
+        return False, (
+            f"GitHub agent review produced no usable verdict for exact head {head_sha}: "
+            "a marker-bound comment carries neither the no-findings sentinel nor a "
+            "structured finding, so the review stalled or was truncated."
+        )
     if any(
         builder_review_verdict(comment, head_sha, trusted) in {"request_changes", "reject"}
         for comment in comments
