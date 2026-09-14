@@ -953,3 +953,87 @@ def test_awareness_envelope_is_projected_separately_from_metadata():
     assert item["trusted_metadata"] == {"pr_number": 901}
     assert item["untrusted_text"] is None
     assert item["is_assignment"] is False
+
+
+# ---------------------------------------------------------------------------
+# Candidate-bound evidence is collected from its owners, not left empty
+# ---------------------------------------------------------------------------
+
+
+def _task(state="pr_opened", sha=HEAD_A, ref="feat/x"):
+    return {"id": "kb_1", "state": state, "workflow_sha": sha, "workflow_ref": ref}
+
+
+def test_collected_candidate_evidence_binds_builder_and_git_to_the_head(monkeypatch):
+    from gateway import builder_queue
+
+    monkeypatch.setattr(
+        builder_queue, "list_tasks", lambda state=None, **kwargs: [_task(state=state)]
+    )
+    items = co._collect_candidate_evidence(
+        {"head": HEAD_A, "branch": "feat/x", "origin_main": {"head": HEAD_B}}
+    )
+    by_locator = {item["locator"]: item for item in items}
+    assert by_locator["builder:task:kb_1"]["candidate_ref"] == HEAD_A
+    assert by_locator["git:candidate:head"]["candidate_ref"] == HEAD_A
+
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
+    states = {
+        item["locator"]: item["state"]
+        for item in orientation["candidate_evidence"]["items"]
+    }
+    assert states["builder:task:kb_1"] == co.SOURCE_CURRENT
+    assert states["git:candidate:head"] == co.SOURCE_CURRENT
+
+
+def test_collected_candidate_evidence_goes_stale_when_the_candidate_moves(monkeypatch):
+    from gateway import builder_queue
+
+    monkeypatch.setattr(
+        builder_queue, "list_tasks", lambda state=None, **kwargs: [_task(sha=HEAD_B)]
+    )
+    items = co._collect_candidate_evidence({"head": HEAD_A})
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
+
+    item = next(
+        entry
+        for entry in orientation["candidate_evidence"]["items"]
+        if entry["locator"] == "builder:task:kb_1"
+    )
+    assert item["state"] == co.SOURCE_STALE
+    assert "mutated" in item["reason"]
+
+
+def test_collected_candidate_evidence_without_a_ref_reports_unknown_binding(monkeypatch):
+    from gateway import builder_queue
+
+    monkeypatch.setattr(
+        builder_queue, "list_tasks", lambda state=None, **kwargs: [_task(sha=None)]
+    )
+    items = co._collect_candidate_evidence({"head": HEAD_A})
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
+
+    item = next(
+        entry
+        for entry in orientation["candidate_evidence"]["items"]
+        if entry["locator"] == "builder:task:kb_1"
+    )
+    assert item["state"] == co.SOURCE_UNKNOWN
+    assert "no candidate_ref" in item["reason"]
+
+
+def test_candidate_evidence_source_failure_is_attributed_not_empty_healthy(monkeypatch):
+    from gateway import builder_queue
+
+    def boom(*args, **kwargs):
+        raise sqlite3.OperationalError("queue database is locked")
+
+    monkeypatch.setattr(builder_queue, "list_tasks", boom)
+    evidence = co.collect_orientation_evidence("chatgpt")
+
+    assert evidence.candidate_evidence == []
+    assert "OperationalError" in evidence.candidate_evidence_error
+
+    orientation = _build("chatgpt", evidence=evidence)
+    assert orientation["candidate_evidence"]["state"] == co.SOURCE_UNAVAILABLE
+    assert "locked" in orientation["candidate_evidence"]["diagnostic"]

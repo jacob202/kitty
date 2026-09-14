@@ -1246,6 +1246,57 @@ def assemble_orientation(
     return orientation
 
 
+# Builder states whose task carries a published candidate we can bind to.
+_CANDIDATE_TASK_STATES = ("pr_opened", "awaiting_review")
+
+
+def _collect_candidate_evidence(git: dict[str, Any]) -> list[dict[str, Any]]:
+    """Gather owner evidence bound to an exact candidate ref.
+
+    Each owner stays authoritative: Builder contributes its in-flight published
+    tasks, Git contributes the current candidate head. Nothing is copied into a
+    competing store -- these are read surfaces, and the projection binds each
+    item to the current head and marks it stale when the candidate moves.
+
+    A task that published no ref still contributes an item, with no
+    ``candidate_ref``, so the projection reports an unverifiable binding instead
+    of letting the evidence vanish into an empty healthy state.
+    """
+    from gateway import builder_queue
+
+    items: list[dict[str, Any]] = []
+    for state in _CANDIDATE_TASK_STATES:
+        for task in builder_queue.list_tasks(state=state):
+            items.append(
+                {
+                    "source": "gateway.builder_queue",
+                    "owner": "builder",
+                    "kind": "task_candidate",
+                    "locator": f"builder:task:{task.get('id')}",
+                    "task_id": task.get("id"),
+                    "builder_state": task.get("state"),
+                    "candidate_ref": task.get("workflow_sha"),
+                    "branch": task.get("workflow_ref"),
+                }
+            )
+
+    head = git.get("head")
+    if head:
+        origin_main = dict(git.get("origin_main") or {})
+        items.append(
+            {
+                "source": "git",
+                "owner": "git",
+                "kind": "candidate_head",
+                "locator": "git:candidate:head",
+                "candidate_ref": head,
+                "branch": git.get("branch"),
+                "origin_main_head": origin_main.get("head"),
+            }
+        )
+    return items
+
+
 def collect_orientation_evidence(
     identity: str,
     *,
@@ -1301,6 +1352,14 @@ def collect_orientation_evidence(
             evidence.thread = agent_workspace.list_thread(thread_or_handoff, limit=200)
         except Exception as exc:  # noqa: BLE001 - attributed as an explicit source failure
             evidence.thread_error = f"{type(exc).__name__}: {exc}"
+
+    try:
+        receipt = dict(evidence.context_receipt or {})
+        evidence.candidate_evidence = _collect_candidate_evidence(
+            dict(receipt.get("git") or {})
+        )
+    except Exception as exc:  # noqa: BLE001 - attributed as an explicit source failure
+        evidence.candidate_evidence_error = f"{type(exc).__name__}: {exc}"
 
     return evidence
 
