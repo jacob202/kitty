@@ -27,6 +27,7 @@ import httpx
 
 from contracts.knowledge_pipeline import (
     EvidenceMetadata,
+    EvidencePolicy,
     IngestionResult,
     KnowledgeMetadata,
     LibrarianReport,
@@ -97,6 +98,174 @@ class ExpertAnswerError(RuntimeError):
 
 class UnknownExpertError(ExpertAnswerError):
     """Raised when a caller requests an expert profile that does not exist."""
+
+
+_CURRENTNESS_WORDS = {"current", "today", "latest", "recent", "now", "2026"}
+
+
+def _query_tokens(query: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", query.lower()))
+
+
+def _has_phrase(text: str, *phrases: str) -> bool:
+    lowered = text.lower()
+    return any(phrase in lowered for phrase in phrases)
+
+
+def build_evidence_policy(query: str) -> EvidencePolicy:
+    """Infer bounded evidence requirements without creating a persistent expert agent."""
+    text = query.lower()
+    tokens = _query_tokens(query)
+    reasons: list[str] = []
+    competencies: list[str] = []
+
+    def add(name: str, reason: str) -> None:
+        if name not in competencies:
+            competencies.append(name)
+            reasons.append(reason)
+
+    health = bool(tokens & {
+        "medical", "clinical", "medicine", "medication", "prescription", "drug",
+        "supplement", "herbal", "symptom", "treatment", "pharmacology", "health",
+    })
+    automotive = bool(tokens & {
+        "automotive", "vehicle", "car", "truck", "honda", "ridgeline", "brake",
+        "caliper", "engine", "fuel", "vin", "alternator",
+    })
+    electronics = bool(tokens & {
+        "amplifier", "amp", "audio", "circuit", "electronics", "electronic",
+        "speaker", "loudspeaker", "diode", "rectifier", "alternator", "sansui",
+        "voltage", "bias", "grounding", "oscillate", "oscillation",
+        "electromagnetic", "maxwell",
+    }) or _has_phrase(text, "power supply", "phase shift")
+    mechanical = bool(tokens & {"mechanical", "vibration", "vibrate", "chassis", "shock"})
+    ai_software = bool(tokens & {"api", "python", "sdk", "software", "library", "package", "openai"}) or _has_phrase(
+        text, "machine learning", "gaussian mixture", "expectation maximization"
+    )
+    math_physics = bool(tokens & {
+        "derive", "derivation", "equation", "maxwell", "electromagnetic", "gaussian",
+        "resonance", "acoustic", "acoustics", "wave",
+    }) or _has_phrase(
+        text, "expectation maximization", "phase shift", "wave equation", "control theory", "room modes"
+    )
+    mind = bool(tokens & {"learning", "classroom", "student", "students", "cognition"}) or _has_phrase(text, "retrieval practice")
+    philosophy = bool(tokens & {"popper", "kuhn", "philosophy"}) or _has_phrase(text, "scientific progress")
+
+    if health:
+        add("health_biology", "health_or_clinical_language")
+    if automotive:
+        add("automotive", "vehicle_specific_language")
+    if electronics:
+        add("electronics_audio", "electronics_or_audio_language")
+    if mechanical:
+        add("mechanical_systems", "mechanical_or_vibration_language")
+    if ai_software:
+        add("ai_software", "software_or_ml_language")
+    if math_physics:
+        add("math_physics", "mathematical_or_physics_language")
+    if mind:
+        add("mind_learning_communication", "learning_or_cognition_language")
+    if philosophy:
+        add("philosophy_humanities", "philosophy_or_intellectual_history_language")
+
+    current_words = bool(tokens & _CURRENTNESS_WORDS)
+    legal_current = current_words and bool(tokens & {"rules", "law", "regulation", "regulations", "benefit", "policy"})
+    equipment_specific = bool(tokens & {"sansui"}) or bool(re.search(r"\b[a-z]{2,}-?\d{2,}\b", text))
+    vehicle_specific = automotive and (
+        bool(tokens & {"honda", "ridgeline", "vin"}) or bool(re.search(r"\b(?:19|20)\d{2}\b", text))
+    )
+
+    if legal_current:
+        competencies = ["general_research"]
+        reasons.append("mutable_rules_or_benefit_query")
+
+    exact_signal = bool(tokens & {"exact", "torque", "specification", "spec", "bias"})
+    health_safety = health and (
+        bool(tokens & {"safe", "safety", "interaction", "interactions", "combine", "combined"})
+        or ("prescription" in tokens and ("supplement" in tokens or "herbal" in tokens))
+    )
+
+    if health_safety:
+        task_type = "current_safety"
+    elif ai_software and current_words and "api" in tokens:
+        task_type = "current_api"
+    elif legal_current:
+        task_type = "current_lookup"
+    elif "derive" in tokens or "derivation" in tokens:
+        task_type = "derivation"
+    elif "compare" in tokens or "versus" in tokens or "consensus" in tokens:
+        task_type = "comparison"
+    elif exact_signal or (equipment_specific and bool(tokens & {"voltage", "bias", "procedure"})):
+        task_type = "exact_lookup"
+    elif "diagnose" in tokens or "diagnostic" in tokens or "troubleshoot" in tokens or mechanical:
+        task_type = "diagnostic"
+    elif bool(tokens & {"evidence", "paper", "study", "studies"}) or _has_phrase(text, "what evidence"):
+        task_type = "evidence_review"
+    elif "remove" in tokens or "install" in tokens or "replace" in tokens:
+        task_type = "procedure"
+    elif "why" in tokens or "explain" in tokens or _has_phrase(text, "how does"):
+        task_type = "explanation"
+    else:
+        task_type = "lookup"
+
+    exactness = "exact" if task_type in {"exact_lookup", "current_api", "current_lookup"} else "normal"
+    safety = "high_health" if health else "standard"
+
+    if health_safety:
+        freshness = "current_external_required"
+    elif task_type in {"current_api", "current_lookup"}:
+        freshness = "current_external_required"
+    elif health and task_type == "evidence_review":
+        freshness = "current_external_preferred"
+    else:
+        freshness = "corpus_ok"
+
+    if health:
+        authority = "current_authoritative_required"
+    elif task_type == "exact_lookup" and automotive:
+        authority = "primary_preferred"
+    elif task_type == "exact_lookup" and equipment_specific:
+        authority = "service_manual_preferred"
+    elif task_type in {"current_api", "current_lookup"}:
+        authority = "primary_preferred"
+    elif task_type == "evidence_review" and mind:
+        authority = "empirical_preferred"
+    elif task_type == "comparison" and philosophy:
+        authority = "source_attribution_required"
+    else:
+        authority = "established_reference_preferred"
+
+    applicability: list[str] = []
+    if vehicle_specific:
+        applicability.append("vehicle_model_specific")
+    if equipment_specific and electronics:
+        applicability.append("equipment_model_specific")
+    if legal_current:
+        applicability.append("jurisdiction_specific")
+
+    if task_type in {"exact_lookup", "current_api", "current_lookup"}:
+        diversity = "single_authoritative_ok"
+    elif task_type == "comparison":
+        diversity = "preserve_disagreement"
+    else:
+        diversity = "multiple_logical_units"
+
+    if not competencies:
+        competencies = ["general_research"]
+        reasons.append("no_narrow_competency_signal")
+
+    return EvidencePolicy(
+        task_type=task_type,
+        competencies=competencies,
+        exactness=exactness,
+        authority_requirement=authority,
+        freshness=freshness,
+        safety=safety,
+        applicability=applicability,
+        diversity=diversity,
+        current_verification_required=freshness == "current_external_required",
+        reasons=reasons,
+    )
 
 
 def _resolve_corpus_path(value: str) -> Path:

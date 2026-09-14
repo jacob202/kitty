@@ -676,3 +676,90 @@ async def test_active_corpus_fts_treats_hyphenated_query_as_literal_terms(tmp_pa
     )
     assert hits
     assert hits[0]["source"] == "Vehicle Manual"
+
+
+@pytest.mark.parametrize(
+    ("query", "task_type", "competencies", "freshness", "authority", "diversity"),
+    [
+        (
+            "What is the exact rear caliper bracket torque on a 2010 Honda Ridgeline?",
+            "exact_lookup", {"automotive"}, "corpus_ok", "primary_preferred", "single_authoritative_ok",
+        ),
+        (
+            "Derive the electromagnetic wave equation from Maxwell equations in a homogeneous medium.",
+            "derivation", {"math_physics", "electronics_audio"}, "corpus_ok", "established_reference_preferred", "multiple_logical_units",
+        ),
+        (
+            "Is this herbal supplement safe to combine with a prescription medicine today?",
+            "current_safety", {"health_biology"}, "current_external_required", "current_authoritative_required", "multiple_logical_units",
+        ),
+        (
+            "How do I call the current OpenAI responses API in Python today?",
+            "current_api", {"ai_software"}, "current_external_required", "primary_preferred", "single_authoritative_ok",
+        ),
+        (
+            "Compare Popper and Kuhn on scientific progress without treating either position as consensus.",
+            "comparison", {"philosophy_humanities"}, "corpus_ok", "source_attribution_required", "preserve_disagreement",
+        ),
+        (
+            "My power amplifier transformer hums mechanically and makes the chassis vibrate. How should I diagnose it?",
+            "diagnostic", {"electronics_audio", "mechanical_systems"}, "corpus_ok", "established_reference_preferred", "multiple_logical_units",
+        ),
+        (
+            "A medical paper mentions code allocation. What evidence supports the clinical claim?",
+            "evidence_review", {"health_biology"}, "current_external_preferred", "current_authoritative_required", "multiple_logical_units",
+        ),
+        (
+            "What are the current Saskatchewan rules for this benefit?",
+            "current_lookup", {"general_research"}, "current_external_required", "primary_preferred", "single_authoritative_ok",
+        ),
+    ],
+)
+def test_build_evidence_policy_routes_task_authority_and_freshness(
+    query, task_type, competencies, freshness, authority, diversity
+):
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(query)
+    assert policy.task_type == task_type
+    assert set(policy.competencies) == competencies
+    assert policy.freshness == freshness
+    assert policy.authority_requirement == authority
+    assert policy.diversity == diversity
+    assert policy.current_verification_required == (freshness == "current_external_required")
+
+
+def test_evidence_policy_uses_token_boundaries_not_substring_domain_matches():
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(
+        "Derive the electromagnetic wave equation in a homogeneous medium."
+    )
+    assert "health_biology" not in policy.competencies
+    assert policy.safety == "standard"
+
+
+def test_evidence_policy_preserves_vehicle_applicability_and_equipment_specificity():
+    from gateway.knowledge import build_evidence_policy
+
+    vehicle = build_evidence_policy(
+        "What is the exact rear caliper bracket torque on a 2010 Honda Ridgeline?"
+    )
+    audio = build_evidence_policy(
+        "What bias voltage should I set on a Sansui AU-7900 service procedure?"
+    )
+    assert "vehicle_model_specific" in vehicle.applicability
+    assert vehicle.exactness == "exact"
+    assert "equipment_model_specific" in audio.applicability
+    assert audio.exactness == "exact"
+    assert audio.authority_requirement == "service_manual_preferred"
+
+
+
+def test_evidence_policy_cross_routes_acoustics_to_physics():
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(
+        "Why does a loudspeaker cabinet resonance couple to room modes?"
+    )
+    assert set(policy.competencies) == {"electronics_audio", "math_physics"}

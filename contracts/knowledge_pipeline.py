@@ -64,6 +64,21 @@ class EvidenceMetadata(BaseModel):
         return cls.model_validate(data)
 
 
+class EvidencePolicy(BaseModel):
+    """Per-query evidence requirements; routing policy, not persistent expert state."""
+
+    task_type: str = "lookup"
+    competencies: list[str] = Field(default_factory=list)
+    exactness: str = "normal"
+    authority_requirement: str = "established_reference_preferred"
+    freshness: str = "corpus_ok"
+    safety: str = "standard"
+    applicability: list[str] = Field(default_factory=list)
+    diversity: str = "multiple_logical_units"
+    current_verification_required: bool = False
+    reasons: list[str] = Field(default_factory=list)
+
+
 class KnowledgeMetadata(BaseModel):
     """Metadata for a single knowledge chunk."""
 
