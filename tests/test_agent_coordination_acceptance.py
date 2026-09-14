@@ -381,6 +381,12 @@ def test_registry_seed_is_exact_deterministic_and_points_at_real_tree() -> None:
     )
     assert one == two == ["docs:roadmap", "runtime:provenance"]
 
+    memory = agent_coordination.resolve_paths_to_resources(
+        ["tests/test_context_assembler.py", "tests/test_memory_graph.py"],
+        registry_path=TRACKED_REGISTRY,
+    )
+    assert memory == ["memory:continuity"]
+
     containment = agent_coordination.resolve_paths_to_resources(
         [
             "gateway/builder_contract_gate.py",

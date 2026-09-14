@@ -279,7 +279,7 @@ class KnowledgeAdapter(StoreAdapter):
     async def fetch(self, query: str) -> list[Item]:
         from gateway.knowledge import search
 
-        rows = await search(query, limit=3)
+        rows = await search(query, limit=5)
         items: list[Item] = []
         for c in rows:
             if not isinstance(c, dict):
@@ -289,7 +289,7 @@ class KnowledgeAdapter(StoreAdapter):
                 continue
             items.append(
                 Item(
-                    text=text[:400],
+                    text=text,
                     source=Source.KNOWLEDGE,
                     score=c.get("score"),
                     ts=None,
