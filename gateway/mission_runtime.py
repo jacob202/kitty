@@ -165,10 +165,11 @@ def _hex_digest(value: Any, length: int) -> str | None:
 
 
 def _candidate_provenance_digest(candidate: dict[str, str]) -> str:
-    """Bind Mission acceptance to artifact and reviewed revision, not patch bytes alone."""
+    """Bind acceptance to the exact artifact and reviewed source revision."""
     payload = {
         "artifact_id": candidate["artifact_id"],
         "content_hash": candidate["content_hash"],
+        "base_sha": candidate["base_sha"],
         "review_sha": candidate["review_sha"],
         "diff_sha256": candidate["diff_sha256"],
     }
@@ -237,9 +238,15 @@ def _reviewed_builder_result(mission: dict[str, Any]) -> dict[str, Any] | None:
                 f"Builder result artifact {key} does not match the reviewed attempt"
             )
     content_hash = _hex_digest(artifact.get("content_hash"), 64)
+    base_sha = _hex_digest(metadata.get("base_sha"), 40)
     review_sha = _hex_digest(metadata.get("review_sha"), 40)
     diff_sha256 = _hex_digest(metadata.get("diff_sha256"), 64)
-    if not all((content_hash, review_sha, diff_sha256)):
+    if (
+        content_hash is None
+        or base_sha is None
+        or review_sha is None
+        or diff_sha256 is None
+    ):
         raise ResultCandidateUnavailable("Builder result artifact is missing review provenance")
     path = Path(str(artifact.get("storage_uri") or ""))
     try:
@@ -250,9 +257,10 @@ def _reviewed_builder_result(mission: dict[str, Any]) -> dict[str, Any] | None:
         raise ResultCandidateUnavailable("Builder result artifact no longer matches its registered digest")
     if metadata.get("result_patch_sha256") != content_hash or metadata.get("result_patch_size_bytes") != len(content):
         raise ResultCandidateUnavailable("Builder result artifact manifest does not match its content")
-    candidate = {
+    candidate: dict[str, str] = {
         "artifact_id": artifact_id,
         "content_hash": content_hash,
+        "base_sha": base_sha,
         "review_sha": review_sha,
         "diff_sha256": diff_sha256,
     }
@@ -357,6 +365,7 @@ def record_running_product_acceptance(
             "artifact_provenance": {
                 "artifact_id": reviewed["artifact_id"],
                 "content_hash": reviewed["content_hash"],
+                "base_sha": reviewed["base_sha"],
                 "review_sha": reviewed["review_sha"],
                 "diff_sha256": reviewed["diff_sha256"],
             },
