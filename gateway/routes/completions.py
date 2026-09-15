@@ -7,6 +7,7 @@ import json
 import logging
 import time
 import uuid
+from typing import Mapping, cast
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
@@ -1119,7 +1120,7 @@ async def chat_completions(request: Request):
             list(bundle.injected_memory_items) if bundle.injected_memory_items else None
         )
         trailer_evidence_items: list[dict[str, str]] | None = (
-            [dict(item) for item in bundle.injected_evidence_items]
+            [dict(cast(Mapping[str, str], item)) for item in bundle.injected_evidence_items]
             if bundle.injected_evidence_items
             else None
         )
@@ -1261,7 +1262,7 @@ async def chat_completions(request: Request):
             list(bundle.injected_memory_items) if bundle.injected_memory_items else None
         )
         non_stream_evidence_items: list[dict[str, str]] | None = (
-            [dict(item) for item in bundle.injected_evidence_items]
+            [dict(cast(Mapping[str, str], item)) for item in bundle.injected_evidence_items]
             if bundle.injected_evidence_items
             else None
         )
