@@ -606,6 +606,7 @@ def test_reconcile_result_candidate_binds_exact_artifact_without_accepting(
     assert current["candidate"] == {
         "ref": "artifact:builder_result_builder-task-1_attempt-7",
         "digest": "c" * 64,
+        "error": None,
     }
     assert current["acceptance"]["state"] == "unreviewed"
     assert current["acceptance"]["reviewer_id"] is None

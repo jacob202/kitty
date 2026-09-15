@@ -30,7 +30,7 @@ ACTION_NAME = "mission.review_pending"
 _REVIEW_TIMEOUT_SECONDS = 240
 _LOCAL_ACCEPTANCE_REVIEWER_ID = "local:r3-running-product-operator"
 _RESULT_CANDIDATE_ACTIVE_STATUSES = ("EXECUTING", "VERIFYING", "REPAIRING")
-_REQUIRED_RUNNING_STATES = ("desktop", "iphone_class", "happy", "degraded", "reload", "recovery")
+REQUIRED_RUNNING_STATES = ("desktop", "iphone_class", "happy", "degraded", "reload", "recovery")
 logger = logging.getLogger("kitty.mission_runtime")
 
 
@@ -139,22 +139,7 @@ async def request_pending_reviews() -> list[dict[str, Any]]:
             continue
         locator = mission.get("builder_locator") or {}
         if mission["status"] in {"EXECUTING", "VERIFYING", "REPAIRING"} and locator.get("task_id"):
-            try:
-                receipt = reconcile_result_candidate(mission["mission_id"])
-            except ResultCandidateUnavailable as exc:
-                logger.error(
-                    "Mission %s result reconciliation unavailable: %s",
-                    mission["mission_id"],
-                    exc,
-                )
-                receipts.append(
-                    {
-                        "status": "source_unavailable",
-                        "mission_id": mission["mission_id"],
-                        "error": str(exc),
-                    }
-                )
-                continue
+            receipt = reconcile_result_candidate_background(mission["mission_id"])
             if receipt.get("status") != "not_pending":
                 receipts.append(receipt)
     return receipts
@@ -306,6 +291,26 @@ def reconcile_result_candidate(mission_id: str) -> dict[str, Any]:
     }
 
 
+def reconcile_result_candidate_background(mission_id: str) -> dict[str, Any]:
+    """Reconcile from a background task without losing the reason it failed.
+
+    A background task's return value and exception both go nowhere. The caller
+    has already been answered, so the only honest place to leave the cause is on
+    the Mission itself, where the next status read can say it out loud.
+    """
+    try:
+        return reconcile_result_candidate(mission_id)
+    except ResultCandidateUnavailable as exc:
+        logger.error("Mission %s result reconciliation unavailable: %s", mission_id, exc)
+        try:
+            memory_mission.record_candidate_unavailable(
+                mission_id, reason=str(exc), db_path=memory_mission.MISSION_DB_FILE
+            )
+        except memory_mission.MissionError:
+            logger.exception("Mission %s could not record its reconciliation failure", mission_id)
+        return {"status": "source_unavailable", "mission_id": mission_id, "error": str(exc)}
+
+
 def _validated_running_product_evidence(evidence: dict[str, Any], *, verdict: str) -> dict[str, Any]:
     if not isinstance(evidence, dict) or not evidence:
         raise memory_mission.MissionError("running-product acceptance evidence must be a non-empty object")
@@ -313,7 +318,7 @@ def _validated_running_product_evidence(evidence: dict[str, Any], *, verdict: st
     if not isinstance(steps, list) or not steps or not all(isinstance(step, str) and step.strip() for step in steps):
         raise memory_mission.MissionError("running-product evidence requires non-empty steps")
     normalized = dict(evidence)
-    for key in _REQUIRED_RUNNING_STATES:
+    for key in REQUIRED_RUNNING_STATES:
         state = evidence.get(key)
         if not isinstance(state, dict):
             raise memory_mission.MissionError(f"running-product evidence requires {key} state")
@@ -330,7 +335,7 @@ def _validated_running_product_evidence(evidence: dict[str, Any], *, verdict: st
         if unmet_gates:
             raise memory_mission.MissionError("accepted running-product evidence cannot contain unmet gates")
         failed = [
-            key for key in _REQUIRED_RUNNING_STATES
+            key for key in REQUIRED_RUNNING_STATES
             if evidence[key]["state"] != "passed"
         ]
         if failed:
@@ -462,6 +467,56 @@ def _running_product_runtime_identity(expected_review_sha: str) -> dict[str, Any
         },
         "data_root": str(runtime_data_root),
     }
+
+
+def acceptance_readiness(mission: dict[str, Any]) -> dict[str, Any]:
+    """Can this Mission be accepted right now, and if not, exactly what is missing.
+
+    Asserts nothing and changes nothing — it runs the same provenance and runtime
+    identity checks acceptance runs, and reports the first one that fails. That
+    keeps the operator's "why not" answer and the acceptance gate itself from
+    drifting apart.
+    """
+    candidate = mission.get("candidate") or {}
+    report: dict[str, Any] = {
+        "mission_id": mission["mission_id"],
+        "objective": mission["objective"],
+        "status": mission["status"],
+        "candidate_ref": candidate.get("ref"),
+        "candidate_digest": candidate.get("digest"),
+        "ready": False,
+        "blocker": None,
+        "review_sha": None,
+    }
+    if not candidate.get("ref") or not candidate.get("digest"):
+        report["blocker"] = (
+            candidate.get("error") or "no reviewed Builder result is bound to this job yet"
+        )
+        return report
+    try:
+        reviewed = _reviewed_builder_result(mission)
+    except ResultCandidateUnavailable as exc:
+        report["blocker"] = str(exc)
+        return report
+    if reviewed is None:
+        report["blocker"] = "the Builder task bound to this job has not finished"
+        return report
+    report["review_sha"] = reviewed["review_sha"]
+    reviewed_ref = f"artifact:{reviewed['artifact_id']}"
+    reviewed_digest = reviewed.get("candidate_digest") or reviewed["content_hash"]
+    if (
+        reviewed_ref != candidate.get("ref")
+        or reviewed_digest != candidate.get("digest")
+    ):
+        report["blocker"] = "the bound candidate does not match the reviewed Builder result"
+        return report
+    try:
+        _running_product_runtime_identity(reviewed["review_sha"])
+    except ResultCandidateUnavailable as exc:
+        report["blocker"] = str(exc)
+        return report
+    report["ready"] = True
+    return report
 
 
 def record_running_product_acceptance(

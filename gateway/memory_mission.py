@@ -96,6 +96,10 @@ def init_db(*, db_path: Path = MISSION_DB_FILE) -> None:
             ("origin_conversation_id", "TEXT"),
             ("origin_message_id", "TEXT"),
             ("origin_project_id", "INTEGER"),
+            # Why a finished Builder result could not be bound. Reconciliation
+            # runs in the background, so without this the job simply sits in
+            # "waiting for acceptance" and the cause dies with the task.
+            ("candidate_error", "TEXT"),
         ):
             if column not in columns:
                 conn.execute(f"ALTER TABLE missions ADD COLUMN {column} {sql_type}")
@@ -161,7 +165,11 @@ def _row_to_mission(row: sqlite3.Row) -> dict[str, Any]:
         "last_cycle": json.loads(row["last_cycle_json"]) if row["last_cycle_json"] else None,
         "pending_escalation": json.loads(row["pending_escalation_json"])
         if row["pending_escalation_json"] else None,
-        "candidate": {"ref": row["candidate_ref"], "digest": row["candidate_digest"]},
+        "candidate": {
+            "ref": row["candidate_ref"],
+            "digest": row["candidate_digest"],
+            "error": row["candidate_error"] if "candidate_error" in row.keys() else None,
+        },
         "acceptance": {
             "state": row["acceptance_state"],
             "reviewer_id": row["acceptance_reviewer_id"],
@@ -1013,7 +1021,8 @@ def record_candidate(
         cursor = conn.execute(
             "UPDATE missions SET candidate_ref=?, candidate_digest=?, "
             "acceptance_state='unreviewed', acceptance_reviewer_id=NULL, "
-            "acceptance_evidence_json=NULL, status='VERIFYING', updated_at=? " + where,
+            "acceptance_evidence_json=NULL, candidate_error=NULL, "
+            "status='VERIFYING', updated_at=? " + where,
             params,
         )
         if cursor.rowcount != 1:
@@ -1025,6 +1034,35 @@ def record_candidate(
             supervisor_epoch=mission["supervisor"]["epoch"],
             payload={"candidate_ref": candidate_ref, "candidate_digest": candidate_digest},
             now=now,
+        )
+        conn.commit()
+    return get_mission(mission_id, db_path=db_path)
+
+
+def record_candidate_unavailable(
+    mission_id: str, *, reason: str, db_path: Path = MISSION_DB_FILE,
+) -> dict[str, Any]:
+    """Keep the reason a finished result could not be bound, so a surface can say it.
+
+    Deliberately does not change status: the Mission is still legitimately
+    waiting, it just now knows why it is still waiting. A Mission that has
+    already moved past candidate binding is left alone.
+    """
+    reason = _required_text(reason, "reason")
+    mission = get_mission(mission_id, db_path=db_path)
+    now = time.time()
+    with kitty_db.connect(db_path) as conn:
+        cursor = conn.execute(
+            "UPDATE missions SET candidate_error=?, updated_at=? "
+            "WHERE mission_id=? AND status NOT IN ('STOPPED','DONE')",
+            (reason, now, mission_id),
+        )
+        if cursor.rowcount != 1:
+            raise MissionError("Mission became stopped or completed before the failure was recorded")
+        _append_event(
+            conn, mission_id=mission_id, event_type="candidate_unavailable",
+            supervisor_epoch=mission["supervisor"]["epoch"],
+            payload={"reason": reason}, now=now,
         )
         conn.commit()
     return get_mission(mission_id, db_path=db_path)

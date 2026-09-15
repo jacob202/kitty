@@ -33,6 +33,9 @@
 #   kitty project refresh <id>                  Recompose state + regenerate the next step ("B")
 #   kitty project next <id>                     Show the current next step for a project
 #   kitty project set-path <id> /abs/path       Fix a project's path
+#   kitty accept status                         What finished work is waiting for your verdict
+#   kitty accept template <job-id> -o FILE      Write the evidence file to fill in
+#   kitty accept record <job-id> -e FILE        Record accepted/rejected against the running product
 #   kitty verify-home   Start gateway+UI if needed, check health + tailnet, print the iPhone URL
 #
 # Environment: reads .env from the repo root if present. All overrides
@@ -1109,6 +1112,15 @@ cmd_tutor() {
   "$python_bin" -m gateway.tutor_cli "$@"
 }
 
+cmd_accept() {
+  local python_bin="$KITTY_ROOT/venv/bin/python"
+  if [[ ! -x "$python_bin" ]]; then
+    python_bin="$(command -v python3.12)"
+  fi
+  ensure_runtime_builder_data_dir
+  "$python_bin" -m gateway.mission_accept_cli "$@"
+}
+
 cmd_delegate() {
   local action_id="${1:-}"
   if [[ -z "$action_id" ]]; then
@@ -1422,7 +1434,7 @@ cmd_health() {
 }
 
 cmd_help() {
-  grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -24
+  grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -38
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
@@ -1452,6 +1464,7 @@ case "${1:-start}" in
   project)   shift; cmd_project "$@" ;;
   governor)  shift; cmd_governor "$@" ;;
   tutor)     shift; cmd_tutor "$@" ;;
+  accept)    shift; cmd_accept "$@" ;;
   health)    cmd_health ;;
   verify-home) cmd_verify_home ;;
   help|--help|-h) cmd_help ;;

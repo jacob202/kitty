@@ -56,7 +56,7 @@ def _passing_evidence() -> dict:
         "steps": ["Chat request", "Mission approval", "Builder result", "Library reuse", "Chat reuse"],
         "unmet_gates": [],
     }
-    for key in mission_runtime._REQUIRED_RUNNING_STATES:
+    for key in mission_runtime.REQUIRED_RUNNING_STATES:
         evidence[key] = {"state": "passed", "evidence": f"evidence://{key}"}
     return evidence
 
@@ -220,6 +220,45 @@ def test_reconcile_result_candidate_propagates_source_failure(
 
     with pytest.raises(mission_runtime.ResultCandidateUnavailable, match="artifact disappeared"):
         mission_runtime.reconcile_result_candidate("r3-source-failure")
+
+
+def test_background_reconciliation_keeps_the_reason_it_could_not_bind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "kitty.db"
+    monkeypatch.setattr(memory_mission, "MISSION_DB_FILE", db_path)
+    _verifying_mission(db_path, mission_id="r3-background-failure")
+
+    def unavailable(_mission):
+        raise mission_runtime.ResultCandidateUnavailable("artifact disappeared")
+
+    monkeypatch.setattr(mission_runtime, "_reviewed_builder_result", unavailable)
+
+    receipt = mission_runtime.reconcile_result_candidate_background("r3-background-failure")
+
+    assert receipt["status"] == "source_unavailable"
+    assert receipt["error"] == "artifact disappeared"
+    mission = memory_mission.get_mission("r3-background-failure", db_path=db_path)
+    assert mission["candidate"]["error"] == "artifact disappeared"
+    assert mission["status"] == "EXECUTING"
+
+
+def test_a_later_successful_bind_clears_the_recorded_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "kitty.db"
+    monkeypatch.setattr(memory_mission, "MISSION_DB_FILE", db_path)
+    _verifying_mission(db_path, mission_id="r3-recovered")
+    memory_mission.record_candidate_unavailable(
+        "r3-recovered", reason="Builder result store is unavailable", db_path=db_path
+    )
+    candidate = _candidate()
+    monkeypatch.setattr(mission_runtime, "_reviewed_builder_result", lambda mission: candidate)
+
+    receipt = mission_runtime.reconcile_result_candidate_background("r3-recovered")
+
+    assert receipt["status"] == "candidate_bound"
+    assert memory_mission.get_mission("r3-recovered", db_path=db_path)["candidate"]["error"] is None
 
 
 def _runtime_manifest(root: Path, data_root: Path, sha: str) -> dict:

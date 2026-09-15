@@ -100,8 +100,10 @@ resources:
     - tests/test_todo_store.py
   mission:runtime:
     paths:
+    - gateway/mission_accept_cli.py
     - gateway/mission_runtime.py
     - gateway/routes/missions.py
+    - tests/test_mission_accept_cli.py
     - tests/test_mission_runtime.py
     - tests/test_missions_routes.py
     - tests/test_r3_acceptance_authority.py

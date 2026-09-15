@@ -86,6 +86,23 @@ function friendlyAcceptanceUnavailable(error: string | null | undefined): string
   return 'Acceptance records are temporarily unavailable.'
 }
 
+/** Why the finished work could not be prepared for sign-off, in plain language.
+ *
+ * Reconciliation runs in the background after a resume, so without this the card
+ * says "nobody has accepted it yet" for a job that no one *can* accept. */
+function friendlyResultUnavailable(error: string): string {
+  if (/is not ready|no longer matches|cannot be read/i.test(error)) {
+    return 'The saved result file is missing or no longer matches what was reviewed.'
+  }
+  if (/no independently reviewed ready result|review/i.test(error)) {
+    return 'Nothing has independently reviewed this result yet.'
+  }
+  if (/Builder result store is unavailable|task is unavailable/i.test(error)) {
+    return "Kitty could not read the worker's record of this job."
+  }
+  return 'Kitty could not prepare this result for sign-off.'
+}
+
 /** Resume found Builder's durable job but its Gateway Mission binding is still
  * missing. That is not "resolved": the pending approval checkpoint is the only
  * way to reconcile it, so it must survive this reload. */
@@ -723,7 +740,11 @@ function ResumedBuilderJob({
                   )} Check Kitty status, then retry.`
                 : data!.mission_acceptance?.state === 'rejected'
                   ? 'A reviewer rejected this outcome. Revise the work before it can be accepted.'
-                  : 'Builder finished this work. Nobody has accepted the result yet.'}
+                  : data!.mission_acceptance?.result_error
+                    ? `Builder finished this work, but the result could not be prepared for sign-off. ${friendlyResultUnavailable(
+                        data!.mission_acceptance.result_error,
+                      )} Reload this job to try again.`
+                    : 'Builder finished this work. Nobody has accepted the result yet.'}
             </p>
           )}
           {acceptanceUnavailable && !data!.awaiting_acceptance && (

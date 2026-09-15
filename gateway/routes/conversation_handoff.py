@@ -138,7 +138,7 @@ def resume_builder_job(
             and gateway_mission_id
         ):
             background_tasks.add_task(
-                mission_runtime.reconcile_result_candidate, gateway_mission_id
+                mission_runtime.reconcile_result_candidate_background, gateway_mission_id
             )
         return result
     except Exception:
