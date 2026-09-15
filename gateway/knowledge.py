@@ -470,63 +470,121 @@ def _search_active_corpus_fts(
     _, db_path, manifest_path = active
     source_rows = {
         row["source_id"]: row
-        for row in (json.loads(line) for line in manifest_path.read_text(encoding="utf-8").splitlines() if line.strip())
+        for row in (
+            json.loads(line)
+            for line in manifest_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        )
     }
     match_query = _fts_query(query)
     if not match_query:
         return []
-    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
-        expert = require_active_corpus_expert(expert_profile) if expert_profile else None
-        if expert and expert != "general_research":
-            rows = conn.execute(
-                "SELECT chunks.chunk_id,chunks.source_id,chunks.logical_unit_id,chunks.source_title,"
-                "chunks.retrieval_title,chunks.work_id,chunks.work_title,chunks.domains,chunks.subjects,"
-                "chunks.doc_type,chunks.locator_start,chunks.locator_end,chunks.text,bm25(chunks) "
-                "FROM chunks JOIN expert_membership em ON em.source_id=chunks.source_id "
-                "WHERE chunks MATCH ? AND em.expert=? ORDER BY bm25(chunks) LIMIT ?",
-                (match_query, expert, max(limit * 8, limit)),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT chunk_id,source_id,logical_unit_id,source_title,retrieval_title,work_id,work_title,"
-                "domains,subjects,doc_type,locator_start,locator_end,text,bm25(chunks) "
-                "FROM chunks WHERE chunks MATCH ? ORDER BY bm25(chunks) LIMIT ?",
-                (match_query, max(limit * 8, limit)),
-            ).fetchall()
+
     hits: list[dict[str, Any]] = []
     seen_units: set[str] = set()
-    for rank, row in enumerate(rows, start=1):
-        chunk_id, source_id, logical_unit_id, source_title, retrieval_title, work_id, work_title, domains, subjects, doc_type, locator_start, locator_end, text, bm25_score = row
-        if logical_unit_id in seen_units:
-            continue
-        seen_units.add(logical_unit_id)
-        source_row = source_rows.get(source_id)
-        if source_row is None:
-            continue
-        evidence = _manifest_evidence(source_row)
-        metadata = evidence.to_chroma()
-        metadata.update({
-            "chunk_id": chunk_id,
-            "locator_start": locator_start,
-            "locator_end": locator_end,
-            "work_title": work_title or "",
-            "source_title": source_title or "",
-        })
-        hits.append({
-            "text": text,
-            "source": retrieval_title or source_title or evidence.retrieval_title or source_id,
-            "doc_type": doc_type or "general",
-            "score": 1.0 / rank,
-            "fts_score": bm25_score,
-            "ingested_at": 0,
-            "index": 0,
-            "metadata": metadata,
-            "evidence": evidence.model_dump(),
-            "retrieval_method": "fts",
-        })
-        if len(hits) >= limit:
-            break
+    batch_size = max(limit * 8, 64)
+    offset = 0
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        expert = require_active_corpus_expert(expert_profile) if expert_profile else None
+        while len(hits) < limit:
+            if expert and expert != "general_research":
+                rows = conn.execute(
+                    "SELECT chunks.chunk_id,chunks.source_id,chunks.logical_unit_id,chunks.source_title,"
+                    "chunks.retrieval_title,chunks.work_id,chunks.work_title,chunks.domains,chunks.subjects,"
+                    "chunks.doc_type,chunks.locator_start,chunks.locator_end,chunks.text,bm25(chunks) "
+                    "FROM chunks JOIN expert_membership em ON em.source_id=chunks.source_id "
+                    "WHERE chunks MATCH ? AND em.expert=? ORDER BY bm25(chunks) LIMIT ? OFFSET ?",
+                    (match_query, expert, batch_size, offset),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT chunk_id,source_id,logical_unit_id,source_title,retrieval_title,work_id,work_title,"
+                    "domains,subjects,doc_type,locator_start,locator_end,text,bm25(chunks) "
+                    "FROM chunks WHERE chunks MATCH ? ORDER BY bm25(chunks) LIMIT ? OFFSET ?",
+                    (match_query, batch_size, offset),
+                ).fetchall()
+            if not rows:
+                break
+
+            for rank, row in enumerate(rows, start=offset + 1):
+                (
+                    chunk_id, source_id, logical_unit_id, source_title, retrieval_title,
+                    work_id, work_title, domains, subjects, doc_type, locator_start,
+                    locator_end, text, bm25_score,
+                ) = row
+                unit_key = logical_unit_id or source_id or chunk_id
+                if unit_key in seen_units:
+                    continue
+                seen_units.add(unit_key)
+                source_row = source_rows.get(source_id)
+                if source_row is None:
+                    continue
+                evidence = _manifest_evidence(source_row)
+                metadata = evidence.to_chroma()
+                metadata.update({
+                    "chunk_id": chunk_id,
+                    "locator_start": locator_start,
+                    "locator_end": locator_end,
+                    "work_title": work_title or "",
+                    "source_title": source_title or "",
+                })
+                hits.append({
+                    "text": text,
+                    "source": retrieval_title or source_title or evidence.retrieval_title or source_id,
+                    "doc_type": doc_type or "general",
+                    "score": 1.0 / rank,
+                    "fts_score": bm25_score,
+                    "ingested_at": 0,
+                    "index": 0,
+                    "metadata": metadata,
+                    "evidence": evidence.model_dump(),
+                    "retrieval_method": "fts",
+                })
+                if len(hits) >= limit:
+                    break
+
+            offset += len(rows)
+            if len(rows) < batch_size:
+                break
     return hits
+
+
+def _search_hit_identity(hit: dict[str, Any]) -> tuple[Any, ...]:
+    evidence = hit.get("evidence") or {}
+    logical_unit_id = evidence.get("logical_unit_id")
+    if logical_unit_id:
+        return ("logical_unit", logical_unit_id)
+    metadata = hit.get("metadata") or {}
+    return (
+        "chunk",
+        hit.get("source"),
+        metadata.get("content_hash"),
+        hit.get("index"),
+        str(hit.get("text") or "")[:120],
+    )
+
+
+def _merge_ranked_hits(
+    corpus_hits: list[dict[str, Any]],
+    vector_hits: list[dict[str, Any]],
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Interleave independent ranked lists while preserving logical-unit diversity."""
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for index in range(max(len(corpus_hits), len(vector_hits))):
+        for pool in (corpus_hits, vector_hits):
+            if index >= len(pool):
+                continue
+            hit = pool[index]
+            identity = _search_hit_identity(hit)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            merged.append(hit)
+            if len(merged) >= limit:
+                return merged
+    return merged
 
 
 async def ingest(
@@ -640,7 +698,7 @@ async def search(
     stitch_context: bool = True,
     expert_profile: str | None = None,
 ) -> List[Dict[str, Any]]:
-    """Unified search with optional context stitching."""
+    """Unified search across the reconciled corpus and locally ingested knowledge."""
     use_corpus_projection = (
         sort_by == "relevance"
         and sensitivity_filter in (None, "low")
@@ -650,14 +708,18 @@ async def search(
         raise KnowledgeSearchError(
             "expert-scoped retrieval requires the active corpus relevance index"
         )
+
+    corpus_hits: Optional[list[dict[str, Any]]] = None
+    merge_default_search = use_corpus_projection and not collections and not expert_profile
     if use_corpus_projection:
         corpus_hits = _search_active_corpus_fts(
             query, limit, expert_profile=expert_profile
         )
-        if corpus_hits is not None:
+        if corpus_hits is not None and not merge_default_search:
             return corpus_hits
-        if expert_profile:
+        if corpus_hits is None and expert_profile:
             raise CorpusProjectionUnavailableError("expert source corpus is not active")
+
     try:
         query_embedding = list(archivist._embed_cached(query))
         where = _build_search_filter(sensitivity_filter, collections)
@@ -682,12 +744,15 @@ async def search(
                 "ingested_at": meta.get("ingested_at", 0),
                 "index": meta.get("chunk_index", 0),
                 "metadata": meta,
+                "retrieval_method": "vector",
             }
             if meta.get("source_id") and meta.get("logical_unit_id"):
                 try:
                     chunk_data["evidence"] = EvidenceMetadata.from_chroma(meta).model_dump()
                 except Exception:
-                    logger.warning("Ignoring malformed evidence metadata for source=%r", meta.get("source"))
+                    logger.warning(
+                        "Ignoring malformed evidence metadata for source=%r", meta.get("source")
+                    )
 
             if (
                 stitch_context
@@ -703,8 +768,17 @@ async def search(
             key=lambda x: x["ingested_at" if sort_by == "recency" else "score"],
             reverse=True,
         )
+        if corpus_hits is not None:
+            return _merge_ranked_hits(corpus_hits, chunks, limit)
         return chunks[:limit]
     except Exception as exc:
+        if corpus_hits:
+            logger.warning(
+                "Local vector knowledge search failed; using corpus evidence only for query=%r: %s",
+                query,
+                exc,
+            )
+            return corpus_hits[:limit]
         logger.exception("Knowledge search failed for query=%r", query)
         raise KnowledgeSearchError(
             f"knowledge search failed for query={query!r}: {type(exc).__name__}: {exc}"

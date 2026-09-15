@@ -260,7 +260,10 @@ def list_experts():
     from gateway import knowledge
 
     try:
-        return knowledge.active_corpus_experts()
+        state = knowledge.active_corpus_experts()
+        if state.get("status") != "active":
+            raise HTTPException(status_code=503, detail="Expert sources are unavailable right now.")
+        return state
     except knowledge.CorpusProjectionUnavailableError as exc:
         logger.exception("active expert corpus is unavailable")
         raise HTTPException(status_code=503, detail="Expert sources are unavailable right now.") from exc

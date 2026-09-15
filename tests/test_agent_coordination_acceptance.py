@@ -465,6 +465,7 @@ def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
         "tests/test_start_ui_script.py",
     ]
     action_paths = [
+        "gateway/kitty-chat/src/components/HomeState.tsx",
         "gateway/kitty-chat/src/lib/gateway.ts",
         "gateway/kitty-chat/src/lib/queries.ts",
         "gateway/kitty-chat/src/lib/actions-contract.ts",

@@ -736,6 +736,82 @@ async def test_active_corpus_fts_filters_selected_expert_before_ranking(tmp_path
     assert {hit["source"] for hit in general_hits} == {"Audio Manual", "Vehicle Manual"}
 
 
+
+@pytest.mark.asyncio
+async def test_default_search_keeps_uploaded_chroma_results_with_active_corpus(monkeypatch):
+    from gateway import knowledge
+
+    corpus_hit = {
+        "text": "factory brake procedure",
+        "source": "Factory Manual",
+        "score": 1.0,
+        "ingested_at": 0,
+        "index": 0,
+        "metadata": {},
+        "evidence": {"logical_unit_id": "work:factory"},
+        "retrieval_method": "fts",
+    }
+    monkeypatch.setattr(knowledge, "_search_active_corpus_fts", lambda *args, **kwargs: [corpus_hit])
+    monkeypatch.setattr(knowledge.archivist, "_embed_cached", lambda _query: (0.1, 0.2))
+
+    collection = MagicMock()
+    collection.count.return_value = 1
+    collection.query.return_value = {
+        "documents": [["Jacob's uploaded brake note"]],
+        "metadatas": [[{"source": "uploaded-note.txt", "collection": "general", "chunk_index": 0}]],
+        "distances": [[0.05]],
+    }
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: collection)
+
+    hits = await knowledge.search("brake note", limit=2, stitch_context=False)
+
+    assert [hit["source"] for hit in hits] == ["Factory Manual", "uploaded-note.txt"]
+    assert hits[1]["retrieval_method"] == "vector"
+
+
+@pytest.mark.asyncio
+async def test_active_corpus_fts_reads_past_duplicate_logical_unit_window(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text, "
+            "tokenize='porter unicode61')"
+        )
+        rows = [
+            (f"dup-{i}", "dup-src", "work:dup", "Duplicate Work", "Duplicate Work",
+             "work:dup", "Duplicate Work", "electronics", "power", "textbook",
+             str(i), str(i), f"power supply service common term {i}")
+            for i in range(70)
+        ]
+        rows.append((
+            "other-1", "other-src", "work:other", "Other Work", "Other Work",
+            "work:other", "Other Work", "electronics", "power", "textbook",
+            "1", "1", "power supply service common term alternate source",
+        ))
+        conn.executemany("INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text("\n".join([
+        json.dumps({"source_id":"dup-src","sha256":"a"*64,"logical_unit_id":"work:dup","retrieval_title":"Duplicate Work"}),
+        json.dumps({"source_id":"other-src","sha256":"b"*64,"logical_unit_id":"work:other","retrieval_title":"Other Work"}),
+    ]) + "\n")
+    projection = tmp_path / "projection.json"
+    projection.write_text(json.dumps({"status":"active","fts_db":str(db),"source_manifest":str(manifest)}))
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+
+    hits = knowledge._search_active_corpus_fts("power supply service common term", 2)
+
+    assert hits is not None
+    assert [hit["source"] for hit in hits] == ["Duplicate Work", "Other Work"]
+
 def test_active_corpus_experts_are_derived_from_active_manifest(tmp_path, monkeypatch):
     import json
     import sqlite3

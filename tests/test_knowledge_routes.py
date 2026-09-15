@@ -511,16 +511,14 @@ def test_expert_route_rejects_whitespace_query(client):
 
 
 
-def test_experts_route_reports_unavailable_instead_of_empty_success(client):
+def test_experts_route_fails_loudly_when_corpus_is_unavailable(client):
     with patch("gateway.knowledge.active_corpus_experts", return_value={
         "status": "unavailable", "experts": [], "message": "Expert source corpus is not active."
     }):
         response = client.get("/knowledge/experts")
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "unavailable", "experts": [], "message": "Expert source corpus is not active."
-    }
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Expert sources are unavailable right now."
 
 
 def test_experts_route_returns_active_corpus_profiles(client):

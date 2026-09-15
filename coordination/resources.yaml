@@ -175,6 +175,7 @@ resources:
     paths:
     - gateway/_work_projection_item.py
     - gateway/conversation_handoff.py
+    - gateway/kitty-chat/src/components/HomeState.tsx
     - gateway/kitty-chat/src/components/LibraryView.tsx
     - gateway/kitty-chat/src/components/WorkView.tsx
     - gateway/kitty-chat/src/components/builder/BuilderProposalCard.tsx
