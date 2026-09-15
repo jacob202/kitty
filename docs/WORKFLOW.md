@@ -93,7 +93,13 @@ approval, and independent review.
 
 - Merge decisions and risky scope expansion remain explicit human decisions.
 - Sensitive scope still requires final-head approval plus independent review.
-- A new commit invalidates exact-head approval/review evidence.
+- A new commit invalidates exact-head approval/review evidence. Sequence the
+  last push *before* requesting that evidence: a corrective commit landed after
+  approval costs a full re-approval cycle, and this is the most common way a
+  ready PR loses its gate. Batch review fixes into one commit, then request
+  approval once, on the exact head you intend to merge. When a corrective commit
+  is unavoidable after approval, the receipt must be re-posted for the new head
+  rather than assumed to carry forward.
 - Automation fails loud when required evidence is unavailable; ordinary PRs do
   not depend on the availability of an external review model.
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from gateway import agent_workspace, context_receipt
+from gateway import agent_workspace, context_orientation, context_receipt
 from mcp.server.fastmcp import FastMCP
 
 
@@ -71,17 +71,24 @@ def _status() -> dict:
 
 
 @mcp.tool()
-def room_status(session_id: str | None = None, scope: str | None = None) -> dict:
+def room_status(
+    session_id: str | None = None, scope: str | None = None, github: bool = False
+) -> dict:
     """Return canonical room identity plus the shared scoped orientation briefing.
 
     The briefing is a view of the one shared orientation result owned by
     ``gateway.context_receipt``; no aggregation happens in this server.
+
+    ``github`` is opt-in and defaults off: orientation performs no network call
+    of its own, so a caller must ask explicitly before anything is fetched.
     """
     status = _status()
     orientation = context_receipt.build_orientation_receipt(
         CLIENT_IDENTITY,
         session_id=session_id,
         explicit_scope={"scope_key": scope} if scope else None,
+        github_lookup=context_orientation.live_github_lookup() if github else None,
+        issue_lookup=context_orientation.live_issue_lookup() if github else None,
     )
     status["briefing"] = context_receipt.build_room_briefing(
         orientation,

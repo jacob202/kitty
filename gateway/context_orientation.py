@@ -24,7 +24,10 @@ Invariants:
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -183,6 +186,249 @@ def _no_remote_github_lookup(number: int) -> dict[str, Any]:
         "number": number,
         "reason": "orientation does not query GitHub live; refresh candidate state explicitly",
     }
+
+
+# A live GitHub read is a network call, so it is bounded and never implicit.
+GITHUB_LOOKUP_TIMEOUT_SECONDS = 20
+COORDINATION_ISSUE_NUMBER = 490
+_GITHUB_PR_FIELDS = (
+    "number,state,headRefOid,url,title,mergedAt,reviewDecision,statusCheckRollup"
+)
+# Run gh from the checkout so a stdio client launched elsewhere still resolves
+# the repository; --repo overrides it when a caller supplies one.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SUCCESS_CONCLUSIONS = frozenset({"SUCCESS", "NEUTRAL"})
+_FAILURE_CONCLUSIONS = frozenset(
+    {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"}
+)
+_PENDING_CONCLUSIONS = frozenset(
+    {"", "PENDING", "QUEUED", "IN_PROGRESS", "EXPECTED", "WAITING", "REQUESTED"}
+)
+_GITHUB_ISSUE_FIELDS = "number,state,title,url,updatedAt,labels"
+_GITHUB_FACET_FIELDS = (
+    "number",
+    "pr_state",
+    "issue_state",
+    "title",
+    "url",
+    "review_decision",
+    "merged",
+    "updated_at",
+    "labels",
+    "checks",
+)
+
+
+def _normalize_check_rollup(rollup: Any) -> dict[str, Any] | None:
+    """Summarize a statusCheckRollup so each required check can be inspected."""
+    if not isinstance(rollup, list):
+        return None
+    counts = {"success": 0, "failure": 0, "pending": 0, "skipped": 0, "other": 0}
+    checks: list[dict[str, Any]] = []
+    for entry in rollup:
+        if not isinstance(entry, dict):
+            continue
+        conclusion = str(entry.get("conclusion") or entry.get("state") or "").upper()
+        if conclusion in _SUCCESS_CONCLUSIONS:
+            bucket = "success"
+        elif conclusion in _FAILURE_CONCLUSIONS:
+            bucket = "failure"
+        elif conclusion in _PENDING_CONCLUSIONS:
+            bucket = "pending"
+        elif conclusion == "SKIPPED":
+            bucket = "skipped"
+        else:
+            bucket = "other"
+        counts[bucket] += 1
+        name = entry.get("name") or entry.get("context")
+        if name:
+            checks.append({"name": str(name), "conclusion": conclusion or None})
+    return {"counts": counts, "checks": checks}
+
+
+def _run_gh_json(args: list[str]) -> tuple[dict[str, Any] | None, str | None]:
+    """Run a bounded ``gh`` read and return ``(payload, error)``. Never raises."""
+    if shutil.which("gh") is None:
+        return None, "the gh CLI is not installed in this environment"
+    env = dict(os.environ)
+    # gh must use stored/keyring auth, never an ambient or stale token inherited
+    # by this process (repo AGENTS.md requirement, matching builder_publish).
+    env.pop("GITHUB_TOKEN", None)
+    env.pop("GH_TOKEN", None)
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=GITHUB_LOOKUP_TIMEOUT_SECONDS,
+            check=False,
+            cwd=str(_REPO_ROOT),
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, f"gh could not be run: {type(exc).__name__}: {exc}"
+    if result.returncode != 0:
+        command = " ".join(str(arg).replace("\n", " ")[:120] for arg in args[1:])
+        stderr = " ".join((result.stderr or "").strip().split())[:400] or "<empty>"
+        stdout = " ".join((result.stdout or "").strip().split())[:400] or "<empty>"
+        return None, (
+            f"gh exit {result.returncode}; args={command}; "
+            f"stderr={stderr}; stdout={stdout}"
+        )
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except ValueError as exc:
+        return None, f"gh returned unparseable JSON: {exc}"
+    if not isinstance(payload, dict):
+        return None, "gh returned an unexpected payload shape"
+    return payload, None
+
+
+def live_github_lookup(repo: str | None = None):
+    """Return a pull-request lookup backed by the ``gh`` CLI.
+
+    Opt-in by construction. Orientation itself never calls this: a caller that
+    can afford the network passes the result into
+    ``collect_orientation_evidence(github_lookup=...)``, so the default briefing
+    stays offline and deterministic.
+
+    The returned callable never raises. A missing ``gh``, a failed query or
+    unparseable output all come back as an explicit ``unavailable`` facet
+    carrying the reason, so a broken query cannot masquerade as live truth.
+    """
+
+    def lookup(number: int) -> dict[str, Any]:
+        if not isinstance(number, int) or number <= 0:
+            return {
+                "state": SOURCE_UNKNOWN,
+                "number": number,
+                "reason": "a positive pull-request number is required",
+            }
+        command = ["gh", "pr", "view", str(number), "--json", _GITHUB_PR_FIELDS]
+        if repo:
+            command += ["--repo", repo]
+        payload, error = _run_gh_json(command)
+        if error is not None or payload is None:
+            return {"state": SOURCE_UNAVAILABLE, "number": number, "reason": error}
+        return {
+            "state": SOURCE_CURRENT,
+            "number": number,
+            "head_sha": payload.get("headRefOid"),
+            "pr_state": payload.get("state"),
+            "title": payload.get("title"),
+            "url": payload.get("url"),
+            "review_decision": payload.get("reviewDecision"),
+            "merged": bool(payload.get("mergedAt")),
+            "checks": _normalize_check_rollup(payload.get("statusCheckRollup")),
+        }
+
+    return lookup
+
+
+def live_issue_lookup(repo: str | None = None):
+    """Return an issue lookup for coordination markers, backed by ``gh``.
+
+    Separate from the pull-request lookup on purpose: the #490 coordination
+    marker is an issue, so ``gh pr view`` is simply the wrong query for it.
+    Opt-in and never raises, like its pull-request counterpart.
+    """
+
+    def lookup(number: int) -> dict[str, Any]:
+        if not isinstance(number, int) or number <= 0:
+            return {
+                "state": SOURCE_UNKNOWN,
+                "number": number,
+                "reason": "a positive issue number is required",
+            }
+        command = ["gh", "issue", "view", str(number), "--json", _GITHUB_ISSUE_FIELDS]
+        if repo:
+            command += ["--repo", repo]
+        payload, error = _run_gh_json(command)
+        if error is not None or payload is None:
+            return {"state": SOURCE_UNAVAILABLE, "number": number, "reason": error}
+        return {
+            "state": SOURCE_CURRENT,
+            "number": number,
+            "issue_state": payload.get("state"),
+            "title": payload.get("title"),
+            "url": payload.get("url"),
+            "updated_at": payload.get("updatedAt"),
+            "labels": [
+                label.get("name")
+                for label in (payload.get("labels") or [])
+                if isinstance(label, dict)
+            ],
+        }
+
+    return lookup
+
+
+def _github_evidence_item(
+    lookup: Any, number: int, locator: str, kind: str
+) -> dict[str, Any]:
+    """Turn one live GitHub facet into a candidate-bound evidence item."""
+    try:
+        facet = lookup(number)
+    except Exception as exc:  # noqa: BLE001 - contributed as an unavailable item
+        facet = {
+            "state": SOURCE_UNAVAILABLE,
+            "number": number,
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+    if not isinstance(facet, dict):
+        facet = {
+            "state": SOURCE_UNAVAILABLE,
+            "number": number,
+            "reason": f"lookup returned {type(facet).__name__}, not a facet",
+        }
+    item: dict[str, Any] = {
+        "source": "github",
+        "owner": "github",
+        "kind": kind,
+        "locator": locator,
+        "candidate_ref": facet.get("head_sha"),
+    }
+    for key in _GITHUB_FACET_FIELDS:
+        if facet.get(key) is not None:
+            item[key] = facet[key]
+    if facet.get("state") != SOURCE_CURRENT:
+        item["source_available"] = False
+        item["diagnostic"] = facet.get("reason") or f"github reported {facet.get('state')}"
+    return item
+
+
+def _github_evidence_items(
+    github_lookup: Any | None,
+    issue_lookup: Any | None,
+    candidate_pr_numbers: list[int],
+    coordination_issue: int | None,
+) -> list[dict[str, Any]]:
+    """Collect opt-in GitHub evidence: candidate PRs and the coordination marker."""
+    items: list[dict[str, Any]] = []
+    if github_lookup is not None:
+        numbers = sorted(
+            {
+                int(number)
+                for number in candidate_pr_numbers
+                if isinstance(number, int) and number > 0
+            }
+        )
+        for number in numbers:
+            if number == coordination_issue:
+                continue
+            items.append(
+                _github_evidence_item(github_lookup, number, f"github:pr:{number}", "pull_request")
+            )
+    if issue_lookup is not None and coordination_issue:
+        items.append(
+            _github_evidence_item(
+                issue_lookup,
+                coordination_issue,
+                f"github:issue:{coordination_issue}",
+                "coordination_marker",
+            )
+        )
+    return items
 
 
 def _normalize_explicit_scope(value: dict[str, Any] | str | None) -> dict[str, Any] | None:
@@ -1101,6 +1347,49 @@ def _project_next_continuation(
     }
 
 
+def _github_source(evidence: OrientationEvidence, observed_at: str) -> dict[str, Any]:
+    """Report GitHub truthfulness from the evidence actually collected.
+
+    A successful opt-in refresh must not still read as ``unknown``, and a partial
+    one must not read as healthy: the facet follows the items rather than a
+    constant, so the source never contradicts the PR/issue evidence beside it.
+    """
+    items = [
+        item
+        for item in (evidence.candidate_evidence or [])
+        if item.get("owner") == "github"
+    ]
+    if not items:
+        return _source(
+            SOURCE_UNKNOWN,
+            "github",
+            observed_at,
+            diagnostic=(
+                "no live GitHub query was performed; publication state requires a refresh"
+            ),
+        )
+    failed = [item for item in items if item.get("source_available") is False]
+    if failed:
+        return _source(
+            SOURCE_UNAVAILABLE,
+            "github",
+            observed_at,
+            diagnostic=(
+                failed[0].get("diagnostic") or "a GitHub lookup failed"
+            )
+            + (f" ({len(failed)} of {len(items)} lookups failed)" if len(failed) > 1 else ""),
+            item_count=len(items),
+            locators=[item["locator"] for item in items],
+        )
+    return _source(
+        SOURCE_CURRENT,
+        "github",
+        observed_at,
+        item_count=len(items),
+        locators=[item["locator"] for item in items],
+    )
+
+
 def assemble_orientation(
     identity: str,
     *,
@@ -1178,14 +1467,7 @@ def assemble_orientation(
             branch=candidate.get("branch"),
             head=head,
         ),
-        "github": _source(
-            SOURCE_UNKNOWN,
-            "github",
-            observed_at,
-            diagnostic=(
-                "no live GitHub query was performed; publication state requires a refresh"
-            ),
-        ),
+        "github": _github_source(evidence, observed_at),
         "kx": _project_lanes(claims, evidence.claims_error, observed_at),
         "builder": _project_builder(receipt, evidence.context_receipt_error, observed_at),
         "runtime": _project_runtime(
@@ -1342,12 +1624,23 @@ def collect_orientation_evidence(
     identity: str,
     *,
     session_id: str | None = None,
+    explicit_scope: dict[str, Any] | str | None = None,
     thread_or_handoff: str | None = None,
     repo_root: Path | None = None,
     include_builder: bool = True,
     now: datetime | None = None,
+    github_lookup: Any | None = None,
+    issue_lookup: Any | None = None,
+    coordination_issue: int | None = COORDINATION_ISSUE_NUMBER,
 ) -> OrientationEvidence:
-    """Gather read-only authority evidence, degrading explicitly rather than silently."""
+    """Gather read-only authority evidence, degrading explicitly rather than silently.
+
+    ``github_lookup`` is opt-in: orientation performs no network call of its own,
+    so the default briefing stays offline and deterministic. Passing
+    ``live_github_lookup()`` (or any callable of the same shape) adds GitHub
+    PR/check evidence and the coordination marker, each bound to the exact head
+    it reports.
+    """
     observed_at = _observed_at(now)
     evidence = OrientationEvidence(observed_at=observed_at)
 
@@ -1360,7 +1653,7 @@ def collect_orientation_evidence(
             repo_root or context_receipt.ROOT,
             include_builder=include_builder,
             include_legacy_continuity=False,
-            github_lookup=_no_remote_github_lookup,
+            github_lookup=github_lookup or _no_remote_github_lookup,
             now=now,
         )
     except Exception as exc:  # noqa: BLE001 - attributed as an explicit source failure
@@ -1396,9 +1689,37 @@ def collect_orientation_evidence(
 
     try:
         receipt = dict(evidence.context_receipt or {})
-        evidence.candidate_evidence = _collect_candidate_evidence(
+        candidate_items = _collect_candidate_evidence(
             dict(receipt.get("git") or {}), include_builder=include_builder
         )
+        if github_lookup is not None or issue_lookup is not None:
+            # Only an explicit caller turns the network on; the candidate PR
+            # numbers come from the owners' own records, never from prose.
+            candidate_pr_numbers = [
+                publication["pr_number"]
+                for item in candidate_items
+                if isinstance(item.get("publication"), dict)
+                and isinstance((publication := item["publication"]).get("pr_number"), int)
+            ]
+            scope = _normalize_explicit_scope(explicit_scope)
+            if scope:
+                scope_key = scope.get("scope_key")
+                if isinstance(scope_key, str):
+                    match = re.fullmatch(r"github:pr:([1-9][0-9]*)", scope_key.strip())
+                    if match:
+                        candidate_pr_numbers.append(int(match.group(1)))
+                for key in ("pr", "pr_ref"):
+                    value = scope.get(key)
+                    if isinstance(value, int) and value > 0:
+                        candidate_pr_numbers.append(value)
+                    elif isinstance(value, str):
+                        match = re.fullmatch(r"(?:github:pr:|#)?([1-9][0-9]*)", value.strip())
+                        if match:
+                            candidate_pr_numbers.append(int(match.group(1)))
+            candidate_items += _github_evidence_items(
+                github_lookup, issue_lookup, candidate_pr_numbers, coordination_issue
+            )
+        evidence.candidate_evidence = candidate_items
     except Exception as exc:  # noqa: BLE001 - attributed as an explicit source failure
         evidence.candidate_evidence_error = f"{type(exc).__name__}: {exc}"
 
@@ -1416,6 +1737,8 @@ def build_orientation_receipt(
     now: datetime | None = None,
     evidence: OrientationEvidence | None = None,
     untrusted_sources: list[dict[str, Any]] | None = None,
+    github_lookup: Any | None = None,
+    issue_lookup: Any | None = None,
 ) -> dict[str, Any]:
     """Build the shared deterministic orientation projection.
 
@@ -1427,10 +1750,13 @@ def build_orientation_receipt(
     bundle = evidence or collect_orientation_evidence(
         identity,
         session_id=session_id,
+        explicit_scope=explicit_scope,
         thread_or_handoff=thread_or_handoff,
         repo_root=repo_root,
         include_builder=include_builder,
         now=now,
+        github_lookup=github_lookup,
+        issue_lookup=issue_lookup,
     )
     if untrusted_sources:
         bundle = replace(
