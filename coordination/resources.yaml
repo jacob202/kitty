@@ -85,6 +85,7 @@ resources:
   memory:continuity:
     paths:
     - gateway/agent_workspace.py
+    - gateway/chat_lifecycle.py
     - gateway/context_*.py
     - gateway/db.py
     - gateway/explicit_memory.py
@@ -102,6 +103,7 @@ resources:
     - tests/test_agent_room_presence.py
     - tests/test_agent_workspace.py
     - tests/test_agent_workspace_routes.py
+    - tests/test_chat_lifecycle.py
     - tests/test_check_continuity_state.py
     - tests/test_context_assembler.py
     - tests/test_context_orientation.py
@@ -175,6 +177,7 @@ resources:
     paths:
     - gateway/_work_projection_item.py
     - gateway/conversation_handoff.py
+    - gateway/kitty-chat/src/components/ChatMessage.tsx
     - gateway/kitty-chat/src/components/HomeState.tsx
     - gateway/kitty-chat/src/components/LibraryView.tsx
     - gateway/kitty-chat/src/components/WorkView.tsx
@@ -185,10 +188,12 @@ resources:
     - gateway/kitty-chat/src/lib/chat-client.ts
     - gateway/kitty-chat/src/lib/gateway.ts
     - gateway/kitty-chat/src/lib/queries.ts
+    - gateway/kitty-chat/src/lib/types.ts
     - gateway/kitty-chat/src/lib/work.ts
     - gateway/kitty-chat/src/state/KittyContext.tsx
     - gateway/kitty-chat/tests/ActionCard.test.tsx
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
+    - gateway/kitty-chat/tests/ChatMessage.test.tsx
     - gateway/kitty-chat/tests/HomeState.test.tsx
     - gateway/kitty-chat/tests/LibraryView.test.tsx
     - gateway/kitty-chat/tests/WorkViewActions.test.tsx
@@ -203,6 +208,7 @@ resources:
     - gateway/routes/extended.py
     - gateway/voice_middleware.py
     - tests/test_chat_completions.py
+    - tests/test_chats_route.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
     - tests/test_library_chat_001.py
