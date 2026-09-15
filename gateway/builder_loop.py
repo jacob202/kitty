@@ -1833,13 +1833,28 @@ def _run_review_command(
     timeout_seconds: int,
 ) -> str | None:
     """Run a reviewer inside the lower-trust read-only boundary."""
-    result_raw = env_extra.get("KB_REVIEW_RESULT_PATH")
+    path_keys = (
+        "KB_BUNDLE_PATH",
+        "KB_IMPL_RESULT_PATH",
+        "KB_CONTEXT_MANIFEST_PATH",
+        "KB_REVIEW_CONTEXT_PATH",
+        "KB_REVIEW_RESULT_PATH",
+        "KB_REVIEW_NOTE_PATH",
+    )
+    review_env_extra = dict(env_extra)
+    for key in path_keys:
+        raw = review_env_extra.get(key)
+        if raw:
+            review_env_extra[key] = str(Path(raw).resolve())
+
+    result_raw = review_env_extra.get("KB_REVIEW_RESULT_PATH")
     if not result_raw:
         return "review command missing KB_REVIEW_RESULT_PATH"
-    result_path = Path(result_raw).resolve()
+    result_path = Path(result_raw)
     runtime_dir = result_path.parent / ".review-runtime"
+    review_cwd = cwd.resolve()
     env = beb.build_child_environment(os.environ, run_dir=runtime_dir)
-    env.update(env_extra)
+    env.update(review_env_extra)
 
     read_keys = (
         "KB_BUNDLE_PATH",
@@ -1854,17 +1869,17 @@ def _run_review_command(
     # The canonical reviewer adapter stages runner-owned evidence as local
     # copies because OpenCode denies external-directory access. Keep the source
     # tree read-only while allowing only those exact, disposable staging files.
-    attempt_id = env_extra.get("KB_ATTEMPT_ID", "")
+    attempt_id = review_env_extra.get("KB_ATTEMPT_ID", "")
     if attempt_id.isdigit():
         write_paths.extend(
-            cwd / f".kittybuilder-review-{name}-{attempt_id}.json"
+            review_cwd / f".kittybuilder-review-{name}-{attempt_id}.json"
             for name in ("bundle", "impl", "context", "binding", "result")
         )
-        write_paths.append(cwd / f".kittybuilder-review-prompt-{attempt_id}.txt")
+        write_paths.append(review_cwd / f".kittybuilder-review-prompt-{attempt_id}.txt")
     try:
         wrapped = beb.wrap_command(
             command,
-            worktree=cwd,
+            worktree=review_cwd,
             run_dir=runtime_dir,
             environment=env,
             read_paths=read_paths,
@@ -1873,7 +1888,7 @@ def _run_review_command(
         )
         proc = subprocess.run(
             wrapped,
-            cwd=str(cwd),
+            cwd=str(review_cwd),
             env=env,
             capture_output=True,
             text=True,

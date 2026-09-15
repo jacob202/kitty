@@ -11,6 +11,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -28,6 +29,30 @@ pytestmark = pytest.mark.integration
 
 INITIATIVE = "loop-test"
 PACKET = "LP-1"
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_review_command_canonicalizes_macos_tmp_alias_result_path() -> None:
+    """The reviewer must receive the same canonical path Seatbelt authorizes."""
+    if Path("/tmp").resolve() == Path("/tmp"):
+        pytest.skip("host has no /tmp path alias")
+    with tempfile.TemporaryDirectory(prefix="kitty-review-alias-", dir="/tmp") as raw:
+        canonical_worktree = Path(raw).resolve()
+        aliased_result = Path(raw) / "review.json"
+        canonical_result = aliased_result.resolve()
+        script = (
+            "import json, os, pathlib; "
+            "pathlib.Path(os.environ['KB_REVIEW_RESULT_PATH']).write_text("
+            "json.dumps({'path': os.environ['KB_REVIEW_RESULT_PATH']}))"
+        )
+        error = bl._run_review_command(
+            [str(Path(sys.executable).resolve()), "-c", script],
+            cwd=canonical_worktree,
+            env_extra={"KB_REVIEW_RESULT_PATH": str(aliased_result)},
+            timeout_seconds=5,
+        )
+        assert error is None
+        assert json.loads(canonical_result.read_text()) == {"path": str(canonical_result)}
+
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
