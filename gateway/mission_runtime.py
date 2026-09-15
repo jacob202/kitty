@@ -224,20 +224,21 @@ def _reviewed_builder_result(mission: dict[str, Any]) -> dict[str, Any] | None:
     # task happens to be blocked again.
     history = packet.get("attempt_history", [])
     attempt = history[0] if isinstance(history, list) and history else None
+    result_artifact = attempt.get("result_artifact") if isinstance(attempt, dict) else None
     reviewed_ready = (
         isinstance(attempt, dict)
         and attempt.get("outcome") == "succeeded"
         and attempt.get("review_verdict") == "approve"
-        and isinstance(attempt.get("result_artifact"), dict)
-        and attempt["result_artifact"].get("state") == "ready"
+        and isinstance(result_artifact, dict)
+        and result_artifact.get("state") == "ready"
     )
-    if not reviewed_ready:
+    if not reviewed_ready or not isinstance(attempt, dict) or not isinstance(result_artifact, dict):
         if task_state == builder_queue.DONE:
             raise ResultCandidateUnavailable(
                 "completed Builder task has no independently reviewed ready result artifact"
             )
         return None
-    artifact_id = attempt["result_artifact"].get("artifact_id")
+    artifact_id = result_artifact.get("artifact_id")
     if not isinstance(artifact_id, str) or not artifact_id:
         raise ResultCandidateUnavailable("Builder result artifact identity is unavailable")
     try:
