@@ -868,6 +868,47 @@ def test_legacy_text_review_shapes_fail_closed() -> None:
     ) is None
 
 
+def test_embedded_json_object_survives_transport_formatting() -> None:
+    """Regression: a fenced or narrated record is still the required verdict.
+
+    Observed on every review attempt for PR #877 and #883: the model returned an
+    otherwise schema-valid record wrapped in a fence or a sentence of narration,
+    the parser rejected the whole response, and the workflow published a
+    no-verdict marker that no gate can satisfy. The schema is still enforced
+    exactly; only transport formatting is tolerated.
+    """
+    record = APPROVE_REVIEW_JSON
+    assert pr_review._normalize_opencode_review(record) == pr_review.NO_FINDINGS
+    assert (
+        pr_review._normalize_opencode_review(f"```json\n{record}\n```")
+        == pr_review.NO_FINDINGS
+    )
+    assert (
+        pr_review._normalize_opencode_review(f"Here is my review.\n\n{record}\n")
+        == pr_review.NO_FINDINGS
+    )
+    assert (
+        pr_review._normalize_opencode_review(
+            f"```json\n{record}\n```\nThat is my only finding set."
+        )
+        == pr_review.NO_FINDINGS
+    )
+
+    # Still refused: no object, several objects, or a valid object off-contract.
+    assert pr_review._normalize_opencode_review("No actionable findings.") is None
+    assert pr_review._normalize_opencode_review(f"{record}\n{record}") is None
+    assert (
+        pr_review._normalize_opencode_review('{"schema_version":1,"verdict":"approve"}')
+        is None
+    )
+    assert (
+        pr_review._normalize_opencode_review(
+            '{"schema_version":2,"verdict":"approve","findings":[]}'
+        )
+        is None
+    )
+
+
 def test_gate_and_workflow_share_one_finding_definition() -> None:
     """The producer and the reader must not drift apart."""
     from scripts import pr_review_gate
@@ -926,10 +967,33 @@ def test_exact_json_review_contract_normalizes_approve_and_findings() -> None:
     assert "Corrective Action: reject non-schema reviewer output" in normalized
 
 
-def test_review_json_must_be_exact_and_each_finding_complete() -> None:
+def test_review_json_must_be_schema_exact_and_each_finding_complete() -> None:
+    """The contract is the record's shape, not the formatting around it.
+
+    Wrapping an otherwise schema-valid record in a fence or a sentence is how the
+    reviewer actually answers, and rejecting that outright turned every attempt
+    into a no-verdict. The record itself must still match exactly, and narration
+    that reads as a finding must still not be cleared by an embedded approval.
+    """
     valid = '{"schema_version":1,"verdict":"approve","findings":[]}'
-    assert pr_review._normalize_opencode_review("thinking first\n" + valid) is None
-    assert pr_review._normalize_opencode_review(valid + "\nextra prose") is None
+    assert (
+        pr_review._normalize_opencode_review("thinking first\n" + valid)
+        == pr_review.NO_FINDINGS
+    )
+    assert (
+        pr_review._normalize_opencode_review(valid + "\nextra prose")
+        == pr_review.NO_FINDINGS
+    )
+    # A narrated defect is not cleared by an embedded approval.
+    assert (
+        pr_review._normalize_opencode_review(
+            "Failure Mode: the retry loop double-charges on timeout.\n" + valid
+        )
+        is None
+    )
+    # Ambiguous: more than one candidate record.
+    assert pr_review._normalize_opencode_review(valid + "\n" + valid) is None
+    # The record itself must still be schema-exact.
     assert pr_review._normalize_opencode_review(
         '{"schema_version":1,"verdict":"findings","findings":['
         '{"file":"scripts/pr_review.py","hunk":"parser",'

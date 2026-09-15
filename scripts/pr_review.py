@@ -324,6 +324,44 @@ def _invalid_review(reason: str, text: str) -> None:
     )
 
 
+def _embedded_json_object(text: str) -> str | None:
+    """Return the one top-level JSON object embedded in the reviewer's output.
+
+    Models routinely wrap the required record in a code fence or a sentence of
+    narration, and rejecting that outright is what produced "no verdict" for
+    every review attempt. Tolerating the transport formatting does not weaken the
+    contract -- the schema below is still enforced exactly, key for key -- while
+    an output carrying no object, or more than one, is still refused rather than
+    guessed at.
+    """
+    spans: list[str] = []
+    depth = 0
+    start = -1
+    in_string = False
+    escaped = False
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "}" and depth:
+            depth -= 1
+            if depth == 0 and start >= 0:
+                spans.append(text[start : index + 1])
+                start = -1
+    return spans[0] if len(spans) == 1 else None
+
+
 def _normalize_opencode_review(output: str) -> str | None:
     """Parse exactly one schema-valid model record into the durable review contract."""
     text = output.strip()
@@ -332,8 +370,24 @@ def _normalize_opencode_review(output: str) -> str | None:
     try:
         record = json.loads(text)
     except json.JSONDecodeError:
-        _invalid_review("response is not exactly one JSON object", text)
-        return None
+        embedded = _embedded_json_object(text)
+        if embedded is None:
+            _invalid_review("response does not contain exactly one JSON object", text)
+            return None
+        try:
+            record = json.loads(embedded)
+        except json.JSONDecodeError:
+            _invalid_review("response does not contain exactly one JSON object", text)
+            return None
+        # Transport formatting is tolerated; prose that reads as a finding is not.
+        # An `approve` record must not silently clear a narrated defect.
+        if (
+            isinstance(record, dict)
+            and record.get("verdict") == "approve"
+            and is_reportable_finding(text.replace(embedded, ""))
+        ):
+            _invalid_review("approve record accompanied by narrated finding text", text)
+            return None
 
     if not isinstance(record, dict) or set(record) != REVIEW_RECORD_KEYS:
         _invalid_review("top-level review schema does not match", text)
