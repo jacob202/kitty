@@ -365,22 +365,13 @@ def test_unknown_route_fails_loud():
         cg.estimate_pass_cost_cad("premium")
 
 
-def test_default_budget_covers_a_modelled_week_without_downgrading():
-    # 10 tasks x 3 head SHAs x (plan + review + implement), 85% routine.
+def test_default_budget_preserves_approved_weekly_ceiling():
     config = cg.DEFAULT_RESERVE_CONFIG
-    passes = 10 * 3 * 3
-    routine = int(passes * 0.85)
-    modelled = (
-        routine * cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP)
-        + (passes - routine) * cg.estimate_pass_cost_cad(cg.ROUTE_FRONTIER)
-    ) * 1.5  # retry headroom
+    loaded = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
 
-    downgrade_at = config["weekly_budget_cad"] * (1 - config["frontier_floor_ratio"])
-
-    assert modelled < downgrade_at, (
-        f"a modelled week costs CAD {modelled:.2f} but the frontier floor bites at "
-        f"CAD {downgrade_at:.2f} spent — recompute the budget"
-    )
+    # Route changes do not authorize a spend-ceiling change.
+    assert config["weekly_budget_cad"] == 6.0
+    assert loaded["weekly_budget_cad"] == config["weekly_budget_cad"]
 
 
 def test_explicit_free_route_runs_without_spend_even_when_reserve_is_empty(db: Path):

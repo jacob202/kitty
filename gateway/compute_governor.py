@@ -671,12 +671,10 @@ ROOT_CONFIG_PATH = ROOT / "config" / "compute_governor.json"
 # a normal week, so routine weeks never downgrade, and a bad week degrades to
 # Flash instead of stopping. Recompute if the price registry moves.
 DEFAULT_RESERVE_CONFIG: dict[str, float] = {
-    # Raised 6.00 -> 10.00 on 2026-09-15 when the cheap lane moved to DeepSeek
-    # V4.1 Flash. A modelled week projects CAD 7.27; with the 25% frontier
-    # floor, anything below ~9.70 downgrades unattended dispatch back to the
-    # free route partway through the week, which is what the move was meant to
-    # stop. Keep this in step with config/compute_governor.json.
-    "weekly_budget_cad": 10.0,
+    # The approved mission ceiling remains CAD 6.00/week. Keep this in step
+    # with config/compute_governor.json; route changes do not authorize a
+    # higher spend ceiling.
+    "weekly_budget_cad": 6.0,
     "frontier_floor_ratio": 0.25,
     "hard_floor_ratio": 0.05,
 }

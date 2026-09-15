@@ -88,9 +88,13 @@ def _supervisor_route() -> str:
     from gateway import compute_governor as cg
 
     raw = os.environ.get(SUPERVISOR_ROUTE_ENV, "").strip().lower()
+    if not raw:
+        return SUPERVISOR_ROUTE_DEFAULT
     if raw in cg.ROUTE_MODELS:
         return raw
-    return SUPERVISOR_ROUTE_DEFAULT
+    raise ValueError(
+        f"unknown supervisor route {raw!r}; expected one of {sorted(cg.ROUTE_MODELS)}"
+    )
 
 
 def _supervisor_route_argv() -> list[str]:

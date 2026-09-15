@@ -33,4 +33,5 @@ try {
   // No git, no repository, or a detached toolchain: leave no stamp rather than
   // an invented one. The doctor reports that as "unknown", which is true.
   console.error(`stamp-source-sha: could not record source identity: ${error.message}`)
+  process.exitCode = 1
 }

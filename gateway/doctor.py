@@ -853,7 +853,9 @@ def _launchd_disabled(label: str) -> bool:
         return False
     for raw in proc.stdout.splitlines():
         line = raw.strip()
-        if f'"{label}"' in line and line.endswith("=> disabled"):
+        # `launchctl print-disabled` renders a disabled label as `=> true`.
+        # Keep accepting the older textual form for captured legacy output.
+        if f'"{label}" => true' in line or f'"{label}" => disabled' in line:
             return True
     return False
 
