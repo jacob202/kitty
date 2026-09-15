@@ -43,10 +43,7 @@ authority; they do not replace the owners above.
 - [`FREE_WORKERS.md`](FREE_WORKERS.md) and [`KITTYBUILDER_MCP.md`](KITTYBUILDER_MCP.md) — current Builder model routing and MCP operator boundary.
 - [`CAMPAIGN_PLAYBOOK.md`](CAMPAIGN_PLAYBOOK.md) — supported multi-packet campaign execution guidance.
 - [`CAPABILITY_MANIFEST.md`](CAPABILITY_MANIFEST.md) — compatibility/front-door pointer to the maintained capability contract.
-- [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md) — **the control surface**: the one live sequence,
-  each step's real status, and the evidence for it. Agents update this rather than writing a
-  new plan. The 80 plan documents it replaced are in
-  [`archive/plans-2026-09-14/`](archive/plans-2026-09-14/README.md) as history, not instruction.
+- [`PLANS.md`](PLANS.md) — plan navigation/disposition index; not an activation authority.
 - [`reference/`](reference/) — reusable technical guidance generally.
 
 ## Execution inputs

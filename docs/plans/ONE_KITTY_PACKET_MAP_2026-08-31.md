@@ -1,10 +1,5 @@
 # ONE KITTY — Packet Map
 
-> **Not on the active sequence as of 2026-09-14.** This is planning evidence, not work
-> that is owed. The one live sequence and the real status of each step are in
-> [`ACTIVE_MISSION.md`](../ACTIVE_MISSION.md). Re-verify against current code and
-> runtime before acting on anything here.
-
 ## Phase 0 — integrate incoming WOW foundations
 
 Do not implement ONE KITTY on an obsolete baseline.

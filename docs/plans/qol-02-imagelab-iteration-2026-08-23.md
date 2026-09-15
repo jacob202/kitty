@@ -1,10 +1,5 @@
 # QoL Packet 02 — Image Lab Iteration
 
-> **Not on the active sequence as of 2026-09-14.** This is planning evidence, not work
-> that is owed. The one live sequence and the real status of each step are in
-> [`ACTIVE_MISSION.md`](../ACTIVE_MISSION.md). Re-verify against current code and
-> runtime before acting on anything here.
-
 **Status:** Implementation plan for Jacob approval (not self-authorizing)
 **Packet:** `docs/quality_of_life_packets.md` PACKET 02 — IMAGE LAB ITERATION (P0)
 **Branch:** `feat/imagelab-iteration-20260823` (worktree `/Users/jacobbrizinnski/Projects/kitty-imagelab-20260823`)
