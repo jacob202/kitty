@@ -152,7 +152,10 @@ queue. Ownership changes only by explicit user instruction or a valid supported
 transfer. Never let two lanes implement the same work. Builder workers may use
 replaceable tools, but the same worker never approves itself; T0 is automatic,
 T1 needs separate model approval, and T2 needs Jacob for publication, deletion,
-auth/secrets/env, spending, heavy dependencies, or broad scope.
+auth/secrets/env, spending, heavy dependencies, and the irreversible subset of
+sensitive scope. Broad-scope but reversible changes are not T2: they clear
+deterministically on a trusted exact-head review (see `IRREVERSIBLE_PATTERNS` in
+`scripts/pr_scope.py` and `scripts/pr_policy.py`).
 
 ## Special commands
 

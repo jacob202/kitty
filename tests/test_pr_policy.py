@@ -104,6 +104,53 @@ def test_policy_and_review_implementation_files_are_risky() -> None:
         assert any("risk/approved" in item for item in violations), path
 
 
+def test_sensitive_but_reversible_scope_clears_on_review_without_human_approval() -> None:
+    for path in [
+        "gateway/builder_supervisor.py",
+        "gateway/builder_loop.py",
+        "gateway/builder_attempt.py",
+        "gateway/builder_initiative.py",
+    ]:
+        awaiting_review = pr_policy.evaluate_policy(
+            _pr(), [path], independent_review_approved=False
+        )
+        assert awaiting_review == [
+            "risky scope requires trusted independent review approval for the exact current head"
+        ], path
+
+        approved_by_review = pr_policy.evaluate_policy(
+            _pr(), [path], independent_review_approved=True
+        )
+        assert approved_by_review == [], path
+
+
+def test_irreversible_scope_still_requires_exact_head_human_approval() -> None:
+    """Credentials, spend, deletion, dependencies, and the gate itself stay human-gated."""
+    for path in [
+        "config/compute_governor.json",
+        "gateway/compute_governor.py",
+        "gateway/security/secrets.py",
+        "scripts/purge_users.py",
+        "requirements.txt",
+        "pyproject.toml",
+        "uv.lock",
+        "gateway/kitty-chat/package.json",
+        "gateway/kitty-chat/package-lock.json",
+        "gateway/action_grants.py",
+        "gateway/action_queue.py",
+        "gateway/routes/actions.py",
+        "gateway/builder_publish.py",
+        "gateway/builder_pr_janitor.py",
+        "gateway/routes/chats.py",
+        "gateway/routes/projects.py",
+        "scripts/pr_policy.py",
+        ".github/workflows/tests.yml",
+    ]:
+        violations = pr_policy.evaluate_policy(_pr(), [path], independent_review_approved=True)
+        assert any("risk/approved" in item for item in violations), path
+        assert any("exact-head risk approval" in item.lower() for item in violations), path
+
+
 def test_large_change_is_advisory_not_blocking() -> None:
     pr = _pr(additions=1600, deletions=20, changed_files=30)
     assert pr_policy.evaluate_policy(pr, ["gateway/memory.py"], independent_review_approved=True) == []
