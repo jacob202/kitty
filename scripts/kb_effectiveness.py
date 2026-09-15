@@ -693,6 +693,57 @@ def render_report(summary: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+TRANSCRIPT_ROOT = Path("~/.claude/projects").expanduser()
+
+
+def session_total_tokens(session_id: str, *, root: Path | None = None) -> int | None:
+    """Read what this session actually cost from its own Claude Code transcript.
+
+    The transcript is the provider's own accounting, so a receipt no longer
+    depends on an agent remembering to type a number it cannot see. A session
+    with no transcript on this machine stays null rather than becoming zero.
+    """
+    try:
+        from scripts.analyze_claude_usage import parse_session
+    except ImportError:  # running the file directly puts scripts/ on sys.path
+        try:
+            from analyze_claude_usage import parse_session  # type: ignore[no-redef]
+        except ImportError:
+            return None
+    search_root = TRANSCRIPT_ROOT if root is None else root
+    matches = sorted(search_root.glob(f"*/{session_id}.jsonl"))
+    if not matches:
+        return None
+    try:
+        return parse_session(matches[0]).total_tokens
+    except (OSError, ValueError):
+        return None
+
+
+def _joined_with_transcript_costs(
+    stored_receipts: list[dict[str, Any]],
+    *,
+    window_days: int,
+    now: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Report-time join only: the stored hash-chained receipts are never rewritten."""
+    generated_at = (now or utc_now()).astimezone(timezone.utc)
+    joined: list[dict[str, Any]] = []
+    for item in stored_receipts:
+        receipt = item["receipt"]
+        if receipt["total_tokens"] is not None or not _in_window(
+            receipt, now=generated_at, days=window_days
+        ):
+            joined.append(item)
+            continue
+        tokens = session_total_tokens(receipt["session_id"])
+        if tokens is None:
+            joined.append(item)
+            continue
+        joined.append({**item, "receipt": {**receipt, "total_tokens": tokens}})
+    return joined
+
+
 def _load_payload(args: argparse.Namespace) -> Any:
     if bool(args.payload_json) == bool(args.payload_file):
         raise ReceiptError("provide exactly one of --payload-json or --payload-file")
@@ -725,6 +776,15 @@ def build_parser() -> argparse.ArgumentParser:
     summary.add_argument("--window-days", type=int, default=argparse.SUPPRESS)
     summary.add_argument("--report", action="store_true")
     summary.add_argument("--out", type=Path)
+    summary.add_argument(
+        "--join-transcript-costs",
+        action="store_true",
+        help=(
+            "fill missing token counts by reading each session's Claude Code "
+            "transcript; slower, and only affects this report, never the stored "
+            "receipts"
+        ),
+    )
     return parser
 
 
@@ -737,15 +797,23 @@ def main(argv: list[str] | None = None) -> int:
             repo_root=args.repo_root,
         )
         if args.command == "record":
-            result: Any = record_receipt(_load_payload(args), store=store)
+            payload = _load_payload(args)
+            if isinstance(payload, dict) and payload.get("total_tokens") is None:
+                session_id = payload.get("session_id")
+                if isinstance(session_id, str) and session_id.strip():
+                    payload["total_tokens"] = session_total_tokens(session_id.strip())
+            result: Any = record_receipt(payload, store=store)
             output = json.dumps(result, indent=2, sort_keys=True)
         else:
+            stored = load_receipts(store.path)
+            if getattr(args, "join_transcript_costs", False):
+                stored = _joined_with_transcript_costs(
+                    stored, window_days=args.window_days
+                )
             summary = {
                 "store": str(store.path),
                 "store_scope": store.scope,
-                **summarize_receipts(
-                    load_receipts(store.path), window_days=args.window_days
-                ),
+                **summarize_receipts(stored, window_days=args.window_days),
             }
             if args.report:
                 output = render_report(summary)

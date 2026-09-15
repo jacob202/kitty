@@ -2,7 +2,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ADR = ROOT / "docs" / "adr" / "0039-kitty-native-product-surface.md"
-PLAN = ROOT / "docs" / "campaigns" / "product-surface-convergence-PLAN.md"
+PLAN = (
+    ROOT
+    / "docs"
+    / "archive"
+    / "plans-2026-09-14"
+    / "campaigns"
+    / "product-surface-convergence-PLAN.md"
+)
 
 
 def test_kitty_native_ui_is_the_canonical_product_surface() -> None:

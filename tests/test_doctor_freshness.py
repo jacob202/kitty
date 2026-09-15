@@ -1,4 +1,5 @@
 """Unit tests for TL-02: gateway process freshness check."""
+import json
 import subprocess
 import time
 from pathlib import Path
@@ -241,3 +242,17 @@ def test_ui_runtime_provenance_rejects_next_server_outside_standalone_cwd(monkey
 
     assert result["state"] == "unknown"
     assert result["runtime_pid"] == "56"
+
+
+def test_every_frontend_build_path_records_its_source_revision() -> None:
+    """A build that leaves no stamp makes the running UI untraceable to a commit."""
+    root = Path(__file__).resolve().parents[1]
+    ui_dir = root / "gateway" / "kitty-chat"
+    stamper = ui_dir / "scripts" / "stamp-source-sha.mjs"
+    assert stamper.is_file()
+
+    package = json.loads((ui_dir / "package.json").read_text(encoding="utf-8"))
+    assert "scripts/stamp-source-sha.mjs" in package["scripts"]["build"]
+
+    makefile = (root / "Makefile").read_text(encoding="utf-8")
+    assert "stamp-source-sha.mjs" in makefile

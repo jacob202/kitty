@@ -137,6 +137,10 @@ fi
 
 FAILED=()
 INFRA_FAILED=0
+# A 25-line tail has twice cost an hour here: pytest's failure names sit above
+# it, so the operator learns a gate failed but not which test. Keep the tail for
+# the immediate signal and keep the whole log where it can be read.
+GATE_LOG_DIR="${ROOT_DIR}/logs"
 run_gate() {
   local label="$1"; shift
   local gate_rc=0
@@ -146,7 +150,16 @@ run_gate() {
     say "  ${GREEN}ok${OFF}  ${label}"
   else
     say "  ${RED}FAILED${OFF}  ${label}"
+    # Name every failing test before the tail, so the answer is on screen even
+    # when the traceback above it is longer than the tail.
+    grep -E '^(FAILED|ERROR) ' /tmp/kitty-pre-push.$$ >&2 || true
     tail -n 25 /tmp/kitty-pre-push.$$ >&2
+    local slug log_path
+    slug="$(printf '%s' "${label}" | tr ' /' '--')"
+    log_path="${GATE_LOG_DIR}/pre-push-${slug}.log"
+    if mkdir -p "${GATE_LOG_DIR}" 2>/dev/null && cp /tmp/kitty-pre-push.$$ "${log_path}" 2>/dev/null; then
+      say "  full output: ${log_path}"
+    fi
     FAILED+=("${label}")
     if [[ ${gate_rc} -eq 75 || ${gate_rc} -eq 126 || ${gate_rc} -eq 127 ]]; then
       INFRA_FAILED=1

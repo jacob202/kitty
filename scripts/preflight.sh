@@ -147,6 +147,8 @@ if [[ -f "$BUILD_STAMP" ]]; then
   HEAD_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
   if [[ "$BUILD_SHA" == "$HEAD_SHA" ]]; then
     ok "UI build matches HEAD ($(printf '%.8s' "$BUILD_SHA"))"
+  elif [[ "$BUILD_SHA" == dirty:* ]]; then
+    warn "UI was built from uncommitted changes on $(printf '%.8s' "${BUILD_SHA#dirty:}"); commit them and run make ui-build before trusting the screen"
   else
     warn "UI build is from $(printf '%.8s' "$BUILD_SHA") but HEAD is $(printf '%.8s' "$HEAD_SHA"); rebuild with make ui-build before trusting the screen"
   fi

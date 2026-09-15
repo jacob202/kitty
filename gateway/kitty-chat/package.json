@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 4000",
-    "build": "next build",
+    "build": "next build && node scripts/stamp-source-sha.mjs",
     "start": "next start -H 127.0.0.1 -p 4000",
     "test": "vitest run",
     "test:watch": "vitest",
