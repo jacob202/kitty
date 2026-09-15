@@ -887,14 +887,30 @@ def test_embedded_json_object_survives_transport_formatting() -> None:
         pr_review._normalize_opencode_review(f"Here is my review.\n\n{record}\n")
         == pr_review.NO_FINDINGS
     )
+    # Braces in prose are not candidate records; only decodable objects count.
     assert (
         pr_review._normalize_opencode_review(
-            f"```json\n{record}\n```\nThat is my only finding set."
+            f"I checked the {{name}} binding.\n```json\n{record}\n```"
         )
         == pr_review.NO_FINDINGS
     )
 
-    # Still refused: no object, several objects, or a valid object off-contract.
+    # Refused: the record is not the reviewer's final word, so a worked example
+    # cannot be promoted to a verdict.
+    assert (
+        pr_review._normalize_opencode_review(
+            f"```json\n{record}\n```\nThat is my only finding set."
+        )
+        is None
+    )
+    # Refused: the response says it did not finish.
+    assert (
+        pr_review._normalize_opencode_review(
+            f"I could not complete the review.\n\n{record}"
+        )
+        is None
+    )
+    # Refused: no object, several objects, or a valid object off-contract.
     assert pr_review._normalize_opencode_review("No actionable findings.") is None
     assert pr_review._normalize_opencode_review(f"{record}\n{record}") is None
     assert (
@@ -980,10 +996,8 @@ def test_review_json_must_be_schema_exact_and_each_finding_complete() -> None:
         pr_review._normalize_opencode_review("thinking first\n" + valid)
         == pr_review.NO_FINDINGS
     )
-    assert (
-        pr_review._normalize_opencode_review(valid + "\nextra prose")
-        == pr_review.NO_FINDINGS
-    )
+    # Prose *after* the record means the record was not the final verdict.
+    assert pr_review._normalize_opencode_review(valid + "\nextra prose") is None
     # A narrated defect is not cleared by an embedded approval.
     assert (
         pr_review._normalize_opencode_review(

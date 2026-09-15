@@ -324,17 +324,20 @@ def _invalid_review(reason: str, text: str) -> None:
     )
 
 
-def _embedded_json_object(text: str) -> str | None:
-    """Return the one top-level JSON object embedded in the reviewer's output.
+# A response that says it did not finish is not a verdict, however well-formed any
+# object inside it looks.
+REVIEW_INCOMPLETE_MARKERS = (
+    "could not complete",
+    "cannot complete",
+    "unable to complete",
+    "not able to complete",
+    "hypothetical",
+)
 
-    Models routinely wrap the required record in a code fence or a sentence of
-    narration, and rejecting that outright is what produced "no verdict" for
-    every review attempt. Tolerating the transport formatting does not weaken the
-    contract -- the schema below is still enforced exactly, key for key -- while
-    an output carrying no object, or more than one, is still refused rather than
-    guessed at.
-    """
-    spans: list[str] = []
+
+def _brace_spans(text: str) -> list[tuple[int, int]]:
+    """Bounds of every balanced top-level brace span, ignoring braces in strings."""
+    spans: list[tuple[int, int]] = []
     depth = 0
     start = -1
     in_string = False
@@ -357,9 +360,37 @@ def _embedded_json_object(text: str) -> str | None:
         elif char == "}" and depth:
             depth -= 1
             if depth == 0 and start >= 0:
-                spans.append(text[start : index + 1])
+                spans.append((start, index + 1))
                 start = -1
-    return spans[0] if len(spans) == 1 else None
+    return spans
+
+
+def _decoded_review_record(
+    text: str,
+) -> tuple[dict[str, Any] | None, tuple[int, int] | None, str | None]:
+    """Decode the one schema-bearing object a reviewer emitted, if unambiguous.
+
+    Braces in prose (`{name}`) are not candidate records: only spans that actually
+    decode to a JSON object count. The record must also be the reviewer's final
+    word, so a worked example followed by more narration cannot be promoted into a
+    verdict. Returns the record, its span, and the last decode error seen.
+    """
+    decoded: list[tuple[int, int, dict[str, Any]]] = []
+    detail: str | None = None
+    for start, end in _brace_spans(text):
+        try:
+            candidate = json.loads(text[start:end])
+        except json.JSONDecodeError as exc:
+            detail = f"{exc.msg} at line {exc.lineno} column {exc.colno}"
+            continue
+        if isinstance(candidate, dict):
+            decoded.append((start, end, candidate))
+    if len(decoded) != 1:
+        return None, None, detail
+    start, end, record = decoded[0]
+    if text[end:].strip().strip("`").strip():
+        return None, None, detail
+    return record, (start, end), detail
 
 
 def _normalize_opencode_review(output: str) -> str | None:
@@ -370,21 +401,21 @@ def _normalize_opencode_review(output: str) -> str | None:
     try:
         record = json.loads(text)
     except json.JSONDecodeError:
-        embedded = _embedded_json_object(text)
-        if embedded is None:
-            _invalid_review("response does not contain exactly one JSON object", text)
+        if any(marker in text.lower() for marker in REVIEW_INCOMPLETE_MARKERS):
+            _invalid_review("response reports an incomplete review", text)
             return None
-        try:
-            record = json.loads(embedded)
-        except json.JSONDecodeError:
-            _invalid_review("response does not contain exactly one JSON object", text)
+        record, span, detail = _decoded_review_record(text)
+        if record is None or span is None:
+            _invalid_review(
+                "response does not contain exactly one JSON object"
+                + (f": {detail}" if detail else ""),
+                text,
+            )
             return None
         # Transport formatting is tolerated; prose that reads as a finding is not.
         # An `approve` record must not silently clear a narrated defect.
-        if (
-            isinstance(record, dict)
-            and record.get("verdict") == "approve"
-            and is_reportable_finding(text.replace(embedded, ""))
+        if record.get("verdict") == "approve" and is_reportable_finding(
+            text[: span[0]] + text[span[1] :]
         ):
             _invalid_review("approve record accompanied by narrated finding text", text)
             return None
