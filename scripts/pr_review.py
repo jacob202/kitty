@@ -74,8 +74,12 @@ data loss, resource leaks with a concrete trigger, and user-visible failure/reco
 Do not repeat the PR summary. Before answering, remove any finding that is not directly grounded
 in changed code shown in this chunk.
 
-Use concise bullets. If there are no actionable findings, respond with exactly:
-NO_ACTIONABLE_FINDINGS
+Return exactly one JSON object and no markdown, prose, code fence, or thinking text. The only
+accepted shapes are:
+{"schema_version":1,"verdict":"approve","findings":[]}
+or
+{"schema_version":1,"verdict":"findings","findings":[{"file":"path","hunk":"changed symbol or hunk","trigger":"exact reaching state","failure_mode":"exact wrong observable outcome","corrective_action":"smallest correction"}]}
+Every finding must contain all five finding fields as non-empty strings. Do not add keys.
 """
 
 
@@ -285,9 +289,16 @@ def get_pr_diff() -> tuple[str, int, str, str, str]:
     return diff, pr_number, owner, name, head_sha
 
 
-# The reviewer contract has exactly two conforming shapes: the no-findings sentinel,
-# or a reportable finding carrying the rubric's structured fields. Anything else is
-# narration, a truncated answer, or an off-contract response -- not a verdict.
+# Model output is untrusted until it satisfies this exact schema. The workflow
+# renders validated findings into deterministic markdown for the existing gate.
+REVIEW_RECORD_KEYS = {"schema_version", "verdict", "findings"}
+REVIEW_FINDING_FIELDS = (
+    "file",
+    "hunk",
+    "trigger",
+    "failure_mode",
+    "corrective_action",
+)
 FINDING_FIELD_MARKERS = (
     r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Failure Mode(?:\*\*)?\s*:",
     r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Corrective Action(?:\*\*)?\s*:",
@@ -295,35 +306,79 @@ FINDING_FIELD_MARKERS = (
 
 
 def is_reportable_finding(text: str) -> bool:
-    """True when text carries the rubric's structured finding fields."""
+    """True when the durable rendered body carries a finding marker."""
     return any(re.search(pattern, text) for pattern in FINDING_FIELD_MARKERS)
 
 
-def _normalize_opencode_review(output: str) -> str | None:
-    """Normalize OpenCode's final text into the deterministic review contract.
+def _review_field(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return " ".join(value.split())
 
-    Returns None when the response is not a verdict, so the workflow publishes an
-    explicit failure. Returning the text instead would publish narration as a
-    finding, and the gate would then report a defect that was never produced.
-    """
+
+def _invalid_review(reason: str, text: str) -> None:
+    print(
+        f"Reviewer returned no verdict ({len(text)} chars): {reason}. "
+        "Treating this as a failed review rather than publishing model narration as evidence.",
+        file=sys.stderr,
+    )
+
+
+def _normalize_opencode_review(output: str) -> str | None:
+    """Parse exactly one schema-valid model record into the durable review contract."""
     text = output.strip()
     if not text:
         return None
-    finding = is_reportable_finding(text)
-    if re.search(rf"(?m)^\s*{re.escape(NO_FINDINGS)}\s*$", text):
-        # A sentinel that also carries finding fields stays blocking downstream; only a
-        # sentinel without them is a clean pass.
-        return text if finding else NO_FINDINGS
-    if not finding:
-        print(
-            f"Reviewer returned no verdict ({len(text)} chars): the response carries "
-            f"neither the {NO_FINDINGS} sentinel nor the rubric's Failure Mode / "
-            "Corrective Action fields. Treating this as a failed review rather than "
-            "publishing it as a finding.",
-            file=sys.stderr,
-        )
+    try:
+        record = json.loads(text)
+    except json.JSONDecodeError:
+        _invalid_review("response is not exactly one JSON object", text)
         return None
-    return text
+
+    if not isinstance(record, dict) or set(record) != REVIEW_RECORD_KEYS:
+        _invalid_review("top-level review schema does not match", text)
+        return None
+    if record.get("schema_version") != 1:
+        _invalid_review("unsupported review schema version", text)
+        return None
+
+    verdict = record.get("verdict")
+    findings = record.get("findings")
+    if not isinstance(findings, list):
+        _invalid_review("findings is not a list", text)
+        return None
+    if verdict == "approve":
+        if findings:
+            _invalid_review("approve verdict contains findings", text)
+            return None
+        return NO_FINDINGS
+    if verdict != "findings" or not findings:
+        _invalid_review("verdict must be approve or findings with matching findings", text)
+        return None
+
+    rendered: list[str] = []
+    expected_finding_keys = set(REVIEW_FINDING_FIELDS)
+    for index, raw_finding in enumerate(findings, start=1):
+        if not isinstance(raw_finding, dict) or set(raw_finding) != expected_finding_keys:
+            _invalid_review(f"finding {index} schema does not match", text)
+            return None
+        values = {name: _review_field(raw_finding.get(name)) for name in REVIEW_FINDING_FIELDS}
+        if any(value is None for value in values.values()):
+            _invalid_review(f"finding {index} contains an empty or non-string field", text)
+            return None
+        rendered.append(
+            "\n".join(
+                (
+                    f"### Finding {index}",
+                    f"File / Hunk: {values['file']} — {values['hunk']}",
+                    f"Trigger: {values['trigger']}",
+                    f"Failure Mode: {values['failure_mode']}",
+                    f"Corrective Action: {values['corrective_action']}",
+                )
+            )
+        )
+
+    return "\n\n".join(rendered)
 
 
 def _model_timeout(deadline: float | None) -> float:
