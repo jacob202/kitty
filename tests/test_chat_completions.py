@@ -1001,6 +1001,36 @@ def test_current_verification_with_current_source_tool_preserves_external_verifi
     assert captured["tool_choice"] == "auto"
     assert "current authoritative verification" not in response.text
 
+def test_current_verification_tool_choice_none_cannot_bypass_abstention():
+    upstream = AsyncMock(side_effect=AssertionError("provider must not run when current source tool is disabled"))
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=_current_verification_bundle()),
+    ), patch(
+        "gateway.routes.completions.chat_completions_non_stream",
+        new=upstream,
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Is this safe today?"}],
+                "stream": False,
+                "tools": CURRENT_SOURCE_TOOL_SCHEMA,
+                "tool_choice": "none",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["kitty_runtime"]["current_verification"] == "required_unavailable"
+    upstream.assert_not_awaited()
+
+
 def test_current_verification_generic_memory_tool_cannot_bypass_abstention():
     upstream = AsyncMock(side_effect=AssertionError("provider must not run without a current source tool"))
     with patch(

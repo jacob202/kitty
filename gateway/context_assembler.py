@@ -755,7 +755,9 @@ async def assemble_context(
     evidence_block = ""
     from gateway.knowledge import build_evidence_policy
 
-    evidence_policy = build_evidence_policy(message, expert_profile=expert_profile)
+    evidence_policy = build_evidence_policy(
+        message, expert_profile=expert_profile, domain=domain
+    )
 
     if tier != "trivial":
         graph_adapters = deps.adapters

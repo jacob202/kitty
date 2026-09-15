@@ -57,17 +57,34 @@ in this chat runtime.
 
 
 
-def _has_current_source_tool(tools: object) -> bool:
-    if not isinstance(tools, list):
+def _has_current_source_tool(tools: object, tool_choice: object = None) -> bool:
+    if tool_choice == "none" or not isinstance(tools, list):
         return False
+
+    available_names: set[str] = set()
     for tool in tools:
         if not isinstance(tool, dict):
             continue
         function = tool.get("function")
         name = function.get("name") if isinstance(function, dict) else tool.get("name")
-        if isinstance(name, str) and name in _CURRENT_SOURCE_TOOL_NAMES:
-            return True
-    return False
+        if isinstance(name, str):
+            available_names.add(name)
+
+    if isinstance(tool_choice, dict):
+        forced_function = tool_choice.get("function")
+        forced_name = (
+            forced_function.get("name") if isinstance(forced_function, dict) else None
+        )
+        if isinstance(forced_name, str):
+            return (
+                forced_name in _CURRENT_SOURCE_TOOL_NAMES
+                and forced_name in available_names
+            )
+
+    if isinstance(tool_choice, str) and tool_choice not in {"auto", "required"}:
+        return False
+
+    return bool(available_names & _CURRENT_SOURCE_TOOL_NAMES)
 
 
 def _one_line(value: object, limit: int = 120) -> str:
@@ -670,7 +687,9 @@ async def chat_completions(request: Request):
     # Open WebUI does exactly this. Kitty has no executor of its own here, so the
     # schemas and the "tools are unavailable" instruction both hinge on this.
     caller_supplies_tools = bool(body.get("tools"))
-    current_source_tool_available = _has_current_source_tool(body.get("tools"))
+    current_source_tool_available = _has_current_source_tool(
+        body.get("tools"), body.get("tool_choice")
+    )
 
     turn_has_image = False
     for m in reversed(messages):
