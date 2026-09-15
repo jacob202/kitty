@@ -67,11 +67,11 @@ def _agent_body_has_no_findings(body: str) -> bool:
     contradictory response that also contains the rubric's structured finding
     fields remains blocking, so this does not turn the sentinel into an escape hatch.
     """
+    if _agent_body_has_rubric_fields(body):
+        return False
     if "No actionable findings in this diff." in body:
         return True
-    if not re.search(rf"(?m)^\s*{re.escape(pr_review.NO_FINDINGS)}\s*$", body):
-        return False
-    return not _agent_body_has_rubric_fields(body)
+    return bool(re.search(rf"(?m)^\s*{re.escape(pr_review.NO_FINDINGS)}\s*$", body))
 
 
 def agent_review_approved(comment: dict[str, Any], head_sha: str) -> bool:
