@@ -79,6 +79,34 @@ def test_frontend_gates_are_present(hook_text):
     assert "gateway/kitty-chat/" in hook_text, "hook has no way to tell whether the frontend changed"
 
 
+def test_web_build_gate_never_writes_the_live_next_directory(hook_text):
+    """Verifying a push must not blank the running UI.
+
+    `output: "standalone"` regenerates .next/standalone without static/ or
+    public/. start_ui.sh mirrors those back; a bare `next build` does not. On
+    2026-09-15 a pre-push run rebuilt the live .next under a UI server that had
+    been up since before it, and every chunk served 500 until it was repaired.
+    A gate verifies; it does not mutate runtime state.
+    """
+    web_build = next(line for line in hook_text.splitlines() if 'run_gate "web build"' in line)
+    assert "KITTY_NEXT_DIST_DIR=" in web_build, (
+        "web build must target a throwaway dist dir, not the live .next"
+    )
+    dist_dir = re.search(r"KITTY_NEXT_DIST_DIR=([^\s']+)", web_build).group(1)
+    assert dist_dir not in {".next", ".next/"}, f"gate builds into the live directory: {dist_dir}"
+
+    # The override is only honoured if next.config actually reads it.
+    config = (ROOT / "gateway" / "kitty-chat" / "next.config.ts").read_text(encoding="utf-8")
+    assert "KITTY_NEXT_DIST_DIR" in config, "next.config ignores the gate's dist dir override"
+    assert "distDir" in config
+
+    # And the throwaway output must never be committable.
+    ignored = (ROOT / "gateway" / "kitty-chat" / ".gitignore").read_text(encoding="utf-8").split()
+    assert any(entry.strip("/") == dist_dir for entry in ignored), (
+        f"{dist_dir} is not gitignored; a verification build would show up as unstaged work"
+    )
+
+
 def test_local_frontend_gate_bounds_vitest_workers(hook_text):
     """The 8 GB local host must not fan out enough JSDOM workers to fake timeouts."""
     web_gate = next(line for line in hook_text.splitlines() if 'run_gate "web tests"' in line)
