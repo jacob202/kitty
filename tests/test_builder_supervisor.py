@@ -449,6 +449,9 @@ def test_supervisor_launcher_loads_canonical_env_with_safe_loader() -> None:
     launcher = (Path(__file__).parents[1] / "scripts" / "start_builder_supervisor.sh").read_text()
     assert 'source "${REPO_ROOT}/gateway/lib/load_env_safe.sh"' in launcher
     assert 'ENV_ROOT="${KITTY_BUILDER_REPO_ROOT:-${REPO_ROOT}}"' in launcher
+    assert 'if ! load_env_assignments "${ENV_ROOT}/.env"; then' in launcher
+    assert 'if [[ "${command_name}" == "tick" ]]' in launcher
+    assert 'paid supervisor tick requires OPENROUTER_API_KEY' in launcher
     assert 'load_env_assignments "${ENV_ROOT}/.env"' in launcher
 
 def test_budget_summary_initializes_an_empty_compute_ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -457,7 +460,7 @@ def test_budget_summary_initializes_an_empty_compute_ledger(tmp_path: Path, monk
 
     summary = bs.budget_summary()
 
-    assert summary["weekly_budget_cad"] == 10.0
+    assert summary["weekly_budget_cad"] == 6.0
     assert summary["estimated_spend_cad"] == 0.0
     assert summary["runs"] == 0
     assert ledger.exists()
@@ -1126,9 +1129,10 @@ def test_supervisor_route_defaults_to_governed_cheap_and_honours_override(
     monkeypatch.setenv(bs.SUPERVISOR_ROUTE_ENV, "frontier")
     assert bs._supervisor_route_argv() == ["--paid", "--tier", "frontier"]
 
-    # An unknown route falls back to the default rather than dispatching junk.
+    # An unknown non-empty route must fail closed rather than spending on cheap.
     monkeypatch.setenv(bs.SUPERVISOR_ROUTE_ENV, "not-a-route")
-    assert bs._supervisor_route() == "cheap"
+    with pytest.raises(ValueError, match="unknown supervisor route"):
+        bs._supervisor_route()
 
 
 def test_supervisor_paid_dispatch_still_uses_only_the_canonical_adapters() -> None:
