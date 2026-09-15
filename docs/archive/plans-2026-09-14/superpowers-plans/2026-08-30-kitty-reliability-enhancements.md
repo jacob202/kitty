@@ -1,5 +1,10 @@
 # Kitty Reliability Enhancements Implementation Plan
 
+> **Not on the active sequence as of 2026-09-14.** This is planning evidence, not work
+> that is owed. The one live sequence and the real status of each step are in
+> [`ACTIVE_MISSION.md`](../../ACTIVE_MISSION.md). Re-verify against current code and
+> runtime before acting on anything here.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: use TDD for every behavior change and verify exact-head evidence before publication.
 
 **Goal:** Make Kitty degrade predictably under tool/context failures and require repeated failure-path success before release.

@@ -1,5 +1,10 @@
 # Global Agent Room UI Implementation Plan
 
+> **Not on the active sequence as of 2026-09-14.** This is planning evidence, not work
+> that is owed. The one live sequence and the real status of each step are in
+> [`ACTIVE_MISSION.md`](../../ACTIVE_MISSION.md). Re-verify against current code and
+> runtime before acting on anything here.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the scripted localStorage-backed Agents demo with a polished command-center client for the merged durable `workspace_global` protocol.
