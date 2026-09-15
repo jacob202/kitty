@@ -100,7 +100,7 @@ def test_legacy_front_doors_are_pointers_not_current_authorities() -> None:
 
 def test_openwebui_onboarding_artifacts_are_explicitly_historical() -> None:
     runbook = _read("docs/runbooks/OPENWEBUI_TOMORROW.md")
-    handoff = _read("docs/plans/openwebui-agent-handoff-2026-08-02.md")
+    handoff = _read("docs/archive/plans-2026-09-14/plans/openwebui-agent-handoff-2026-08-02.md")
 
     assert "Historical compatibility runbook" in runbook
     assert "Do not use this as current startup or architecture guidance" in runbook
@@ -176,7 +176,7 @@ def test_stale_session_plans_are_not_left_on_current_execution_surface() -> None
     assert not (ROOT / "docs/phases/DESKTOP_SLICE_1_RUNBOOK.md").exists()
     assert (archived / "DESKTOP_SLICE_1_RUNBOOK.md").is_file()
 
-    migration = " ".join(_read("docs/plans/migration-health.md").lower().split())
+    migration = " ".join(_read("docs/archive/plans-2026-09-14/plans/migration-health.md").lower().split())
     assert "generated compatibility report" in migration
     assert "not a plan or authority" in migration
     assert "scripts/migration-audit.sh" in migration
@@ -184,8 +184,8 @@ def test_stale_session_plans_are_not_left_on_current_execution_surface() -> None
 
 def test_retained_design_plans_warn_that_old_authority_language_is_historical() -> None:
     for relative in (
-        "docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md",
-        "docs/plans/KITTY_PRODUCT_EXPERIENCE_V1.md",
+        "docs/archive/plans-2026-09-14/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md",
+        "docs/archive/plans-2026-09-14/plans/KITTY_PRODUCT_EXPERIENCE_V1.md",
     ):
         text = " ".join(_read(relative).lower().split())
         assert "historical/supporting design evidence" in text
@@ -203,7 +203,7 @@ def test_docs_index_names_current_support_surfaces_without_becoming_a_ledger() -
         "KITTYBUILDER_MCP.md",
         "CAMPAIGN_PLAYBOOK.md",
         "CAPABILITY_MANIFEST.md",
-        "PLANS.md",
+        "ACTIVE_MISSION.md",
     ):
         assert name in index
 
@@ -230,7 +230,7 @@ def test_session_end_requires_formal_completion_review_before_acceptance() -> No
 
 def test_documentation_consolidation_plan_records_task7_completion() -> None:
     plan = _read(
-        "docs/superpowers/plans/2026-09-03-repository-documentation-consolidation.md"
+        "docs/archive/plans-2026-09-14/superpowers-plans/2026-09-03-repository-documentation-consolidation.md"
     )
     task7 = plan.split("### Task 7:", 1)[1]
 

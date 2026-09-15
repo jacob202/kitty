@@ -15,16 +15,35 @@ Kitty also already has the valuable product-specific spine: durable image sessio
 
 ## Decision
 
-### 1. FLUX.2 is the primary Image Lab model family
+### 1. FLUX.2 is the current benchmarked routing default, not an architectural layer
 
-The initial execution family is:
+**Amended 2026-09-15.** This section previously read "FLUX.2 is the primary
+Image Lab model family," which placed a mutable model choice at the same level
+as Image Lab's durable seams. It is not one. The durable architecture is:
+
+    ImageIntent → typed reference binding → routing → semantic compiler
+                → provider adapter → artifact / evaluation / repair
+
+Every element of that chain is an architectural commitment. The model family
+that currently wins the route is **policy**, and it lives in configuration and
+benchmarks, not in this ADR: `KITTY_IMAGE_FLUX2_ENABLED` gates the lane, and
+`gateway/flux2_targets.py` / `gateway/flux2_compiler.py` are a *replaceable*
+compiler+adapter pair for one family, not the shape of Image Lab.
+
+The practical test: a future model that beats FLUX.2 on Kitty's identity and
+preservation benchmark must be adoptable by adding a compiler/adapter and
+changing routing policy — never by rewriting `ImageIntent`, reference roles,
+protected traits, lineage, consent lanes, or provenance. If a model swap would
+require touching those, the seam has leaked and that is the defect to fix.
+
+The current benchmarked default is:
 
 - **Draft / AutoCreate:** FLUX.2 [klein] 4B through a hosted adapter when the request is eligible for the hosted lane.
 - **Safe final:** FLUX.2 [pro] initially, with [max] available as a benchmark challenger rather than a parallel architecture.
 - **Editing / repair:** native FLUX.2 instruction editing through the same semantic compiler.
 - **Private lane:** FLUX.2 [klein] 4B open weights through Kitty's hidden worker infrastructure.
 
-This is a family-level architecture decision, not a permanent provider lock. Provider choice remains replaceable behind adapters.
+This is routing/config policy, re-decidable by benchmark at any time. It is not a permanent provider lock and it is not an architectural commitment: provider choice remains replaceable behind the compiler/adapter seam.
 
 ### 2. Native reference conditioning is the v1 identity mechanism
 

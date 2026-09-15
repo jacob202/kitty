@@ -7,7 +7,8 @@ load_env_assignments() {
   # Load only dotenv-style assignment lines. Ignore stray shell words like `codex`
   # so helper scripts don't try to execute junk from a hand-edited .env.
   set -a
-  eval "$(
+  local assignments
+  if ! assignments="$(
     "${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || echo python3)}" - "${file}" <<'PY'
 import os
 import re
@@ -43,6 +44,12 @@ for key, value in dotenv_values(path).items():
     resolved_env[key] = expanded_value
     print(f"export {key}={shlex.quote(expanded_value)}")
 PY
-  )"
+  )"; then
+    set +a
+    return 1
+  fi
+  eval "${assignments}"
+  local status=$?
   set +a
+  return "${status}"
 }

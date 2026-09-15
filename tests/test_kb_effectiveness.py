@@ -228,3 +228,53 @@ def test_receipt_id_mismatch_fails_loud(tmp_path: Path) -> None:
 
     with pytest.raises(kb.ReceiptError, match="has id"):
         kb.load_receipts(store.path)
+
+
+def _transcript(root: Path, session_id: str, *, input_tokens: int, output_tokens: int) -> None:
+    project = root / "-Users-jacobbrizinnski-Projects-kitty"
+    project.mkdir(parents=True, exist_ok=True)
+    line = {
+        "sessionId": session_id,
+        "type": "assistant",
+        "message": {
+            "role": "assistant",
+            "content": [{"type": "text", "text": "done"}],
+            "usage": {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+            },
+        },
+    }
+    (project / f"{session_id}.jsonl").write_text(json.dumps(line) + "\n", encoding="utf-8")
+
+
+def test_session_cost_is_read_from_the_transcript_not_asserted(tmp_path: Path) -> None:
+    _transcript(tmp_path, "s-cost", input_tokens=900, output_tokens=100)
+
+    assert kb.session_total_tokens("s-cost", root=tmp_path) == 1000
+
+
+def test_a_session_with_no_transcript_stays_unknown_never_zero(tmp_path: Path) -> None:
+    assert kb.session_total_tokens("s-absent", root=tmp_path) is None
+
+
+def test_report_time_join_fills_costs_without_rewriting_the_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = kb.Store(tmp_path / "receipts.jsonl", "test")
+    kb.record_receipt(payload(total_tokens=None), store=store, now=NOW)
+    transcripts = tmp_path / "projects"
+    _transcript(transcripts, "s1", input_tokens=4000, output_tokens=1000)
+    monkeypatch.setattr(kb, "TRANSCRIPT_ROOT", transcripts)
+    before = store.path.read_text(encoding="utf-8")
+
+    joined = kb._joined_with_transcript_costs(
+        kb.load_receipts(store.path), window_days=kb.DEFAULT_WINDOW_DAYS, now=NOW
+    )
+    summary = kb.summarize_receipts(joined, now=NOW)
+
+    assert summary["efficiency"]["total_tokens_known_sessions"] == 1
+    assert summary["efficiency"]["total_tokens"] == 5000
+    assert store.path.read_text(encoding="utf-8") == before

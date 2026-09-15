@@ -49,3 +49,26 @@ printf '%s\n' "$OPENROUTER_API_KEY|$LITELLM_MASTER_KEY|$OPENWEBUI_DATA_DIR"
         result.stdout.strip()
         == f"abc123|kitty-local-key-change-me|{fake_home}/kitty-services/open-webui-data"
     )
+
+
+def test_safe_env_loader_returns_parser_failure(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("OPENROUTER_API_KEY=unused\n")
+    failing_python = tmp_path / "failing-python"
+    failing_python.write_text("#!/bin/sh\nexit 7\n")
+    failing_python.chmod(0o755)
+
+    load_env_safe = _REPO_ROOT / "gateway" / "lib" / "load_env_safe.sh"
+    script = f"""
+source {load_env_safe}
+load_env_assignments "$1"
+"""
+    result = subprocess.run(
+        ["bash", "-lc", script, "bash", str(env_file)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PYTHON_BIN": str(failing_python), "PATH": "/usr/bin:/bin"},
+    )
+
+    assert result.returncode == 1

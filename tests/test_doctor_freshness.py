@@ -1,4 +1,5 @@
 """Unit tests for TL-02: gateway process freshness check."""
+import json
 import subprocess
 import time
 from pathlib import Path
@@ -92,6 +93,35 @@ def test_ui_build_provenance_marks_dirty_build_unverifiable(tmp_path):
 
     assert result["state"] == "dirty-built"
     assert result["build_source"] == f"dirty:{sha}"
+
+
+def test_stamp_source_sha_fails_when_stamp_cannot_be_written(tmp_path):
+    root = _ui_repo(tmp_path)
+    source_script = (
+        Path(__file__).resolve().parents[1]
+        / "gateway"
+        / "kitty-chat"
+        / "scripts"
+        / "stamp-source-sha.mjs"
+    )
+    script = root / "gateway" / "kitty-chat" / "scripts" / "stamp-source-sha.mjs"
+    script.parent.mkdir()
+    script.write_text(source_script.read_text(encoding="utf-8"), encoding="utf-8")
+
+    stamp = root / "gateway" / "kitty-chat" / ".next" / "KITTY_SOURCE_SHA"
+    stamp.unlink()
+    stamp.mkdir()
+
+    result = subprocess.run(
+        ["node", str(script)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "could not record source identity" in result.stderr
 
 
 def test_gateway_probe_detects_uvicorn_listener_without_proc(monkeypatch, tmp_path):
@@ -241,3 +271,17 @@ def test_ui_runtime_provenance_rejects_next_server_outside_standalone_cwd(monkey
 
     assert result["state"] == "unknown"
     assert result["runtime_pid"] == "56"
+
+
+def test_every_frontend_build_path_records_its_source_revision() -> None:
+    """A build that leaves no stamp makes the running UI untraceable to a commit."""
+    root = Path(__file__).resolve().parents[1]
+    ui_dir = root / "gateway" / "kitty-chat"
+    stamper = ui_dir / "scripts" / "stamp-source-sha.mjs"
+    assert stamper.is_file()
+
+    package = json.loads((ui_dir / "package.json").read_text(encoding="utf-8"))
+    assert "scripts/stamp-source-sha.mjs" in package["scripts"]["build"]
+
+    makefile = (root / "Makefile").read_text(encoding="utf-8")
+    assert "stamp-source-sha.mjs" in makefile

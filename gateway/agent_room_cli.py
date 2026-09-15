@@ -34,6 +34,13 @@ def _parser() -> argparse.ArgumentParser:
     inbox.add_argument("--as", dest="participant_id", required=True)
     inbox.add_argument("--unread", action="store_true")
     inbox.add_argument("--direct-only", action="store_true", dest="direct_only")
+    inbox.add_argument(
+        "--attention-only",
+        action="store_true",
+        dest="attention_only",
+        help="only what another actor must know or act on: anything addressed "
+        "to this participant, plus broadcast prompts/handoffs/reviews",
+    )
     inbox.add_argument("--limit", type=int, default=100)
     inbox.add_argument("--scope", dest="scope_key")
     _json_flag(inbox)
@@ -158,6 +165,7 @@ def _dispatch(args: argparse.Namespace) -> Any:
             args.participant_id,
             unread_only=args.unread,
             direct_only=args.direct_only,
+            attention_only=args.attention_only,
             limit=args.limit,
             scope_key=args.scope_key,
         )

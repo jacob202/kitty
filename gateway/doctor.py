@@ -223,13 +223,26 @@ def _check_mail_connector(env: dict) -> list[Check]:
     token_env = env.get("GMAIL_TOKEN_FILE", "").strip()
     token_path = ROOT / token_env if token_env else ROOT / "data" / "gmail_token.json"
     if not token_path.exists():
-        return [
-            Check(
-                "WARN",
-                "connector:mail",
-                "token file not present — run: python -m gateway.connectors.mail --auth",
+        # The consent flow exits 2 immediately without a client secret, so
+        # naming only the --auth command sends the operator into a dead end.
+        secret_env = env.get("GMAIL_CLIENT_SECRET_FILE", "").strip()
+        secret_path = Path(secret_env).expanduser() if secret_env else None
+        if secret_path is None:
+            detail = (
+                "not connected yet — first download an OAuth client ID JSON from "
+                "Google Cloud (APIs & Services → Credentials), set "
+                "GMAIL_CLIENT_SECRET_FILE in .env to its path, then run: "
+                "python -m gateway.connectors.mail --auth"
             )
-        ]
+        elif not secret_path.exists():
+            detail = (
+                f"GMAIL_CLIENT_SECRET_FILE points at {secret_path}, which does not "
+                "exist — fix the path in .env, then run: "
+                "python -m gateway.connectors.mail --auth"
+            )
+        else:
+            detail = "token file not present — run: python -m gateway.connectors.mail --auth"
+        return [Check("WARN", "connector:mail", detail)]
 
     # Token file exists — try to load it. A malformed file is FAIL.
     try:
@@ -248,18 +261,53 @@ def _check_mail_connector(env: dict) -> list[Check]:
     return [Check("PASS", "connector:mail", detail)]
 
 
+def _gh_cli_authenticated() -> bool:
+    """True when the gh CLI holds working credentials (keyring, not an env token)."""
+    gh = shutil.which("gh")
+    if not gh:
+        return False
+    try:
+        # A stale ambient GITHUB_TOKEN takes precedence inside gh and would make
+        # this report on the wrong credential, so ask about the keyring only.
+        env = {key: value for key, value in os.environ.items() if key != "GITHUB_TOKEN"}
+        result = subprocess.run(
+            [gh, "auth", "status"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 def _check_github_connector(env: dict) -> list[Check]:
-    """PASS if token exists, WARN if not present. Does not validate token bounds."""
+    """PASS if a usable credential exists. Does not validate token bounds.
+
+    Repository doctrine prefers gh's keyring over an ambient GITHUB_TOKEN, so an
+    absent token is the intended state whenever gh is signed in; reporting that
+    as a warning taught the operator to ignore this line.
+    """
     token = env.get("GITHUB_TOKEN", "").strip()
-    if not token:
+    if token:
+        return [Check("PASS", "connector:github", "token present")]
+    if _gh_cli_authenticated():
         return [
             Check(
-                "WARN",
+                "PASS",
                 "connector:github",
-                "GITHUB_TOKEN not present in environment or .env",
+                "signed in through the gh CLI keyring (no GITHUB_TOKEN needed)",
             )
         ]
-    return [Check("PASS", "connector:github", "token present")]
+    return [
+        Check(
+            "WARN",
+            "connector:github",
+            "no GitHub credential — run: gh auth login",
+        )
+    ]
 
 
 def _check_push_channel(env: dict) -> list[Check]:
@@ -695,6 +743,19 @@ def _check_deadlines() -> list[Check]:
     ]
 
 
+def _codegraph_daemon_pid(pid_path: Path) -> int:
+    """Read the daemon pid from either pid-file shape.
+
+    Codegraph 1.6 writes a JSON object (`{"pid": 14403, ...}`); older builds
+    wrote a bare integer. Reading only the integer shape made a perfectly
+    healthy daemon report as dead on every run.
+    """
+    raw = pid_path.read_text(encoding="utf-8").strip()
+    if raw.startswith("{"):
+        return int(json.loads(raw)["pid"])
+    return int(raw)
+
+
 def _check_codegraph() -> list[Check]:
     """Check codegraph daemon health and index freshness."""
     cg_dir = ROOT / ".codegraph"
@@ -720,9 +781,9 @@ def _check_codegraph() -> list[Check]:
         ]
 
     try:
-        pid = int(pid_path.read_text().strip())
+        pid = _codegraph_daemon_pid(pid_path)
         os.kill(pid, 0)  # signal 0 = process existence check
-    except (ValueError, ProcessLookupError, OSError):
+    except (ValueError, TypeError, KeyError, ProcessLookupError, OSError):
         return [
             Check(
                 "WARN",
@@ -770,6 +831,90 @@ def _check_repository_continuity() -> list[Check]:
         Check(check.level, f"continuity:{check.name}", check.detail)
         for check in continuity_checks
     ]
+
+
+def _launchd_disabled(label: str) -> bool:
+    """True when launchd holds a persistent `disabled` override for this label.
+
+    This override lives in the user domain, not in the plist, and survives
+    reinstalling the plist. `launchctl print` cannot see it: a disabled service
+    that is not loaded simply reports as not found.
+    """
+    try:
+        proc = subprocess.run(
+            ["launchctl", "print-disabled", f"gui/{os.getuid()}"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if proc.returncode != 0:
+        return False
+    for raw in proc.stdout.splitlines():
+        line = raw.strip()
+        # `launchctl print-disabled` renders a disabled label as `=> true`.
+        # Keep accepting the older textual form for captured legacy output.
+        if f'"{label}" => true' in line or f'"{label}" => disabled' in line:
+            return True
+    return False
+
+
+def _check_builder_scheduler() -> list[Check]:
+    """Surface the scheduler truth Builder already computes.
+
+    ``builder_supervisor.scheduler_status`` is the one authority on whether the
+    installed LaunchAgent matches Kitty's supported scheduler contract. Doctor
+    only projects it. The 2026-09-01 drift (plist pointing at a repo that does
+    not exist) stayed invisible for two weeks because nothing read this.
+    """
+    from gateway.builder_supervisor import SUPERVISOR_LABEL, scheduler_status
+
+    try:
+        status = scheduler_status(ROOT)
+    except Exception as exc:  # noqa: BLE001 - doctor must never crash the report
+        return [
+            Check(
+                "WARN",
+                "builder:scheduler",
+                f"scheduler state could not be read: {type(exc).__name__}: {exc}",
+            )
+        ]
+
+    if not status.get("supported"):
+        return [Check("PASS", "builder:scheduler", str(status.get("reason") or "not supported here"))]
+
+    if status.get("healthy"):
+        return [
+            Check(
+                "PASS",
+                "builder:scheduler",
+                f"LaunchAgent loaded, tick every {status.get('start_interval_seconds')}s",
+            )
+        ]
+
+    detail = str(status.get("reason") or "Builder scheduler is not healthy")
+    if status.get("installed") and not status.get("loaded") and _launchd_disabled(SUPERVISOR_LABEL):
+        # Second, independent off-switch. On 2026-09-15 the plist path was wrong
+        # *and* the label was disabled in the user domain; repairing the plist
+        # alone left the scheduler off with no visible reason, because a
+        # disabled label is not part of the plist and not part of `launchctl
+        # print`, which reports the service as simply absent.
+        detail = (
+            f"{detail}; the label is also `disabled` in the launchd user domain "
+            f"— run: launchctl enable gui/$(id -u)/{SUPERVISOR_LABEL}"
+        )
+    if not status.get("contract_matches") and status.get("installed"):
+        installed_wd = status.get("installed_working_directory")
+        detail = (
+            f"{detail}; installed WorkingDirectory={installed_wd!r} "
+            f"expected {status.get('code_root')!r}. "
+            "Reinstall from `python -m gateway.builder_supervisor launchd-plist`."
+        )
+    # Drift and not-loaded both mean unattended Builder execution is off. That
+    # is a real failure of a system the mission says may run unattended, not a
+    # cosmetic warning.
+    return [Check("FAIL", "builder:scheduler", detail)]
 
 
 def _check_venv(env: dict[str, str] | None = None) -> list[Check]:
@@ -874,6 +1019,7 @@ def main() -> int:
         + _check_gateway_freshness()
         + _check_codegraph()
         + _check_repository_continuity()
+        + _check_builder_scheduler()
     )
 
     failures = [c for c in checks if c.level == "FAIL"]

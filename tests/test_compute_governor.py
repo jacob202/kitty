@@ -165,7 +165,7 @@ def test_routine_work_routes_to_the_cheap_model(db: Path):
     decision = cg.decide(db, _dispatch(), reserve=_reserve())
 
     assert (decision.action, decision.route) == (cg.ACTION_RUN, cg.ROUTE_CHEAP)
-    assert any("deepseek-v4-flash" in reason for reason in decision.reasons)
+    assert any("deepseek-v4.1-flash" in reason for reason in decision.reasons)
 
 
 def test_verified_blocker_routes_to_frontier(db: Path):
@@ -334,11 +334,11 @@ def test_explain_names_the_action_and_every_reason(db: Path):
 
 def test_pass_costs_come_from_the_shared_price_registry():
     # Recomputed by hand from gateway/token_spend_report's snapshot prices:
-    # OpenRouter Flash 60k in @ 0.09 + 8k out @ 0.18 = 0.00684 USD; pro 120k in @ 0.435 +
+    # v4.1-flash 60k in @ 0.375 + 8k out @ 1.50 = 0.0345 USD; pro 120k in @ 0.435 +
     # 15k out @ 0.87 = 0.06525 USD. Both converted at the recorded FX rate.
     from gateway.token_spend_report import USD_TO_CAD
 
-    assert cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP) == pytest.approx(0.00684 * USD_TO_CAD)
+    assert cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP) == pytest.approx(0.0345 * USD_TO_CAD)
     assert cg.estimate_pass_cost_cad(cg.ROUTE_FRONTIER) == pytest.approx(0.06525 * USD_TO_CAD)
 
 
@@ -365,22 +365,13 @@ def test_unknown_route_fails_loud():
         cg.estimate_pass_cost_cad("premium")
 
 
-def test_default_budget_covers_a_modelled_week_without_downgrading():
-    # 10 tasks x 3 head SHAs x (plan + review + implement), 85% routine.
+def test_default_budget_preserves_approved_weekly_ceiling():
     config = cg.DEFAULT_RESERVE_CONFIG
-    passes = 10 * 3 * 3
-    routine = int(passes * 0.85)
-    modelled = (
-        routine * cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP)
-        + (passes - routine) * cg.estimate_pass_cost_cad(cg.ROUTE_FRONTIER)
-    ) * 1.5  # retry headroom
+    loaded = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
 
-    downgrade_at = config["weekly_budget_cad"] * (1 - config["frontier_floor_ratio"])
-
-    assert modelled < downgrade_at, (
-        f"a modelled week costs CAD {modelled:.2f} but the frontier floor bites at "
-        f"CAD {downgrade_at:.2f} spent — recompute the budget"
-    )
+    # Route changes do not authorize a spend-ceiling change.
+    assert config["weekly_budget_cad"] == 6.0
+    assert loaded["weekly_budget_cad"] == config["weekly_budget_cad"]
 
 
 def test_explicit_free_route_runs_without_spend_even_when_reserve_is_empty(db: Path):

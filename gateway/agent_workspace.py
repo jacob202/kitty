@@ -77,6 +77,16 @@ PRESENCE_TTL: float = 120.0  # seconds; heartbeat age determines active vs stale
 
 _SENDER_KINDS = {"user", "agent", "system"}
 _MESSAGE_KINDS = {"prompt", "plan", "handoff", "review", "result", "status"}
+
+# Kinds whose *broadcasts* require another actor to know or act. Everything else
+# is ambient machine activity: still durable, still readable through
+# list_messages, but not an obligation addressed to anyone.
+#
+# Measured on the live room 2026-09-15 (14 days): status 797 broadcasts and
+# result 368 broadcasts against handoff 186, review 109, prompt 13 and plan 8.
+# Broadcasting machine activity because it is observable is what drowned the
+# room; the store was never the problem, the projection was.
+_ATTENTION_BROADCAST_KINDS = frozenset({"prompt", "handoff", "review"})
 _SCOPE_KEY_PATTERNS = (
     re.compile(r"^github:pr:[1-9][0-9]*$"),
     re.compile(r"^github:issue:490:[A-Za-z0-9][A-Za-z0-9._/-]*$"),
@@ -300,14 +310,28 @@ def list_inbox(
     *,
     unread_only: bool = False,
     direct_only: bool = False,
+    attention_only: bool = False,
     limit: int = 100,
     scope_key: str | None = None,
 ) -> list[dict[str, Any]]:
+    """Project this participant's inbox from the one global room.
+
+    ``attention_only`` narrows to what another actor must actually know or act
+    on: everything addressed to this participant directly, whatever its kind,
+    plus broadcasts of ``_ATTENTION_BROADCAST_KINDS``. It drops ambient
+    ``status``/``result``/``plan`` broadcast. This is a projection, not a second
+    store — nothing is deleted, and ``list_messages`` still sees every message.
+
+    It is deliberately not the same control as ``direct_only``, which also hides
+    broadcast handoffs — the very thing the room exists to carry.
+    """
     participant_id = validate_global_participant(participant_id)
     if not isinstance(unread_only, bool):
         raise AgentWorkspaceError("unread_only must be a boolean")
     if not isinstance(direct_only, bool):
         raise AgentWorkspaceError("direct_only must be a boolean")
+    if not isinstance(attention_only, bool):
+        raise AgentWorkspaceError("attention_only must be a boolean")
     if isinstance(limit, bool) or limit <= 0 or limit > 500:
         raise AgentWorkspaceError("limit must be between 1 and 500")
     scope_key = _optional_scope_key(scope_key)
@@ -328,6 +352,16 @@ def list_inbox(
         if scope_key is not None:
             scope_clause = " AND m.scope_key = ?"
             params.append(scope_key)
+        # Directed messages stay in the attention set whatever their kind; only
+        # broadcast is filtered, so narrowing can never hide something someone
+        # addressed to this participant on purpose.
+        attention_clause = ""
+        if attention_only:
+            placeholders = ", ".join("?" for _ in _ATTENTION_BROADCAST_KINDS)
+            attention_clause = (
+                f" AND (m.recipient_id IS NOT NULL OR m.message_kind IN ({placeholders}))"
+            )
+            params.extend(sorted(_ATTENTION_BROADCAST_KINDS))
         params.append(limit)
         rows = conn.execute(
             f"""
@@ -341,7 +375,7 @@ def list_inbox(
               AND (m.recipient_id = ? OR m.recipient_id IS NULL)
               AND (? = 0 OR m.recipient_id = ?)
               AND (? = 0 OR r.seen_at IS NULL)
-              {scope_clause}
+              {scope_clause}{attention_clause}
             ORDER BY m.created_at DESC, m.id DESC
             LIMIT ?
             """,

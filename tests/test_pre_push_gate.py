@@ -359,3 +359,14 @@ def test_polling_guard_never_recommends_auto_merge_as_a_wait_strategy():
     polling = (ROOT / ".claude/hooks/block-polling.sh").read_text(encoding="utf-8")
     assert "gh pr checks <N> --watch" in polling
     assert "gh pr merge <N> --auto" not in polling
+
+
+def test_failure_output_names_the_failing_tests_and_keeps_the_full_log(hook_text):
+    """A 25-line tail hid pytest's FAILED lines twice; both fixes must stay."""
+    assert "grep -E '^(FAILED|ERROR) '" in hook_text, (
+        "the hook must print every failing test name, not only the last 25 lines"
+    )
+    assert "full output:" in hook_text, "the hook must say where the whole gate log was kept"
+    assert "logs/pre-push-" in hook_text.replace('${GATE_LOG_DIR}/', 'logs/'), (
+        "the kept log must land under logs/, which .gitignore already covers"
+    )

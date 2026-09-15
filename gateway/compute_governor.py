@@ -79,7 +79,7 @@ ROUTE_FRONTIER = "frontier"
 
 ROUTE_MODELS: dict[str, str | None] = {
     ROUTE_FREE: None,
-    ROUTE_CHEAP: "deepseek/deepseek-v4-flash",
+    ROUTE_CHEAP: "deepseek/deepseek-v4.1-flash",
     ROUTE_FRONTIER: "deepseek/deepseek-v4-pro",
 }
 
@@ -671,6 +671,9 @@ ROOT_CONFIG_PATH = ROOT / "config" / "compute_governor.json"
 # a normal week, so routine weeks never downgrade, and a bad week degrades to
 # Flash instead of stopping. Recompute if the price registry moves.
 DEFAULT_RESERVE_CONFIG: dict[str, float] = {
+    # The approved mission ceiling remains CAD 6.00/week. Keep this in step
+    # with config/compute_governor.json; route changes do not authorize a
+    # higher spend ceiling.
     "weekly_budget_cad": 6.0,
     "frontier_floor_ratio": 0.25,
     "hard_floor_ratio": 0.05,

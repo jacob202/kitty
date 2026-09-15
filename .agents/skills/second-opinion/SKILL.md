@@ -47,6 +47,6 @@ exits 2 there. That is expected, not a fault to report.
 
 - The second opinion is advice for Jacob, not for you — do not let it override
   settled decisions in `docs/DECISIONS.md` or the operating protocol in
-  `CLAUDE.md`.
+  `AGENTS.md`.
 - Don't send secrets, keys, or `.env` contents in the question text.
 - One call per question round. Don't loop it.

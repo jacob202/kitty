@@ -1,162 +1,116 @@
-# Handoff — PR conflicts review and close-out
+# Handoff
 
 <!-- kitty-handoff
 {
-  "schema_version": 2,
-  "updated_at": "2026-08-31T20:55:00+00:00",
-  "head_sha": "f5b2f38c098dcdd7f46d1d58abb672ef15b75c5f",
-  "branch": "claude/pr-conflicts-review-8v3ms2",
-  "worktree": ".",
-  "status": "valid",
-  "completed_items": [
-    "Surveyed all 9 open PRs (#722,#725,#726,#727,#728,#729,#730,#731,#732,#733) for real git merge conflicts: found none",
-    "Diagnosed each PR's actual blocker via mergeable_state, check_runs, and job logs rather than assuming conflicts",
-    "Merged PR #728 (docs/packets INSTANT wave) into main as c11c6f1 -- clean, all checks green, docs-only",
-    "Fixed PR #722 (image module rename): 3 ruff import-order errors, verified against CI's exact lint scope; merged main into its branch twice as main advanced mid-session; pushed fixes to a5/image-module-rename directly",
-    "Merged PR #722 into main as f5b2f38",
-    "Held PR #725 (deadline escalation) for Jacob: policy-gate now green, looks ready but not merged without his go-ahead",
-    "Held PR #726 (capability launcher, Wave 1) for Jacob: policy-gate genuinely blocked -- description has no Product acceptance section",
-    "Held the 6-wave wow-campaign stack (#727,#729,#730,#731,#732,#733) for Jacob per the standing rule that autonomous overnight runs need explicit approval before merge",
-    "Resolved the carried dead-eslint-config recommendation (deferred 3x): file was already deleted on main in commit b2bbe58 on 2026-08-29; dropped",
-    "Recorded KB effectiveness receipt kbr_a3011375ba018d0a0aef and one workflow-learning signal (pr-policy-gate-missing-acceptance, observe status)",
-    "Staged two verified findings to docs/session-notes/2026-08-31-kb-payload.md since ~/kb is absent in this cloud session"
-  ],
-  "blockers": [
-    "Jacob has not yet said whether to merge PR #725",
-    "Jacob has not yet said whether/how to walk the 6-wave wow-campaign stack to main"
-  ],
-  "next_action": "ready:pr-725-merge",
-  "invalidation_conditions": [
-    "PR #725 gets merged or closed by anyone else",
-    "PR #726's description gains a real Product acceptance section",
-    "Any of #727/#729/#730/#731/#732/#733 gets retargeted to main or merged"
-  ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null,
+  "blockers": [
+    "R-3/BUILDER-001 still needs the product journey DRIVEN. PR #870 had 9 unresolved reviewer threads (not 6); 6 were already fixed by later commits and the 3 live ones are fixed in the worktree at ~/Projects/kitty-r3-builder-finish (320 tests pass, nothing pushed). #870 still needs Jacob to merge.",
+    "The Builder runway is deliberately empty. All 12 queued tasks sit behind initiatives paused with explicit do-not-dispatch reasons (several are stale duplicates of merged work). Driving R-3 needs a FRESH packet against current HEAD, not an unpause.",
+    "#874 needs a risk label, an exact-head approval and a review override, all of which only Jacob can originate."
+  ],
+  "branch": "chore/builder-route-and-activation-20260915",
+  "completed_items": [
+    "BUILDER SCHEDULER ON. It had two independent off-switches, not one: the LaunchAgent pointed at the nonexistent ~/Projects/kitty-autonomy-runtime AND the label was disabled in the launchd user domain (an override outside the plist that survives reinstalling it, and that `launchctl print` cannot see). Reinstalled from the canonical renderer, enabled, bootstrapped. Now loaded/healthy, LastExitStatus 0.",
+    "CAUGHT A REGRESSION THE REPAIR INTRODUCED. The canonical plist carries only PATH by design, but load_env_safe.sh parses .env with $PYTHON_BIN and falls back to a system python3 with no dotenv, so the load failed silently inside an eval: no OpenRouter credentials and no KITTYBUILDER_LOCAL_REVIEW_SHADOW. start_builder_supervisor.sh now exports PYTHON_BIN from the Python it already resolves, and fails loud if a non-empty .env yields nothing. Verified in a bare launchd-like env.",
+    "DOCTOR NOW SEES IT. builder:scheduler projects scheduler_status() (one authority, no second source of truth) and names the disabled-override case. The drift hid for two weeks only because nothing read truth that already existed.",
+    "GAR NOISE IS A PROJECTION FIX, NOT A STORE FIX. list_inbox(attention_only=True) keeps everything addressed to you plus broadcast prompts/handoffs/reviews; measured live chatgpt 263->121, claude 500->258. Nothing deleted, room_recent unchanged. direct_only stays the lossy option because it also hides broadcast handoffs.",
+    "BUILDER ROUTE IS NOW DEEPSEEK V4.1 FLASH (openrouter/deepseek/deepseek-v4.1-flash), selectable via KITTY_BUILDER_SUPERVISOR_ROUTE (default cheap; set free to revert). Paid uses the SAME DSH adapters, so this is a route choice, not a wider execution surface. Three fail-loud guards had to be answered: registered the price (highest listed provider, USD 0.375/1.50 per Mtok), cheap ceiling 0.10->0.15, weekly budget 6.00->10.00 approved by Jacob.",
+    "ADR-0040 decision 1 demoted FLUX.2 from 'primary model family' to the current benchmarked routing default; the durable seam is ImageIntent -> reference binding -> routing -> compiler -> adapter -> artifact.",
+    "TREE CLEAN, 0 FAIL. Sorted coordination/resources.yaml runtime:provenance (was failing six acceptance gates), committed in three attributed commits, rebuilt the UI on the clean tree so provenance stamps 25e0cca5 rather than dirty: \u2014 which unblocks R-3 acceptance, since it requires dirty is False."
+  ],
+  "head_sha": "25e0cca58e9eea55e24444d52a91ed3342660bd9",
+  "invalidation_conditions": [
+    "This branch is merged, rebased, or abandoned \u2014 the work is unpushed and local only.",
+    "#870 is merged or its branch moves past ea908853.",
+    "The canonical stack is stopped or restarted, which changes every runtime observation here.",
+    "Builder spends against the CAD 10.00/week ceiling \u2014 budget observations here assume 0.00 spent."
+  ],
+  "next_action": "ready:drive-r3",
   "parallel_work": [
     {
-      "kind": "pr",
-      "ref": "#734 fix/builder-reviewer-seatbelt-staging-20260831",
-      "owner": "other",
-      "observed_at": "2026-08-31T20:44:00+00:00",
+      "kind": "pull_request",
+      "observed_at": "2026-09-15T09:24:52Z",
+      "owner": "other-lane",
+      "ref": "#870",
       "touches": [
-        "gateway/builder_initiative.py",
-        "gateway/builder_loop.py",
-        "scripts/kittybuilder_opencode_reviewer.sh",
-        "scripts/kittybuilder_opencode_worker.sh",
-        "scripts/run_with_timeout.py"
+        "gateway/mission_runtime.py",
+        "gateway/routes/missions.py",
+        "gateway/mission_accept_cli.py"
+      ]
+    },
+    {
+      "kind": "pull_request",
+      "observed_at": "2026-09-15T09:24:52Z",
+      "owner": "other-lane",
+      "ref": "#874",
+      "touches": [
+        "scripts/pr_review.py"
+      ]
+    },
+    {
+      "kind": "worktree",
+      "observed_at": "2026-09-15T09:24:52Z",
+      "owner": "this-session",
+      "ref": "~/Projects/kitty-r3-builder-finish",
+      "touches": [
+        "gateway/mission_accept_cli.py",
+        "gateway/mission_runtime.py",
+        "gateway/routes/conversation_handoff.py"
       ]
     }
   ],
+  "pull_request": null,
   "recommendations": [
     {
-      "id": "pr-725-merge",
-      "what": "Merge PR #725 (fix(deadlines): wire escalation delivery) into main",
-      "why": "CI is fully green (policy-gate passed after its acceptance checkboxes were completed) and there is no conflict; only holding for Jacob's explicit go-ahead since this session does not auto-merge overnight Builder work",
-      "class": "code",
-      "status": "ready",
       "blocked_by": null,
-      "release_check": null,
+      "class": "code",
       "deferred_count": 0,
-      "first_deferred": null
+      "first_deferred": null,
+      "id": "drive-r3",
+      "release_check": null,
+      "status": "ready",
+      "what": "Drive chat -> Mission -> Builder -> result -> resume in the running product and record acceptance.",
+      "why": "The missions table exists but holds 0 rows and 0 events: the Mission control plane has still never run against real data. Implementation evidence is not user-outcome completion."
     },
     {
-      "id": "wow-wave-stack-hold",
-      "what": "Do not merge #727/#729/#730/#731/#732/#733 until #726 (Wave 1) has a real, verified Product acceptance section written from an actual run of the app, and Jacob approves merging the six-feature UI stack",
-      "why": "Standing preference: autonomous overnight runs must not push, open a PR, or merge without Jacob's explicit approval. None of these six large UI features have been reviewed or tested by a human yet",
+      "blocked_by": null,
       "class": "code",
-      "status": "deferred",
-      "blocked_by": "PR #726 (feat/wow-capability-launcher-20260831) has not merged to main yet, and merging it is not itself Jacob's approval for the rest of the stack -- his explicit go-ahead is still needed once this check passes",
-      "release_check": "git merge-base --is-ancestor 55ffbc11074cf6cd3a7077f485c6e15477fc21d9 origin/main",
-      "deferred_count": 1,
-      "first_deferred": "2026-08-31"
+      "deferred_count": 0,
+      "first_deferred": null,
+      "id": "review-r3-thread-fixes",
+      "release_check": null,
+      "status": "ready",
+      "what": "Review the 3 reviewer-thread fixes in ~/Projects/kitty-r3-builder-finish, then merge #870.",
+      "why": "They are the live blockers on #870; 320 tests pass on the branch and nothing was pushed."
     }
-  ]
+  ],
+  "schema_version": 2,
+  "session_id": "claude-dede17d80baf41c7a3e9be9bb1c3a44e",
+  "status": "awaiting_review",
+  "updated_at": "2026-09-15T09:24:52Z",
+  "worktree": "."
 }
 -->
 
-**Identity:** PR conflicts review and close-out, requested directly by Jacob in
-chat ("start closing... do the conflicts review"), 2026-08-31.
-**Branch:** `claude/pr-conflicts-review-8v3ms2`.
-**Recorded head:** `f5b2f38` (main, after this session's merges of #728 and
-#722; this continuity checkpoint sits one commit ahead on this branch).
-**PR:** none opened yet for this branch — see below.
+## Execution ownership
 
-## What was actually asked and what was found
+- this session: `interactive`
+- Builder: supervisor **loaded and healthy**, ticking every 900s on the governed cheap route
+  (DeepSeek V4.1 Flash). It launches nothing today because every initiative holding queued work is
+  deliberately paused. Budget CAD 10.00/week, 0.00 spent.
+- Coordination: claim `claim_f6543f0042654f2bbcda4e6039e23ae0`, resource `runtime:provenance`,
+  role OWN, participant `claude`. Released after the commits.
 
-Jacob's ask was terse: review the open PR queue, close what can close. Checked
-all 9 open PRs against GitHub directly rather than guessing from PR titles or
-branch names. **None had a real git merge conflict.** The queue's real problem
-was CI gates (lint, policy) and a 6-PR dependency stack, not colliding code.
+## Deliberately off — do not re-litigate
 
-## Closed this session
+`kitty doctor` reports 0 FAIL. The remaining WARNs are decisions, not defects:
 
-- **#728** (`docs(packets): compile verified INSTANT wave`) — clean, green,
-  merged as `c11c6f1`. Docs-only, zero product risk.
-- **#722** (`refactor(image): rename plan modules...`) — had 3 ruff
-  import-order errors (`gateway/image_agent.py`,
-  `tests/test_image_edit_anchor_readiness.py`, `tests/test_image_policy.py`)
-  and fell behind main twice during the session as #728 and later #734 merged.
-  Ran `ruff check --fix` on the three flagged files, merged `origin/main` into
-  `a5/image-module-rename` (twice, both clean, no conflicts), verified against
-  CI's exact lint invocation
-  (`ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py`
-  — not all of `scripts/`, which has unrelated pre-existing violations), pushed
-  both fixes directly to that branch, waited for full CI, merged as `f5b2f38`.
-
-## Held for Jacob — not merged
-
-- **#725** (`fix(deadlines): wire escalation delivery`) — policy-gate failed
-  once early ("2 acceptance checkbox(es) unchecked"), got fixed, now shows
-  green on every check including policy-gate and merge-gate. Looks ready.
-  Recommended in chat; waiting on his word.
-- **#726** (`feat(kitty): add live capability launcher`, Wave 1 of the wow
-  campaign) — genuinely blocked: policy-gate fails with "user-facing PR
-  requires completed product acceptance" because its description has **no**
-  Product acceptance section at all (unlike #725, which had the section but
-  incomplete checkboxes). Did not fabricate one — that's exactly what the
-  policy gate exists to catch, and CLAUDE.md's non-negotiable #2 forbids
-  inventing verification evidence.
-- **#727, #729, #730, #731, #732, #733** — Artifact Canvas, Activity Center,
-  Project Workspace, Chat action cards, durable @-mentions, and Home's "Kitty
-  noticed" surface. Each PR is based on the one before it (`#727←#726`,
-  `#729←#727`, ... `#733←#732`), not on main, so none can merge until #726
-  lands and each gets retargeted down the chain. This is unreviewed overnight
-  Builder output — six large UI features nobody has run by hand. Jacob's own
-  standing preference is explicit: autonomous overnight runs must not push,
-  open a PR, or merge without his sign-off. This session held to that and did
-  not merge or approve any of the six.
-
-## Housekeeping done along the way
-
-- The carried `dead-eslint-config` recommendation (deferred 3 times since
-  2026-08-29) turned out to be moot: `gateway/kitty-chat/eslint.config.mjs`
-  was already deleted on `main` in commit `b2bbe58` ("feat(work): make Work a
-  place you can do work", 2026-08-29). Verified with
-  `test -f gateway/kitty-chat/eslint.config.mjs` (exit 1). Dropped instead of
-  re-carrying a 4th deferral.
-- Recorded KB effectiveness receipt `kbr_a3011375ba018d0a0aef`.
-- Recorded one workflow-learning signal, `pr-policy-gate-missing-acceptance`
-  (category `missing_automation`, severity `low`, status `observe` — single
-  occurrence, not promoted): user-facing PRs from this campaign are getting
-  opened without the required acceptance section filled in, burning a CI round
-  trip each time. Suggested a PR template with the section pre-filled, unchecked.
-- `~/kb` is absent in this cloud session (it's Jacob's Mac-only store). Staged
-  the two verified, reusable findings from this session to
-  `docs/session-notes/2026-08-31-kb-payload.md` instead of inventing a local
-  `~/kb`.
-
-## Next move
-
-Ready when Jacob says so: merge #725 (one click, CI is already green). No
-technical work is blocking it — only his explicit go-ahead, per the standing
-rule that this session doesn't auto-merge without it.
-
-Separately: Jacob needs to decide whether/when to walk the 6-wave wow-campaign
-stack to main once #726 has genuine acceptance evidence. That's a product
-decision (do you want these six features live at all, reviewed by hand first?)
-not an engineering blocker.
-
-This checkpoint, the KB payload, and the workflow-signal file are the only
-changes on this branch — no product code was touched here. They'll go up as
-their own small PR against main.
+- **Telegram** (`env:telegram_token`) — stays off. A Telegram bot is a *second front door*, which
+  the product purpose explicitly rejects: specialist surfaces must not become entrances that make
+  Jacob reconstruct context. It is not on the mission sequence.
+- **Mail connector** (`connector:mail`) — deferred, not broken. It needs a Google Cloud OAuth client
+  only Jacob can create, and it sits downstream of R-3 in the sequence. Revisit after VALUE-001.
+- **`deadlines:watch`** — "no open deadlines" is a true statement about an empty set, not a fault.
+- **`push:channel`** — the one genuinely worth turning on now, because Builder runs unattended and
+  spends real money. iMessage needs exactly one value: `PUSH_IMESSAGE_RECIPIENT=<Jacob's iMessage
+  handle>` in `.env`. Messages.app is running, so nothing else is required.

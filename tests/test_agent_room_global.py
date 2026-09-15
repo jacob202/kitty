@@ -226,12 +226,19 @@ def test_room_cli_direct_only_flag_uses_canonical_inbox(
     seen = {}
 
     def fake_list_inbox(
-        participant_id, *, unread_only=False, direct_only=False, limit=100, scope_key=None
+        participant_id,
+        *,
+        unread_only=False,
+        direct_only=False,
+        attention_only=False,
+        limit=100,
+        scope_key=None,
     ):
         seen.update(
             participant_id=participant_id,
             unread_only=unread_only,
             direct_only=direct_only,
+            attention_only=attention_only,
             limit=limit,
         )
         return []
@@ -246,8 +253,93 @@ def test_room_cli_direct_only_flag_uses_canonical_inbox(
         "participant_id": "claude",
         "unread_only": True,
         "direct_only": True,
+        "attention_only": False,
         "limit": 1,
     }
+
+
+def test_attention_inbox_drops_ambient_broadcast_but_keeps_directed_status(room_db):
+    """The room's noise problem is a projection problem, not a storage problem.
+
+    Ambient status/result broadcast is still stored and still readable through
+    list_messages; it simply stops occupying an attention surface that other
+    agents are supposed to act on.
+    """
+    agent_workspace.ensure_global_workspace()
+    broadcast_status = agent_workspace.post_global_message(
+        sender_id="chatgpt", content="tick 41 done", message_kind="status"
+    )
+    broadcast_result = agent_workspace.post_global_message(
+        sender_id="chatgpt", content="artifact written", message_kind="result"
+    )
+    broadcast_handoff = agent_workspace.post_global_message(
+        sender_id="chatgpt", content="lane free, someone take R-3", message_kind="handoff"
+    )
+    directed_status = agent_workspace.post_global_message(
+        sender_id="chatgpt",
+        recipient_id="codex",
+        content="your worktree is dirty",
+        message_kind="status",
+    )
+
+    attention = agent_workspace.list_inbox("codex", attention_only=True)
+    attention_ids = {item["id"] for item in attention}
+
+    # Broadcast handoff survives: it is the thing the room exists to carry.
+    assert broadcast_handoff["id"] in attention_ids
+    # Anything addressed on purpose survives, whatever its kind.
+    assert directed_status["id"] in attention_ids
+    # Ambient machine chatter does not.
+    assert broadcast_status["id"] not in attention_ids
+    assert broadcast_result["id"] not in attention_ids
+
+    # Subtraction is projection-only: the full inbox is unchanged.
+    full_ids = {item["id"] for item in agent_workspace.list_inbox("codex")}
+    assert {
+        broadcast_status["id"],
+        broadcast_result["id"],
+        broadcast_handoff["id"],
+        directed_status["id"],
+    } <= full_ids
+
+
+def test_attention_inbox_is_wider_than_direct_only(room_db):
+    """direct_only was the lossy workaround: it hides broadcast handoffs."""
+    agent_workspace.ensure_global_workspace()
+    broadcast_handoff = agent_workspace.post_global_message(
+        sender_id="chatgpt", content="R-3 needs a driver", message_kind="handoff"
+    )
+
+    direct = agent_workspace.list_inbox("codex", direct_only=True)
+    attention = agent_workspace.list_inbox("codex", attention_only=True)
+
+    assert broadcast_handoff["id"] not in {item["id"] for item in direct}
+    assert broadcast_handoff["id"] in {item["id"] for item in attention}
+
+
+def test_attention_only_rejects_non_boolean(room_db):
+    agent_workspace.ensure_global_workspace()
+    with pytest.raises(agent_workspace.AgentWorkspaceError):
+        agent_workspace.list_inbox("codex", attention_only="yes")
+
+
+def test_room_cli_attention_only_flag_reaches_canonical_inbox(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    seen = {}
+
+    def fake_list_inbox(participant_id, **kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(agent_workspace, "list_inbox", fake_list_inbox)
+    args = agent_room_cli._parser().parse_args(
+        ["inbox", "--as", "claude", "--attention-only"]
+    )
+
+    assert agent_room_cli._dispatch(args) == []
+    assert seen["attention_only"] is True
+    assert seen["direct_only"] is False
 
 
 def test_scope_filter_finds_handoff_older_than_global_recent_window(room_db):
