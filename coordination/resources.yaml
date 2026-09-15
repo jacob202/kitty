@@ -211,6 +211,7 @@ resources:
     - tests/test_pr_review.py
     - tests/test_pr_review_file_chunks.py
     - tests/test_pr_review_gate.py
+    - tests/test_pr_review_verdict_normalization.py
   review:scope-classification:
     paths:
     - scripts/pr_scope.py
