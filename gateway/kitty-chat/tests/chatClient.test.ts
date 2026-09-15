@@ -212,3 +212,23 @@ describe('streamChat truthful failure recovery', () => {
     expect(mapped.userMessage).not.toContain('Failed to fetch')
   })
 })
+
+
+describe('streamChat expert scope', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('sends only the trusted expert id, not a client-authored system prompt', async () => {
+    let body: Record<string, unknown> | undefined
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      return sseResponse(['data: [DONE]\n\n'])
+    }))
+    const messages: Message[] = [{ id: 'm1', role: 'user', content: 'brake service', timestamp: new Date() }]
+    for await (const _chunk of streamChat(
+      'kitty-default', messages, undefined, undefined, 'chat-1', 'm1', 'chat with Automotive', undefined, 'automotive'
+    )) { /* drain */ }
+
+    expect(body?.expert_id).toBe('automotive')
+    expect(body).not.toHaveProperty('system_prompt')
+  })
+})

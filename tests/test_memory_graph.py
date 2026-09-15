@@ -493,3 +493,36 @@ def test_set_active_project_invalidates_prefetch_cache(_project_scope_db):
     project_context.set_active_project(second["id"])
 
     assert prefetcher.get_cached("status") is None
+
+
+@pytest.mark.asyncio
+async def test_knowledge_adapter_preserves_full_evidence_text_and_provenance(monkeypatch):
+    """Knowledge evidence must reach the assembler untruncated and source-bound."""
+    full_text = "evidence " * 120
+    row = {
+        "text": full_text,
+        "score": 0.91,
+        "source": "Historical Herbal Reference",
+        "evidence": {
+            "source_id": "health-src",
+            "source_sha256": "a" * 64,
+            "logical_unit_id": "work:health-src",
+            "retrieval_title": "Historical Herbal Reference",
+            "authority_tier": "contextual_or_traditional_health_reference",
+            "currency_status": "authority_and_recency_review_required",
+            "clinical_use_policy": "verify_current_clinical_guidance_externally_before_action",
+        },
+        "metadata": {"locator_start": "12", "locator_end": "13"},
+    }
+
+    async def fake_search(query, limit):
+        assert limit == 5
+        return [row]
+
+    monkeypatch.setattr("gateway.knowledge.search", fake_search)
+
+    items = await KnowledgeAdapter().fetch("herbal safety")
+
+    assert items[0].text == full_text
+    assert items[0].metadata["evidence"]["source_id"] == "health-src"
+    assert items[0].metadata["metadata"]["locator_start"] == "12"

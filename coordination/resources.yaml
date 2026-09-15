@@ -69,6 +69,19 @@ resources:
     - mcp/imagen/requirements.txt
     - tests/test_image_*.py
     - workers/comfy_worker/requirements.txt
+  knowledge:retrieval:
+    paths:
+    - contracts/knowledge_pipeline.py
+    - gateway/archivist.py
+    - gateway/hybrid_search.py
+    - gateway/ingestion_queue.py
+    - gateway/knowledge.py
+    - gateway/librarian.py
+    - gateway/pdf_pipeline.py
+    - gateway/routes/knowledge.py
+    - tests/test_knowledge.py
+    - tests/test_knowledge_experts.py
+    - tests/test_knowledge_routes.py
   memory:continuity:
     paths:
     - gateway/agent_workspace.py
@@ -90,9 +103,11 @@ resources:
     - tests/test_agent_workspace.py
     - tests/test_agent_workspace_routes.py
     - tests/test_check_continuity_state.py
+    - tests/test_context_assembler.py
     - tests/test_context_orientation.py
     - tests/test_db.py
     - tests/test_mcp_agent_room_server.py
+    - tests/test_memory_graph.py
     - tests/test_project_store.py
     - tests/test_projects_routes.py
     - tests/test_storage_router.py
@@ -160,12 +175,14 @@ resources:
     paths:
     - gateway/_work_projection_item.py
     - gateway/conversation_handoff.py
+    - gateway/kitty-chat/src/components/HomeState.tsx
     - gateway/kitty-chat/src/components/LibraryView.tsx
     - gateway/kitty-chat/src/components/WorkView.tsx
     - gateway/kitty-chat/src/components/builder/BuilderProposalCard.tsx
     - gateway/kitty-chat/src/components/chat/ActionCard.tsx
     - gateway/kitty-chat/src/lib/actions-adapters.ts
     - gateway/kitty-chat/src/lib/actions-contract.ts
+    - gateway/kitty-chat/src/lib/chat-client.ts
     - gateway/kitty-chat/src/lib/gateway.ts
     - gateway/kitty-chat/src/lib/queries.ts
     - gateway/kitty-chat/src/lib/work.ts
@@ -177,14 +194,18 @@ resources:
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx
     - gateway/kitty-chat/tests/WorkViewProjection.test.tsx
     - gateway/kitty-chat/tests/actionsContract.test.ts
+    - gateway/kitty-chat/tests/chatClient.test.ts
     - gateway/kitty-chat/tests/smoke/**
     - gateway/routes/chats.py
     - gateway/routes/completions.py
     - gateway/routes/conversation_handoff.py
     - gateway/routes/extended.py
+    - gateway/voice_middleware.py
+    - tests/test_chat_completions.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
     - tests/test_library_chat_001.py
+    - tests/test_voice_middleware.py
     - tests/test_work_projection.py
   review:agent-workflow:
     paths:

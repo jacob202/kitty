@@ -1107,6 +1107,16 @@ function ExpertStrip({ onExpertClick }: { onExpertClick: (expert: ExpertProfile)
   const visible = expanded ? experts : experts.slice(0, 2)
 
   if (expertList.isPending) return null
+  if (expertList.isError) {
+    return (
+      <SectionCard title="experts" count={0}>
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 10px' }}>
+          <span>Expert sources are unavailable right now.</span>
+          <button type="button" onClick={() => void expertList.refetch()}>Retry</button>
+        </div>
+      </SectionCard>
+    )
+  }
   if (experts.length === 0) return null
 
   return (

@@ -38,6 +38,15 @@ _DURABLE_CHAT_OBJECT_LIMIT = 6
 logger = logging.getLogger("kitty.gateway")
 router = APIRouter(tags=["completions"])
 
+_CURRENT_VERIFICATION_ABSTENTION = (
+    "I need current authoritative verification before I can answer this as a current "
+    "factual or action claim. This chat path has no external verification tool available, "
+    "so I won’t treat the local corpus or model memory as current evidence. Provide or "
+    "enable a current authoritative source/tool result, then retry."
+)
+_CURRENT_VERIFICATION_POLICY_MODEL = "kitty-policy/current-verification-abstention"
+_CURRENT_SOURCE_TOOL_NAMES = frozenset({"search_web", "web_search", "fetch_url"})
+
 _NO_TOOL_EXECUTOR_SYSTEM = """
 This chat runtime does not currently have a tool executor. Do not emit XML, DSML,
 or tool-call syntax as ordinary assistant text. Do not claim that a command, search,
@@ -46,6 +55,19 @@ conversation. When execution is required, state plainly that tools are unavailab
 in this chat runtime.
 """.strip()
 
+
+
+def _has_current_source_tool(tools: object) -> bool:
+    if not isinstance(tools, list):
+        return False
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        function = tool.get("function")
+        name = function.get("name") if isinstance(function, dict) else tool.get("name")
+        if isinstance(name, str) and name in _CURRENT_SOURCE_TOOL_NAMES:
+            return True
+    return False
 
 
 def _one_line(value: object, limit: int = 120) -> str:
@@ -497,6 +519,57 @@ class CloseSessionRequest(BaseModel):
     session_id: str = ""
 
 
+def _static_abstention_result(text: str) -> dict:
+    return {
+        "id": f"chatcmpl-policy-{uuid.uuid4().hex}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": _CURRENT_VERIFICATION_POLICY_MODEL,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": text},
+                "finish_reason": "stop",
+            }
+        ],
+    }
+
+
+def _static_abstention_stream(text: str) -> list[bytes]:
+    completion_id = f"chatcmpl-policy-{uuid.uuid4().hex}"
+    first = json.dumps(
+        {
+            "id": completion_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": _CURRENT_VERIFICATION_POLICY_MODEL,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant", "content": text},
+                    "finish_reason": None,
+                }
+            ],
+        },
+        ensure_ascii=False,
+    )
+    final = json.dumps(
+        {
+            "id": completion_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": _CURRENT_VERIFICATION_POLICY_MODEL,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        },
+        ensure_ascii=False,
+    )
+    return [
+        b"data: " + first.encode("utf-8") + b"\n\n",
+        b"data: " + final.encode("utf-8") + b"\n\n",
+        b"data: [DONE]\n\n",
+    ]
+
+
 def _finish_lifecycle_or_raise(
     handle: chat_lifecycle.TurnHandle,
     *,
@@ -560,6 +633,24 @@ async def chat_completions(request: Request):
     on_request_start()
 
     body = await request.json()
+    raw_expert_id = body.get("expert_id")
+    if raw_expert_id is not None and (
+        not isinstance(raw_expert_id, str) or not raw_expert_id.strip()
+    ):
+        raise HTTPException(status_code=400, detail="expert_id must be a non-empty string")
+    expert_id = raw_expert_id.strip() if isinstance(raw_expert_id, str) else None
+    if expert_id:
+        from gateway import knowledge
+
+        try:
+            knowledge.require_active_corpus_expert(expert_id)
+        except knowledge.UnknownCorpusExpertError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except knowledge.CorpusProjectionUnavailableError as exc:
+            raise HTTPException(
+                status_code=503, detail="Expert sources are unavailable right now."
+            ) from exc
+
     raw_project_id = body.get("project_id")
     if raw_project_id is not None and (
         isinstance(raw_project_id, bool)
@@ -579,6 +670,7 @@ async def chat_completions(request: Request):
     # Open WebUI does exactly this. Kitty has no executor of its own here, so the
     # schemas and the "tools are unavailable" instruction both hinge on this.
     caller_supplies_tools = bool(body.get("tools"))
+    current_source_tool_available = _has_current_source_tool(body.get("tools"))
 
     turn_has_image = False
     for m in reversed(messages):
@@ -649,6 +741,9 @@ async def chat_completions(request: Request):
         on_request_error()
         raise
     tier = classification.tier
+    if expert_id and tier == "trivial":
+        # Selecting an expert is an explicit request for source-grounded context.
+        tier = "standard"
     trigger = classification.trigger
     t_classified = time.monotonic()
     logger.info(
@@ -801,6 +896,7 @@ async def chat_completions(request: Request):
             domain=domain,
             objective=thread_objective,
             tier=tier,
+            expert_profile=expert_id,
         )
         assert_not_total_failure(bundle)
         if explicit_context_warnings:
@@ -846,6 +942,16 @@ async def chat_completions(request: Request):
             raise SelectedSkillTooLargeError(
                 "Selected skill instructions cannot fit alongside the current chat context"
             )
+        selected_expert_evidence_block = getattr(bundle, "selected_expert_evidence_block", None)
+        if (
+            isinstance(selected_expert_evidence_block, str)
+            and selected_expert_evidence_block
+            and selected_expert_evidence_block not in system_prompt
+        ):
+            raise HTTPException(
+                status_code=413,
+                detail="Selected expert evidence cannot fit alongside the current chat context",
+            )
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
             _finish_lifecycle_or_raise(
@@ -871,6 +977,7 @@ async def chat_completions(request: Request):
         "user_message_id",
         "content_class",
         "image_attachment_ids",
+        "expert_id",
     }
     if not caller_supplies_tools:
         # Nothing on this side executes a tool call, so an unaccompanied schema
@@ -921,12 +1028,68 @@ async def chat_completions(request: Request):
       "message_content_chars": upstream_chars,
       "system_prompt_chars": len(system_prompt),
       "memory_items_injected": len(bundle.injected_memory_items),
+      "expert_profile": expert_id,
       "preprocessing_ms": int((time.monotonic() - t_start) * 1000),
       "tool_execution": "caller" if caller_supplies_tools else "unavailable",
   },
   sort_keys=True,
         ),
     )
+
+    must_abstain_for_current_verification = (
+        bundle.evidence_policy.current_verification_required and not current_source_tool_available
+    )
+    if must_abstain_for_current_verification:
+        abstention = _CURRENT_VERIFICATION_ABSTENTION
+        if lifecycle_handle is not None:
+            _finish_lifecycle_or_raise(
+                lifecycle_handle,
+                status="succeeded",
+                assistant_text=abstention,
+                resolved_model=_CURRENT_VERIFICATION_POLICY_MODEL,
+            )
+            lifecycle_done = True
+        log_chat_trace(
+            LOG_FILE,
+            correlation_id,
+            user_text,
+            domain,
+            _CURRENT_VERIFICATION_POLICY_MODEL,
+            t_start,
+            runtime_revision=runtime_manifest["revision"],
+            model_resolved=_CURRENT_VERIFICATION_POLICY_MODEL,
+            tier=tier,
+            trigger=trigger,
+        )
+        on_request_success()
+        headers = {
+            "X-Kitty-Runtime-Revision": runtime_manifest["revision"],
+            "X-Kitty-Model-Selected": _CURRENT_VERIFICATION_POLICY_MODEL,
+            "X-Kitty-Model-Requested": str(route_decision.requested_model),
+            "X-Kitty-Provider-Selected": "policy",
+            "X-Kitty-Tools-State": "unavailable",
+            "X-Kitty-Current-Verification": "required-unavailable",
+        }
+        if lifecycle_handle is not None:
+            headers["X-Kitty-Turn-ID"] = lifecycle_handle.turn_id
+            headers["X-Kitty-Attempt-ID"] = lifecycle_handle.attempt_id
+        if stream:
+            async def abstention_stream():
+                for chunk in _static_abstention_stream(abstention):
+                    yield chunk
+
+            return StreamingResponse(
+                abstention_stream(),
+                media_type="text/event-stream",
+                headers=headers,
+            )
+        response = _static_abstention_result(abstention)
+        response["kitty_runtime"] = {
+            "manifest_revision": runtime_manifest["revision"],
+            "resolved_model": _CURRENT_VERIFICATION_POLICY_MODEL,
+            "current_verification": "required_unavailable",
+        }
+        return response
 
     if stream:
         # Memory-evidence trailer (CR-04): built before streaming starts so

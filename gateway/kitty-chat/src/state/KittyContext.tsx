@@ -91,17 +91,6 @@ function makeChat(color: ChatColor): Chat {
   }
 }
 
-function buildExpertSystemPrompt(expert: { label: string; tags: string[]; book_count: number; sample_title: string }): string {
-  const tagList = expert.tags.length > 0 ? expert.tags.join(', ') : 'general knowledge'
-  return `You are acting as ${expert.label}, a specialized AI with deep expertise in ${tagList}.
-Your knowledge is drawn from ${expert.book_count} reference texts.
-Sample domain: ${expert.sample_title}.
-
-Respond with the depth and precision expected of a specialist in this field.
-Always cite specific frameworks, principles, or techniques from your knowledge base when relevant.
-Maintain the conversational tone and intellectual rigor of a trusted advisor.`
-}
-
 interface RecoveredMessage {
   id: string
   role: 'user' | 'assistant'
@@ -550,7 +539,6 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     chat.model = activeModel.id
     chat.title = `chat with ${expert.label}`
     chat.expertId = expert.id
-    chat.systemPrompt = buildExpertSystemPrompt(expert)
     setChats((prev) => [...prev, chat])
     setActiveChatId(chat.id)
     setInput('')
@@ -652,7 +640,17 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     let requestedModel: string | undefined
     let toolsState: 'available' | 'unavailable' | undefined
     try {
-      for await (const chunk of streamChat(turnModel.id, history, abort.signal, activeProject?.id, chat.id, latestUserMessage.id, title, attachmentIds)) {
+      for await (const chunk of streamChat(
+        turnModel.id,
+        history,
+        abort.signal,
+        activeProject?.id,
+        chat.id,
+        latestUserMessage.id,
+        title,
+        attachmentIds,
+        chat.expertId ?? undefined,
+      )) {
         if (chunk.done) break
         if (chunk.provider || chunk.requestedModel || chunk.toolsState) {
           provider = chunk.provider ?? provider
@@ -681,13 +679,13 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       updateChat(chat.id, (c) => ({ ...c, updatedAt: new Date(), messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content: accumulated, mood, ...extras } : m)) }))
       setLastOutcome('done')
       window.setTimeout(() => setLastOutcome((o) => (o === 'done' ? null : o)), 2500)
-      void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: [...history, { ...aiMsg, content: accumulated, mood, ...extras }] })
+      void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), expertId: chat.expertId ?? undefined, messages: [...history, { ...aiMsg, content: accumulated, mood, ...extras }] })
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         const interruptedContent = accumulated ? `${accumulated}\n\n⚠ generation stopped before completion — tap retry below.` : '⚠ generation stopped before Kitty returned a response — tap retry below.'
         const interruptedMessage: Message = { ...aiMsg, content: interruptedContent, mood: 'confused', turnStatus: 'interrupted' }
         updateChat(chat.id, (c) => ({ ...c, updatedAt: new Date(), messages: c.messages.map((m) => (m.id === aiMsgId ? interruptedMessage : m)) }))
-        void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: [...history, interruptedMessage] })
+        void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), expertId: chat.expertId ?? undefined, messages: [...history, interruptedMessage] })
         return
       }
       setLastOutcome('broke')
@@ -705,7 +703,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       // Persist the failed turn so restart/resume stays honest: the user sees
       // their message plus the truthful failure with its retry path, instead of
       // a send that silently produced nothing after reload.
-      void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: [...history, failedMessage] })
+      void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), expertId: chat.expertId ?? undefined, messages: [...history, failedMessage] })
     } finally { setIsStreaming(false); abortRef.current = null }
   }, [activeModel, activeProject?.id, updateChat, persistChat])
 
