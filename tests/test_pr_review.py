@@ -342,6 +342,74 @@ def test_agent_review_workflow_rechecks_override_metadata_without_recalling_mode
     assert "github.event.action == 'labeled'" not in workflow
     assert "github.event.action == 'unlabeled'" not in workflow
 
+def test_timed_out_reviewer_is_not_retried_on_later_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model that times out must not be handed a fresh timeout per chunk.
+
+    Observed 2026-09-15 on PR #879: the primary reviewer timed out on all three
+    chunks. Each attempt spent 240s of the one shared 900s budget before the
+    fallback ran, the budget ran out, and a single unfinished chunk voided the
+    whole review -- discarding the chunks the fallback had already reviewed.
+    """
+    attempted: list[str] = []
+
+    class Result:
+        returncode = 0
+        stdout = APPROVE_REVIEW_JSON + "\n"
+        stderr = ""
+
+    def fake_run(command, **_kwargs):
+        model = command[command.index("--model") + 1]
+        attempted.append(model)
+        if "deepseek" in model:
+            raise pr_review.subprocess.TimeoutExpired(cmd=command, timeout=240)
+        return Result()
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/deepseek/deepseek-v4-flash", "openrouter/minimax/minimax-m3"),
+    )
+
+    unresponsive: set[str] = set()
+    first = pr_review._review_chunk("diff one", unresponsive=unresponsive)
+    second = pr_review._review_chunk("diff two", unresponsive=unresponsive)
+
+    assert first == pr_review.NO_FINDINGS
+    assert second == pr_review.NO_FINDINGS
+    # Chunk one pays for the timeout once; chunk two must go straight to the
+    # model that actually answers.
+    assert attempted == [
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/minimax/minimax-m3",
+        "openrouter/minimax/minimax-m3",
+    ]
+
+
+def test_every_reviewer_timing_out_still_reports_no_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Demotion must not invent a verdict when nothing answered."""
+
+    def fake_run(command, **_kwargs):
+        raise pr_review.subprocess.TimeoutExpired(cmd=command, timeout=240)
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/deepseek/deepseek-v4-flash", "openrouter/minimax/minimax-m3"),
+    )
+
+    unresponsive: set[str] = set()
+    assert pr_review._review_chunk("a", unresponsive=unresponsive) is None
+    # Both are now known bad, and the next chunk must still refuse rather than
+    # silently pass because no candidate remains.
+    assert pr_review._review_chunk("b", unresponsive=unresponsive) is None
+
+
 def test_review_request_uses_restricted_opencode_agent_and_paid_flash_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

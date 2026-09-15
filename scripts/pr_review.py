@@ -393,11 +393,31 @@ def _model_timeout(deadline: float | None) -> float:
     return min(float(REVIEW_MODEL_TIMEOUT_SECONDS), deadline - time.monotonic())
 
 
-def _review_chunk(chunk: str, *, deadline: float | None = None) -> str | None:
+def _review_chunk(
+    chunk: str,
+    *,
+    deadline: float | None = None,
+    unresponsive: set[str] | None = None,
+) -> str | None:
     review_models = review_models_for_current_event()
     if not review_models:
         print("No independent PR reviewer model is configured.", file=sys.stderr)
         return None
+    # A model that already timed out this run does not get another full timeout
+    # on every remaining chunk. Each wasted attempt is spent from the one shared
+    # total budget, and the budget running out voids the whole review — including
+    # the chunks a working fallback already reviewed.
+    if unresponsive:
+        responsive = tuple(m for m in review_models if m not in unresponsive)
+        if responsive:
+            skipped = [m for m in review_models if m in unresponsive]
+            if skipped:
+                print(
+                    "Skipping reviewer(s) that already timed out this run: "
+                    + ", ".join(skipped),
+                    file=sys.stderr,
+                )
+            review_models = responsive
     if any(model.startswith("openrouter/") for model in review_models) and not os.environ.get(
         "OPENROUTER_API_KEY"
     ):
@@ -441,6 +461,8 @@ def _review_chunk(chunk: str, *, deadline: float | None = None) -> str | None:
                 check=False,
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
+            if isinstance(exc, subprocess.TimeoutExpired) and unresponsive is not None:
+                unresponsive.add(review_model)
             print(
                 f"DSH reviewer {review_model} infrastructure error: "
                 f"{type(exc).__name__}: {exc}",
@@ -529,6 +551,7 @@ def review_diff(diff: str) -> str | None:
 
     deadline = time.monotonic() + REVIEW_TOTAL_TIMEOUT_SECONDS
     findings: list[str] = []
+    unresponsive: set[str] = set()
     for index, chunk in enumerate(chunks, start=1):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -540,7 +563,7 @@ def review_diff(diff: str) -> str | None:
             )
             return None
         print(f"Reviewing diff chunk {index}/{len(chunks)} ({len(chunk)} chars).")
-        verdict = _review_chunk(chunk, deadline=deadline)
+        verdict = _review_chunk(chunk, deadline=deadline, unresponsive=unresponsive)
         if not verdict:
             return None
         if verdict.strip() != NO_FINDINGS:
