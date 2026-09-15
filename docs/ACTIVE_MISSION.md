@@ -90,10 +90,46 @@ highest-leverage work because none of it is construction.
 
 | Thing | Where | Why it is off |
 |---|---|---|
-| Local reviewer | `gateway/local_review.py:107`; model on disk at `~/Library/Application Support/Kitty/models/local-reviewer/` | Gated behind `KITTYBUILDER_LOCAL_REVIEW_SHADOW`, set in zero files. Timeouts already fixed by PR #869. |
-| Builder's scheduler | `~/Library/LaunchAgents/com.kitty.builder.supervisor.plist` | `WorkingDirectory` and `ProgramArguments[1]` point at `~/Projects/kitty-autonomy-runtime`, which does not exist. Not loaded. Last ran 2026-09-01. |
+| ~~Local reviewer~~ **on 2026-09-14** | `gateway/local_review.py:107`; model on disk at `~/Library/Application Support/Kitty/models/local-reviewer/` | `KITTYBUILDER_LOCAL_REVIEW_SHADOW=1` is now set in `.env` (gitignored, which is why greps for it still report zero files). It stays non-authoritative: `advisory_clear|escalate` only, fails closed. **It has produced no data yet** — shadow verdicts are written during Builder review, and Builder has not run since 2026-09-01. Measurement is blocked on the scheduler row below, not on the reviewer. |
+| Builder's scheduler | `~/Library/LaunchAgents/com.kitty.builder.supervisor.plist` | **Plist repaired 2026-09-15** from the canonical renderer (`python -m gateway.builder_supervisor launchd-plist`); `contract_matches` is now true and a real tick ran through `scripts/start_builder_supervisor.sh`, launching nothing (`no_eligible_packet`). **Armed 2026-09-15 02:26** — `launchd` reports `loaded`, `healthy`, `LastExitStatus 0`; first unattended tick scanned 8 initiatives and launched 0. Note there were **two** independent causes, not one: besides the bad path, the service was also explicitly `disabled` in the launchd user domain, which the plist repair alone would not have fixed (`launchctl enable gui/501/...`). The drift is now caught by `kitty doctor` (`builder:scheduler`), which is why it hid for two weeks. |
 | ~~Session cost analytics~~ **plugged 2026-09-14** | `scripts/kb_effectiveness.py` | `record` now reads the session's real token total from its own Claude Code transcript, and `summary --join-transcript-costs` answers the same question for history without rewriting the hash chain. Sessions with known total tokens went 0 → 2 for the last 30 days (354,094,076 tokens); every future receipt carries the number automatically. |
-| Agent-room briefing | GAR-AWARE-02, on main | Built; the room is drowned by 797 status/claim messages against 213 handoffs in 14 days, and only 8 of 363 handoffs ever drew a reply from a different agent. |
+| Agent-room briefing | GAR-AWARE-02, on main | Built; the room is drowned by 797 status/claim messages against 213 handoffs in 14 days, and only 8 of 363 handoffs ever drew a reply from a different agent. **Narrowed 2026-09-15:** `list_inbox(attention_only=True)` keeps everything addressed to you plus broadcast prompts/handoffs/reviews and drops ambient status/result broadcast — measured 263 → 121 rows for `chatgpt`, 500 → 258 for `claude`. Projection only: no new store, nothing deleted, `room_recent` still sees everything. |
+
+**The scheduler alone will not drive R-3.** Measured 2026-09-15 against the
+live supervisor projection: 8 initiatives are *stored* `active`, but **zero
+derive to `active`** (derived: 63 paused, 12 failed, 10 completed), and no
+initiative has an eligible packet. `KITTY-RECOVERY-001-BUILDER-001-V1` through
+`V6` are all `paused` with `eligible_packets: []`. So a repaired, armed
+scheduler ticks every 15 minutes and correctly launches nothing. Driving
+BUILDER-001 needs an initiative that *derives* active with an eligible packet —
+a deliberate decision, not a side effect of fixing the LaunchAgent.
+
+**The empty runway is deliberate, not a defect** (checked 2026-09-15). All 12
+queued tasks belong to initiatives that are *stored* `paused`, and
+`derive_initiative_state` short-circuits on stored-paused before anything else
+(`gateway/builder_initiative.py:1364`). Every one of those pauses carries an
+explicit reason, and most forbid exactly the thing an armed scheduler would do:
+
+| Initiative | Pause reason (abridged) |
+|---|---|
+| `KITTY-RECOVERY-001-BUILDER-001-V6` | implemented directly at `2dde1f66`; "preserve V6 history, **do not relaunch stale packets**" |
+| `kitty-hardening-gar-scoped-continuity-20260903` | already merged (PR #865); "must stay paused so side-effects" don't replay |
+| `kitty-hardening-runtime-truth-20260903-v1` | "equivalent outcome shipped externally in merged PR #827; stale Builder duplicate" |
+| `kitty-opens-the-doors-20260831-v1` | "not authorized for unattended dispatch" |
+| `kitty-opens-the-doors-20260831-v5` | "preserved shadow result must be revalidated before any new dispatch" |
+| `one-kitty-phase1-action-grammar-20260902` | "hold pending explicit" authorization |
+| `kitty-autonomy-runway-20260901-v2` | "hold from unattended dispatch until explicitly re-authorized" |
+| `KITTY-UNATTENDED-PROOF-20260831` | "superseded before first run: validator warned the path could never pass" |
+
+The stored-vs-derived gap (8 → 0) is benign bookkeeping, not a demotion bug:
+3 of the 8 stored-active initiatives have every packet `done` and simply never
+had their stored state written back to `completed`; 4 have genuinely failed
+packets; 1 has no eligible work.
+
+**So driving BUILDER-001 means authoring a fresh packet against current HEAD —
+not unpausing anything.** Unpausing `V6` would not even produce work
+(`eligible_packets()` returns `[]`), and unpausing the others would replay
+already-merged work against a tree that has moved on.
 
 Builder's queue is **not** a mess and does not need cleaning: 214 of its 264
 cancelled tasks were cancelled on 2026-09-01 as a deliberate curation, and

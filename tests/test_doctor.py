@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -428,6 +429,7 @@ def test_main_exits_zero_on_all_pass(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
     monkeypatch.setattr(doctor, "_check_venv", lambda *_a, **_k: [doctor.Check("PASS", "runtime:venv", "ok")])
     monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
+    monkeypatch.setattr(doctor, "_check_builder_scheduler", lambda: [pass_check])
 
     import sys
 
@@ -456,6 +458,7 @@ def test_main_strict_fails_on_warn(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
     monkeypatch.setattr(doctor, "_check_venv", lambda *_a, **_k: [doctor.Check("PASS", "runtime:venv", "ok")])
     monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
+    monkeypatch.setattr(doctor, "_check_builder_scheduler", lambda: [pass_check])
 
     import sys
 
@@ -487,6 +490,7 @@ def test_main_json_output_shape(monkeypatch, tmp_path, capsys) -> None:
     monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
     monkeypatch.setattr(doctor, "_check_venv", lambda *_a, **_k: [doctor.Check("PASS", "runtime:venv", "ok")])
     monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
+    monkeypatch.setattr(doctor, "_check_builder_scheduler", lambda: [pass_check])
 
     import sys
 
@@ -549,6 +553,7 @@ def test_repository_continuity_internal_error_fails_loud(monkeypatch) -> None:
 
 
 def test_check_mail_connector_warn_when_token_missing(monkeypatch, tmp_path):
+    """No client secret means --auth exits 2, so naming it alone is a dead end."""
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
@@ -556,7 +561,34 @@ def test_check_mail_connector_warn_when_token_missing(monkeypatch, tmp_path):
     assert len(checks) == 1
     assert checks[0].level == "WARN"
     assert checks[0].name == "connector:mail"
-    assert "not present" in checks[0].detail
+    assert "GMAIL_CLIENT_SECRET_FILE" in checks[0].detail
+    assert "--auth" in checks[0].detail
+
+
+def test_check_mail_connector_names_a_client_secret_path_that_does_not_exist(
+    monkeypatch, tmp_path
+):
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    missing = tmp_path / "nowhere" / "client_secret.json"
+    checks = doctor._check_mail_connector({"GMAIL_CLIENT_SECRET_FILE": str(missing)})
+    assert checks[0].level == "WARN"
+    assert str(missing) in checks[0].detail
+    assert "does not exist" in checks[0].detail
+
+
+def test_check_mail_connector_asks_only_for_consent_once_the_secret_is_there(
+    monkeypatch, tmp_path
+):
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    secret = tmp_path / "client_secret.json"
+    secret.write_text("{}", encoding="utf-8")
+    checks = doctor._check_mail_connector({"GMAIL_CLIENT_SECRET_FILE": str(secret)})
+    assert checks[0].level == "WARN"
+    assert "token file not present" in checks[0].detail
 
 
 def test_check_mail_connector_fail_when_token_unreadable(monkeypatch, tmp_path):
@@ -684,13 +716,50 @@ def test_github_connector_passes_when_token_present(monkeypatch) -> None:
     assert "token present" in checks[0].detail
 
 
-def test_github_connector_warns_when_token_missing(monkeypatch) -> None:
+def test_github_connector_warns_when_no_credential_anywhere(monkeypatch) -> None:
     from gateway import doctor
 
+    monkeypatch.setattr(doctor, "_gh_cli_authenticated", lambda: False)
     checks = doctor._check_github_connector({})
     assert len(checks) == 1
     assert checks[0].level == "WARN"
-    assert checks[0].detail == "GITHUB_TOKEN not present in environment or .env"
+    assert "gh auth login" in checks[0].detail
+
+
+def test_github_connector_passes_on_the_keyring_this_repo_prefers(monkeypatch) -> None:
+    """An absent GITHUB_TOKEN is the intended state when gh holds the credential."""
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "_gh_cli_authenticated", lambda: True)
+    checks = doctor._check_github_connector({})
+    assert checks[0].level == "PASS"
+    assert "keyring" in checks[0].detail
+
+
+def test_gh_cli_probe_ignores_an_ambient_github_token(monkeypatch, tmp_path) -> None:
+    """A stale env token would otherwise decide what gh reports on."""
+    from gateway import doctor
+
+    seen: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        seen.update(kwargs.get("env") or {})
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(doctor.subprocess, "run", fake_run)
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_stale")
+
+    assert doctor._gh_cli_authenticated() is True
+    assert "GITHUB_TOKEN" not in seen
+
+
+def test_gh_cli_probe_is_false_without_gh_installed(monkeypatch) -> None:
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: None)
+
+    assert doctor._gh_cli_authenticated() is False
 
 
 # --- _load_env ---
@@ -868,3 +937,193 @@ def test_check_deadlines_pass_when_open_and_no_pushes_yet(monkeypatch, tmp_path)
     checks = doctor._check_deadlines()
     assert checks[0].level == "PASS"
     assert "no pushes yet" in checks[0].detail
+
+
+# --- _check_codegraph pid-file shapes ---
+
+
+def test_codegraph_daemon_pid_reads_the_json_pid_file(tmp_path):
+    """Codegraph 1.6 writes JSON; int() on it made a live daemon read as dead."""
+    from gateway import doctor
+
+    pid_file = tmp_path / "daemon.pid"
+    pid_file.write_text(
+        '{\n  "pid": 14403,\n  "version": "1.6.0",\n  "socketPath": "/x/y.sock"\n}\n',
+        encoding="utf-8",
+    )
+
+    assert doctor._codegraph_daemon_pid(pid_file) == 14403
+
+
+def test_codegraph_daemon_pid_still_reads_a_bare_integer(tmp_path):
+    from gateway import doctor
+
+    pid_file = tmp_path / "daemon.pid"
+    pid_file.write_text("991\n", encoding="utf-8")
+
+    assert doctor._codegraph_daemon_pid(pid_file) == 991
+
+
+def test_codegraph_reports_a_live_daemon_as_alive(monkeypatch, tmp_path):
+    from gateway import doctor
+
+    cg_dir = tmp_path / ".codegraph"
+    cg_dir.mkdir()
+    (cg_dir / "daemon.pid").write_text(
+        json.dumps({"pid": os.getpid(), "version": "1.6.0"}), encoding="utf-8"
+    )
+    (cg_dir / "codegraph.db").write_text("", encoding="utf-8")
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+
+    checks = doctor._check_codegraph()
+
+    assert [c.name for c in checks] == ["codegraph:index_freshness"]
+    assert checks[0].level == "PASS"
+
+
+def _scheduler_status_stub(**overrides):
+    base = {
+        "supported": True,
+        "installed": True,
+        "loaded": True,
+        "healthy": True,
+        "contract_matches": True,
+        "start_interval_seconds": 900,
+        "reason": None,
+        "code_root": "/repo",
+        "installed_working_directory": "/repo",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_builder_scheduler_check_fails_on_plist_drift(monkeypatch) -> None:
+    """The 2026-09-01 drift hid for two weeks because doctor never read this.
+
+    builder_supervisor.scheduler_status already knew the LaunchAgent pointed at
+    a repo that does not exist; nothing surfaced it.
+    """
+    from gateway import builder_supervisor, doctor
+
+    monkeypatch.setattr(
+        builder_supervisor,
+        "scheduler_status",
+        lambda *a, **k: _scheduler_status_stub(
+            loaded=False,
+            healthy=False,
+            contract_matches=False,
+            reason="installed LaunchAgent does not match Kitty's supported scheduler contract",
+            installed_working_directory="/Users/x/Projects/kitty-autonomy-runtime",
+        ),
+    )
+
+    check = next(
+        c for c in doctor._check_builder_scheduler() if c.name == "builder:scheduler"
+    )
+
+    assert check.level == "FAIL"
+    assert "kitty-autonomy-runtime" in check.detail
+    assert "launchd-plist" in check.detail
+
+
+def test_builder_scheduler_check_fails_when_installed_but_not_loaded(monkeypatch) -> None:
+    from gateway import builder_supervisor, doctor
+
+    monkeypatch.setattr(
+        builder_supervisor,
+        "scheduler_status",
+        lambda *a, **k: _scheduler_status_stub(
+            loaded=False,
+            healthy=False,
+            reason="Builder LaunchAgent is installed but not loaded",
+        ),
+    )
+
+    check = doctor._check_builder_scheduler()[0]
+
+    assert check.level == "FAIL"
+    assert "not loaded" in check.detail
+
+
+def test_builder_scheduler_check_passes_when_healthy(monkeypatch) -> None:
+    from gateway import builder_supervisor, doctor
+
+    monkeypatch.setattr(
+        builder_supervisor, "scheduler_status", lambda *a, **k: _scheduler_status_stub()
+    )
+
+    check = doctor._check_builder_scheduler()[0]
+
+    assert check.level == "PASS"
+    assert "900" in check.detail
+
+
+def test_builder_scheduler_check_never_crashes_the_report(monkeypatch) -> None:
+    from gateway import builder_supervisor, doctor
+
+    def boom(*a, **k):
+        raise RuntimeError("launchctl exploded")
+
+    monkeypatch.setattr(builder_supervisor, "scheduler_status", boom)
+
+    check = doctor._check_builder_scheduler()[0]
+
+    assert check.level == "WARN"
+    assert "launchctl exploded" in check.detail
+
+
+def test_launchd_disabled_parses_print_disabled_output(monkeypatch) -> None:
+    """A disabled label is invisible to `launchctl print` — it reports not-found.
+
+    On 2026-09-15 this was the second, independent reason Builder's scheduler
+    was off, and it survived reinstalling the plist.
+    """
+    from gateway import doctor
+
+    stdout = (
+        "disabled services = {\n"
+        '\t\t"com.apple.something" => false\n'
+        '\t\t"com.kitty.builder.supervisor" => disabled\n'
+        "}\n"
+    )
+    monkeypatch.setattr(
+        doctor.subprocess,
+        "run",
+        lambda *a, **k: types.SimpleNamespace(returncode=0, stdout=stdout),
+    )
+
+    assert doctor._launchd_disabled("com.kitty.builder.supervisor") is True
+    assert doctor._launchd_disabled("com.apple.something") is False
+    assert doctor._launchd_disabled("com.kitty.absent") is False
+
+
+def test_launchd_disabled_is_false_when_launchctl_unavailable(monkeypatch) -> None:
+    from gateway import doctor
+
+    def boom(*a, **k):
+        raise OSError("no launchctl")
+
+    monkeypatch.setattr(doctor.subprocess, "run", boom)
+
+    assert doctor._launchd_disabled("com.kitty.builder.supervisor") is False
+
+
+def test_builder_scheduler_check_names_the_disabled_override(monkeypatch) -> None:
+    from gateway import builder_supervisor, doctor
+
+    monkeypatch.setattr(
+        builder_supervisor,
+        "scheduler_status",
+        lambda *a, **k: _scheduler_status_stub(
+            loaded=False,
+            healthy=False,
+            reason="Builder LaunchAgent is installed but not loaded",
+        ),
+    )
+    monkeypatch.setattr(doctor, "_launchd_disabled", lambda _label: True)
+
+    check = doctor._check_builder_scheduler()[0]
+
+    assert check.level == "FAIL"
+    assert "disabled" in check.detail
+    assert "launchctl enable" in check.detail

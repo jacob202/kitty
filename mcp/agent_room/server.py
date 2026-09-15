@@ -112,14 +112,22 @@ def room_recent(limit: int = 100, scope_key: str | None = None) -> list[dict]:
 def room_inbox(
     unread_only: bool = False,
     direct_only: bool = False,
+    attention_only: bool = False,
     limit: int = 100,
     scope_key: str | None = None,
 ) -> list[dict]:
-    """Read this identity's inbox, optionally limited to direct assignments."""
+    """Read this identity's inbox.
+
+    Prefer ``attention_only=True`` for assignment discovery: it keeps everything
+    addressed to this identity plus broadcast prompts, handoffs and reviews, and
+    drops ambient status/result broadcast. ``direct_only=True`` is narrower and
+    lossy — it also hides broadcast handoffs, which are the room's whole point.
+    """
     return agent_workspace.list_inbox(
         CLIENT_IDENTITY,
         unread_only=unread_only,
         direct_only=direct_only,
+        attention_only=attention_only,
         limit=limit,
         scope_key=scope_key,
     )

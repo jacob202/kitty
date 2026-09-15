@@ -1,7 +1,9 @@
 """Flux2HostedTarget — the explicit execution-target representation for hosted FLUX.2.
 
-ADR 0040 decision 1 (FLUX.2 primary family) plus IL-04's "estimate target ==
-availability target == dispatch target == observed cost target" invariant.
+ADR 0040 decision 1 (FLUX.2 as the current benchmarked routing default; this
+module is the replaceable adapter for that family, not an architectural layer)
+plus IL-04's "estimate target == availability target == dispatch target ==
+observed cost target" invariant.
 
 This is deliberately small: it is NOT a general provider framework. It carries
 enough truth that a dispatched FLUX.2 job can answer — exactly which model,

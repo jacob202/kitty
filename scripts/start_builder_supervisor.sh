@@ -31,8 +31,22 @@ fi
 # so paid OpenRouter children receive credentials without copying keys into the
 # runtime worktree, launchd plist, or OpenCode credential store.
 ENV_ROOT="${KITTY_BUILDER_REPO_ROOT:-${REPO_ROOT}}"
+# load_env_safe.sh parses the dotenv with ${PYTHON_BIN}, falling back to system
+# python3 — which has no `dotenv` module, so the load fails and is swallowed by
+# the surrounding eval. The canonical launchd plist carries only PATH by design
+# (no secrets, no env passthrough), so PYTHON_BIN must come from here or the
+# supervisor runs with no .env at all: no OpenRouter credentials for paid
+# children and no KITTYBUILDER_LOCAL_REVIEW_SHADOW for the local reviewer.
+export PYTHON_BIN="${PYTHON}"
 source "${REPO_ROOT}/gateway/lib/load_env_safe.sh"
 load_env_assignments "${ENV_ROOT}/.env"
+
+# Fail loud rather than running a credential-less supervisor: a .env that exists
+# but produced nothing means the parse failed, not that the file is empty.
+if [[ -s "${ENV_ROOT}/.env" && -z "${OPENROUTER_API_KEY:-}" ]]; then
+  echo "error: ${ENV_ROOT}/.env exists but did not load (PYTHON_BIN=${PYTHON_BIN})" >&2
+  exit 1
+fi
 
 cd "${REPO_ROOT}"
 

@@ -130,7 +130,15 @@ def test_room_launcher_uses_canonical_data_root_from_linked_worktree(tmp_path):
 def test_cli_direct_only_uses_canonical_inbox_filter(monkeypatch, room_db, capsys):
     calls = []
 
-    def fake_list_inbox(participant_id, *, unread_only=False, direct_only=False, limit=100, scope_key=None):
+    def fake_list_inbox(
+        participant_id,
+        *,
+        unread_only=False,
+        direct_only=False,
+        attention_only=False,
+        limit=100,
+        scope_key=None,
+    ):
         calls.append((participant_id, unread_only, direct_only, limit))
         return []
 
