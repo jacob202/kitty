@@ -716,8 +716,22 @@ def test_reconcile_same_rejected_candidate_does_not_reopen_acceptance(
     assert current["acceptance"]["state"] == "rejected"
 
 
+@pytest.mark.parametrize(
+    ("task_state", "eligible"),
+    [
+        ("done", True),
+        ("blocked", True),
+        ("pr_opened", True),
+        ("awaiting_review", True),
+        ("queued", False),
+        ("claimed", False),
+        ("running", False),
+        ("failed", False),
+        ("cancelled", False),
+    ],
+)
 def test_reviewed_builder_result_rehashes_registered_artifact_and_rejects_tamper(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, task_state: str, eligible: bool
 ) -> None:
     patch = tmp_path / "result.patch"
     content = b"diff --git a/proof.txt b/proof.txt\n+done\n"
@@ -739,7 +753,7 @@ def test_reviewed_builder_result_rehashes_registered_artifact_and_rejects_tamper
                 "initiative_id": "builder-initiative-1",
                 "packets": [{
                     "task_id": "builder-task-1",
-                    "task_state": "done",
+                    "task_state": task_state,
                     "attempt_history": [{
                         "id": 7,
                         "outcome": "succeeded",
@@ -777,6 +791,10 @@ def test_reviewed_builder_result_rehashes_registered_artifact_and_rejects_tamper
     )
 
     resolved = mission_runtime._reviewed_builder_result(mission)
+    if not eligible:
+        assert resolved is None
+        return
+
     assert resolved is not None
     assert resolved["artifact_id"] == "artifact-1"
     assert resolved["content_hash"] == digest
@@ -784,6 +802,48 @@ def test_reviewed_builder_result_rehashes_registered_artifact_and_rejects_tamper
     patch.write_bytes(content + b"tampered")
     with pytest.raises(mission_runtime.ResultCandidateUnavailable, match="registered digest"):
         mission_runtime._reviewed_builder_result(mission)
+
+
+def test_reviewed_blocked_result_must_belong_to_latest_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mission = {
+        "builder_locator": {
+            "initiative_id": "builder-initiative-1",
+            "task_id": "builder-task-1",
+        }
+    }
+    monkeypatch.setattr(
+        mission_runtime.builder_status_readonly,
+        "build_status_snapshot_readonly",
+        lambda **kwargs: {
+            "initiatives": [{
+                "initiative_id": "builder-initiative-1",
+                "packets": [{
+                    "task_id": "builder-task-1",
+                    "task_state": "blocked",
+                    "attempt_history": [
+                        {
+                            "id": 8,
+                            "outcome": "failed",
+                            "review_verdict": "request_changes",
+                        },
+                        {
+                            "id": 7,
+                            "outcome": "succeeded",
+                            "review_verdict": "approve",
+                            "result_artifact": {
+                                "state": "ready",
+                                "artifact_id": "artifact-stale",
+                            },
+                        },
+                    ],
+                }],
+            }],
+        },
+    )
+
+    assert mission_runtime._reviewed_builder_result(mission) is None
 
 
 @pytest.mark.asyncio

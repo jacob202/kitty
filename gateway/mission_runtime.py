@@ -209,22 +209,34 @@ def _reviewed_builder_result(mission: dict[str, Any]) -> dict[str, Any] | None:
     )
     if packet is None:
         raise ResultCandidateUnavailable("bound Builder task is unavailable")
-    if packet.get("task_state") != "done":
+    task_state = packet.get("task_state")
+    result_lifecycle_states = {
+        builder_queue.BLOCKED,
+        builder_queue.PR_OPENED,
+        builder_queue.AWAITING_REVIEW,
+        builder_queue.DONE,
+    }
+    if task_state not in result_lifecycle_states:
         return None
-    attempt = next(
-        (
-            item for item in packet.get("attempt_history", [])
-            if item.get("outcome") == "succeeded"
-            and item.get("review_verdict") == "approve"
-            and isinstance(item.get("result_artifact"), dict)
-            and item["result_artifact"].get("state") == "ready"
-        ),
-        None,
+
+    # The reusable result must belong to the current attempt. A prior approved
+    # artifact is stale once a newer repair/retry attempt exists, even if the
+    # task happens to be blocked again.
+    history = packet.get("attempt_history", [])
+    attempt = history[0] if isinstance(history, list) and history else None
+    reviewed_ready = (
+        isinstance(attempt, dict)
+        and attempt.get("outcome") == "succeeded"
+        and attempt.get("review_verdict") == "approve"
+        and isinstance(attempt.get("result_artifact"), dict)
+        and attempt["result_artifact"].get("state") == "ready"
     )
-    if attempt is None:
-        raise ResultCandidateUnavailable(
-            "completed Builder task has no independently reviewed ready result artifact"
-        )
+    if not reviewed_ready:
+        if task_state == builder_queue.DONE:
+            raise ResultCandidateUnavailable(
+                "completed Builder task has no independently reviewed ready result artifact"
+            )
+        return None
     artifact_id = attempt["result_artifact"].get("artifact_id")
     if not isinstance(artifact_id, str) or not artifact_id:
         raise ResultCandidateUnavailable("Builder result artifact identity is unavailable")
