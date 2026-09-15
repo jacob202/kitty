@@ -533,6 +533,30 @@ describe('BuilderProposalCard', () => {
     expect(attention).not.toHaveStyle({ border: '1px solid #4CAF50' })
   })
 
+  it('says why a finished result could not be prepared for sign-off', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-unbindable-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-unbindable-1', state: 'complete' },
+      current_work: { state: 'completed' },
+      builder_task_complete: true,
+      awaiting_acceptance: true,
+      mission_acceptance: {
+        state: 'unreviewed',
+        mission_id: 'mission_gateway_1',
+        error: null,
+        result_error: 'Builder result artifact is not ready',
+      },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    const attention = await screen.findByTestId('builder-job-awaiting-acceptance')
+    expect(attention).toHaveTextContent(/could not be prepared for sign-off/)
+    expect(attention).toHaveTextContent(/saved result file is missing or no longer matches/)
+    expect(attention).not.toHaveTextContent(/Nobody has accepted the result yet/)
+  })
+
   it('shows a Mission-store outage as attention while Builder is still running', async () => {
     window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-running-degraded-1')
     vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({

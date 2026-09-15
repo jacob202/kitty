@@ -22,7 +22,7 @@ import httpx
 from gateway import builder_runtime, project_store
 from gateway.http_client import get_http_client
 from gateway.llm_client import PROVIDERS
-from gateway.paths import ACTION_TIERS_FILE, LITELLM_BASE, LITELLM_KEY, ROOT
+from gateway.paths import ACTION_TIERS_FILE, DATA_DIR, LITELLM_BASE, LITELLM_KEY, ROOT
 
 logger = logging.getLogger("kitty.runtime_manifest")
 
@@ -364,6 +364,14 @@ async def compose_manifest(project_id: int | None = None) -> dict[str, Any]:
         "context": {
             "active_project": _project_fact(project_id, observed_at=observed_at, valid_until=valid_until),
             "repository": repository,
+        },
+        "storage": {
+            "data_root": _fact(
+                str(DATA_DIR.resolve()),
+                source="gateway.paths.DATA_DIR",
+                observed_at=observed_at,
+                valid_until=valid_until,
+            )
         },
         "execution": {"builder": _builder_fact(observed_at=observed_at, valid_until=valid_until)},
         "inference": {

@@ -42,6 +42,7 @@ from typing import Any
 
 import httpx
 
+from gateway import agent_coordination as ac
 from gateway import artifact_store
 from gateway import builder_attempt as ba
 from gateway import builder_contract_gate as bcg
@@ -651,7 +652,11 @@ def run_independent_readonly_review(
     dispatched = False
     try:
         with tempfile.TemporaryDirectory(prefix="kitty-builder-readonly-review-") as temp_dir:
-            temp_root = Path(temp_dir)
+            # macOS exposes /tmp as an alias of /private/tmp. Seatbelt resolves
+            # its grants to the canonical spelling, so every path handed to the
+            # reviewer must use that same spelling or a readable file can look
+            # absent inside the sandbox.
+            temp_root = Path(temp_dir).resolve()
             review_root = temp_root / "repo"
             runtime_dir = temp_root / "runtime"
             source_head, origin_main = _prepare_readonly_review_checkout(
@@ -1833,13 +1838,28 @@ def _run_review_command(
     timeout_seconds: int,
 ) -> str | None:
     """Run a reviewer inside the lower-trust read-only boundary."""
-    result_raw = env_extra.get("KB_REVIEW_RESULT_PATH")
+    path_keys = (
+        "KB_BUNDLE_PATH",
+        "KB_IMPL_RESULT_PATH",
+        "KB_CONTEXT_MANIFEST_PATH",
+        "KB_REVIEW_CONTEXT_PATH",
+        "KB_REVIEW_RESULT_PATH",
+        "KB_REVIEW_NOTE_PATH",
+    )
+    review_env_extra = dict(env_extra)
+    for key in path_keys:
+        raw = review_env_extra.get(key)
+        if raw:
+            review_env_extra[key] = str(Path(raw).resolve())
+
+    result_raw = review_env_extra.get("KB_REVIEW_RESULT_PATH")
     if not result_raw:
         return "review command missing KB_REVIEW_RESULT_PATH"
-    result_path = Path(result_raw).resolve()
+    result_path = Path(result_raw)
     runtime_dir = result_path.parent / ".review-runtime"
+    review_cwd = cwd.resolve()
     env = beb.build_child_environment(os.environ, run_dir=runtime_dir)
-    env.update(env_extra)
+    env.update(review_env_extra)
 
     read_keys = (
         "KB_BUNDLE_PATH",
@@ -1854,17 +1874,17 @@ def _run_review_command(
     # The canonical reviewer adapter stages runner-owned evidence as local
     # copies because OpenCode denies external-directory access. Keep the source
     # tree read-only while allowing only those exact, disposable staging files.
-    attempt_id = env_extra.get("KB_ATTEMPT_ID", "")
+    attempt_id = review_env_extra.get("KB_ATTEMPT_ID", "")
     if attempt_id.isdigit():
         write_paths.extend(
-            cwd / f".kittybuilder-review-{name}-{attempt_id}.json"
+            review_cwd / f".kittybuilder-review-{name}-{attempt_id}.json"
             for name in ("bundle", "impl", "context", "binding", "result")
         )
-        write_paths.append(cwd / f".kittybuilder-review-prompt-{attempt_id}.txt")
+        write_paths.append(review_cwd / f".kittybuilder-review-prompt-{attempt_id}.txt")
     try:
         wrapped = beb.wrap_command(
             command,
-            worktree=cwd,
+            worktree=review_cwd,
             run_dir=runtime_dir,
             environment=env,
             read_paths=read_paths,
@@ -1873,7 +1893,7 @@ def _run_review_command(
         )
         proc = subprocess.run(
             wrapped,
-            cwd=str(cwd),
+            cwd=str(review_cwd),
             env=env,
             capture_output=True,
             text=True,
@@ -3632,24 +3652,94 @@ def _commit_completed_worker_changes(
         raise LoopError((status.stderr or status.stdout or "git status failed").strip())
     if not status.stdout.strip():
         return None
-    add = subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True, text=True)
-    if add.returncode != 0:
-        raise LoopError((add.stderr or add.stdout or "git add failed").strip())
-    message = (
-        f"[{packet_id}] kittybuilder: {task_id} attempt {attempt_id} "
-        "(trusted parent)"
+
+    base_sha = worktree_head(worktree)
+    changed_paths = worktree_changed_paths(worktree, base_sha)
+    if not changed_paths:
+        raise LoopError("trusted parent commit found dirty status but no changed paths")
+    test_mode = os.environ.get("KITTY_ENV") == "test"
+    coordination_db = (
+        Path(os.environ["KITTY_COORDINATION_DB_PATH"])
+        if test_mode and os.environ.get("KITTY_COORDINATION_DB_PATH")
+        else ac.default_db_path()
     )
-    commit = subprocess.run(
-        [
-            "git", "-c", "user.name=KittyBuilder",
-            "-c", "user.email=kittybuilder@localhost",
-            "commit", "--quiet", "-m", message,
-        ],
-        cwd=worktree,
-        capture_output=True,
-        text=True,
-        check=False,
+    registry_path = (
+        Path(os.environ["KITTY_COORDINATION_REGISTRY_PATH"])
+        if test_mode and os.environ.get("KITTY_COORDINATION_REGISTRY_PATH")
+        else Path(ac.DEFAULT_REGISTRY_PATH)
     )
-    if commit.returncode != 0:
-        raise LoopError((commit.stderr or commit.stdout or "git commit failed").strip())
-    return worktree_head(worktree)
+    resources = ac.resolve_paths_to_resources(changed_paths, registry_path=registry_path)
+    if not resources:
+        raise LoopError(
+            "trusted parent commit paths resolve to no registered KX resource: "
+            + ", ".join(changed_paths)
+        )
+    branch = subprocess.run(
+        ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
+        cwd=worktree, capture_output=True, text=True, check=False,
+    ).stdout.strip()
+    session_id = f"builder-parent-commit:{task_id}:{attempt_id}"
+    claim = ac.acquire_many(
+        session_id=session_id,
+        role="OWN",
+        resource_ids=resources,
+        base_sha=base_sha,
+        paths=changed_paths,
+        participant="kitty",
+        lane="builder-parent-commit",
+        task_id=task_id,
+        branch=branch or None,
+        worktree=str(worktree),
+        db_path=coordination_db,
+        registry_path=registry_path,
+    )
+    if claim.get("status") != "ACQUIRED":
+        holders = ", ".join(
+            f"{item.get('resource_id')}={item.get('session_id')}"
+            for item in claim.get("holders", [])
+            if isinstance(item, dict)
+        ) or "unknown holder"
+        raise LoopError(f"trusted parent commit could not acquire KX ownership: {holders}")
+
+    try:
+        preflight = ac.preflight_mutation(
+            session_id,
+            changed_paths,
+            db_path=coordination_db,
+            registry_path=registry_path,
+            required_role="OWN",
+        )
+        if not preflight.get("ok"):
+            raise LoopError(
+                "trusted parent commit KX preflight failed: "
+                f"{preflight.get('reason') or 'unknown reason'}"
+            )
+        add = subprocess.run(
+            ["git", "add", "-A"], cwd=worktree, capture_output=True, text=True
+        )
+        if add.returncode != 0:
+            raise LoopError((add.stderr or add.stdout or "git add failed").strip())
+        message = (
+            f"[{packet_id}] kittybuilder: {task_id} attempt {attempt_id} "
+            "(trusted parent)"
+        )
+        commit_env = dict(os.environ)
+        commit_env["KITTY_AGENT_SESSION_ID"] = session_id
+        commit_env["KITTY_AGENT_PARTICIPANT"] = "kitty"
+        commit = subprocess.run(
+            [
+                "git", "-c", "user.name=KittyBuilder",
+                "-c", "user.email=kittybuilder@localhost",
+                "commit", "--quiet", "-m", message,
+            ],
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=commit_env,
+        )
+        if commit.returncode != 0:
+            raise LoopError((commit.stderr or commit.stdout or "git commit failed").strip())
+        return worktree_head(worktree)
+    finally:
+        ac.release(session_id, db_path=coordination_db)

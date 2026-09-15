@@ -2641,6 +2641,10 @@ export interface ConversationResume {
     reviewer_id?: string | null
     mission_id?: string | null
     error?: string | null
+    /** Why the finished result never became something that could be signed off.
+     *  Distinct from `error`, which means the acceptance record itself could
+     *  not be read. */
+    result_error?: string | null
   } | null
   /** Builder finished, but nobody has accepted the outcome yet. */
   awaiting_acceptance?: boolean | null

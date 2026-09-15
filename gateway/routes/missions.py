@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from gateway import memory_mission
+from gateway.config import is_test_env
 
 router = APIRouter(tags=["missions"])
 _SUPERVISOR_ID = "kitty"
@@ -20,6 +22,13 @@ class CreateMissionRequest(BaseModel):
 
 class ReasonRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=2_000)
+
+
+class AcceptanceRequest(BaseModel):
+    reviewer_id: str = Field(min_length=1, max_length=200)
+    candidate_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    verdict: Literal["accepted", "rejected"]
+    evidence: dict[str, Any] = Field(min_length=1)
 
 
 def _translate(exc: memory_mission.MissionError) -> HTTPException:
@@ -76,6 +85,39 @@ def missions_by_origin(conversation_id: str | None = None, project_id: int | Non
 def get_mission(mission_id: str) -> dict:
     try:
         return memory_mission.get_mission(mission_id, db_path=memory_mission.MISSION_DB_FILE)
+    except memory_mission.MissionError as exc:
+        raise _translate(exc) from exc
+
+
+@router.post("/missions/{mission_id}/acceptance")
+def record_acceptance(mission_id: str, body: AcceptanceRequest) -> dict:
+    """Legacy test-only route; production acceptance uses the local operator boundary.
+
+    Normal Gateway clients are authenticated for product use, not endowed with
+    independent-review authority. Production therefore refuses this route. The
+    test-only branch remains so route contract tests can exercise Mission's
+    lower-level exact-digest behavior without creating a second credential.
+    """
+    if not is_test_env():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Mission acceptance is restricted to the local acceptance operator.",
+        )
+    try:
+        mission = memory_mission.get_mission(
+            mission_id, db_path=memory_mission.MISSION_DB_FILE
+        )
+        evidence = dict(body.evidence)
+        evidence["candidate_ref"] = mission["candidate"]["ref"]
+        evidence["candidate_digest"] = body.candidate_digest
+        return memory_mission.record_acceptance(
+            mission_id,
+            reviewer_id=body.reviewer_id,
+            candidate_digest=body.candidate_digest,
+            verdict=body.verdict,
+            evidence=evidence,
+            db_path=memory_mission.MISSION_DB_FILE,
+        )
     except memory_mission.MissionError as exc:
         raise _translate(exc) from exc
 

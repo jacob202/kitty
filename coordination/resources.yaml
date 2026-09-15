@@ -103,10 +103,13 @@ resources:
     - tests/test_todo_store.py
   mission:runtime:
     paths:
+    - gateway/mission_accept_cli.py
     - gateway/mission_runtime.py
     - gateway/routes/missions.py
+    - tests/test_mission_accept_cli.py
     - tests/test_mission_runtime.py
     - tests/test_missions_routes.py
+    - tests/test_r3_acceptance_authority.py
   runtime:provenance:
     paths:
     - .claude/hooks/**
@@ -168,6 +171,7 @@ resources:
     - tests/test_mcp_builder_repo_tools.py
     - tests/test_paths_builder_canonical.py
     - tests/test_pre_push_gate.py
+    - tests/test_runtime_manifest.py
     - tests/test_session_end_audit.py
     - tests/test_skill_registry.py
     - tests/test_start_ui_script.py
