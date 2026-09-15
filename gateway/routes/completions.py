@@ -595,6 +595,7 @@ def _finish_lifecycle_or_raise(
     resolved_model: str | None = None,
     error: str | None = None,
     memory_items: list[MemoryEvidence] | None = None,
+    evidence_items: list[dict[str, str]] | None = None,
 ) -> None:
     try:
         chat_lifecycle.finish_turn(
@@ -604,6 +605,7 @@ def _finish_lifecycle_or_raise(
             resolved_model=resolved_model,
             error=error,
             memory_items=memory_items,
+            evidence_items=evidence_items,
         )
     except Exception as exc:
         raise RuntimeError(
@@ -1111,25 +1113,30 @@ async def chat_completions(request: Request):
         return response
 
     if stream:
-        # Memory-evidence trailer (CR-04): built before streaming starts so
-        # the hot path only pays a byte comparison per chunk. None when no
-        # memories were injected — the trailer must then be absent.
-        trailer_items: list[MemoryEvidence] | None = None
-        memory_trailer: bytes | None = None
-        if bundle.injected_memory_items:
-            # Full injected texts, untruncated (Jacob, 2026-07-20): the render
-            # budget already bounds them, and a mid-sentence chop reads worse
-            # than a longer line in the "kitty remembered" block.
-            trailer_items = list(bundle.injected_memory_items)
-            trailer_json = json.dumps(
-                {"memory_items": trailer_items}, ensure_ascii=False
-            )
-            memory_trailer = b"data: " + trailer_json.encode("utf-8") + b"\n\n"
+        # One truthful metadata trailer rides immediately before [DONE]. It
+        # contains only evidence records that actually reached the model prompt.
+        trailer_memory_items: list[MemoryEvidence] | None = (
+            list(bundle.injected_memory_items) if bundle.injected_memory_items else None
+        )
+        trailer_evidence_items: list[dict[str, str]] | None = (
+            [dict(item) for item in bundle.injected_evidence_items]
+            if bundle.injected_evidence_items
+            else None
+        )
+        trailer_payload: dict[str, object] = {}
+        if trailer_memory_items:
+            trailer_payload["memory_items"] = trailer_memory_items
+        if trailer_evidence_items:
+            trailer_payload["evidence_items"] = trailer_evidence_items
+        metadata_trailer: bytes | None = None
+        if trailer_payload:
+            trailer_json = json.dumps(trailer_payload, ensure_ascii=False)
+            metadata_trailer = b"data: " + trailer_json.encode("utf-8") + b"\n\n"
 
         async def stream_with_trace():
             nonlocal lifecycle_done
             accumulated = ""
-            trailer = memory_trailer
+            trailer = metadata_trailer
             first_chunk = True
             try:
                 async for chunk in iter_chat_completions_stream(payload):
@@ -1177,13 +1184,14 @@ async def chat_completions(request: Request):
                 if lifecycle_handle is not None:
                     # Ledger evidence mirrors the wire exactly: recorded only
                     # when the trailer was actually delivered to the client.
-                    trailer_emitted = memory_trailer is not None and trailer is None
+                    trailer_emitted = metadata_trailer is not None and trailer is None
                     _finish_lifecycle_or_raise(
                         lifecycle_handle,
                         status="succeeded",
                         assistant_text=accumulated,
                         resolved_model=model,
-                        memory_items=trailer_items if trailer_emitted else None,
+                        memory_items=trailer_memory_items if trailer_emitted else None,
+                        evidence_items=trailer_evidence_items if trailer_emitted else None,
                     )
                     lifecycle_done = True
                 log_chat_trace(
@@ -1252,6 +1260,11 @@ async def chat_completions(request: Request):
         non_stream_memory_items: list[MemoryEvidence] | None = (
             list(bundle.injected_memory_items) if bundle.injected_memory_items else None
         )
+        non_stream_evidence_items: list[dict[str, str]] | None = (
+            [dict(item) for item in bundle.injected_evidence_items]
+            if bundle.injected_evidence_items
+            else None
+        )
         if lifecycle_handle is not None:
             _finish_lifecycle_or_raise(
                 lifecycle_handle,
@@ -1259,6 +1272,7 @@ async def chat_completions(request: Request):
                 assistant_text=_assistant_text_from_result(result),
                 resolved_model=resolved_model,
                 memory_items=non_stream_memory_items,
+                evidence_items=non_stream_evidence_items,
             )
             lifecycle_done = True
         log_chat_trace(
@@ -1283,6 +1297,8 @@ async def chat_completions(request: Request):
         }
         if non_stream_memory_items:
             response["memory_items"] = non_stream_memory_items
+        if non_stream_evidence_items:
+            response["evidence_items"] = non_stream_evidence_items
         return response
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:

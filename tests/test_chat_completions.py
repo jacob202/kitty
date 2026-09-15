@@ -209,6 +209,34 @@ class TestMemoryTrailer:
         finish_kwargs = mocks["finish"].call_args.kwargs
         assert finish_kwargs["memory_items"] == [{"text": "short"}, {"text": "y" * 300}]
 
+    def test_source_receipts_share_trailer_and_ledger_truth(self):
+        receipt = {
+            "evidence_id": "E1",
+            "text": "Charging-system evidence",
+            "title": "Honda Service Manual",
+            "locator_start": "12",
+        }
+        bundle = ContextBundle(
+            system="SYS",
+            injected_memory_items=[{"text": "vehicle is a Ridgeline"}],
+            injected_evidence_items=[receipt],
+        )
+        response, mocks = _post_stream(
+            [CONTENT_CHUNK_1, DONE_CHUNK],
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": True,
+            },
+            lifecycle_patches=True,
+        )
+        assert b'"memory_items": [{"text": "vehicle is a Ridgeline"}]' in response.content
+        assert b'"evidence_items": [{"evidence_id": "E1"' in response.content
+        finish_kwargs = mocks["finish"].call_args.kwargs
+        assert finish_kwargs["memory_items"] == [{"text": "vehicle is a Ridgeline"}]
+        assert finish_kwargs["evidence_items"] == [receipt]
+
     def test_no_ledger_evidence_when_trailer_was_never_delivered(self):
         """A cut stream (no [DONE]) delivered no trailer — the ledger must
         not claim evidence the client never saw."""
@@ -297,6 +325,27 @@ class TestNonStreamMemoryEvidence:
         response, _ = self._post_non_stream(bundle)
         assert response.status_code == 200
         assert "memory_items" not in response.json()
+
+    def test_response_and_ledger_carry_source_receipts(self):
+        receipt = {
+            "evidence_id": "E1",
+            "text": "Exact source excerpt",
+            "title": "Service Manual",
+            "locator_start": "44",
+            "locator_end": "45",
+        }
+        bundle = ContextBundle(system="SYS", injected_evidence_items=[receipt])
+        response, mocks = self._post_non_stream(
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": False,
+            },
+            lifecycle_patches=True,
+        )
+        assert response.json()["evidence_items"] == [receipt]
+        assert mocks["finish"].call_args.kwargs["evidence_items"] == [receipt]
 
     def test_ledger_evidence_matches_response_body(self):
         bundle = ContextBundle(

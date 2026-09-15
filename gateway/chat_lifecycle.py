@@ -68,6 +68,46 @@ def _validate_memory_items(
     return validated
 
 
+_EVIDENCE_ITEM_FIELDS = {
+    "evidence_id", "text", "source_id", "source_sha256", "logical_unit_id",
+    "work_id", "series_id", "title", "locator_start", "locator_end",
+    "authority_tier", "currency_status", "clinical_use_policy",
+}
+
+
+def _validate_evidence_items(
+    evidence_items: list[dict[str, str]] | None,
+) -> list[dict[str, str]] | None:
+    """Validate the exact source receipts delivered to the client."""
+    if evidence_items is None:
+        return None
+    if not isinstance(evidence_items, list):
+        raise ChatLifecycleError("evidence_items must be a list of source evidence records or None")
+
+    validated: list[dict[str, str]] = []
+    for item in evidence_items:
+        if not isinstance(item, dict):
+            raise ChatLifecycleError("each evidence_items entry must be an object")
+        unexpected = set(item) - _EVIDENCE_ITEM_FIELDS
+        if unexpected:
+            raise ChatLifecycleError(
+                f"evidence_items entry contains unsupported fields: {sorted(unexpected)!r}"
+            )
+        record: dict[str, str] = {}
+        for key, value in item.items():
+            if not isinstance(value, str) or not value.strip():
+                raise ChatLifecycleError(
+                    f"evidence_items field {key!r} must be a non-empty string"
+                )
+            record[key] = value
+        if not record.get("evidence_id") or not record.get("text"):
+            raise ChatLifecycleError(
+                "each evidence_items entry must contain evidence_id and text"
+            )
+        validated.append(record)
+    return validated
+
+
 def init_db() -> None:
     applied = kitty_db.migrate(db_file=LIFECYCLE_DB_FILE)
     # Rebuild FTS index when the chat messages FTS migration is first applied
@@ -176,16 +216,19 @@ def finish_turn(
     resolved_model: str | None = None,
     error: str | None = None,
     memory_items: list[MemoryEvidence] | None = None,
+    evidence_items: list[dict[str, str]] | None = None,
 ) -> None:
     """Atomically finalize an attempt, assistant message, and parent turn.
 
     ``memory_items`` is the CR-04 memory evidence actually delivered to the
-    client for this reply; it is stored on the assistant message so ledger
-    recovery can restore the "kitty remembered" block.
+    client for this reply; ``evidence_items`` is the separate source-receipt
+    record delivered with the same reply. Both are stored on the assistant
+    message so ledger recovery can restore the exact user-visible evidence.
     """
     if status not in _TURN_STATUSES or status == "running":
         raise ChatLifecycleError(f"invalid terminal chat status {status!r}")
     validated_memory_items = _validate_memory_items(memory_items)
+    validated_evidence_items = _validate_evidence_items(evidence_items)
     now = time.time()
     message_status = {
         "succeeded": "complete",
@@ -212,12 +255,12 @@ def finish_turn(
             """,
             (status, resolved_model, now, error, handle.attempt_id),
         )
-        if assistant_text:
+        if assistant_text or validated_memory_items or validated_evidence_items:
             conn.execute(
                 """
                 INSERT INTO chat_messages
-                    (id, turn_id, role, content, status, memory_items, created_at)
-                VALUES (?, ?, 'assistant', ?, ?, ?, ?)
+                    (id, turn_id, role, content, status, memory_items, evidence_items, created_at)
+                VALUES (?, ?, 'assistant', ?, ?, ?, ?, ?)
                 """,
                 (
                     f"message_{handle.attempt_id}",
@@ -225,6 +268,7 @@ def finish_turn(
                     assistant_text,
                     message_status,
                     json.dumps(validated_memory_items) if validated_memory_items else None,
+                    json.dumps(validated_evidence_items) if validated_evidence_items else None,
                     now,
                 ),
             )
