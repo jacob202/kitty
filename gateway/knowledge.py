@@ -131,7 +131,10 @@ CORPUS_RANKING_VERSION = "fts-bm25-logical-diversity-2026-09-15.v1"
 CORPUS_CLINICAL_POLICY_VERSION = "clinical-current-guidance-separation-2026-09-15.v1"
 CORPUS_MAX_CHUNKS_PER_LOGICAL_UNIT = 1
 CORPUS_EXACT_LOOKUP_MAX_CHUNKS_PER_LOGICAL_UNIT = 2
-CORPUS_PUBLICATION_BINDING: dict[str, str] = {}
+CORPUS_PUBLICATION_BINDING: dict[str, str] = {
+    "candidate_id": "36f374e06a2298a59a15e534abed717d152073088b7eca0cccf703818fcf3079",
+    "receipt_sha256": "5081128c2ab1697a8d8eb3e0b60f98985f234eb65a00a7d4ccc5bd727cee014e",
+}
 
 _CORPUS_ARTIFACT_FILENAMES = {
     "source_manifest": "source_manifest.jsonl",
