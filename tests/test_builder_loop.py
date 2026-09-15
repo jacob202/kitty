@@ -21,6 +21,7 @@ from gateway import artifact_store, local_review
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
+from gateway import builder_paid_routing as bpr
 from gateway import builder_queue as bq
 from gateway import compute_governor as cg
 
@@ -3381,14 +3382,24 @@ def test_paid_builder_gate_uses_full_configured_pair_cost(
     base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
     assert base_sha is not None
 
-    # The generic governor's legacy cheap estimate fits in four cents, but the
-    # configured MiMo + DeepSeek review pair costs about six cents. Builder must
-    # gate on the route it will actually execute rather than under-budgeting it.
+    # Builder must gate on the route it will actually execute, not on the
+    # governor's generic per-pass estimate. Sit the reserve between the two live
+    # costs: enough for the generic estimate, too little for the configured
+    # worker + reviewer candidate set, so only the configured cost can trip the
+    # gate. Pinned cents would quietly stop testing that whenever a price moves.
+    generic_cad = cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP)
+    configured_cad = bpr.resolve_paid_route("cheap").projected_cost_cad
+    assert generic_cad < configured_cad, (
+        "this fixture proves nothing unless the configured route costs more than "
+        f"the generic estimate (generic={generic_cad:.4f}, configured={configured_cad:.4f})"
+    )
+    budget = 6.0
+    remaining = (generic_cad + configured_cad) / 2
     monkeypatch.setattr(
         bl.cg,
         "reserve_from_ledger",
         lambda *_args, **_kwargs: bl.cg.ReserveState(
-            weekly_budget_cad=6.0, estimated_spend_cad=5.96
+            weekly_budget_cad=budget, estimated_spend_cad=budget - remaining
         ),
     )
 
@@ -3469,11 +3480,14 @@ def test_paid_frontier_downgrade_runs_the_authorized_cheap_route(
     monkeypatch.setenv(
         "KITTYBUILDER_MODEL", "openrouter/deepseek/deepseek-v4-pro"
     )
+    # The point is that the downgrade runs the authorised cheap route, whichever
+    # model that currently is — so read it from the paid route config.
+    cheap_worker = bpr.resolve_paid_route("cheap").worker_model
     worker = _script(
         tmp_path,
         "downgraded-worker.sh",
         ': "${KB_WORKER_TIMEOUT_SECONDS:?required}"\n'
-        'test "$KITTYBUILDER_MODEL" = "openrouter/deepseek/deepseek-v4-flash"\n'
+        f'test "$KITTYBUILDER_MODEL" = "{cheap_worker}"\n'
         'echo ok > done.txt\n'
         f'cat > "$KB_RESULT_PATH" <<\'EOF\'\n{_GOOD_IMPL}\nEOF\n',
     )
@@ -3496,7 +3510,7 @@ def test_paid_frontier_downgrade_runs_the_authorized_cheap_route(
     manifest = json.loads(
         Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
     )
-    assert manifest["model"] == "openrouter/deepseek/deepseek-v4-flash"
+    assert manifest["model"] == cheap_worker
     assert manifest["governor"]["route"] == "cheap"
     assert manifest["governor"]["requested_route"] == "frontier"
 
