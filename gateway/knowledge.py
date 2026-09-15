@@ -877,6 +877,11 @@ def _active_corpus_projection() -> Optional[tuple[dict[str, Any], Path, Path]]:
     return projection, db_path, manifest_path
 
 
+def _corpus_readonly_db_uri(projection: dict[str, Any], db_path: Path) -> str:
+    suffix = "?mode=ro&immutable=1" if projection.get("schema") == "kitty.runtime-retrieval-projection.v2" else "?mode=ro"
+    return f"file:{db_path}{suffix}"
+
+
 def require_active_corpus_expert(expert_profile: str) -> str:
     expert = expert_profile.strip()
     if not expert:
@@ -884,11 +889,11 @@ def require_active_corpus_expert(expert_profile: str) -> str:
     active = _active_corpus_projection()
     if active is None:
         raise CorpusProjectionUnavailableError("expert source corpus is not active")
-    _, db_path, _ = active
+    projection, db_path, _ = active
     if expert == "general_research":
         return expert
     try:
-        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        with sqlite3.connect(_corpus_readonly_db_uri(projection, db_path), uri=True) as conn:
             found = conn.execute(
                 "SELECT 1 FROM expert_membership WHERE expert=? LIMIT 1", (expert,)
             ).fetchone()
@@ -986,7 +991,7 @@ def _search_active_corpus_fts(
     active = _active_corpus_projection()
     if active is None:
         return None
-    _, db_path, manifest_path = active
+    projection, db_path, manifest_path = active
     source_rows = {
         row["source_id"]: row
         for row in (
@@ -1004,7 +1009,7 @@ def _search_active_corpus_fts(
     per_unit_limit = _corpus_logical_unit_cap(query)
     batch_size = max(limit * 8, 64)
     offset = 0
-    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+    with sqlite3.connect(_corpus_readonly_db_uri(projection, db_path), uri=True) as conn:
         expert = require_active_corpus_expert(expert_profile) if expert_profile else None
         while len(hits) < limit:
             if expert and expert != "general_research":

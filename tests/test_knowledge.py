@@ -1163,3 +1163,27 @@ def test_corpus_diversity_cap_allows_bounded_repeat_for_exact_authority_lookup()
 
     assert _corpus_logical_unit_cap("Why does a power amplifier hum?") == 1
     assert _corpus_logical_unit_cap("What is the exact bias voltage on this amplifier?") == 2
+
+
+def test_published_projection_can_query_readonly_immutable_sqlite(tmp_path, monkeypatch):
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    published = knowledge.publish_corpus_candidate(
+        artifacts, tmp_path / "published", publisher_git_commit="abc123"
+    )
+    monkeypatch.setattr(knowledge, "CORPUS_PUBLICATION_BINDING", {
+        "candidate_id": published["candidate_id"],
+        "receipt_sha256": published["receipt_sha256"],
+    })
+    pointer = tmp_path / "active.json"
+    knowledge.activate_published_corpus_candidate(published["receipt_path"], pointer)
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(pointer))
+    knowledge._verify_published_receipt.cache_clear()
+
+    hits = knowledge._search_active_corpus_fts(
+        "evidence electronics audio", 2, expert_profile="electronics_audio"
+    )
+
+    assert hits
+    assert hits[0]["evidence"]["expert_profiles"] == ["electronics_audio"]
