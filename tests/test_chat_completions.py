@@ -883,3 +883,119 @@ def test_total_context_failure_does_not_serve_a_healthy_looking_empty_answer():
                 "/v1/chat/completions",
                 json={"messages": [{"role": "user", "content": "hi"}], "stream": False},
             )
+
+
+def _current_verification_bundle() -> ContextBundle:
+    from gateway.knowledge import build_evidence_policy
+
+    return ContextBundle(
+        system="SYS",
+        evidence_policy=build_evidence_policy(
+            "Is this herbal supplement safe to combine with a prescription medicine today?"
+        ),
+    )
+
+
+def test_current_verification_required_without_tools_streams_deterministic_abstention():
+    async def upstream_must_not_run(_payload):
+        raise AssertionError("provider must not run without current verification capability")
+        yield b""  # pragma: no cover
+
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=_current_verification_bundle()),
+    ), patch(
+        "gateway.routes.completions.iter_chat_completions_stream",
+        new=upstream_must_not_run,
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Is this herbal supplement safe with my prescription today?",
+                    }
+                ],
+                "stream": True,
+            },
+        )
+
+    assert response.status_code == 200
+    assert "current authoritative verification" in response.text
+    assert "local corpus or model memory" in response.text
+    assert response.headers["x-kitty-current-verification"] == "required-unavailable"
+    assert response.content.endswith(b"data: [DONE]\n\n")
+
+
+def test_current_verification_required_without_tools_nonstream_skips_provider():
+    upstream = AsyncMock(side_effect=AssertionError("provider must not run"))
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=_current_verification_bundle()),
+    ), patch(
+        "gateway.routes.completions.chat_completions_non_stream",
+        new=upstream,
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Is this safe today?"}],
+                "stream": False,
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model"] == "kitty-policy/current-verification-abstention"
+    assert "current authoritative verification" in payload["choices"][0]["message"]["content"]
+    assert payload["kitty_runtime"]["current_verification"] == "required_unavailable"
+    upstream.assert_not_awaited()
+
+
+def test_current_verification_with_caller_tools_preserves_external_verification_path():
+    captured = {}
+
+    async def fake_stream(payload):
+        captured.update(payload)
+        yield DONE_CHUNK
+
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=_current_verification_bundle()),
+    ), patch(
+        "gateway.routes.completions.iter_chat_completions_stream",
+        new=fake_stream,
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Is this safe today?"}],
+                "stream": True,
+                "tools": TOOL_SCHEMA,
+                "tool_choice": "auto",
+            },
+        )
+
+    assert response.status_code == 200
+    assert captured["tools"] == TOOL_SCHEMA
+    assert captured["tool_choice"] == "auto"
+    assert "current authoritative verification" not in response.text

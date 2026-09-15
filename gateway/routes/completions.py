@@ -38,6 +38,14 @@ _DURABLE_CHAT_OBJECT_LIMIT = 6
 logger = logging.getLogger("kitty.gateway")
 router = APIRouter(tags=["completions"])
 
+_CURRENT_VERIFICATION_ABSTENTION = (
+    "I need current authoritative verification before I can answer this as a current "
+    "factual or action claim. This chat path has no external verification tool available, "
+    "so I won’t treat the local corpus or model memory as current evidence. Provide or "
+    "enable a current authoritative source/tool result, then retry."
+)
+_CURRENT_VERIFICATION_POLICY_MODEL = "kitty-policy/current-verification-abstention"
+
 _NO_TOOL_EXECUTOR_SYSTEM = """
 This chat runtime does not currently have a tool executor. Do not emit XML, DSML,
 or tool-call syntax as ordinary assistant text. Do not claim that a command, search,
@@ -495,6 +503,57 @@ _ATTACHMENT_FAILURE_MESSAGE = (
 class CloseSessionRequest(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     session_id: str = ""
+
+
+def _static_abstention_result(text: str) -> dict:
+    return {
+        "id": f"chatcmpl-policy-{uuid.uuid4().hex}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": _CURRENT_VERIFICATION_POLICY_MODEL,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": text},
+                "finish_reason": "stop",
+            }
+        ],
+    }
+
+
+def _static_abstention_stream(text: str) -> list[bytes]:
+    completion_id = f"chatcmpl-policy-{uuid.uuid4().hex}"
+    first = json.dumps(
+        {
+            "id": completion_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": _CURRENT_VERIFICATION_POLICY_MODEL,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant", "content": text},
+                    "finish_reason": None,
+                }
+            ],
+        },
+        ensure_ascii=False,
+    )
+    final = json.dumps(
+        {
+            "id": completion_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": _CURRENT_VERIFICATION_POLICY_MODEL,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        },
+        ensure_ascii=False,
+    )
+    return [
+        b"data: " + first.encode("utf-8") + b"\n\n",
+        b"data: " + final.encode("utf-8") + b"\n\n",
+        b"data: [DONE]\n\n",
+    ]
 
 
 def _finish_lifecycle_or_raise(
@@ -961,6 +1020,61 @@ async def chat_completions(request: Request):
   sort_keys=True,
         ),
     )
+
+    must_abstain_for_current_verification = (
+        bundle.evidence_policy.current_verification_required and not caller_supplies_tools
+    )
+    if must_abstain_for_current_verification:
+        abstention = _CURRENT_VERIFICATION_ABSTENTION
+        if lifecycle_handle is not None:
+            _finish_lifecycle_or_raise(
+                lifecycle_handle,
+                status="succeeded",
+                assistant_text=abstention,
+                resolved_model=_CURRENT_VERIFICATION_POLICY_MODEL,
+            )
+            lifecycle_done = True
+        log_chat_trace(
+            LOG_FILE,
+            correlation_id,
+            user_text,
+            domain,
+            _CURRENT_VERIFICATION_POLICY_MODEL,
+            t_start,
+            runtime_revision=runtime_manifest["revision"],
+            model_resolved=_CURRENT_VERIFICATION_POLICY_MODEL,
+            tier=tier,
+            trigger=trigger,
+        )
+        on_request_success()
+        headers = {
+            "X-Kitty-Runtime-Revision": runtime_manifest["revision"],
+            "X-Kitty-Model-Selected": _CURRENT_VERIFICATION_POLICY_MODEL,
+            "X-Kitty-Model-Requested": str(route_decision.requested_model),
+            "X-Kitty-Provider-Selected": "policy",
+            "X-Kitty-Tools-State": "unavailable",
+            "X-Kitty-Current-Verification": "required-unavailable",
+        }
+        if lifecycle_handle is not None:
+            headers["X-Kitty-Turn-ID"] = lifecycle_handle.turn_id
+            headers["X-Kitty-Attempt-ID"] = lifecycle_handle.attempt_id
+        if stream:
+            async def abstention_stream():
+                for chunk in _static_abstention_stream(abstention):
+                    yield chunk
+
+            return StreamingResponse(
+                abstention_stream(),
+                media_type="text/event-stream",
+                headers=headers,
+            )
+        response = _static_abstention_result(abstention)
+        response["kitty_runtime"] = {
+            "manifest_revision": runtime_manifest["revision"],
+            "resolved_model": _CURRENT_VERIFICATION_POLICY_MODEL,
+            "current_verification": "required_unavailable",
+        }
+        return response
 
     if stream:
         # Memory-evidence trailer (CR-04): built before streaming starts so
