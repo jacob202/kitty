@@ -48,10 +48,14 @@ trusted exact-head independent review and nothing else. It clears
 deterministically and never waits on a human signature.
 
 **Irreversible** — the `IRREVERSIBLE_PATTERNS` subset: credentials, auth and
-security, secrets/env, spend controls (`compute_governor`, `providers`,
-`paid_review_admission`, `model_routing`), purge/destructive paths, dependency
-roots, and the review gate and CI themselves — additionally requires
-`risk/approved` and the exact-head approval line.
+security, secrets/env; spend controls (`compute_governor`, `providers`,
+`paid_review_admission`, `model_routing`, and the grant/action modules that
+authorize spending); publication modules that commit, push, open PRs, or merge;
+purge and other destructive paths, including the route modules that host
+deletion handlers; dependency roots in every manifest form (`requirements*.txt`,
+`pyproject.toml`, `uv.lock`, and the frontend `package.json`/`package-lock.json`);
+and the review gate and CI themselves — additionally requires `risk/approved` and
+the exact-head approval line.
 
 The line is drawn at changes a later commit cannot simply undo, or that move
 money, credentials, or the delivery pipeline itself. Human attestation is

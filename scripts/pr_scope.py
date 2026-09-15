@@ -59,6 +59,9 @@ RISK_PATTERNS = (
     re.compile(r"^.*\.env(?:\..*)?$"),
     re.compile(r"^requirements.*\.txt$"),
     re.compile(r"^pyproject\.toml$"),
+    re.compile(r"^uv\.lock$"),
+    re.compile(r"^gateway/kitty-chat/package(?:-lock)?\.json$"),
+    re.compile(r"^gateway/routes/(?:chats|projects)\.py$"),
 )
 
 # Irreversible scope: the narrow subset of sensitive scope that still requires an
@@ -81,6 +84,15 @@ IRREVERSIBLE_PATTERNS = (
     re.compile(r"^.*\.env(?:\..*)?$"),
     re.compile(r"^requirements.*\.txt$"),
     re.compile(r"^pyproject\.toml$"),
+    re.compile(r"^uv\.lock$"),
+    re.compile(r"^gateway/kitty-chat/package(?:-lock)?\.json$"),
+    # Grant/action modules authorize actions and enforce spending ceilings.
+    re.compile(r"^gateway/(?:action_grants|action_queue)\.py$"),
+    re.compile(r"^gateway/routes/actions\.py$"),
+    # Publication modules create commits, push branches, open PRs, and merge.
+    re.compile(r"^gateway/builder_(?:publish|pr_janitor)\.py$"),
+    # Modules carrying destructive entry points (deletion handlers).
+    re.compile(r"^gateway/routes/(?:chats|projects)\.py$"),
 )
 
 USER_FACING_PATTERNS = (re.compile(r"^gateway/kitty-chat/(?:src|public)/"),)

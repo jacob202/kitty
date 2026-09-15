@@ -105,12 +105,11 @@ def test_policy_and_review_implementation_files_are_risky() -> None:
 
 
 def test_sensitive_but_reversible_scope_clears_on_review_without_human_approval() -> None:
-    """Broad-scope work must not wait on a human signature."""
     for path in [
         "gateway/builder_supervisor.py",
         "gateway/builder_loop.py",
-        "gateway/action_queue.py",
-        "gateway/routes/actions.py",
+        "gateway/builder_attempt.py",
+        "gateway/builder_initiative.py",
     ]:
         awaiting_review = pr_policy.evaluate_policy(
             _pr(), [path], independent_review_approved=False
@@ -134,6 +133,16 @@ def test_irreversible_scope_still_requires_exact_head_human_approval() -> None:
         "scripts/purge_users.py",
         "requirements.txt",
         "pyproject.toml",
+        "uv.lock",
+        "gateway/kitty-chat/package.json",
+        "gateway/kitty-chat/package-lock.json",
+        "gateway/action_grants.py",
+        "gateway/action_queue.py",
+        "gateway/routes/actions.py",
+        "gateway/builder_publish.py",
+        "gateway/builder_pr_janitor.py",
+        "gateway/routes/chats.py",
+        "gateway/routes/projects.py",
         "scripts/pr_policy.py",
         ".github/workflows/tests.yml",
     ]:
