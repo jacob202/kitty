@@ -165,7 +165,7 @@ def test_routine_work_routes_to_the_cheap_model(db: Path):
     decision = cg.decide(db, _dispatch(), reserve=_reserve())
 
     assert (decision.action, decision.route) == (cg.ACTION_RUN, cg.ROUTE_CHEAP)
-    assert any("deepseek-v4-flash" in reason for reason in decision.reasons)
+    assert any("deepseek-v4.1-flash" in reason for reason in decision.reasons)
 
 
 def test_verified_blocker_routes_to_frontier(db: Path):
@@ -334,11 +334,11 @@ def test_explain_names_the_action_and_every_reason(db: Path):
 
 def test_pass_costs_come_from_the_shared_price_registry():
     # Recomputed by hand from gateway/token_spend_report's snapshot prices:
-    # OpenRouter Flash 60k in @ 0.09 + 8k out @ 0.18 = 0.00684 USD; pro 120k in @ 0.435 +
+    # v4.1-flash 60k in @ 0.375 + 8k out @ 1.50 = 0.0345 USD; pro 120k in @ 0.435 +
     # 15k out @ 0.87 = 0.06525 USD. Both converted at the recorded FX rate.
     from gateway.token_spend_report import USD_TO_CAD
 
-    assert cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP) == pytest.approx(0.00684 * USD_TO_CAD)
+    assert cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP) == pytest.approx(0.0345 * USD_TO_CAD)
     assert cg.estimate_pass_cost_cad(cg.ROUTE_FRONTIER) == pytest.approx(0.06525 * USD_TO_CAD)
 
 

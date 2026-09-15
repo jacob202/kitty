@@ -63,14 +63,21 @@ checked-in routes are:
 
 | Tier | Worker | Independent reviewer | Per-attempt configured ceiling |
 | --- | --- | --- | ---: |
-| `cheap` | DeepSeek V4 Flash | MiniMax M3; Qwen 3.7 Plus fallback | CAD 0.10 |
+| `cheap` | DeepSeek V4.1 Flash | MiniMax M3; Qwen 3.7 Plus fallback | CAD 0.15 |
 | `frontier` | DeepSeek V4 Pro | Qwen 3.7 Max | CAD 0.50 |
 
 The exact model IDs and ceilings are owned by `config/builder_paid_routes.json`.
-The cheap lane's primary **DeepSeek V4 Flash + MiniMax M3** pair currently
-projects to **CAD 0.0624** for the configured attempt assumptions. That value is
-a route estimate, not a spend guarantee; the CAD 0.10 ceiling and compute
+The cheap lane's primary **DeepSeek V4.1 Flash + MiniMax M3** pair currently
+projects to **CAD 0.1003** for the configured attempt assumptions. That value is
+a route estimate, not a spend guarantee; the CAD 0.15 ceiling and compute
 governor remain authoritative.
+
+The cheap lane moved from V4 Flash to **V4.1 Flash on 2026-09-15** because
+unattended free-route runs were too slow to be worth waiting for. V4.1 Flash is
+materially pricier (highest listed provider: USD 0.375 in / 1.50 out per Mtok,
+against 0.09 / 0.18 for V4 Flash), so the weekly ceiling binds sooner. The
+supervisor's unattended route is selected by `KITTY_BUILDER_SUPERVISOR_ROUTE`
+(default `cheap`); set it to `free` to restore the previous behaviour.
 The compute governor still decides whether a requested paid dispatch may run,
 downgrade, or defer; the configured ceiling is not a promise that the full
 amount will be spent.

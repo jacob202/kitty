@@ -150,10 +150,10 @@ def test_real_cheap_route_uses_the_refreshed_independent_pair():
     # The actual production config, not the synthetic _policy() fixture above.
     route = bpr.resolve_paid_route("cheap")
 
-    assert route.worker_model == "openrouter/deepseek/deepseek-v4-flash"
+    assert route.worker_model == "openrouter/deepseek/deepseek-v4.1-flash"
     assert route.reviewer_model == "openrouter/minimax/minimax-m3"
     assert route.worker_model != route.reviewer_model
-    assert 0 < route.projected_cost_cad <= route.max_projected_cost_cad == 0.10
+    assert 0 < route.projected_cost_cad <= route.max_projected_cost_cad == 0.15
 
 
 def test_real_cheap_route_has_independent_paid_reviewer_fallback():
@@ -191,7 +191,7 @@ def test_free_workers_doc_prices_the_real_cheap_pair():
     route = bpr.resolve_paid_route("cheap")
     text = (Path(__file__).resolve().parents[1] / "docs" / "FREE_WORKERS.md").read_text()
 
-    assert "DeepSeek V4 Flash + MiniMax M3" in text
+    assert "DeepSeek V4.1 Flash + MiniMax M3" in text
     assert f"CAD {route.projected_cost_cad:.4f}" in text
     assert "about **CAD 1.97**" not in text
 

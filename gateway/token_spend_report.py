@@ -20,6 +20,13 @@ PRICE_REGISTRY_USD_PER_MTOKENS: dict[str, dict[str, float]] = {
     "openrouter/deepseek/deepseek-v4-pro": {"input": 0.435, "cached_input": 0.003625, "output": 0.87},
     "deepseek/deepseek-v4-pro": {"input": 0.435, "output": 0.87},
     "deepseek/deepseek-v4-flash": {"input": 0.09, "output": 0.18},
+    # OpenRouter provider snapshot, 2026-09-15 (17 endpoints listed). Highest
+    # standard provider was Venice at $0.375/$1.50 per Mtok; cached input is
+    # charged at the full input rate per the convention below. v4.1-flash is
+    # materially pricier than v4-flash (~4x in, ~8x out) and is the supervisor's
+    # default worker route, so the weekly CAD ceiling binds much sooner.
+    "deepseek/deepseek-v4.1-flash": {"input": 0.375, "cached_input": 0.375, "output": 1.50},
+    "openrouter/deepseek/deepseek-v4.1-flash": {"input": 0.375, "cached_input": 0.375, "output": 1.50},
     "deepseek/deepseek-v4-flash-20260423": {"input": 0.09, "output": 0.18},
     "deepseek/deepseek-r1": {"input": 0.70, "output": 2.50},
     "qwen/qwen3.7-plus": {"input": 0.32, "cached_input": 0.064, "output": 1.28},

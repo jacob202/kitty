@@ -313,7 +313,12 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
         result = bs._launch_run(packet, repo_root=repo, db_path=db_path)
 
     argv = popen.call_args.args[0]
-    assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--free", "--json"]
+    # Unattended dispatch runs the governed cheap route (DeepSeek V4 Flash) by
+    # default; the free route was too slow to be worth waiting for.
+    assert argv == [
+        str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1",
+        "--paid", "--tier", "cheap", "--json",
+    ]
     assert popen.call_args.kwargs["start_new_session"] is True
     assert popen.call_args.kwargs["shell"] is False
     assert len(popen.call_args.kwargs["pass_fds"]) == 1
@@ -452,7 +457,7 @@ def test_budget_summary_initializes_an_empty_compute_ledger(tmp_path: Path, monk
 
     summary = bs.budget_summary()
 
-    assert summary["weekly_budget_cad"] == 6.0
+    assert summary["weekly_budget_cad"] == 10.0
     assert summary["estimated_spend_cad"] == 0.0
     assert summary["runs"] == 0
     assert ledger.exists()
@@ -930,7 +935,7 @@ def test_dispatchable_counts_with_live_truth_applies_same_preflight_as_tick(repo
     assert counts["now"] == 0
 
 
-def test_dispatchable_preflight_uses_free_route_by_default(repo: Path, db_path: Path, monkeypatch) -> None:
+def test_dispatchable_preflight_uses_the_supervisor_route(repo: Path, db_path: Path, monkeypatch) -> None:
     _apply(db_path, "free-route", [_packet("p1")], repo_root=repo)
     seen: list[str | None] = []
 
@@ -949,7 +954,9 @@ def test_dispatchable_preflight_uses_free_route_by_default(repo: Path, db_path: 
     )
 
     assert counts["now"] == 1
-    assert seen == ["free"]
+    # Preflight must cost the same route dispatch will actually run, so the
+    # governor's budget check applies to the real spend.
+    assert seen == ["cheap"]
 
 
 def test_replenishment_reports_low_water_without_config(repo: Path, db_path: Path, monkeypatch) -> None:
@@ -1103,3 +1110,32 @@ def test_reconcile_merged_work_preserves_dirty_worktree(
     assert result["worktree_cleanup"][0]["task_id"] == "task-1"
     assert result["worktree_cleanup"][0]["status"] == "kept"
     assert "dirty" in result["worktree_cleanup"][0]["error"]
+
+
+def test_supervisor_route_defaults_to_governed_cheap_and_honours_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Route is selectable, never a governor bypass."""
+    monkeypatch.delenv(bs.SUPERVISOR_ROUTE_ENV, raising=False)
+    assert bs._supervisor_route() == "cheap"
+    assert bs._supervisor_route_argv() == ["--paid", "--tier", "cheap"]
+
+    monkeypatch.setenv(bs.SUPERVISOR_ROUTE_ENV, "free")
+    assert bs._supervisor_route_argv() == ["--free"]
+
+    monkeypatch.setenv(bs.SUPERVISOR_ROUTE_ENV, "frontier")
+    assert bs._supervisor_route_argv() == ["--paid", "--tier", "frontier"]
+
+    # An unknown route falls back to the default rather than dispatching junk.
+    monkeypatch.setenv(bs.SUPERVISOR_ROUTE_ENV, "not-a-route")
+    assert bs._supervisor_route() == "cheap"
+
+
+def test_supervisor_paid_dispatch_still_uses_only_the_canonical_adapters() -> None:
+    """Routing paid must not widen what the supervisor may execute."""
+    root = bs.repo_root_default()
+    worker = bs.canonical_worker_command(repo_root=root)
+    reviewer = bs.canonical_reviewer_command(repo_root=root)
+
+    assert worker[0] == "bash" and worker[1].endswith(bs._FREE_ADAPTER_SCRIPT)
+    assert reviewer[0] == "bash" and reviewer[1].endswith(bs._FREE_REVIEWER_SCRIPT)

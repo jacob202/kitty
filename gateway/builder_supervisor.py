@@ -67,11 +67,40 @@ SLATE_AUTHOR_ARGV_ENV = "KITTY_BUILDER_SLATE_AUTHOR_ARGV_JSON"
 REPLENISHER_RECEIPT_FILE = "replenisher-status.json"
 REPLENISHER_LOG_FILE = "replenisher.log"
 
-# The canonical run is the free DSH worker adapter; it is the only
-# executable the supervisor may dispatch. The env mirrors the free route's
-# adapter env (see builder_cli._free_adapter_env) without importing the CLI.
+# The canonical run is the DSH adapter pair; it is the only executable the
+# supervisor may dispatch. Paid routes use these *same* scripts — only the
+# child env differs (KITTYBUILDER_AGENT/MODEL, see builder_cli._paid_adapter_env)
+# — so routing paid does not widen what the supervisor can execute.
 _FREE_ADAPTER_SCRIPT = "scripts/kittybuilder_dsh_worker.sh"
 _FREE_REVIEWER_SCRIPT = "scripts/kittybuilder_dsh_reviewer.sh"
+
+# Which governed route unattended supervisor dispatch uses. The free route is
+# capable but slow enough that unattended runs stopped being worth waiting for,
+# so the default is the governed cheap route (DeepSeek V4 Flash). Every paid
+# dispatch still passes through the compute governor and the weekly CAD ceiling
+# in config/compute_governor.json; this selects a route, never a bypass.
+SUPERVISOR_ROUTE_ENV = "KITTY_BUILDER_SUPERVISOR_ROUTE"
+SUPERVISOR_ROUTE_DEFAULT = "cheap"
+
+
+def _supervisor_route() -> str:
+    """The governed route for unattended dispatch: free, cheap, or frontier."""
+    from gateway import compute_governor as cg
+
+    raw = os.environ.get(SUPERVISOR_ROUTE_ENV, "").strip().lower()
+    if raw in cg.ROUTE_MODELS:
+        return raw
+    return SUPERVISOR_ROUTE_DEFAULT
+
+
+def _supervisor_route_argv() -> list[str]:
+    """Route selection as run-packet CLI flags."""
+    from gateway import compute_governor as cg
+
+    route = _supervisor_route()
+    if route == cg.ROUTE_FREE:
+        return ["--free"]
+    return ["--paid", "--tier", route]
 
 
 class SupervisorError(RuntimeError):
@@ -573,7 +602,7 @@ def _admission_skip(
         preflight = preflight_packet(
             str(packet["initiative_id"]), str(packet["packet_id"]),
             db_path=db_path, repo_root=repo_root, current_main_sha=current_main_sha,
-            requested_route="free",
+            requested_route=_supervisor_route(),
         )
         if preflight.get("action") != PREFLIGHT_RUN:
             return {
@@ -723,7 +752,7 @@ def _launch_run(
 
     command = [
         str(kitty), "builder", "initiative", "run-packet",
-        initiative_id, packet_id, "--free", "--json",
+        initiative_id, packet_id, *_supervisor_route_argv(), "--json",
     ]
     log_dir = root / "data" / "kittybuilder" / "supervisor-launch"
     log_dir.mkdir(parents=True, exist_ok=True)
