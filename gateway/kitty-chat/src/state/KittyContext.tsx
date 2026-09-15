@@ -16,6 +16,7 @@ import type {
   Message,
   MessageAttachment,
   MemoryEvidence,
+  EvidenceReceipt,
   Model,
   ChatColor,
 } from '@/lib/types'
@@ -33,7 +34,7 @@ import {
 } from '@/lib/gateway'
 import { validateAttachments, type AttachmentError } from '@/lib/attachment-validation'
 import { appendContextMarkers, stripContextMarkers, type ContextReference, type ContextReferenceKind } from '@/lib/context-references'
-import { normalizeMemoryEvidence } from '@/lib/types'
+import { normalizeEvidenceReceipts, normalizeMemoryEvidence } from '@/lib/types'
 import { usePwaInstall } from '@/lib/pwa'
 import { REDIRECTS, getView } from '@/lib/views'
 import {
@@ -100,6 +101,7 @@ interface RecoveredMessage {
   status?: string
   attachments?: MessageAttachment[]
   memory_items?: unknown
+  evidence_items?: unknown
 }
 
 function legacyChat(c: Chat): Chat {
@@ -109,10 +111,12 @@ function legacyChat(c: Chat): Chat {
     updatedAt: new Date(c.updatedAt),
     messages: (c.messages ?? []).map((m: Message) => {
       const memoryItems = normalizeMemoryEvidence(m.memoryItems)
+      const evidenceItems = normalizeEvidenceReceipts(m.evidenceItems)
       return {
         ...m,
         timestamp: new Date(m.timestamp),
         ...(memoryItems.length ? { memoryItems } : {}),
+        ...(evidenceItems.length ? { evidenceItems } : {}),
       }
     }),
   }
@@ -412,6 +416,7 @@ export function KittyProvider({ children }: { children: ReactNode }) {
               updatedAt: new Date(c.updatedAt),
               messages: ledgerMessages.map((m: RecoveredMessage) => {
                 const memoryItems = normalizeMemoryEvidence(m.memory_items)
+                const evidenceItems = normalizeEvidenceReceipts(m.evidence_items)
                 return {
                   id: m.id,
                   role: m.role,
@@ -421,6 +426,7 @@ export function KittyProvider({ children }: { children: ReactNode }) {
                   ...(m.status ? { turnStatus: m.status as Message['turnStatus'] } : {}),
                   ...(m.attachments?.length ? { attachments: m.attachments as MessageAttachment[] } : {}),
                   ...(memoryItems.length ? { memoryItems } : {}),
+                  ...(evidenceItems.length ? { evidenceItems } : {}),
                 }
               }),
             }
@@ -635,6 +641,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     abortRef.current = abort
     let accumulated = ''
     let memoryItems: MemoryEvidence[] | undefined
+    let evidenceItems: EvidenceReceipt[] | undefined
     let toolCalls: import('@/lib/types').ToolCall[] | undefined
     let provider: string | undefined
     let requestedModel: string | undefined
@@ -659,7 +666,11 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
           updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, provider, requestedModel, toolsState } : m)) }))
           continue
         }
-        if (chunk.memoryItems?.length) { memoryItems = chunk.memoryItems; continue }
+        if (chunk.memoryItems?.length || chunk.evidenceItems?.length) {
+          if (chunk.memoryItems?.length) memoryItems = chunk.memoryItems
+          if (chunk.evidenceItems?.length) evidenceItems = chunk.evidenceItems
+          continue
+        }
         if (chunk.toolCalls?.length) {
           toolCalls = chunk.toolCalls
           updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, toolCalls } : m)) }))
@@ -671,6 +682,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       const mood = inferMood(accumulated, 'assistant')
       const extras = {
         ...(memoryItems && !isSmalltalk(latestUserMessage.content) ? { memoryItems } : {}),
+        ...(evidenceItems?.length ? { evidenceItems } : {}),
         ...(toolCalls?.length ? { toolCalls } : {}),
         ...(provider ? { provider } : {}),
         ...(requestedModel ? { requestedModel } : {}),

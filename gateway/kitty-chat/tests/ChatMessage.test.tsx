@@ -215,6 +215,55 @@ describe('ChatMessage memory block (CR-05)', () => {
 })
 
 
+describe('ChatMessage source evidence block', () => {
+  afterEach(cleanup)
+
+  function renderMessage(message: Message) {
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <ChatMessage message={message} chatId="chat-sources" messageIndex={1} />
+      </QueryClientProvider>,
+    )
+  }
+
+  const sourced: Message = {
+    ...kittyMsg,
+    evidenceItems: [{
+      evidenceId: 'E1',
+      text: 'Brake caliper bracket bolts: 128 N·m.',
+      title: '2010 Ridgeline Service Manual',
+      locatorStart: '42',
+    }],
+  }
+
+  it('renders sources collapsed and keeps receipts inspectable on expand', () => {
+    renderMessage(sourced)
+    const toggle = screen.getByRole('button', { name: /sources 1/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('2010 Ridgeline Service Manual')).not.toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('[E1]')).toBeInTheDocument()
+    expect(screen.getByText('2010 Ridgeline Service Manual')).toBeInTheDocument()
+    expect(screen.getByText('p. 42')).toBeInTheDocument()
+    expect(screen.getByText('Brake caliper bracket bolts: 128 N·m.')).toBeInTheDocument()
+  })
+
+  it('does not render sources for user messages or while streaming', () => {
+    renderMessage({ ...sourced, role: 'user' })
+    expect(screen.queryByRole('button', { name: /sources/i })).not.toBeInTheDocument()
+    cleanup()
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ChatMessage message={sourced} chatId="chat-sources" messageIndex={1} isStreaming />
+      </QueryClientProvider>,
+    )
+    expect(screen.queryByRole('button', { name: /sources/i })).not.toBeInTheDocument()
+  })
+})
+
 describe('ChatMessage visual hierarchy', () => {
   afterEach(cleanup)
 

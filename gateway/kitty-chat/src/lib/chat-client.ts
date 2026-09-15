@@ -1,4 +1,4 @@
-import { Message, normalizeMemoryEvidence, type MemoryEvidence, type ToolCall } from './types';
+import { Message, normalizeEvidenceReceipts, normalizeMemoryEvidence, type EvidenceReceipt, type MemoryEvidence, type ToolCall } from './types';
 
 // All gateway calls go through the Next.js proxy route — avoids CORS and keeps key server-side
 const GATEWAY_BASE = '/proxy';
@@ -8,6 +8,8 @@ export interface StreamChunk {
   done: boolean;
   /** Present on the single trailer event listing memories that informed the reply. */
   memoryItems?: MemoryEvidence[];
+  /** Source receipts delivered with the same truthful metadata trailer. */
+  evidenceItems?: EvidenceReceipt[];
   /** Accumulated tool calls snapshot — present on every delta that touches tool_calls. */
   toolCalls?: ToolCall[];
   provider?: string;
@@ -195,9 +197,19 @@ export async function* streamChat(
               : FRIENDLY_CHAT_MESSAGES[kind];
           throw new ChatSendError(kind, message);
         }
-        if (Array.isArray(json.memory_items)) {
-          const memoryItems = normalizeMemoryEvidence(json.memory_items);
-          if (memoryItems.length) yield { content: '', done: false, memoryItems };
+        const memoryItems = Array.isArray(json.memory_items)
+          ? normalizeMemoryEvidence(json.memory_items)
+          : [];
+        const evidenceItems = Array.isArray(json.evidence_items)
+          ? normalizeEvidenceReceipts(json.evidence_items)
+          : [];
+        if (memoryItems.length || evidenceItems.length) {
+          yield {
+            content: '',
+            done: false,
+            ...(memoryItems.length ? { memoryItems } : {}),
+            ...(evidenceItems.length ? { evidenceItems } : {}),
+          };
           continue;
         }
         const delta = json.choices?.[0]?.delta;

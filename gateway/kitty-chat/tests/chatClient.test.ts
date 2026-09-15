@@ -89,6 +89,31 @@ describe('streamChat memory trailer (CR-05)', () => {
   })
 })
 
+describe('streamChat source evidence trailer', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('parses memory and source receipts from one metadata event', async () => {
+    const chunks = await collect([
+      'data: {"memory_items":[{"text":"remembered"}],"evidence_items":[{"evidence_id":"E1","text":"quoted evidence","title":"Service Manual","locator_start":"42"}]}\n\n',
+      'data: [DONE]\n\n',
+    ])
+    expect(chunks).toEqual([
+      {
+        content: '',
+        done: false,
+        memoryItems: [{ text: 'remembered' }],
+        evidenceItems: [{
+          evidenceId: 'E1',
+          text: 'quoted evidence',
+          title: 'Service Manual',
+          locatorStart: '42',
+        }],
+      },
+      { content: '', done: true },
+    ])
+  })
+})
+
 describe('streamChat truthful failure recovery', () => {
   afterEach(() => vi.unstubAllGlobals())
 
