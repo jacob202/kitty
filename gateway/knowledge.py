@@ -13,10 +13,13 @@ Internal pipeline stages (Clerk, Librarian, Archivist) are implementation detail
 from __future__ import annotations
 
 import asyncio
+import functools
+import hashlib
 import json
 import logging
 import os
 import re
+import shutil
 import sqlite3
 import time
 import uuid
@@ -121,6 +124,24 @@ _EXPERT_LABELS = {
     "general_research": "General Research",
 }
 
+
+CORPUS_REQUIRED_PROFILES = tuple(_EXPERT_LABELS)
+CORPUS_EVIDENCE_POLICY_VERSION = "evidence-policy-2026-09-15.v1"
+CORPUS_RANKING_VERSION = "fts-bm25-logical-diversity-2026-09-15.v1"
+CORPUS_CLINICAL_POLICY_VERSION = "clinical-current-guidance-separation-2026-09-15.v1"
+CORPUS_MAX_CHUNKS_PER_LOGICAL_UNIT = 1
+CORPUS_EXACT_LOOKUP_MAX_CHUNKS_PER_LOGICAL_UNIT = 2
+CORPUS_PUBLICATION_BINDING: dict[str, str] = {}
+
+_CORPUS_ARTIFACT_FILENAMES = {
+    "source_manifest": "source_manifest.jsonl",
+    "collections": "collections.json",
+    "ingest_requests": "ingest_requests.jsonl",
+    "fts_db": "fts.sqlite",
+    "profiles": "profiles.json",
+    "benchmark": "benchmark.json",
+    "correction_ledger": "correction_ledger.json",
+}
 
 _CURRENTNESS_WORDS = {"current", "today", "latest", "recent", "now", "2026"}
 
@@ -290,6 +311,485 @@ def build_evidence_policy(query: str) -> EvidencePolicy:
     )
 
 
+def _sha256_path(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _canonical_json_bytes(value: Any) -> bytes:
+    return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def _load_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    try:
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if not isinstance(row, dict):
+                raise ValueError(f"line {number} is not an object")
+            rows.append(row)
+    except (OSError, ValueError, TypeError) as exc:
+        raise CorpusProjectionUnavailableError(
+            f"corpus artifact {path.name} is unreadable: {type(exc).__name__}: {exc}"
+        ) from exc
+    return rows
+
+
+def _candidate_artifact_paths(artifacts: dict[str, Any]) -> dict[str, Path]:
+    missing = sorted(set(_CORPUS_ARTIFACT_FILENAMES) - set(artifacts))
+    if missing:
+        raise CorpusProjectionUnavailableError(
+            f"corpus candidate is missing required artifacts: {', '.join(missing)}"
+        )
+    resolved = {key: Path(artifacts[key]).expanduser() for key in _CORPUS_ARTIFACT_FILENAMES}
+    absent = [key for key, path in resolved.items() if not path.is_file()]
+    if absent:
+        raise CorpusProjectionUnavailableError(
+            f"corpus candidate artifacts do not exist: {', '.join(sorted(absent))}"
+        )
+    return resolved
+
+
+def _manifest_memberships(rows: list[dict[str, Any]]) -> set[tuple[str, str]]:
+    memberships: set[tuple[str, str]] = set()
+    for row in rows:
+        source_id = str(row.get("source_id") or "")
+        for profile in row.get("expert_profiles") or []:
+            memberships.add((str(profile), source_id))
+        memberships.add(("general_research", source_id))
+    return memberships
+
+
+def validate_corpus_candidate(artifacts: dict[str, Any]) -> dict[str, Any]:
+    """Validate one frozen corpus candidate across every runtime representation."""
+    paths = _candidate_artifact_paths(artifacts)
+    manifest_rows = _load_jsonl(paths["source_manifest"])
+    if not manifest_rows:
+        raise CorpusProjectionUnavailableError("corpus source manifest is empty")
+
+    source_rows: dict[str, dict[str, Any]] = {}
+    logical_by_source: dict[str, str] = {}
+    for row in manifest_rows:
+        source_id = str(row.get("source_id") or "")
+        source_sha = str(row.get("sha256") or row.get("source_sha256") or "")
+        logical_unit = str(row.get("logical_unit_id") or "")
+        if not source_id or source_id in source_rows:
+            raise CorpusProjectionUnavailableError("source manifest contains missing or duplicate source_id")
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", source_sha):
+            raise CorpusProjectionUnavailableError(f"source {source_id} has invalid SHA-256 identity")
+        if not logical_unit:
+            raise CorpusProjectionUnavailableError(f"source {source_id} has no logical_unit_id")
+        profiles = row.get("expert_profiles") or []
+        if any(profile not in CORPUS_REQUIRED_PROFILES[:-1] for profile in profiles):
+            raise CorpusProjectionUnavailableError(f"source {source_id} has unknown expert profile")
+        source_rows[source_id] = row
+        logical_by_source[source_id] = logical_unit
+        for optional_path in ("local_path", "evidence_path"):
+            value = row.get(optional_path)
+            if value and not Path(str(value)).expanduser().exists():
+                raise CorpusProjectionUnavailableError(
+                    f"source {source_id} has unresolved provenance path {optional_path}"
+                )
+
+    expected_memberships = _manifest_memberships(manifest_rows)
+    expected_profiles = set(CORPUS_REQUIRED_PROFILES)
+
+    try:
+        collections = json.loads(paths["collections"].read_text(encoding="utf-8"))
+        profiles = json.loads(paths["profiles"].read_text(encoding="utf-8"))
+        benchmark = json.loads(paths["benchmark"].read_text(encoding="utf-8"))
+        ledger = json.loads(paths["correction_ledger"].read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError) as exc:
+        raise CorpusProjectionUnavailableError(
+            f"corpus JSON artifact is unreadable: {type(exc).__name__}: {exc}"
+        ) from exc
+
+    collection_profiles = collections.get("profiles") or {}
+    membership_lists = collections.get("source_memberships") or {}
+    if set(collection_profiles) != expected_profiles or set(membership_lists) != expected_profiles:
+        raise CorpusProjectionUnavailableError("collections do not define exactly the nine required profiles")
+    collection_memberships = {
+        (profile, str(source_id))
+        for profile, source_ids in membership_lists.items()
+        for source_id in source_ids
+    }
+    if collection_memberships != expected_memberships:
+        raise CorpusProjectionUnavailableError("collections membership differs from source manifest truth")
+
+    profile_counts: dict[str, dict[str, int]] = {}
+    for profile in CORPUS_REQUIRED_PROFILES:
+        source_ids = {source_id for expert, source_id in expected_memberships if expert == profile}
+        logical_units = {logical_by_source[source_id] for source_id in source_ids}
+        declared = collection_profiles[profile]
+        if int(declared.get("ready_source_count", -1)) != len(source_ids):
+            raise CorpusProjectionUnavailableError(f"collection source count is stale for {profile}")
+        if int(declared.get("ready_logical_unit_count", -1)) != len(logical_units):
+            raise CorpusProjectionUnavailableError(f"collection logical-unit count is stale for {profile}")
+        profile_counts[profile] = {"sources": len(source_ids), "logical_units": len(logical_units)}
+
+    if set(profiles) != expected_profiles:
+        raise CorpusProjectionUnavailableError("retrieval profiles do not define exactly the nine required profiles")
+    for profile, declared in profiles.items():
+        if "ready_source_count" in declared and int(declared["ready_source_count"]) != profile_counts[profile]["sources"]:
+            raise CorpusProjectionUnavailableError(f"retrieval profile source count is stale for {profile}")
+        if "ready_logical_unit_count" in declared and int(declared["ready_logical_unit_count"]) != profile_counts[profile]["logical_units"]:
+            raise CorpusProjectionUnavailableError(f"retrieval profile logical-unit count is stale for {profile}")
+
+    ingest_rows = _load_jsonl(paths["ingest_requests"])
+    ingest_by_source: dict[str, dict[str, Any]] = {}
+    for request in ingest_rows:
+        evidence = request.get("evidence") or {}
+        source_id = str(evidence.get("source_id") or "")
+        if not source_id or source_id in ingest_by_source:
+            raise CorpusProjectionUnavailableError("ingest requests contain missing or duplicate source identity")
+        ingest_by_source[source_id] = request
+    if set(ingest_by_source) != set(source_rows):
+        raise CorpusProjectionUnavailableError("ingest request source set differs from source manifest truth")
+
+    evidence_fields = {
+        "source_sha256": "sha256",
+        "logical_unit_id": "logical_unit_id",
+        "retrieval_title": "retrieval_title",
+        "domains": "domains",
+        "subjects": "subjects",
+        "expert_profiles": "expert_profiles",
+        "publication_year": "publication_year",
+        "edition": "edition",
+        "clinical_use_policy": "clinical_use_policy",
+    }
+    for source_id, request in ingest_by_source.items():
+        evidence = request.get("evidence") or {}
+        source = source_rows[source_id]
+        for evidence_key, source_key in evidence_fields.items():
+            left = evidence.get(evidence_key)
+            right = source.get(source_key)
+            if left != right:
+                raise CorpusProjectionUnavailableError(
+                    f"ingest evidence differs from manifest for {source_id}: {evidence_key}"
+                )
+        tag_profiles = {
+            tag.removeprefix("expert_")
+            for tag in request.get("tags") or []
+            if isinstance(tag, str) and tag.startswith("expert_")
+        }
+        if tag_profiles != set(source.get("expert_profiles") or []):
+            raise CorpusProjectionUnavailableError(
+                f"ingest expert tags differ from manifest for {source_id}"
+            )
+
+    try:
+        with sqlite3.connect(f"file:{paths['fts_db']}?mode=ro", uri=True) as conn:
+            integrity = conn.execute("PRAGMA quick_check").fetchone()
+            if not integrity or integrity[0] != "ok":
+                raise CorpusProjectionUnavailableError("corpus FTS database failed quick_check")
+            db_memberships = {
+                (str(profile), str(source_id))
+                for profile, source_id in conn.execute("SELECT expert, source_id FROM expert_membership")
+            }
+            if db_memberships != expected_memberships:
+                raise CorpusProjectionUnavailableError("FTS expert membership differs from source manifest truth")
+            membership_logicals = {
+                (str(source_id), str(logical_unit))
+                for source_id, logical_unit in conn.execute(
+                    "SELECT source_id, logical_unit_id FROM expert_membership"
+                )
+            }
+            if any(logical_by_source.get(source_id) != logical for source_id, logical in membership_logicals):
+                raise CorpusProjectionUnavailableError("FTS membership logical-unit identity is stale")
+            chunk_rows = conn.execute(
+                "SELECT source_id, logical_unit_id, retrieval_title, work_id, locator_start, locator_end "
+                "FROM chunks"
+            ).fetchall()
+    except sqlite3.Error as exc:
+        raise CorpusProjectionUnavailableError(
+            f"corpus FTS database is unreadable: {type(exc).__name__}: {exc}"
+        ) from exc
+
+    chunk_sources: set[str] = set()
+    for source_id, logical_unit, retrieval_title, work_id, locator_start, locator_end in chunk_rows:
+        source_id = str(source_id or "")
+        if source_id not in source_rows:
+            raise CorpusProjectionUnavailableError("FTS chunk references a source absent from manifest")
+        source = source_rows[source_id]
+        if str(logical_unit or "") != logical_by_source[source_id]:
+            raise CorpusProjectionUnavailableError(f"FTS chunk logical-unit identity is stale for {source_id}")
+        expected_title = str(source.get("retrieval_title") or source.get("title") or "")
+        if str(retrieval_title or "") != expected_title:
+            raise CorpusProjectionUnavailableError(f"FTS chunk retrieval title is stale for {source_id}")
+        if str(work_id or "") != str(source.get("work_id") or ""):
+            raise CorpusProjectionUnavailableError(f"FTS chunk work identity is stale for {source_id}")
+        if not str(locator_start or "").strip() or not str(locator_end or "").strip():
+            raise CorpusProjectionUnavailableError(f"FTS chunk provenance locator is missing for {source_id}")
+        chunk_sources.add(source_id)
+    if chunk_sources != set(source_rows):
+        raise CorpusProjectionUnavailableError("manifest contains source without resolvable FTS chunks")
+
+    expected_versions = {
+        "policy_version": CORPUS_EVIDENCE_POLICY_VERSION,
+        "ranking_version": CORPUS_RANKING_VERSION,
+        "clinical_policy_version": CORPUS_CLINICAL_POLICY_VERSION,
+    }
+    for key, value in expected_versions.items():
+        if benchmark.get(key) != value:
+            raise CorpusProjectionUnavailableError(f"benchmark {key} is not the runtime policy version")
+    results = benchmark.get("results") or []
+    benchmark_profiles = {str(result.get("profile") or "") for result in results if result.get("pass") is True}
+    if benchmark_profiles != expected_profiles:
+        raise CorpusProjectionUnavailableError("benchmark does not prove all nine expert profiles")
+    if any(result.get("pass") is not True for result in results):
+        raise CorpusProjectionUnavailableError("benchmark contains a failed exact-candidate fixture")
+    summary = benchmark.get("summary") or {}
+    if int(summary.get("cases", -1)) != len(results) or int(summary.get("passed", -1)) != len(results) or int(summary.get("failed", -1)) != 0:
+        raise CorpusProjectionUnavailableError("benchmark summary does not match exact candidate results")
+    for result in results:
+        profile = str(result.get("profile") or "")
+        allowed = {source_id for expert, source_id in expected_memberships if expert == profile}
+        for hit in result.get("top5") or []:
+            source_id = str(hit.get("source_id") or "")
+            if source_id not in allowed:
+                raise CorpusProjectionUnavailableError(
+                    f"benchmark fixture {result.get('id')} contains out-of-profile source {source_id}"
+                )
+
+    if ledger.get("schema") != "kitty.corpus-correction-ledger.v1" or not isinstance(ledger.get("changes"), list):
+        raise CorpusProjectionUnavailableError("correction ledger is missing its versioned change inventory")
+
+    return {
+        "source_count": len(source_rows),
+        "logical_unit_count": len(set(logical_by_source.values())),
+        "membership_count": len(expected_memberships),
+        "chunk_count": len(chunk_rows),
+        "profile_counts": profile_counts,
+        "benchmark_profiles": benchmark_profiles,
+    }
+
+
+def _candidate_identity(
+    artifact_receipts: dict[str, dict[str, Any]], *, publisher_git_commit: str
+) -> str:
+    basis = {
+        "schema": "kitty.corpus-candidate.v1",
+        "publisher_git_commit": publisher_git_commit,
+        "policy_version": CORPUS_EVIDENCE_POLICY_VERSION,
+        "ranking_version": CORPUS_RANKING_VERSION,
+        "clinical_policy_version": CORPUS_CLINICAL_POLICY_VERSION,
+        "truth_owner": "source_manifest",
+        "artifacts": {
+            key: {"sha256": value["sha256"], "bytes": value["bytes"]}
+            for key, value in sorted(artifact_receipts.items())
+        },
+    }
+    return hashlib.sha256(_canonical_json_bytes(basis)).hexdigest()
+
+
+def publish_corpus_candidate(
+    artifacts: dict[str, Any], publication_root: str | Path, *, publisher_git_commit: str
+) -> dict[str, Any]:
+    """Freeze a validated corpus as one immutable, content-addressed publication."""
+    paths = _candidate_artifact_paths(artifacts)
+    validation = validate_corpus_candidate(artifacts)
+    artifact_receipts = {
+        key: {
+            "filename": _CORPUS_ARTIFACT_FILENAMES[key],
+            "sha256": _sha256_path(path),
+            "bytes": path.stat().st_size,
+        }
+        for key, path in paths.items()
+    }
+    candidate_id = _candidate_identity(artifact_receipts, publisher_git_commit=publisher_git_commit)
+    root = Path(publication_root).expanduser()
+    candidates = root / "candidates"
+    candidates.mkdir(parents=True, exist_ok=True)
+    destination = candidates / candidate_id
+    receipt_data = {
+        "schema": "kitty.corpus-publication-receipt.v1",
+        "candidate_id": candidate_id,
+        "publisher_git_commit": publisher_git_commit,
+        "truth_owner": "source_manifest",
+        "policy_version": CORPUS_EVIDENCE_POLICY_VERSION,
+        "ranking_version": CORPUS_RANKING_VERSION,
+        "clinical_policy_version": CORPUS_CLINICAL_POLICY_VERSION,
+        "summary": {
+            **{key: value for key, value in validation.items() if key != "benchmark_profiles"},
+            "benchmark_profiles": sorted(validation["benchmark_profiles"]),
+        },
+        "artifacts": artifact_receipts,
+    }
+    receipt_bytes = _canonical_json_bytes(receipt_data)
+    expected_receipt_sha = hashlib.sha256(receipt_bytes).hexdigest()
+
+    if not destination.exists():
+        staging = candidates / f".{candidate_id}.staging-{uuid.uuid4().hex}"
+        staging.mkdir()
+        try:
+            for key, source in paths.items():
+                target = staging / _CORPUS_ARTIFACT_FILENAMES[key]
+                shutil.copyfile(source, target)
+                if _sha256_path(target) != artifact_receipts[key]["sha256"]:
+                    raise CorpusProjectionUnavailableError(f"published artifact copy changed bytes: {key}")
+                target.chmod(0o444)
+            receipt_path = staging / "candidate_receipt.json"
+            receipt_path.write_bytes(receipt_bytes)
+            receipt_path.chmod(0o444)
+            os.replace(staging, destination)
+            destination.chmod(0o555)
+        except Exception:
+            if staging.exists():
+                for child in staging.iterdir():
+                    child.chmod(0o644)
+                staging.rmdir() if not any(staging.iterdir()) else shutil.rmtree(staging)
+            raise
+
+    receipt_path = destination / "candidate_receipt.json"
+    verified = _verify_published_receipt(str(receipt_path), expected_receipt_sha)
+    if verified.get("candidate_id") != candidate_id:
+        raise CorpusProjectionUnavailableError("published candidate directory contains a different receipt")
+    return {
+        "candidate_id": candidate_id,
+        "receipt_path": receipt_path,
+        "receipt_sha256": expected_receipt_sha,
+        "validation": validation,
+    }
+
+
+@functools.lru_cache(maxsize=16)
+def _verify_published_receipt(
+    receipt_path_value: str | Path, expected_receipt_sha256: str | None = None
+) -> dict[str, Any]:
+    receipt_path = Path(receipt_path_value).expanduser()
+    if not receipt_path.is_file():
+        raise CorpusProjectionUnavailableError("published corpus receipt is missing")
+    actual_receipt_sha = _sha256_path(receipt_path)
+    if expected_receipt_sha256 and actual_receipt_sha != expected_receipt_sha256:
+        raise CorpusProjectionUnavailableError("published corpus receipt hash does not match exact binding")
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError) as exc:
+        raise CorpusProjectionUnavailableError("published corpus receipt is unreadable") from exc
+    if receipt.get("schema") != "kitty.corpus-publication-receipt.v1":
+        raise CorpusProjectionUnavailableError("published corpus receipt schema is unsupported")
+    for key, value in {
+        "policy_version": CORPUS_EVIDENCE_POLICY_VERSION,
+        "ranking_version": CORPUS_RANKING_VERSION,
+        "clinical_policy_version": CORPUS_CLINICAL_POLICY_VERSION,
+    }.items():
+        if receipt.get(key) != value:
+            raise CorpusProjectionUnavailableError(f"published corpus {key} differs from runtime policy")
+    artifacts = receipt.get("artifacts") or {}
+    if set(artifacts) != set(_CORPUS_ARTIFACT_FILENAMES):
+        raise CorpusProjectionUnavailableError("published corpus receipt has incomplete artifact inventory")
+    for key, descriptor in artifacts.items():
+        artifact_path = receipt_path.parent / str(descriptor.get("filename") or "")
+        if not artifact_path.is_file():
+            raise CorpusProjectionUnavailableError(f"published corpus artifact is missing: {key}")
+        if artifact_path.stat().st_size != int(descriptor.get("bytes", -1)):
+            raise CorpusProjectionUnavailableError(f"published corpus artifact hash/size mismatch: {key}")
+        if _sha256_path(artifact_path) != descriptor.get("sha256"):
+            raise CorpusProjectionUnavailableError(f"published corpus artifact hash mismatch: {key}")
+    candidate_id = _candidate_identity(
+        artifacts, publisher_git_commit=str(receipt.get("publisher_git_commit") or "")
+    )
+    if receipt.get("candidate_id") != candidate_id:
+        raise CorpusProjectionUnavailableError("published corpus candidate identity does not match receipt")
+    return receipt
+
+
+def _publication_binding_matches(candidate_id: str, receipt_sha256: str) -> bool:
+    return (
+        CORPUS_PUBLICATION_BINDING.get("candidate_id") == candidate_id
+        and CORPUS_PUBLICATION_BINDING.get("receipt_sha256") == receipt_sha256
+    )
+
+
+def _validate_published_projection(projection: dict[str, Any]) -> tuple[dict[str, Any], Path, Path]:
+    candidate_id = str(projection.get("candidate_id") or "")
+    receipt_sha = str(projection.get("receipt_sha256") or "")
+    receipt_path = Path(str(projection.get("receipt") or "")).expanduser()
+    if not _publication_binding_matches(candidate_id, receipt_sha):
+        raise CorpusProjectionUnavailableError("active corpus candidate does not match tracked publication binding")
+    receipt = _verify_published_receipt(str(receipt_path), receipt_sha)
+    if receipt.get("candidate_id") != candidate_id:
+        raise CorpusProjectionUnavailableError("active corpus candidate does not match published receipt")
+    artifacts = receipt["artifacts"]
+    db_path = receipt_path.parent / artifacts["fts_db"]["filename"]
+    manifest_path = receipt_path.parent / artifacts["source_manifest"]["filename"]
+    if Path(str(projection.get("fts_db") or "")).expanduser() != db_path:
+        raise CorpusProjectionUnavailableError("active corpus FTS path is not the bound published artifact")
+    if Path(str(projection.get("source_manifest") or "")).expanduser() != manifest_path:
+        raise CorpusProjectionUnavailableError("active corpus manifest path is not the bound published artifact")
+    return receipt, db_path, manifest_path
+
+
+def activate_published_corpus_candidate(
+    receipt_path: str | Path, projection_path: str | Path
+) -> dict[str, Any]:
+    """Atomically activate only the exact tracked receipt; restore the old pointer on failure."""
+    receipt_path = Path(receipt_path).expanduser().resolve()
+    receipt_sha = _sha256_path(receipt_path)
+    receipt = _verify_published_receipt(str(receipt_path), receipt_sha)
+    candidate_id = str(receipt.get("candidate_id") or "")
+    if not _publication_binding_matches(candidate_id, receipt_sha):
+        raise CorpusProjectionUnavailableError("published corpus receipt does not match tracked binding")
+
+    artifacts = receipt["artifacts"]
+
+    def artifact_path(key: str) -> Path:
+        return (receipt_path.parent / artifacts[key]["filename"]).resolve()
+
+    summary = receipt.get("summary") or {}
+    projection = {
+        "schema": "kitty.runtime-retrieval-projection.v2",
+        "status": "active",
+        "candidate_id": candidate_id,
+        "receipt": str(receipt_path),
+        "receipt_sha256": receipt_sha,
+        "publisher_git_commit": receipt.get("publisher_git_commit"),
+        "policy_version": receipt.get("policy_version"),
+        "ranking_version": receipt.get("ranking_version"),
+        "clinical_policy_version": receipt.get("clinical_policy_version"),
+        "source_manifest": str(artifact_path("source_manifest")),
+        "source_manifest_sha256": artifacts["source_manifest"]["sha256"],
+        "collections": str(artifact_path("collections")),
+        "ingest_requests": str(artifact_path("ingest_requests")),
+        "fts_db": str(artifact_path("fts_db")),
+        "fts_db_sha256": artifacts["fts_db"]["sha256"],
+        "profiles": str(artifact_path("profiles")),
+        "benchmark": str(artifact_path("benchmark")),
+        "correction_ledger": str(artifact_path("correction_ledger")),
+        "sources": summary.get("source_count"),
+        "logical_units": summary.get("logical_unit_count"),
+        "memberships": summary.get("membership_count"),
+        "chunks": summary.get("chunk_count"),
+    }
+    # Verify the complete pointer before touching the active file.
+    _validate_published_projection(projection)
+
+    pointer = Path(projection_path).expanduser()
+    pointer.parent.mkdir(parents=True, exist_ok=True)
+    previous = pointer.read_bytes() if pointer.exists() else None
+    temp = pointer.with_name(f".{pointer.name}.tmp-{uuid.uuid4().hex}")
+    try:
+        temp.write_bytes(_canonical_json_bytes(projection))
+        os.replace(temp, pointer)
+        loaded = json.loads(pointer.read_text(encoding="utf-8"))
+        _validate_published_projection(loaded)
+    except Exception:
+        temp.unlink(missing_ok=True)
+        if previous is None:
+            pointer.unlink(missing_ok=True)
+        else:
+            rollback = pointer.with_name(f".{pointer.name}.rollback-{uuid.uuid4().hex}")
+            rollback.write_bytes(previous)
+            os.replace(rollback, pointer)
+        raise
+    return projection
+
+
 def _resolve_corpus_path(value: str) -> Path:
     path = Path(value).expanduser()
     return path if path.is_absolute() else DATA_DIR / path
@@ -342,11 +842,10 @@ def _fts_query(query: str) -> str:
 
 
 def _active_corpus_projection() -> Optional[tuple[dict[str, Any], Path, Path]]:
+    explicit_projection = os.environ.get("KITTY_CORPUS_RETRIEVAL_PROJECTION")
     projection_path = Path(
-        os.environ.get(
-            "KITTY_CORPUS_RETRIEVAL_PROJECTION",
-            str(DATA_DIR / "books_corpus/manifests/runtime_retrieval_projection_active.json"),
-        )
+        explicit_projection
+        or str(DATA_DIR / "books_corpus/manifests/runtime_retrieval_projection_active.json")
     ).expanduser()
     if not projection_path.exists():
         return None
@@ -354,8 +853,18 @@ def _active_corpus_projection() -> Optional[tuple[dict[str, Any], Path, Path]]:
         projection = json.loads(projection_path.read_text(encoding="utf-8"))
         if projection.get("status") != "active":
             return None
-        db_path = _resolve_corpus_path(str(projection["fts_db"]))
-        manifest_path = _resolve_corpus_path(str(projection["source_manifest"]))
+        if projection.get("schema") == "kitty.runtime-retrieval-projection.v2":
+            _, db_path, manifest_path = _validate_published_projection(projection)
+        else:
+            # A custom projection path is an explicit developer/test override.  The
+            # production pointer, once a tracked binding exists, may not downgrade
+            # back to an unreceipted v1 projection.
+            if CORPUS_PUBLICATION_BINDING and explicit_projection is None:
+                raise CorpusProjectionUnavailableError(
+                    "active expert corpus projection is unpublished or unbound"
+                )
+            db_path = _resolve_corpus_path(str(projection["fts_db"]))
+            manifest_path = _resolve_corpus_path(str(projection["source_manifest"]))
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise CorpusProjectionUnavailableError(
             f"active expert corpus projection is unreadable: {type(exc).__name__}: {exc}"
@@ -461,6 +970,13 @@ def active_corpus_experts() -> dict[str, Any]:
     return {"status": "active", "experts": experts}
 
 
+def _corpus_logical_unit_cap(query: str) -> int:
+    policy = build_evidence_policy(query)
+    if policy.diversity == "single_authoritative_ok":
+        return CORPUS_EXACT_LOOKUP_MAX_CHUNKS_PER_LOGICAL_UNIT
+    return CORPUS_MAX_CHUNKS_PER_LOGICAL_UNIT
+
+
 def _search_active_corpus_fts(
     query: str, limit: int, *, expert_profile: str | None = None
 ) -> Optional[list[dict[str, Any]]]:
@@ -481,7 +997,8 @@ def _search_active_corpus_fts(
         return []
 
     hits: list[dict[str, Any]] = []
-    seen_units: set[str] = set()
+    unit_counts: Counter[str] = Counter()
+    per_unit_limit = _corpus_logical_unit_cap(query)
     batch_size = max(limit * 8, 64)
     offset = 0
     with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
@@ -513,9 +1030,9 @@ def _search_active_corpus_fts(
                     locator_end, text, bm25_score,
                 ) = row
                 unit_key = logical_unit_id or source_id or chunk_id
-                if unit_key in seen_units:
+                if unit_counts[unit_key] >= per_unit_limit:
                     continue
-                seen_units.add(unit_key)
+                unit_counts[unit_key] += 1
                 source_row = source_rows.get(source_id)
                 if source_row is None:
                     continue

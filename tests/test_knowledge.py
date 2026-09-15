@@ -945,3 +945,221 @@ def test_evidence_policy_cross_routes_acoustics_to_physics():
         "Why does a loudspeaker cabinet resonance couple to room modes?"
     )
     assert set(policy.competencies) == {"electronics_audio", "math_physics"}
+
+
+def _write_synthetic_corpus_candidate(tmp_path):
+    import json
+    import sqlite3
+
+    profiles = [
+        "electronics_audio", "automotive", "mechanical_systems", "ai_software",
+        "math_physics", "mind_learning_communication", "health_biology",
+        "philosophy_humanities", "general_research",
+    ]
+    specialist = profiles[:-1]
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    manifest_rows = []
+    ingest_rows = []
+    memberships = {profile: [] for profile in profiles}
+    for index, profile in enumerate(specialist, start=1):
+        source_id = f"source-{index}"
+        sha = f"{index:064x}"[-64:]
+        row = {
+            "source_id": source_id,
+            "sha256": sha,
+            "logical_unit_id": f"work:{index}",
+            "work_id": f"work:{index}",
+            "retrieval_title": f"Reference {profile}",
+            "domains": [profile],
+            "subjects": [f"subject_{index}"],
+            "expert_profiles": [profile],
+            "publication_year": 2020,
+            "edition": "1",
+            "clinical_use_policy": "background_only" if profile == "health_biology" else "",
+        }
+        manifest_rows.append(row)
+        memberships[profile].append(source_id)
+        memberships["general_research"].append(source_id)
+        ingest_rows.append({
+            "path": str(tmp_path / f"{source_id}.pdf"),
+            "source_label": f"Reference {profile} [src:{source_id}]",
+            "tags": [f"expert_{profile}", f"domain_{profile}"],
+            "evidence": {
+                "source_id": source_id,
+                "source_sha256": sha,
+                "logical_unit_id": f"work:{index}",
+                "retrieval_title": f"Reference {profile}",
+                "domains": [profile],
+                "subjects": [f"subject_{index}"],
+                "expert_profiles": [profile],
+                "publication_year": 2020,
+                "edition": "1",
+                "clinical_use_policy": row["clinical_use_policy"],
+            },
+        })
+
+    manifest = tmp_path / "manifest.jsonl"
+    manifest.write_text("\n".join(json.dumps(row) for row in manifest_rows) + "\n")
+    ingest = tmp_path / "ingest.jsonl"
+    ingest.write_text("\n".join(json.dumps(row) for row in ingest_rows) + "\n")
+    collections = tmp_path / "collections.json"
+    collections.write_text(json.dumps({
+        "profiles": {
+            profile: {
+                "ready_source_count": len(memberships[profile]),
+                "ready_logical_unit_count": len(memberships[profile]),
+            }
+            for profile in profiles
+        },
+        "source_memberships": memberships,
+    }))
+    profile_path = tmp_path / "profiles.json"
+    profile_path.write_text(json.dumps({profile: {} for profile in profiles}))
+    benchmark = tmp_path / "benchmark.json"
+    benchmark.write_text(json.dumps({
+        "policy_version": "evidence-policy-2026-09-15.v1",
+        "ranking_version": "fts-bm25-logical-diversity-2026-09-15.v1",
+        "clinical_policy_version": "clinical-current-guidance-separation-2026-09-15.v1",
+        "summary": {"cases": len(profiles), "passed": len(profiles), "failed": 0},
+        "results": [
+            {"id": f"fixture-{profile}", "profile": profile, "pass": True, "top5": []}
+            for profile in profiles
+        ],
+    }))
+    ledger = tmp_path / "correction-ledger.json"
+    ledger.write_text(json.dumps({"schema": "kitty.corpus-correction-ledger.v1", "changes": []}))
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text)"
+        )
+        conn.execute("CREATE TABLE expert_membership (expert TEXT, source_id TEXT, logical_unit_id TEXT)")
+        for index, row in enumerate(manifest_rows, start=1):
+            conn.execute(
+                "INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (f"chunk-{index}", row["source_id"], row["logical_unit_id"], row["retrieval_title"],
+                 row["retrieval_title"], row["logical_unit_id"], row["retrieval_title"],
+                 row["domains"][0], row["subjects"][0], "textbook", "1", "2",
+                 f"evidence for {row['expert_profiles'][0]}"),
+            )
+        for profile, source_ids in memberships.items():
+            for source_id in source_ids:
+                logical = next(row["logical_unit_id"] for row in manifest_rows if row["source_id"] == source_id)
+                conn.execute("INSERT INTO expert_membership VALUES (?,?,?)", (profile, source_id, logical))
+
+    return {
+        "source_manifest": manifest,
+        "collections": collections,
+        "ingest_requests": ingest,
+        "fts_db": db,
+        "profiles": profile_path,
+        "benchmark": benchmark,
+        "correction_ledger": ledger,
+    }
+
+
+def test_validate_corpus_candidate_requires_one_membership_truth_and_nine_profiles(tmp_path):
+    import json
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path)
+    summary = knowledge.validate_corpus_candidate(artifacts)
+    assert summary["source_count"] == 8
+    assert summary["logical_unit_count"] == 8
+    assert summary["membership_count"] == 16
+    assert summary["chunk_count"] == 8
+    assert summary["benchmark_profiles"] == set(knowledge.CORPUS_REQUIRED_PROFILES)
+
+    rows = [json.loads(line) for line in artifacts["ingest_requests"].read_text().splitlines()]
+    rows[0]["evidence"]["expert_profiles"] = ["wrong_profile"]
+    artifacts["ingest_requests"].write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+    with pytest.raises(knowledge.CorpusProjectionUnavailableError, match="ingest evidence"):
+        knowledge.validate_corpus_candidate(artifacts)
+
+
+def test_publish_candidate_is_content_addressed_and_repair_invalidates_proof(tmp_path):
+    import json
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    publication_root = tmp_path / "published"
+    first = knowledge.publish_corpus_candidate(artifacts, publication_root, publisher_git_commit="abc123")
+    assert first["candidate_id"]
+    receipt = first["receipt_path"]
+    assert receipt.exists()
+    published_manifest = receipt.parent / json.loads(receipt.read_text())["artifacts"]["source_manifest"]["filename"]
+    assert published_manifest.stat().st_mode & 0o222 == 0
+
+    benchmark = json.loads(artifacts["benchmark"].read_text())
+    benchmark["results"][0]["note"] = "repair changes candidate bytes"
+    artifacts["benchmark"].write_text(json.dumps(benchmark))
+    second = knowledge.publish_corpus_candidate(artifacts, publication_root, publisher_git_commit="abc123")
+    assert second["candidate_id"] != first["candidate_id"]
+    assert second["receipt_sha256"] != first["receipt_sha256"]
+
+
+def test_activate_published_candidate_requires_exact_binding_and_rolls_back(tmp_path, monkeypatch):
+    import json
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    published = knowledge.publish_corpus_candidate(artifacts, tmp_path / "published", publisher_git_commit="abc123")
+    pointer = tmp_path / "active.json"
+    pointer.write_text(json.dumps({"status": "active", "legacy": True}))
+
+    monkeypatch.setattr(knowledge, "CORPUS_PUBLICATION_BINDING", {
+        "candidate_id": published["candidate_id"],
+        "receipt_sha256": "0" * 64,
+    })
+    with pytest.raises(knowledge.CorpusProjectionUnavailableError, match="binding"):
+        knowledge.activate_published_corpus_candidate(published["receipt_path"], pointer)
+    assert json.loads(pointer.read_text())["legacy"] is True
+
+    monkeypatch.setattr(knowledge, "CORPUS_PUBLICATION_BINDING", {
+        "candidate_id": published["candidate_id"],
+        "receipt_sha256": published["receipt_sha256"],
+    })
+    projection = knowledge.activate_published_corpus_candidate(published["receipt_path"], pointer)
+    assert projection["candidate_id"] == published["candidate_id"]
+    assert projection["status"] == "active"
+    assert projection["schema"] == "kitty.runtime-retrieval-projection.v2"
+
+
+def test_published_projection_runtime_rejects_tampered_exact_candidate(tmp_path, monkeypatch):
+    import json
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    published = knowledge.publish_corpus_candidate(artifacts, tmp_path / "published", publisher_git_commit="abc123")
+    monkeypatch.setattr(knowledge, "CORPUS_PUBLICATION_BINDING", {
+        "candidate_id": published["candidate_id"],
+        "receipt_sha256": published["receipt_sha256"],
+    })
+    pointer = tmp_path / "active.json"
+    knowledge.activate_published_corpus_candidate(published["receipt_path"], pointer)
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(pointer))
+    knowledge._verify_published_receipt.cache_clear()
+    assert knowledge._active_corpus_projection() is not None
+
+    receipt = json.loads(published["receipt_path"].read_text())
+    manifest_path = published["receipt_path"].parent / receipt["artifacts"]["source_manifest"]["filename"]
+    manifest_path.chmod(0o644)
+    manifest_path.write_text(manifest_path.read_text() + "tamper\n")
+    knowledge._verify_published_receipt.cache_clear()
+    with pytest.raises(knowledge.CorpusProjectionUnavailableError, match="artifact hash"):
+        knowledge._active_corpus_projection()
+
+
+def test_corpus_diversity_cap_allows_bounded_repeat_for_exact_authority_lookup():
+    from gateway.knowledge import _corpus_logical_unit_cap
+
+    assert _corpus_logical_unit_cap("Why does a power amplifier hum?") == 1
+    assert _corpus_logical_unit_cap("What is the exact bias voltage on this amplifier?") == 2
