@@ -651,7 +651,11 @@ def run_independent_readonly_review(
     dispatched = False
     try:
         with tempfile.TemporaryDirectory(prefix="kitty-builder-readonly-review-") as temp_dir:
-            temp_root = Path(temp_dir)
+            # macOS exposes /tmp as an alias of /private/tmp. Seatbelt resolves
+            # its grants to the canonical spelling, so every path handed to the
+            # reviewer must use that same spelling or a readable file can look
+            # absent inside the sandbox.
+            temp_root = Path(temp_dir).resolve()
             review_root = temp_root / "repo"
             runtime_dir = temp_root / "runtime"
             source_head, origin_main = _prepare_readonly_review_checkout(

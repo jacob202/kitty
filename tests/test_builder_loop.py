@@ -4198,6 +4198,37 @@ def test_independent_readonly_review_executor_rejects_the_implementer_model_fami
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_independent_readonly_review_canonicalizes_macos_tmp_prompt_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The DSH command must see the same prompt path Seatbelt authorizes."""
+    if Path("/tmp").resolve() == Path("/tmp"):
+        pytest.skip("host has no /tmp path alias")
+    repo = _review_fixture_repo(
+        tmp_path,
+        launcher_body=(
+            "#!/bin/bash\n"
+            "set -eu\n"
+            "task_file=''\n"
+            "while [ \"$#\" -gt 0 ]; do\n"
+            "  if [ \"$1\" = --task-file ]; then task_file=$2; shift 2; else shift; fi\n"
+            "done\n"
+            "test -f \"$task_file\"\n"
+            "printf '%s\\n' '{\"verdict\":\"approve\",\"summary\":\"prompt visible\"}'\n"
+        ),
+    )
+    monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
+    monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/deepseek/deepseek-chat")
+    monkeypatch.setattr(tempfile, "tempdir", "/tmp")
+
+    result = bl.run_independent_readonly_review(
+        "Review this exact plan.", root=repo, governor_db=tmp_path / "governor.db"
+    )
+
+    assert result["output"] == '{"verdict":"approve","summary":"prompt visible"}'
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
 def test_independent_readonly_review_executor_uses_builder_route_and_contains_host_secrets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
