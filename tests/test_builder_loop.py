@@ -97,6 +97,42 @@ def isolated_loop_kx(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(artifact_store, "ARTIFACTS_DB_FILE", workspace_db)
 
 
+def test_trusted_parent_commit_reacquires_kx_for_commit_hook(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Parent commit must own KX after the worker-run lease has been released."""
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text(
+        "#!/bin/sh\n"
+        "test \"$KITTY_AGENT_SESSION_ID\" = \"builder-parent-commit:task-1:7\"\n"
+        f"{sys.executable} - <<'PY'\n"
+        "import os\n"
+        "from pathlib import Path\n"
+        "from gateway import agent_coordination as ac\n"
+        "db=Path(os.environ['KITTY_COORDINATION_DB_PATH'])\n"
+        "registry=Path(os.environ['KITTY_COORDINATION_REGISTRY_PATH'])\n"
+        "r=ac.preflight_mutation(os.environ['KITTY_AGENT_SESSION_ID'], ['done.txt'], db_path=db, registry_path=registry, required_role='OWN')\n"
+        "raise SystemExit(0 if r.get('ok') else 1)\n"
+        "PY\n",
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+    (repo / "done.txt").write_text("done\n", encoding="utf-8")
+
+    committed = bl._commit_completed_worker_changes(
+        repo, packet_id=PACKET, task_id="task-1", attempt_id=7
+    )
+
+    assert committed == bl.worktree_head(repo)
+    assert subprocess.run(
+        ["git", "status", "--porcelain=v1"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout == ""
+    assert not [
+        claim for claim in ac.list_claims(active_only=True, db_path=Path(os.environ["KITTY_COORDINATION_DB_PATH"]))
+        if claim["session_id"] == "builder-parent-commit:task-1:7"
+    ]
+
+
 def _apply(db_path: Path, *, max_attempts: int = 2,
            validation_commands: list[str] | None = None,
            allowed_paths: list[str] | None = None,
