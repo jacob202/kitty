@@ -39,6 +39,14 @@ coherent product Jacob would voluntarily use. He must be able to ask for
 meaningful work, approve a bounded outcome, watch progress, ask questions,
 recover from failure, and get a real result.
 
+## Acceptance Contract
+
+The mission is complete when an independent reviewer completes the key journeys
+at desktop and iPhone-class widths with no contradictory status, dead primary
+controls, raw server errors, clipped dialogs, or horizontal overflow
+(ACCEPT-001). Every preceding sequence item — REC-001 through HOME-001 — must be
+verified in the running product, not in its implementation evidence.
+
 ## The rule that governs every surface
 
 Every surface must be actionable in place. Information Jacob cannot act on right
@@ -55,7 +63,7 @@ are kept only because open PRs and GAR handoffs reference them.
 
 | Step | Also known as | Status | Evidence |
 |---|---|---|---|
-| **REC-001** — one trustworthy baseline | — | **Partially done** | Build provenance is provable: `kitty status` reports `build source == HEAD`, `freshness checkout-current`, gateway-truth PASS (verified 2026-09-14). The "self-heals when it is not" half is **not implemented** — a plain `npm run build` wipes the `KITTY_SOURCE_SHA` stamp and provenance reports a truthful `unknown` until a human runs `make ui-build`. |
+| **REC-001** — one trustworthy baseline | — | **Partially done** | Build provenance is provable: `kitty status` reports `build source == HEAD`, `freshness checkout-current`, gateway-truth PASS (verified 2026-09-14). Every build path now records its own source revision — `npm run build` chains `gateway/kitty-chat/scripts/stamp-source-sha.mjs`, stamping the commit on a clean tree and `dirty:<sha>` otherwise, so no build can leave provenance `unknown` (2026-09-14). Self-healing on a *stale* build is still not implemented; it reports truthfully and waits for a human. |
 | **WORK-001** — repair Work | R-1 | **Done on main** | PR #852 / `8ba172ad` — truthful resume and route state. |
 | **RESULT-001** — durable results reach Work and Library | R-2 | **Done on main** | PR #855 / `12d49e39` — reuse durable Builder results. |
 | **BUILDER-001** — chat → packet → result | **R-3** | **Blocked; never driven** | PR #870 open at `2417f82a`, all 12 checks green, blocked on **6 unresolved reviewer threads** (4×P1 + 1×P2 on `gateway/mission_runtime.py`, 1×P1 on `gateway/routes/missions.py`, 1×P1 on the acceptance test). The end-to-end journey has **never been run** — see `~/kb/handoffs/2026-09-13-kitty-r3-acceptance-record.md`: "the bounded product journey has NOT been run." |
@@ -68,6 +76,13 @@ are kept only because open PRs and GAR handoffs reference them.
 **Merging PR #870 is not BUILDER-001.** Driving the journey is. Implementation
 evidence is not user-outcome completion.
 
+Driving it was also impossible until 2026-09-14: PR #870 built the trusted local
+acceptance boundary (`record_running_product_acceptance`) but nothing could call
+it — no command, no route, only tests. `kitty accept status | template | record`
+now exists on `fix/r3-acceptance-operator-20260914`, stacked on #870. Jacob's
+live database also has no `missions` table at all, which is the plainest
+available proof that the Mission control plane has never run against real data.
+
 ## Built but switched off — 2026-09-14
 
 Four things are complete, correct, and not running. This is the current
@@ -77,7 +92,7 @@ highest-leverage work because none of it is construction.
 |---|---|---|
 | Local reviewer | `gateway/local_review.py:107`; model on disk at `~/Library/Application Support/Kitty/models/local-reviewer/` | Gated behind `KITTYBUILDER_LOCAL_REVIEW_SHADOW`, set in zero files. Timeouts already fixed by PR #869. |
 | Builder's scheduler | `~/Library/LaunchAgents/com.kitty.builder.supervisor.plist` | `WorkingDirectory` and `ProgramArguments[1]` point at `~/Projects/kitty-autonomy-runtime`, which does not exist. Not loaded. Last ran 2026-09-01. |
-| Session cost analytics | `scripts/analyze_claude_usage.py` | Works, reads real transcript token counts, untouched since 2026-07-30 and never joined to `~/kb/metrics/kb-effectiveness.jsonl`, which reports "sessions with known total tokens: 0". |
+| ~~Session cost analytics~~ **plugged 2026-09-14** | `scripts/kb_effectiveness.py` | `record` now reads the session's real token total from its own Claude Code transcript, and `summary --join-transcript-costs` answers the same question for history without rewriting the hash chain. Sessions with known total tokens went 0 → 2 for the last 30 days (354,094,076 tokens); every future receipt carries the number automatically. |
 | Agent-room briefing | GAR-AWARE-02, on main | Built; the room is drowned by 797 status/claim messages against 213 handoffs in 14 days, and only 8 of 363 handoffs ever drew a reply from a different agent. |
 
 Builder's queue is **not** a mess and does not need cleaning: 214 of its 264

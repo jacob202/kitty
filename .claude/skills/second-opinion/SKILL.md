@@ -1,5 +1,5 @@
 ---
-name: Second Opinion
+name: second-opinion
 description: AUTOMATIC — run this whenever you are about to ask Jacob a question, present him options, or hand him a decision. Pipes the question through an independent second LLM that returns a plain-English translation, what each option means in practice, and one recommendation, which you include alongside your question so Jacob never has to copy-paste into another model himself.
 ---
 
