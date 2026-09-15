@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
@@ -536,6 +537,30 @@ def test_review_plan_direct_call_cannot_bypass_admission_zero_dispatch(
     current = memory_mission.get_mission(mission["mission_id"], db_path=mission_db)
     assert current["status"] == "PLAN_REVIEW"
     assert current["plan"]["review_state"] == "unreviewed"
+
+
+def test_parse_review_json_accepts_one_contract_with_model_chatter() -> None:
+    raw = (
+        "Review complete.\n"
+        '{"contract_version":1,"verdict":"approve","summary":"ok","findings":[]}'
+        "\nThat is the final verdict."
+    )
+
+    parsed = mission_runtime._parse_review_json(raw)
+
+    assert parsed["contract_version"] == 1
+    assert parsed["verdict"] == "approve"
+
+
+def test_parse_review_json_rejects_multiple_contract_objects() -> None:
+    raw = (
+        '{"contract_version":1,"verdict":"approve"}'
+        "\n"
+        '{"contract_version":1,"verdict":"reject"}'
+    )
+
+    with pytest.raises(json.JSONDecodeError):
+        mission_runtime._parse_review_json(raw)
 
 
 def test_paid_review_guard_refuses_on_policy_even_with_valid_provider_key(

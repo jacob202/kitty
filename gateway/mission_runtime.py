@@ -35,14 +35,33 @@ logger = logging.getLogger("kitty.mission_runtime")
 
 
 def _parse_review_json(raw: str) -> Any:
-    """Parse the reviewer verdict, tolerating a ```json fence some models add."""
+    """Parse one reviewer contract despite harmless model framing text.
+
+    Free routes occasionally wrap an otherwise valid final JSON object in a
+    sentence even when told not to. Accept one unambiguous object, but reject
+    multiple JSON objects so contradictory verdicts can never be guessed at.
+    """
     text = raw.strip()
     if text.startswith("```"):
         first_newline = text.find("\n")
         last_fence = text.rfind("```")
         if first_newline >= 0 and last_fence > first_newline:
             text = text[first_newline + 1:last_fence].strip()
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as original:
+        start = text.find("{")
+        if start < 0:
+            raise
+        try:
+            value, consumed = json.JSONDecoder().raw_decode(text[start:])
+        except json.JSONDecodeError:
+            raise original
+        prefix = text[:start].strip()
+        suffix = text[start + consumed:].strip()
+        if "{" in prefix or "}" in prefix or "{" in suffix or "}" in suffix:
+            raise original
+        return value
 
 
 class PlanVerifierUnavailable(RuntimeError):
