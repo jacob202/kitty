@@ -1083,7 +1083,7 @@ def test_launchd_disabled_parses_print_disabled_output(monkeypatch) -> None:
     stdout = (
         "disabled services = {\n"
         '\t\t"com.apple.something" => false\n'
-        '\t\t"com.kitty.builder.supervisor" => disabled\n'
+        '\t\t"com.kitty.builder.supervisor" => true\n'
         "}\n"
     )
     monkeypatch.setattr(

@@ -95,6 +95,35 @@ def test_ui_build_provenance_marks_dirty_build_unverifiable(tmp_path):
     assert result["build_source"] == f"dirty:{sha}"
 
 
+def test_stamp_source_sha_fails_when_stamp_cannot_be_written(tmp_path):
+    root = _ui_repo(tmp_path)
+    source_script = (
+        Path(__file__).resolve().parents[1]
+        / "gateway"
+        / "kitty-chat"
+        / "scripts"
+        / "stamp-source-sha.mjs"
+    )
+    script = root / "gateway" / "kitty-chat" / "scripts" / "stamp-source-sha.mjs"
+    script.parent.mkdir()
+    script.write_text(source_script.read_text(encoding="utf-8"), encoding="utf-8")
+
+    stamp = root / "gateway" / "kitty-chat" / ".next" / "KITTY_SOURCE_SHA"
+    stamp.unlink()
+    stamp.mkdir()
+
+    result = subprocess.run(
+        ["node", str(script)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "could not record source identity" in result.stderr
+
+
 def test_gateway_probe_detects_uvicorn_listener_without_proc(monkeypatch, tmp_path):
     class Result:
         def __init__(self, stdout: str = "", returncode: int = 0):
