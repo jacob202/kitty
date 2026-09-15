@@ -45,6 +45,7 @@ _CURRENT_VERIFICATION_ABSTENTION = (
     "enable a current authoritative source/tool result, then retry."
 )
 _CURRENT_VERIFICATION_POLICY_MODEL = "kitty-policy/current-verification-abstention"
+_CURRENT_SOURCE_TOOL_NAMES = frozenset({"search_web", "web_search", "fetch_url"})
 
 _NO_TOOL_EXECUTOR_SYSTEM = """
 This chat runtime does not currently have a tool executor. Do not emit XML, DSML,
@@ -54,6 +55,19 @@ conversation. When execution is required, state plainly that tools are unavailab
 in this chat runtime.
 """.strip()
 
+
+
+def _has_current_source_tool(tools: object) -> bool:
+    if not isinstance(tools, list):
+        return False
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        function = tool.get("function")
+        name = function.get("name") if isinstance(function, dict) else tool.get("name")
+        if isinstance(name, str) and name in _CURRENT_SOURCE_TOOL_NAMES:
+            return True
+    return False
 
 
 def _one_line(value: object, limit: int = 120) -> str:
@@ -656,6 +670,7 @@ async def chat_completions(request: Request):
     # Open WebUI does exactly this. Kitty has no executor of its own here, so the
     # schemas and the "tools are unavailable" instruction both hinge on this.
     caller_supplies_tools = bool(body.get("tools"))
+    current_source_tool_available = _has_current_source_tool(body.get("tools"))
 
     turn_has_image = False
     for m in reversed(messages):
@@ -1022,7 +1037,7 @@ async def chat_completions(request: Request):
     )
 
     must_abstain_for_current_verification = (
-        bundle.evidence_policy.current_verification_required and not caller_supplies_tools
+        bundle.evidence_policy.current_verification_required and not current_source_tool_available
     )
     if must_abstain_for_current_verification:
         abstention = _CURRENT_VERIFICATION_ABSTENTION

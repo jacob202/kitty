@@ -920,3 +920,42 @@ async def test_clipped_evidence_receipt_only_reports_whole_visible_records(monke
     for record in bundle.injected_evidence_items:
         assert record["text"] in bundle.system
         assert f"[{record['evidence_id']}]" in bundle.system
+
+
+@pytest.mark.asyncio
+async def test_selected_health_expert_keeps_current_safety_policy_for_terse_combination_question():
+    deps = _AssemblerDeps(
+        adapters=[FakeAdapter("knowledge", items=[])],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    bundle = await assemble_context(
+        "Can I combine these?",
+        deps=deps,
+        tier="standard",
+        expert_profile="health_biology",
+    )
+
+    assert bundle.evidence_policy.safety == "high_health"
+    assert bundle.evidence_policy.task_type == "current_safety"
+    assert bundle.evidence_policy.current_verification_required is True
+
+
+@pytest.mark.asyncio
+async def test_selected_expert_fails_closed_when_knowledge_adapter_fails():
+    from gateway.knowledge import CorpusProjectionUnavailableError
+
+    deps = _AssemblerDeps(
+        adapters=[FakeAdapter("knowledge", exc=RuntimeError("expert index unavailable"))],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    with pytest.raises(CorpusProjectionUnavailableError, match="expert.*unavailable"):
+        await assemble_context(
+            "What is the procedure?",
+            deps=deps,
+            tier="standard",
+            expert_profile="automotive",
+        )

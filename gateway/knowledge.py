@@ -158,7 +158,7 @@ def _has_phrase(text: str, *phrases: str) -> bool:
     return any(phrase in lowered for phrase in phrases)
 
 
-def build_evidence_policy(query: str) -> EvidencePolicy:
+def build_evidence_policy(query: str, expert_profile: str | None = None) -> EvidencePolicy:
     """Infer bounded evidence requirements without creating a persistent expert agent."""
     text = query.lower()
     tokens = _query_tokens(query)
@@ -170,7 +170,7 @@ def build_evidence_policy(query: str) -> EvidencePolicy:
             competencies.append(name)
             reasons.append(reason)
 
-    health = bool(tokens & {
+    health = expert_profile == "health_biology" or bool(tokens & {
         "medical", "clinical", "medicine", "medication", "prescription", "drug",
         "supplement", "herbal", "symptom", "treatment", "pharmacology", "health",
     })
@@ -486,7 +486,9 @@ def validate_corpus_candidate(artifacts: dict[str, Any]) -> dict[str, Any]:
             )
 
     try:
-        with sqlite3.connect(f"file:{paths['fts_db']}?mode=ro", uri=True) as conn:
+        wal_path = paths["fts_db"].with_name(paths["fts_db"].name + "-wal")
+        sqlite_uri = f"file:{paths['fts_db']}?mode=ro" if wal_path.exists() else f"file:{paths['fts_db']}?mode=ro&immutable=1"
+        with sqlite3.connect(sqlite_uri, uri=True) as conn:
             integrity = conn.execute("PRAGMA quick_check").fetchone()
             if not integrity or integrity[0] != "ok":
                 raise CorpusProjectionUnavailableError("corpus FTS database failed quick_check")
@@ -595,69 +597,90 @@ def publish_corpus_candidate(
 ) -> dict[str, Any]:
     """Freeze a validated corpus as one immutable, content-addressed publication."""
     paths = _candidate_artifact_paths(artifacts)
-    validation = validate_corpus_candidate(artifacts)
-    artifact_receipts = {
-        key: {
-            "filename": _CORPUS_ARTIFACT_FILENAMES[key],
-            "sha256": _sha256_path(path),
-            "bytes": path.stat().st_size,
-        }
-        for key, path in paths.items()
-    }
-    candidate_id = _candidate_identity(artifact_receipts, publisher_git_commit=publisher_git_commit)
     root = Path(publication_root).expanduser()
     candidates = root / "candidates"
     candidates.mkdir(parents=True, exist_ok=True)
-    destination = candidates / candidate_id
-    receipt_data = {
-        "schema": "kitty.corpus-publication-receipt.v1",
-        "candidate_id": candidate_id,
-        "publisher_git_commit": publisher_git_commit,
-        "truth_owner": "source_manifest",
-        "policy_version": CORPUS_EVIDENCE_POLICY_VERSION,
-        "ranking_version": CORPUS_RANKING_VERSION,
-        "clinical_policy_version": CORPUS_CLINICAL_POLICY_VERSION,
-        "summary": {
-            **{key: value for key, value in validation.items() if key != "benchmark_profiles"},
-            "benchmark_profiles": sorted(validation["benchmark_profiles"]),
-        },
-        "artifacts": artifact_receipts,
-    }
-    receipt_bytes = _canonical_json_bytes(receipt_data)
-    expected_receipt_sha = hashlib.sha256(receipt_bytes).hexdigest()
 
-    if not destination.exists():
-        staging = candidates / f".{candidate_id}.staging-{uuid.uuid4().hex}"
-        staging.mkdir()
-        try:
-            for key, source in paths.items():
-                target = staging / _CORPUS_ARTIFACT_FILENAMES[key]
-                shutil.copyfile(source, target)
-                if _sha256_path(target) != artifact_receipts[key]["sha256"]:
-                    raise CorpusProjectionUnavailableError(f"published artifact copy changed bytes: {key}")
-                target.chmod(0o444)
-            receipt_path = staging / "candidate_receipt.json"
-            receipt_path.write_bytes(receipt_bytes)
-            receipt_path.chmod(0o444)
-            os.replace(staging, destination)
-            destination.chmod(0o555)
-        except Exception:
-            if staging.exists():
-                for child in staging.iterdir():
-                    child.chmod(0o644)
-                staging.rmdir() if not any(staging.iterdir()) else shutil.rmtree(staging)
-            raise
+    # SQLite WAL state is part of the committed database even though it is not
+    # present in the main .sqlite bytes. Materialize one self-contained snapshot
+    # before validation, hashing, and publication so the receipt certifies the
+    # exact rows runtime will read.
+    frozen_db = candidates / f".fts-freeze-{uuid.uuid4().hex}.sqlite"
+    source_uri = f"file:{paths['fts_db']}?mode=ro"
+    try:
+        with sqlite3.connect(source_uri, uri=True) as source_conn, sqlite3.connect(frozen_db) as frozen_conn:
+            source_conn.backup(frozen_conn)
+        frozen_paths = dict(paths)
+        frozen_paths["fts_db"] = frozen_db
+        validation = validate_corpus_candidate(frozen_paths)
+        artifact_receipts = {
+            key: {
+                "filename": _CORPUS_ARTIFACT_FILENAMES[key],
+                "sha256": _sha256_path(path),
+                "bytes": path.stat().st_size,
+            }
+            for key, path in frozen_paths.items()
+        }
+        candidate_id = _candidate_identity(artifact_receipts, publisher_git_commit=publisher_git_commit)
+        destination = candidates / candidate_id
+        receipt_data = {
+            "schema": "kitty.corpus-publication-receipt.v1",
+            "candidate_id": candidate_id,
+            "publisher_git_commit": publisher_git_commit,
+            "truth_owner": "source_manifest",
+            "policy_version": CORPUS_EVIDENCE_POLICY_VERSION,
+            "ranking_version": CORPUS_RANKING_VERSION,
+            "clinical_policy_version": CORPUS_CLINICAL_POLICY_VERSION,
+            "summary": {
+                **{key: value for key, value in validation.items() if key != "benchmark_profiles"},
+                "benchmark_profiles": sorted(validation["benchmark_profiles"]),
+            },
+            "artifacts": artifact_receipts,
+        }
+        receipt_bytes = _canonical_json_bytes(receipt_data)
+        expected_receipt_sha = hashlib.sha256(receipt_bytes).hexdigest()
 
-    receipt_path = destination / "candidate_receipt.json"
-    verified = _verify_published_receipt(str(receipt_path), expected_receipt_sha)
-    if verified.get("candidate_id") != candidate_id:
-        raise CorpusProjectionUnavailableError("published candidate directory contains a different receipt")
-    return {
-        "candidate_id": candidate_id,
-        "receipt_path": receipt_path,
-        "receipt_sha256": expected_receipt_sha,
-        "validation": validation,
-    }
+        if not destination.exists():
+            staging = candidates / f".{candidate_id}.staging-{uuid.uuid4().hex}"
+            staging.mkdir()
+            try:
+                for key, source in frozen_paths.items():
+                    target = staging / _CORPUS_ARTIFACT_FILENAMES[key]
+                    shutil.copyfile(source, target)
+                    if _sha256_path(target) != artifact_receipts[key]["sha256"]:
+                        raise CorpusProjectionUnavailableError(f"published artifact copy changed bytes: {key}")
+                    target.chmod(0o444)
+                receipt_path = staging / "candidate_receipt.json"
+                receipt_path.write_bytes(receipt_bytes)
+                receipt_path.chmod(0o444)
+                os.replace(staging, destination)
+                destination.chmod(0o555)
+            except Exception:
+                if staging.exists():
+                    for child in staging.iterdir():
+                        child.chmod(0o644)
+                    staging.rmdir() if not any(staging.iterdir()) else shutil.rmtree(staging)
+                raise
+
+        receipt_path = destination / "candidate_receipt.json"
+        verified = _verify_published_receipt(str(receipt_path), expected_receipt_sha)
+        if verified.get("candidate_id") != candidate_id:
+            raise CorpusProjectionUnavailableError("published candidate directory contains a different receipt")
+        frozen_artifacts = {
+            key: receipt_path.parent / descriptor["filename"]
+            for key, descriptor in verified["artifacts"].items()
+        }
+        frozen_validation = validate_corpus_candidate(frozen_artifacts)
+        if frozen_validation != validation:
+            raise CorpusProjectionUnavailableError("published corpus validation differs from pre-publication snapshot")
+        return {
+            "candidate_id": candidate_id,
+            "receipt_path": receipt_path,
+            "receipt_sha256": expected_receipt_sha,
+            "validation": validation,
+        }
+    finally:
+        frozen_db.unlink(missing_ok=True)
 
 
 @functools.lru_cache(maxsize=16)
@@ -1297,13 +1320,6 @@ async def search(
             return _merge_ranked_hits(corpus_hits, chunks, limit)
         return chunks[:limit]
     except Exception as exc:
-        if corpus_hits:
-            logger.warning(
-                "Local vector knowledge search failed; using corpus evidence only for query=%r: %s",
-                query,
-                exc,
-            )
-            return corpus_hits[:limit]
         logger.exception("Knowledge search failed for query=%r", query)
         raise KnowledgeSearchError(
             f"knowledge search failed for query={query!r}: {type(exc).__name__}: {exc}"

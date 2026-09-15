@@ -755,7 +755,7 @@ async def assemble_context(
     evidence_block = ""
     from gateway.knowledge import build_evidence_policy
 
-    evidence_policy = build_evidence_policy(message)
+    evidence_policy = build_evidence_policy(message, expert_profile=expert_profile)
 
     if tier != "trivial":
         graph_adapters = deps.adapters
@@ -763,6 +763,11 @@ async def assemble_context(
             graph_adapters = _default_adapters(knowledge_profile=expert_profile)
         graph = deps.graph_cls(graph_adapters)
         graph_result = await graph.search_all(message)
+        if expert_profile and Source.KNOWLEDGE.value in graph_result.degraded_stores:
+            from gateway.knowledge import CorpusProjectionUnavailableError
+            raise CorpusProjectionUnavailableError(
+                f"selected expert {expert_profile!r} evidence is unavailable"
+            )
         warnings.extend(f"memory_graph:{err}" for err in graph_result.errors)
 
         cap = 2400 if tier == "deep" else CONTEXT_TOKEN_CAP

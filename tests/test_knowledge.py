@@ -537,7 +537,7 @@ async def test_search_returns_typed_evidence_metadata(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_search_uses_active_corpus_fts_when_vector_embedding_fails(tmp_path, monkeypatch):
+async def test_default_search_surfaces_vector_failure_even_when_corpus_has_hits(tmp_path, monkeypatch):
     import json
     import sqlite3
 
@@ -619,19 +619,12 @@ async def test_search_uses_active_corpus_fts_when_vector_embedding_fails(tmp_pat
         lambda query: (_ for _ in ()).throw(RuntimeError("embedding unavailable")),
     )
 
-    hits = await knowledge.search(
-        "herbal medicine adverse effects interactions pharmacology",
-        limit=2,
-        stitch_context=False,
-    )
-
-    assert hits
-    assert hits[0]["source"] == "Historical Herbal Reference"
-    assert hits[0]["retrieval_method"] == "fts"
-    assert hits[0]["evidence"]["source_id"] == "health-src"
-    assert hits[0]["evidence"]["logical_unit_id"] == "work:health-src"
-    assert hits[0]["evidence"]["clinical_use_policy"] == "verify_current_clinical_guidance_externally_before_action"
-    assert hits[0]["metadata"]["locator_start"] == "12"
+    with pytest.raises(knowledge.KnowledgeSearchError, match="embedding unavailable"):
+        await knowledge.search(
+            "herbal medicine adverse effects interactions pharmacology",
+            limit=2,
+            stitch_context=False,
+        )
 
 @pytest.mark.asyncio
 async def test_active_corpus_fts_treats_hyphenated_query_as_literal_terms(tmp_path, monkeypatch):
@@ -1187,3 +1180,55 @@ def test_published_projection_can_query_readonly_immutable_sqlite(tmp_path, monk
 
     assert hits
     assert hits[0]["evidence"]["expert_profiles"] == ["electronics_audio"]
+
+
+def test_publish_candidate_freezes_committed_wal_state_before_hashing(tmp_path):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    db = artifacts["fts_db"]
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute("PRAGMA journal_mode=WAL").fetchone()[0].lower() == "wal"
+        conn.execute("PRAGMA wal_autocheckpoint=0")
+        conn.execute(
+            "UPDATE chunks SET retrieval_title=? WHERE source_id=?",
+            ("WAL-updated electronics reference", "source-1"),
+        )
+        conn.commit()
+        assert db.with_name(db.name + "-wal").exists()
+
+        manifest_rows = [json.loads(line) for line in artifacts["source_manifest"].read_text().splitlines()]
+        manifest_rows[0]["retrieval_title"] = "WAL-updated electronics reference"
+        artifacts["source_manifest"].write_text(
+            "\n".join(json.dumps(row) for row in manifest_rows) + "\n"
+        )
+        ingest_rows = [json.loads(line) for line in artifacts["ingest_requests"].read_text().splitlines()]
+        ingest_rows[0]["evidence"]["retrieval_title"] = "WAL-updated electronics reference"
+        artifacts["ingest_requests"].write_text(
+            "\n".join(json.dumps(row) for row in ingest_rows) + "\n"
+        )
+
+        published = knowledge.publish_corpus_candidate(
+            artifacts, tmp_path / "published", publisher_git_commit="abc123"
+        )
+    finally:
+        conn.close()
+
+    receipt = json.loads(published["receipt_path"].read_text())
+    frozen_db = published["receipt_path"].parent / receipt["artifacts"]["fts_db"]["filename"]
+    with sqlite3.connect(f"file:{frozen_db}?immutable=1", uri=True) as frozen:
+        title = frozen.execute(
+            "SELECT retrieval_title FROM chunks WHERE source_id=? LIMIT 1", ("source-1",)
+        ).fetchone()[0]
+    assert title == "WAL-updated electronics reference"
+
+    frozen_artifacts = {
+        key: published["receipt_path"].parent / desc["filename"]
+        for key, desc in receipt["artifacts"].items()
+    }
+    summary = knowledge.validate_corpus_candidate(frozen_artifacts)
+    assert summary == published["validation"]
