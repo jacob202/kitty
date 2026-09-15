@@ -2062,7 +2062,7 @@ export function HomeState({
           <summary style={homeSummaryStyle}>More context</summary>
           <div style={{ ...homeDisclosureGridStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
             {visibleTiles['what-changed'] !== false && <WhatChanged />}
-            {visibleTiles['active-projects'] !== false && <ExpertStrip onExpertClick={onExpertClick ?? (() => {})} />}
+            <ExpertStrip onExpertClick={onExpertClick ?? (() => {})} />
           </div>
         </details>
 

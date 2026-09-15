@@ -189,6 +189,7 @@ resources:
     - gateway/kitty-chat/src/state/KittyContext.tsx
     - gateway/kitty-chat/tests/ActionCard.test.tsx
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
+    - gateway/kitty-chat/tests/HomeState.test.tsx
     - gateway/kitty-chat/tests/LibraryView.test.tsx
     - gateway/kitty-chat/tests/WorkViewActions.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx

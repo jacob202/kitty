@@ -1356,6 +1356,30 @@ describe('HomeState', () => {
     expect(screen.getByText(/everything looks healthy/)).toBeInTheDocument();
   });
 
+  it('keeps experts reachable when Active Projects is hidden', () => {
+    window.localStorage.setItem('kitty-dashboard-config', JSON.stringify({ 'active-projects': false }));
+    (useExpertList as Mock).mockReturnValue({
+      data: [{
+        id: 'automotive',
+        label: 'Automotive',
+        book_count: 4,
+        tags: ['repair'],
+        formats: ['pdf'],
+        sample_title: 'Automotive repair manual',
+      }],
+      isPending: false,
+      isError: false,
+      isFetched: true,
+      refetch: vi.fn(),
+    });
+
+    render(<HomeState />);
+    window.localStorage.removeItem('kitty-dashboard-config');
+
+    expect(useExpertList).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /Automotive/i })).toBeInTheDocument();
+  });
+
   it('prioritizes daily work and collapses lower-signal context', () => {
     render(<HomeState />);
 
