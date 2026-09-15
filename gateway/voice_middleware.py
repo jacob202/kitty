@@ -47,11 +47,16 @@ class VoiceGateMiddleware(BaseHTTPMiddleware):
 
                 if modified:
                     new_body = json.dumps(data).encode("utf-8")
+                    headers = dict(response.headers)
+                    # The original response's Content-Length describes the unfiltered
+                    # bytes. Let Starlette recompute it for the rewritten body or
+                    # Uvicorn will reject the response on the wire.
+                    headers.pop("content-length", None)
                     return Response(
                         content=new_body,
                         status_code=response.status_code,
-                        headers=dict(response.headers),
-                        media_type="application/json"
+                        headers=headers,
+                        media_type="application/json",
                     )
             except Exception:
                 # Fallback to original body if JSON parsing fails
