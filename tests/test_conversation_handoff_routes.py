@@ -359,3 +359,45 @@ def test_resume_does_not_reconcile_without_exact_pending_gateway_binding(
 
     assert response.status_code == 200
     assert reconciled == []
+
+
+def test_resume_reconciles_completed_job_despite_unrelated_context_failure(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`ok: false` from an unrelated degraded source must not strand the result.
+
+    Startup recovery is one-shot and may run before the Builder task finishes.
+    If an unrelated cold-start source stays degraded, gating on the aggregate
+    receipt would leave the reviewed result unbound — and the Mission
+    unacceptable — on every subsequent resume poll.
+    """
+    reconciled: list[str] = []
+    monkeypatch.setattr(
+        conversation_handoff,
+        "resume",
+        lambda **kwargs: {
+            "ok": False,
+            "degraded_sources": ["calendar"],
+            "builder_task_complete": True,
+            "awaiting_acceptance": True,
+            "mission": {"id": "builder-initiative-1"},
+            "mission_acceptance": {
+                "state": "unreviewed",
+                "mission_id": "gateway-conversation:builder-initiative-1",
+                "reviewer_id": None,
+                "error": None,
+            },
+        },
+    )
+
+    def reconcile(mission_id: str) -> dict:
+        reconciled.append(mission_id)
+        return {"status": "candidate_bound"}
+
+    monkeypatch.setattr(mission_runtime, "reconcile_result_candidate", reconcile)
+    response = client.get(
+        "/builder/conversation/resume", params={"mission_id": "builder-initiative-1"}
+    )
+
+    assert response.status_code == 200
+    assert reconciled == ["gateway-conversation:builder-initiative-1"]

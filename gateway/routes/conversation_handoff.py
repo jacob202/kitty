@@ -129,9 +129,14 @@ def resume_builder_job(
         )
         acceptance = result.get("mission_acceptance") if isinstance(result, dict) else None
         gateway_mission_id = acceptance.get("mission_id") if isinstance(acceptance, dict) else None
+        # Gate on the exact Builder/Mission facts, not the aggregate receipt.
+        # `ok: false` can mean an unrelated cold-start source is degraded while
+        # these three fields are still authoritative. Startup recovery is
+        # one-shot and may have run before the task finished, so suppressing
+        # reconciliation here would leave the reviewed result unbound — and the
+        # Mission unacceptable — for as long as the unrelated failure persists.
         if (
             isinstance(result, dict)
-            and result.get("ok") is True
             and result.get("builder_task_complete") is True
             and result.get("awaiting_acceptance") is True
             and isinstance(gateway_mission_id, str)
