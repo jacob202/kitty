@@ -201,7 +201,6 @@ resources:
     - tests/test_pr_scope.py
   repo:maintenance:
     paths:
-    - main
     - opencode.jsonc
     - scripts/agent_council.py
     - scripts/nightly_packet_drain.sh
