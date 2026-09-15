@@ -537,6 +537,30 @@ async def test_search_returns_typed_evidence_metadata(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_search_rejects_malformed_evidence_metadata(monkeypatch):
+    from gateway import knowledge
+
+    collection = MagicMock()
+    collection.count.return_value = 1
+    collection.query.return_value = {
+        "documents": [["corrupted provenance row"]],
+        "metadatas": [[{
+            "source": "broken.txt",
+            "source_id": "broken-source",
+            "logical_unit_id": "work:broken",
+            "domains_json": "{not-json",
+        }]],
+        "distances": [[0.1]],
+    }
+    monkeypatch.setattr(knowledge, "_search_active_corpus_fts", lambda *args, **kwargs: None)
+    monkeypatch.setattr(knowledge.archivist, "_embed_cached", lambda _query: (0.1, 0.2))
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: collection)
+
+    with pytest.raises(knowledge.KnowledgeSearchError, match="JSONDecodeError"):
+        await knowledge.search("corrupted provenance", limit=1, stitch_context=False)
+
+
+@pytest.mark.asyncio
 async def test_default_search_surfaces_vector_failure_even_when_corpus_has_hits(tmp_path, monkeypatch):
     import json
     import sqlite3
@@ -906,6 +930,23 @@ def test_build_evidence_policy_routes_task_authority_and_freshness(
     assert policy.authority_requirement == authority
     assert policy.diversity == diversity
     assert policy.current_verification_required == (freshness == "current_external_required")
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Can I take warfarin with ginkgo?",
+        "What dose of vitamin D should I take?",
+    ],
+)
+def test_health_expert_actionable_medication_questions_require_current_verification(query):
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(query, expert_profile="health_biology")
+
+    assert policy.task_type == "current_safety"
+    assert policy.freshness == "current_external_required"
+    assert policy.current_verification_required is True
 
 
 def test_evidence_policy_uses_token_boundaries_not_substring_domain_matches():

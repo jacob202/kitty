@@ -226,9 +226,14 @@ def build_evidence_policy(query: str, expert_profile: str | None = None) -> Evid
         reasons.append("mutable_rules_or_benefit_query")
 
     exact_signal = bool(tokens & {"exact", "torque", "specification", "spec", "bias"})
+    actionable_health_use = (
+        bool(tokens & {"dose", "dosage", "dosing"})
+        or ("take" in tokens and bool(tokens & {"can", "should", "with", "how", "when", "much"}))
+    )
     health_safety = health and (
         bool(tokens & {"safe", "safety", "interaction", "interactions", "combine", "combined"})
         or ("prescription" in tokens and ("supplement" in tokens or "herbal" in tokens))
+        or actionable_health_use
     )
 
     if health_safety:
@@ -1295,12 +1300,7 @@ async def search(
                 "retrieval_method": "vector",
             }
             if meta.get("source_id") and meta.get("logical_unit_id"):
-                try:
-                    chunk_data["evidence"] = EvidenceMetadata.from_chroma(meta).model_dump()
-                except Exception:
-                    logger.warning(
-                        "Ignoring malformed evidence metadata for source=%r", meta.get("source")
-                    )
+                chunk_data["evidence"] = EvidenceMetadata.from_chroma(meta).model_dump()
 
             if (
                 stitch_context

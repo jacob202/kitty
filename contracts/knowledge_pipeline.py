@@ -55,10 +55,7 @@ class EvidenceMetadata(BaseModel):
         for field in cls.model_fields:
             if field in {"domains", "subjects", "expert_profiles"}:
                 raw = metadata.get(f"{field}_json", "[]")
-                try:
-                    data[field] = json.loads(raw) if isinstance(raw, str) else list(raw or [])
-                except (TypeError, json.JSONDecodeError):
-                    data[field] = []
+                data[field] = json.loads(raw) if isinstance(raw, str) else list(raw or [])
             elif field in metadata:
                 data[field] = metadata[field]
         return cls.model_validate(data)
