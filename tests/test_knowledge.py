@@ -661,12 +661,15 @@ async def test_active_corpus_fts_treats_hyphenated_query_as_literal_terms(tmp_pa
         "status":"active", "fts_db":str(db), "source_manifest":str(manifest)
     }))
     monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+    monkeypatch.setattr(
+        knowledge.archivist,
+        "_embed_cached",
+        lambda _query: (_ for _ in ()).throw(AssertionError("FTS search must not use embeddings")),
+    )
 
-    hits = await knowledge.search(
+    hits = knowledge._search_active_corpus_fts(
         "How do I get the in-tank gasoline sending unit out of a pickup?",
-        limit=3,
-        collections=["expert_corpus_evidence"],
-        stitch_context=False,
+        3,
     )
     assert hits
     assert hits[0]["source"] == "Vehicle Manual"
