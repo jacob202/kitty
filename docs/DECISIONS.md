@@ -45,5 +45,6 @@ A plan, issue, packet, report, metric, or chat statement does not become archite
 | D37 | Builder crash recovery follows a durable recovery contract | [0038](adr/0038-builder-crash-recovery-durability.md) |
 | D38 | Native Kitty owns the canonical product surface; Open WebUI is compatibility/reference software | [0039](adr/0039-kitty-native-product-surface.md) |
 | D39 | Image Lab uses FLUX.2-first intent compilation and native references | [0040](adr/0040-image-lab-flux2-execution-architecture.md) |
+| D40 | Sensitive scope clears deterministically; human approval is reserved for irreversible scope | [0042](adr/0042-deterministic-sensitive-scope-approval.md) |
 
 The full status/date index is in [`docs/adr/README.md`](adr/README.md). Older combined decision material remains historical in [`docs/retired/DECISIONS_AND_ROADMAP.md`](retired/DECISIONS_AND_ROADMAP.md).

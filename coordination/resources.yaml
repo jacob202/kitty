@@ -204,10 +204,13 @@ resources:
     - tests/test_work_projection.py
   review:agent-workflow:
     paths:
+    - .github/pull_request_template.md
     - .github/workflows/pr-agent-review.yml
+    - scripts/pr_policy.py
     - scripts/pr_review.py
     - scripts/pr_review_gate.py
     - tests/test_ci_gate_workflows.py
+    - tests/test_pr_policy.py
     - tests/test_pr_review.py
     - tests/test_pr_review_file_chunks.py
     - tests/test_pr_review_gate.py

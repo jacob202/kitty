@@ -44,11 +44,13 @@ See `docs/PRODUCT_ACCEPTANCE.md`.
 - [ ] I kept the diff scoped to the stated task.
 - [ ] Sensitive scope has explicit final-head approval when required.
 
-Sensitive scope (auth/security, CI policy, approval/action boundaries, publication/destructive paths, secrets/env, dependency roots) requires `risk/approved` plus:
+Sensitive scope (auth/security, CI policy, approval/action boundaries, publication/destructive paths, secrets/env, dependency roots, the Builder control plane) requires trusted independent review for the exact current head. Automated review is advisory for ordinary PRs.
+
+The irreversible subset of sensitive scope — credentials/auth/security, secrets/env, spend controls, purge/destructive paths, dependency roots, and the review gate and CI themselves — additionally requires `risk/approved` plus:
 
 <!-- Risk approval format: Risk approval: APPROVE <full-head-SHA> — <reason> -->
 
-It also requires trusted independent review for the exact current head. Automated review is advisory for ordinary PRs. If independent review is unavailable or a finding is independently proven false, the explicit exact-head escape hatch is:
+Everything else that is sensitive clears on the trusted exact-head review alone; it never waits on a human signature. If independent review is unavailable or a finding is independently proven false, the explicit exact-head escape hatch is:
 
 <!-- Review override format: Review override: APPROVE <full-head-SHA> — <reason> -->
 

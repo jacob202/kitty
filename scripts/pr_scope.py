@@ -36,8 +36,9 @@ DOC_SUFFIXES = (".md", ".mdx")
 FRONTEND_PREFIX = "gateway/kitty-chat/"
 
 # Sensitive scope: changes that can alter what the delivery pipeline trusts, what
-# it can reach, or what it can spend. These require label + exact-head approval +
-# trusted independent review in `scripts/pr_policy.py`.
+# it can reach, or what it can spend. Sensitive scope requires a trusted
+# exact-head independent review in `scripts/pr_policy.py`; only the narrower
+# IRREVERSIBLE_PATTERNS subset below also requires an exact-head human approval.
 RISK_PATTERNS = (
     re.compile(r"^\.github/workflows/"),
     re.compile(r"^\.github/dependabot\.yml$"),
@@ -60,6 +61,28 @@ RISK_PATTERNS = (
     re.compile(r"^pyproject\.toml$"),
 )
 
+# Irreversible scope: the narrow subset of sensitive scope that still requires an
+# explicit exact-head human approval in `scripts/pr_policy.py`. The line is drawn
+# at changes a later commit cannot simply undo, or that move money, credentials,
+# or the delivery pipeline itself. Everything else that is sensitive clears on a
+# trusted exact-head independent review alone, so one operator is never the
+# bottleneck for ordinary broad-scope work.
+IRREVERSIBLE_PATTERNS = (
+    re.compile(r"^\.github/workflows/"),
+    re.compile(r"^\.github/dependabot\.yml$"),
+    re.compile(r"^scripts/pr_(?:policy|review|review_gate|scope)\.py$"),
+    re.compile(r"^gateway/routes/auth", re.I),
+    re.compile(r"^gateway/auth", re.I),
+    re.compile(r"^gateway/security", re.I),
+    re.compile(r"^gateway/.*secret", re.I),
+    re.compile(r"^config/(?:compute_governor|providers)\.json$"),
+    re.compile(r"^gateway/(?:compute_governor|paid_review_admission|model_routing)\.py$"),
+    re.compile(r"^scripts/purge_.*\.py$"),
+    re.compile(r"^.*\.env(?:\..*)?$"),
+    re.compile(r"^requirements.*\.txt$"),
+    re.compile(r"^pyproject\.toml$"),
+)
+
 USER_FACING_PATTERNS = (re.compile(r"^gateway/kitty-chat/(?:src|public)/"),)
 
 # GitHub's compare endpoint returns at most 300 files. A truncated comparison
@@ -75,6 +98,12 @@ def is_documentation(path: str) -> bool:
 
 def risky_files(paths: list[str]) -> list[str]:
     return [path for path in paths if any(pattern.search(path) for pattern in RISK_PATTERNS)]
+
+
+def irreversible_files(paths: list[str]) -> list[str]:
+    return [
+        path for path in paths if any(pattern.search(path) for pattern in IRREVERSIBLE_PATTERNS)
+    ]
 
 
 def is_user_facing(paths: list[str]) -> bool:

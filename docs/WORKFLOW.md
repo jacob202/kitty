@@ -22,9 +22,12 @@ comments, or an external model verdict.
      code is never executed with repository tokens or review-model credentials.
    - Native UI source/public changes require completed product acceptance.
    - Sensitive scope (auth/security, CI policy, approval/action boundaries,
-     publication/destructive paths, secrets/env, dependency roots) requires
-     `risk/approved`, an exact-head Risk approval receipt, and trusted
-     independent review for the exact current head.
+     publication/destructive paths, secrets/env, dependency roots, the Builder
+     control plane) requires trusted independent review for the exact current
+     head. Its irreversible subset — credentials, secrets/env, spend controls,
+     destructive paths, dependency roots, and the gate and CI themselves —
+     additionally requires `risk/approved` and an exact-head Risk approval
+     receipt. No other sensitive change waits on a human signature.
    - Large PR size is advisory rather than a second approval ceremony.
 3. **Deterministic merge evidence**
    - `.github/workflows/tests.yml` keeps Python `pytest`, Ruff, and mypy as hard
@@ -78,7 +81,7 @@ stable gate names were activated.
 frontend, and sensitive. `tests.yml` reads it to choose required jobs,
 `pr-agent-review.yml` reads it to decide whether independent model review is
 needed, and `scripts/pr_policy.py` imports its patterns for the trust gate. It is
-itself sensitive scope, so it cannot be edited without label, exact-head
+itself irreversible scope, so it cannot be edited without label, exact-head
 approval, and independent review.
 
 ### The three validation clocks

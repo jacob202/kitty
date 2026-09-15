@@ -145,8 +145,12 @@ not something CI may invent.
 
 **Enforcement:** `policy-gate` derives sensitive and native-UI scope from the
 actual changed paths, through the one canonical classifier in
-`scripts/pr_scope.py` that also selects required CI jobs. Sensitive scope requires `risk/approved`, an exact-head
-Risk approval receipt, and trusted independent review. Native UI source/public
+`scripts/pr_scope.py` that also selects required CI jobs. Sensitive scope requires
+trusted exact-head independent review. Its irreversible subset (credentials,
+secrets/env, spend controls, destructive paths, dependency roots, and the gate
+and CI themselves) additionally requires `risk/approved` and an exact-head Risk
+approval receipt; everything else that is sensitive never waits on a human
+signature. Native UI source/public
 changes require the product-acceptance evidence block. `merge-gate` requires
 code checks only for code-bearing PRs and browser smoke only for non-documentation
 frontend changes.

@@ -2,7 +2,9 @@
 """Trusted, deterministic merge policy for Kitty pull requests.
 
 Routine changes are governed by deterministic CI. Sensitive changes additionally
-require explicit exact-head human approval and trusted independent review.
+require a trusted exact-head independent review; only the irreversible subset
+(credentials, spend controls, deletion paths, dependency manifests, and the gate
+and CI themselves) also requires explicit exact-head human approval.
 Product acceptance is required only when native UI source changes.
 """
 
@@ -87,6 +89,10 @@ def _risky_files(changed_files: list[str]) -> list[str]:
     return pr_scope.risky_files(changed_files)
 
 
+def _irreversible_files(changed_files: list[str]) -> list[str]:
+    return pr_scope.irreversible_files(changed_files)
+
+
 def _is_user_facing(changed_files: list[str]) -> bool:
     return pr_scope.is_user_facing(changed_files)
 
@@ -143,13 +149,17 @@ def evaluate_policy(
 
     risky = _risky_files(changed_files)
     if risky:
-        if RISK_APPROVED_LABEL not in labels:
-            violations.append(f"risky scope requires label `{RISK_APPROVED_LABEL}`")
-        if _exact_head_approval(body, "Risk approval", head_sha) is None:
-            violations.append(
-                "risky scope requires exact-head risk approval: "
-                "`Risk approval: APPROVE <full-head-SHA> — <reason>`"
-            )
+        # Human approval is reserved for the irreversible subset. Every other
+        # sensitive change clears on the trusted exact-head review alone, so a
+        # single operator is never the bottleneck for broad-scope work.
+        if _irreversible_files(changed_files):
+            if RISK_APPROVED_LABEL not in labels:
+                violations.append(f"risky scope requires label `{RISK_APPROVED_LABEL}`")
+            if _exact_head_approval(body, "Risk approval", head_sha) is None:
+                violations.append(
+                    "risky scope requires exact-head risk approval: "
+                    "`Risk approval: APPROVE <full-head-SHA> — <reason>`"
+                )
         if not independent_review_approved:
             violations.append(
                 "risky scope requires trusted independent review approval for the exact current head"
