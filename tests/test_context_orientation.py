@@ -1111,3 +1111,307 @@ def test_room_briefing_exposes_candidate_evidence(monkeypatch):
         "builder:task:kb_1"
     ]
     assert scoped["candidate_evidence"]["filter_total"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Live GitHub evidence is opt-in, bounded, and explicitly unavailable on failure
+# ---------------------------------------------------------------------------
+
+
+def test_github_evidence_is_absent_unless_a_caller_asks_for_it(monkeypatch):
+    _stub_builder(monkeypatch, [_task()], links=[{"pr_number": 900, "head_sha": HEAD_A}])
+
+    items = co._collect_candidate_evidence({"head": HEAD_A})
+    assert not any(item["owner"] == "github" for item in items)
+
+    evidence = co.collect_orientation_evidence("chatgpt")
+    assert not any(
+        item.get("owner") == "github" for item in evidence.candidate_evidence
+    )
+
+
+def test_explicit_interactive_pr_scope_is_included_in_live_refresh(monkeypatch):
+    calls: list[int] = []
+    monkeypatch.setattr(context_receipt, "build_context_receipt", lambda *a, **k: _receipt())
+    monkeypatch.setattr(agent_coordination, "read_current_claims", lambda **k: [])
+    monkeypatch.setattr(agent_workspace, "list_inbox", lambda *a, **k: [])
+    monkeypatch.setattr(agent_workspace, "list_presence", lambda *a, **k: [])
+    monkeypatch.setattr(agent_workspace, "list_events", lambda *a, **k: [])
+
+    def pr_lookup(number: int) -> dict:
+        calls.append(number)
+        return {"state": co.SOURCE_CURRENT, "number": number, "head_sha": HEAD_A, "pr_state": "OPEN"}
+
+    evidence = co.collect_orientation_evidence(
+        "chatgpt",
+        include_builder=False,
+        explicit_scope={"scope_key": "github:pr:872"},
+        github_lookup=pr_lookup,
+        issue_lookup=None,
+        coordination_issue=None,
+    )
+
+    assert calls == [872]
+    assert any(item.get("locator") == "github:pr:872" for item in evidence.candidate_evidence)
+
+
+def test_check_rollup_preserves_every_returned_check():
+    rollup = [{"name": f"check-{index}", "conclusion": "SUCCESS"} for index in range(45)]
+
+    normalized = co._normalize_check_rollup(rollup)
+
+    assert normalized is not None
+    assert normalized["counts"]["success"] == 45
+    assert len(normalized["checks"]) == 45
+    assert normalized["checks"][-1]["name"] == "check-44"
+
+
+def test_failed_gh_read_preserves_exit_status_arguments_and_bounded_response(monkeypatch):
+    class Result:
+        returncode = 4
+        stderr = "authentication failed\nsecond diagnostic line"
+        stdout = "partial response context"
+
+    monkeypatch.setattr(co.shutil, "which", lambda _name: "/usr/bin/gh")
+    monkeypatch.setattr(co.subprocess, "run", lambda *a, **k: Result())
+
+    payload, error = co._run_gh_json(["gh", "pr", "view", "872", "--json", "state"])
+
+    assert payload is None
+    assert error is not None
+    assert "exit 4" in error
+    assert "pr view 872" in error
+    assert "second diagnostic line" in error
+    assert "partial response context" in error
+
+
+def test_github_evidence_items_bind_a_pr_and_the_coordination_marker():
+    def pr_lookup(number):
+        return {
+            "state": co.SOURCE_CURRENT,
+            "number": number,
+            "head_sha": HEAD_A,
+            "pr_state": "OPEN",
+            "url": f"https://example.invalid/{number}",
+            "review_decision": "APPROVED",
+            "merged": False,
+        }
+
+    def issue_lookup(number):
+        return {
+            "state": co.SOURCE_CURRENT,
+            "number": number,
+            "issue_state": "OPEN",
+            "title": "interactive ownership",
+            "labels": ["coordination"],
+        }
+
+    items = co._github_evidence_items(
+        pr_lookup, issue_lookup, [900], co.COORDINATION_ISSUE_NUMBER
+    )
+    by_locator = {item["locator"]: item for item in items}
+    assert set(by_locator) == {"github:pr:900", "github:issue:490"}
+
+    pr = by_locator["github:pr:900"]
+    assert pr["candidate_ref"] == HEAD_A
+    assert pr["pr_state"] == "OPEN"
+    assert pr["review_decision"] == "APPROVED"
+    assert "source_available" not in pr
+
+    marker = by_locator["github:issue:490"]
+    assert marker["kind"] == "coordination_marker"
+    assert marker["issue_state"] == "OPEN"
+    assert marker["labels"] == ["coordination"]
+    # An issue is not candidate-bound, so the projection reports that honestly.
+    assert marker["candidate_ref"] is None
+
+
+def test_a_github_failure_is_an_explicit_unavailable_item_not_an_empty_healthy_one():
+    def lookup(_number):
+        raise RuntimeError("gh exploded")
+
+    items = co._github_evidence_items(lookup, lookup, [900], None)
+    assert len(items) == 1
+    assert items[0]["source_available"] is False
+    assert "gh exploded" in items[0]["diagnostic"]
+
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
+    projected = orientation["candidate_evidence"]["items"][0]
+    assert projected["state"] == co.SOURCE_UNAVAILABLE
+
+
+def test_live_github_lookup_reports_an_explicit_facet_for_every_failure(monkeypatch):
+    lookup = co.live_github_lookup()
+    assert lookup(0)["state"] == co.SOURCE_UNKNOWN
+
+    monkeypatch.setattr(co.shutil, "which", lambda _name: None)
+    missing = lookup(900)
+    assert missing["state"] == co.SOURCE_UNAVAILABLE
+    assert "not installed" in missing["reason"]
+
+    monkeypatch.setattr(co.shutil, "which", lambda _name: "/usr/bin/gh")
+
+    class Result:
+        def __init__(self, returncode=0, stdout="", stderr=""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    monkeypatch.setattr(co.subprocess, "run", lambda *a, **k: Result(1, "", "no such PR"))
+    assert "no such PR" in lookup(900)["reason"]
+
+    monkeypatch.setattr(co.subprocess, "run", lambda *a, **k: Result(0, "not json", ""))
+    assert lookup(900)["state"] == co.SOURCE_UNAVAILABLE
+
+    def explode(*args, **kwargs):
+        raise OSError("gh missing at exec time")
+
+    monkeypatch.setattr(co.subprocess, "run", explode)
+    assert lookup(900)["state"] == co.SOURCE_UNAVAILABLE
+
+    monkeypatch.setattr(
+        co.subprocess,
+        "run",
+        lambda *a, **k: Result(0, json.dumps({"headRefOid": HEAD_A, "state": "OPEN"}), ""),
+    )
+    live = lookup(900)
+    assert live["state"] == co.SOURCE_CURRENT
+    assert live["head_sha"] == HEAD_A
+
+
+def test_live_issue_lookup_queries_issues_not_pull_requests(monkeypatch):
+    seen: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+        stderr = ""
+        stdout = json.dumps(
+            {
+                "number": 490,
+                "state": "OPEN",
+                "title": "interactive ownership",
+                "updatedAt": "2026-09-14T00:00:00Z",
+                "labels": [{"name": "coordination"}],
+            }
+        )
+
+    monkeypatch.setattr(co.shutil, "which", lambda _name: "/usr/bin/gh")
+    monkeypatch.setattr(co.subprocess, "run", lambda args, **k: seen.append(args) or Result())
+
+    facet = co.live_issue_lookup()(490)
+
+    assert seen[0][1] == "issue", seen[0]
+    assert facet["state"] == co.SOURCE_CURRENT
+    assert facet["issue_state"] == "OPEN"
+    assert facet["labels"] == ["coordination"]
+    assert "head_sha" not in facet
+
+
+def test_coordination_marker_is_not_duplicated_as_a_pr():
+    calls: list[int] = []
+
+    def lookup(number):
+        calls.append(number)
+        return {"state": co.SOURCE_CURRENT, "number": number, "head_sha": HEAD_A}
+
+    items = co._github_evidence_items(lookup, lookup, [490, 900], co.COORDINATION_ISSUE_NUMBER)
+
+    assert calls == [900, 490]
+    assert {item["locator"] for item in items} == {"github:pr:900", "github:issue:490"}
+
+
+def test_a_successful_refresh_is_reflected_in_the_github_source():
+    items = [
+        {
+            "source": "github",
+            "owner": "github",
+            "kind": "pull_request",
+            "locator": "github:pr:900",
+            "candidate_ref": HEAD_A,
+        }
+    ]
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
+
+    assert orientation["sources"]["github"]["state"] == co.SOURCE_CURRENT
+    assert "github" not in orientation["degraded"]
+
+
+def test_a_failed_refresh_is_unavailable_not_healthy_and_not_unknown():
+    items = [
+        {
+            "source": "github",
+            "owner": "github",
+            "kind": "pull_request",
+            "locator": "github:pr:900",
+            "candidate_ref": None,
+            "source_available": False,
+            "diagnostic": "the gh CLI is not installed in this environment",
+        }
+    ]
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=items))
+
+    source = orientation["sources"]["github"]
+    assert source["state"] == co.SOURCE_UNAVAILABLE
+    assert "not installed" in source["diagnostic"]
+    assert "github" in orientation["degraded"]
+
+
+def test_no_refresh_still_reports_unknown():
+    orientation = _build("chatgpt", evidence=_evidence(candidate_evidence=[]))
+
+    assert orientation["sources"]["github"]["state"] == co.SOURCE_UNKNOWN
+    assert "no live GitHub query" in orientation["sources"]["github"]["diagnostic"]
+
+
+def test_live_lookup_runs_gh_without_ambient_tokens_from_the_checkout(monkeypatch):
+    seen: dict = {}
+
+    class Result:
+        returncode = 0
+        stderr = ""
+        stdout = json.dumps({"number": 900, "headRefOid": HEAD_A, "state": "OPEN",
+                             "statusCheckRollup": [
+                                 {"name": "pytest", "conclusion": "SUCCESS"},
+                                 {"name": "lint", "conclusion": ""},
+                             ]})
+
+    def capture(args, **kwargs):
+        seen["args"] = args
+        seen.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr(co.shutil, "which", lambda _name: "/usr/bin/gh")
+    monkeypatch.setenv("GITHUB_TOKEN", "ambient-but-untrusted")
+    monkeypatch.setenv("GH_TOKEN", "ambient-but-untrusted")
+    monkeypatch.setattr(co.subprocess, "run", capture)
+
+    facet = co.live_github_lookup()(900)
+
+    # gh prefers an ambient token over keyring auth, so it must not be inherited.
+    assert "GITHUB_TOKEN" not in seen["env"]
+    assert "GH_TOKEN" not in seen["env"]
+    # A stdio client can be launched outside the checkout, so pin the cwd.
+    assert seen["cwd"] == str(co._REPO_ROOT)
+    assert "--repo" not in seen["args"]
+
+    assert facet["checks"]["counts"]["success"] == 1
+    assert facet["checks"]["counts"]["pending"] == 1
+    assert [check["name"] for check in facet["checks"]["checks"]] == ["pytest", "lint"]
+
+
+def test_live_lookup_passes_an_explicit_repo_when_given(monkeypatch):
+    seen: dict = {}
+
+    class Result:
+        returncode = 0
+        stderr = ""
+        stdout = json.dumps({"number": 900, "headRefOid": HEAD_A, "state": "OPEN"})
+
+    monkeypatch.setattr(co.shutil, "which", lambda _name: "/usr/bin/gh")
+    monkeypatch.setattr(
+        co.subprocess, "run", lambda args, **kwargs: seen.update(args=args) or Result()
+    )
+
+    co.live_github_lookup("jacob202/kitty")(900)
+
+    assert seen["args"][-2:] == ["--repo", "jacob202/kitty"]
