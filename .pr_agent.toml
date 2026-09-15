@@ -1,0 +1,22 @@
+[github_app]
+pr_commands = ["/agentic_review"]
+
+[review_agent]
+comments_location_policy = "both"
+inline_comments_severity_threshold = 3
+issues_user_guidelines = """
+Prioritize actionable defects supported by the changed code and current repository evidence.
+Focus on correctness, security, reliability, data integrity, and behavior/regression risk.
+For each finding, state the affected behavior or invariant, exact changed location, triggering
+condition, consequence, and evidence; distinguish confirmed defects from plausible concerns.
+Do not report naming, formatting, generic best-practice, or speculative refactor suggestions.
+Passing tests are evidence, not proof of runtime or product acceptance. Do not report process,
+approval, or ownership policy unless the changed code violates a concrete enforcement boundary.
+"""
+compliance_user_guidelines = """
+Check concrete violations involving secrets or credentials, unsafe permissions, destructive data
+operations, unauthorized publication or spend, approval bypasses, and other repository security
+boundaries. Use the current repository policy as authority and cite the exact file and line.
+Never infer human approval from a bot identity. Report only violations supported by changed code
+and repository evidence; do not request workflow changes for abstract policy preferences.
+"""
