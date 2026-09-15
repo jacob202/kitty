@@ -1,127 +1,126 @@
-# Session State — PR conflicts review and close-out
+# Kitty Agent State
 
 <!-- kitty-state
 {
-  "schema_version": 2,
-  "updated_at": "2026-08-31T20:55:00+00:00",
-  "head_sha": "f5b2f38c098dcdd7f46d1d58abb672ef15b75c5f",
-  "branch": "claude/pr-conflicts-review-8v3ms2",
-  "worktree": ".",
-  "status": "blocked",
-  "completed_items": [
-    "Surveyed all 9 open PRs (#722,#725,#726,#727,#728,#729,#730,#731,#732,#733) for real git merge conflicts: found none",
-    "Diagnosed each PR's actual blocker via mergeable_state, check_runs, and job logs rather than assuming conflicts",
-    "Merged PR #728 (docs/packets INSTANT wave) into main as c11c6f1 -- clean, all checks green, docs-only",
-    "Fixed PR #722 (image module rename): 3 ruff import-order errors, verified against CI's exact lint scope (gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py, not all of scripts/); merged main into its branch twice as main advanced mid-session; pushed both fixes to a5/image-module-rename directly",
-    "Merged PR #722 into main as f5b2f38",
-    "Held PR #725 (deadline escalation) for Jacob: policy-gate now green after its acceptance checkboxes were completed, looks ready but not merged without his go-ahead",
-    "Held PR #726 (capability launcher, Wave 1) for Jacob: policy-gate genuinely blocked -- its description has no Product acceptance section at all; did not fabricate one",
-    "Held the 6-wave wow-campaign stack (#727 Artifact Canvas, #729 Activity Center, #730 Project Workspace, #731 Chat action cards, #732 @-mentions, #733 Home 'Kitty noticed') for Jacob: each is stacked on the PR before it, not on main, and none can merge until #726 lands with real acceptance evidence; explicitly did not merge or approve any of them per the standing rule that autonomous overnight runs need Jacob's explicit approval before merge",
-    "Resolved the carried dead-eslint-config recommendation (deferred 3x): gateway/kitty-chat/eslint.config.mjs was already deleted on main in commit b2bbe58 on 2026-08-29; dropped, not re-carried",
-    "Recorded KB effectiveness receipt kbr_a3011375ba018d0a0aef and one workflow-learning signal (pr-policy-gate-missing-acceptance, observe status)",
-    "Staged two verified findings to docs/session-notes/2026-08-31-kb-payload.md since ~/kb is absent in this cloud session"
-  ],
-  "blockers": [],
-  "next_action": "ready:pr-725-merge",
-  "invalidation_conditions": [
-    "PR #725 gets merged or closed by anyone else",
-    "PR #726's description gains a real Product acceptance section, changing its merge eligibility",
-    "Any of #727/#729/#730/#731/#732/#733 gets retargeted to main or merged"
-  ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null,
+  "blockers": [
+    "#874 needs a risk label, an exact-head approval and a review override, all of which only Jacob can originate. Recommendation from this review is to close it and switch to the already-built local reviewer instead.",
+    "#870 (R-3) is blocked on 6 unresolved reviewer threads; the end-to-end product journey has still never been driven.",
+    "Builder autonomy stays off: ~/Library/LaunchAgents/com.kitty.builder.supervisor.plist still points ProgramArguments[1] and WorkingDirectory at /Users/jacobbrizinnski/Projects/kitty-autonomy-runtime, which does not exist. Editing LaunchAgents was blocked by the sandbox, so this needs Jacob or an explicit permission."
+  ],
+  "branch": "main",
+  "completed_items": [
+    "RESTORED the product. Stopped the scratch stack (pids proven to own 8100/8101/4100 before signalling, per the 2026-09-01 kill-by-port correction), fast-forwarded main 505bdc09 -> a98f2fee, rebuilt the UI because the existing .next predated the R-2 source changes, and started gateway + LiteLLM + UI on canonical 8000/8001/4000.",
+    "VERIFIED the restore: /health ok with litellm_reachable true, UI HTTP 200, ./kitty status reports build source a98f2fee with freshness checkout-current and gateway-truth PASS, ./kitty doctor 39 PASS / 8 WARN / 0 FAIL (was 2 FAIL).",
+    "VERIFIED Jacob's real data is intact and served: data/kitty/kitty.db holds 5 projects, 16 chat conversations, 140 artifacts.",
+    "CLEANED the workspace: 26 worktrees -> 5, 87 branches -> 61. Every dirty worktree's uncommitted diff was preserved as a patch under ~/kb/evidence/worktree-cleanup-20260914/ before removal. Only provably-merged branches were deleted with git branch -d; squash-merge candidates were left alone because git cherry cannot distinguish them from genuine unlanded work.",
+    "COMMITTED 196f3ae6: four skills (catchup, debug-fix, remember, second-opinion) and three standing preferences that had been untracked for days.",
+    "FOUND the identity defect behind the blocked commit: gateway/agent_coordination_cli.py:98 defaults KITTY_AGENT_PARTICIPANT to 'chatgpt', so any agent without that env var commits as chatgpt, and .git/kitty-agent-session held an expired chatgpt session. Worked around by claiming docs:roadmap as claude; the default itself is unfixed."
+  ],
+  "head_sha": "196f3ae6ea106bee4e3531dfe79f5b135cb362a5",
+  "invalidation_conditions": [
+    "origin/main advances past a98f2fee.",
+    "#874 is merged or closed, or #870's reviewer threads are resolved.",
+    "The canonical stack is stopped or restarted, which changes every runtime observation here."
+  ],
+  "next_action": "ready:switch-reviewers",
   "parallel_work": [
     {
-      "kind": "pr",
-      "ref": "#734 fix/builder-reviewer-seatbelt-staging-20260831",
-      "owner": "other",
-      "observed_at": "2026-08-31T20:44:00+00:00",
+      "kind": "pull_request",
+      "observed_at": "2026-09-15T02:15:00Z",
+      "owner": "other-lane",
+      "ref": "#870",
       "touches": [
-        "gateway/builder_initiative.py",
-        "gateway/builder_loop.py",
-        "scripts/kittybuilder_opencode_reviewer.sh",
-        "scripts/kittybuilder_opencode_worker.sh",
-        "scripts/run_with_timeout.py"
+        "gateway/mission_runtime.py",
+        "gateway/routes/missions.py"
+      ]
+    },
+    {
+      "kind": "pull_request",
+      "observed_at": "2026-09-15T02:15:00Z",
+      "owner": "other-lane",
+      "ref": "#874",
+      "touches": [
+        "scripts/pr_review.py",
+        "scripts/pr_review_gate.py"
+      ]
+    },
+    {
+      "kind": "branch",
+      "observed_at": "2026-09-15T02:15:00Z",
+      "owner": "other-lane",
+      "ref": "feat/expert-evidence-runtime-20260913",
+      "touches": [
+        "gateway/expert_evidence.py"
       ]
     }
   ],
+  "pull_request": null,
   "recommendations": [
     {
-      "id": "pr-725-merge",
-      "what": "Merge PR #725 (fix(deadlines): wire escalation delivery) into main",
-      "why": "CI is fully green (policy-gate passed after its acceptance checkboxes were completed) and there is no conflict; only holding for Jacob's explicit go-ahead since this session does not auto-merge overnight Builder work",
-      "class": "code",
-      "status": "ready",
       "blocked_by": null,
-      "release_check": null,
+      "class": "life",
       "deferred_count": 0,
-      "first_deferred": null
+      "first_deferred": null,
+      "id": "switch-reviewers",
+      "release_check": null,
+      "status": "ready",
+      "what": "Close #874, set KITTYBUILDER_LOCAL_REVIEW_SHADOW to enable gateway/local_review.py, and stop investing in scripts/pr_review.py.",
+      "why": "The local reviewer is already built, benchmarked across 15 models, and its 4.6GB model is on disk; it is gated behind an env var set in zero files. Meanwhile scripts/pr_review.py took 36 commits since Aug 15 without once improving what it looks for, stalls at 240s on a 40-line diff, and burns paid calls for no verdict. ADR-0041 also establishes the human-approval gate #874 protects is unenforceable while agents act as jacob202."
     },
     {
-      "id": "wow-wave-stack-hold",
-      "what": "Do not merge #727/#729/#730/#731/#732/#733 until #726 (Wave 1) has a real, verified Product acceptance section written from an actual run of the app, and Jacob approves merging the six-feature UI stack",
-      "why": "Standing preference: autonomous overnight runs must not push, open a PR, or merge without Jacob's explicit approval. None of these six large UI features have been reviewed or tested by a human yet",
+      "blocked_by": null,
       "class": "code",
-      "status": "deferred",
-      "blocked_by": "PR #726 (feat/wow-capability-launcher-20260831) has not merged to main yet, and merging it is not itself Jacob's approval for the rest of the stack -- his explicit go-ahead is still needed once this check passes",
-      "release_check": "git merge-base --is-ancestor 55ffbc11074cf6cd3a7077f485c6e15477fc21d9 origin/main",
-      "deferred_count": 1,
-      "first_deferred": "2026-08-31"
+      "deferred_count": 0,
+      "first_deferred": null,
+      "id": "enforce-dont-record",
+      "release_check": null,
+      "status": "ready",
+      "what": "Turn the three repeatedly-relearned lessons into mechanisms: the WIP stop-intake rule into scripts/hooks/pre-push reading kb-effectiveness.jsonl; a promoted signal must name an implementing SHA or path or session_end_survey.sh fails it; and fix gateway/agent_coordination_cli.py:98 so participant identity is never silently 'chatgpt'.",
+      "why": "The 2026-09-12 council reached the WIP conclusion independently three times and it was written into ~/kb/PLAYBOOK.md, which agents do not read; the backlog then went to 54 completed_unreviewed against a rule that says stop at 2. A promoted signal with no mechanism recurred three times in four days."
+    },
+    {
+      "blocked_by": null,
+      "class": "code",
+      "deferred_count": 0,
+      "first_deferred": null,
+      "id": "close-r3-by-driving-it",
+      "release_check": null,
+      "status": "ready",
+      "what": "Resolve the 6 reviewer threads on #870, merge it, then actually drive chat request -> proposal -> approve -> Work progress -> real result -> Library -> Chat, plus one interruption and reload, at desktop and iPhone-class widths.",
+      "why": "R-3 and BUILDER-001 are the same job and it is the only remaining step before the return program's value checkpoint. Merging #870 is not this item; driving the journey is."
     }
-  ]
+  ],
+  "schema_version": 2,
+  "session_id": "claude-6fb80449814b4824a85ef292910078e5",
+  "status": "awaiting_review",
+  "updated_at": "2026-09-15T02:15:00Z",
+  "worktree": "."
 }
 -->
 
-## Current work
+## Execution ownership
 
-Jacob asked, in plain terms, to review the open PR queue for conflicts and
-start closing things out. Checked all 9 open PRs directly against GitHub
-(mergeable_state, check runs, job logs) instead of assuming anything from
-branch names or PR titles.
+- this session: `interactive`
+- Builder parallel state: read-only projection only. Supervisor not loaded, plist target directory
+  missing, 0 active runs. No Builder work claimed, scheduled, or mutated.
+- Coordination: claim `claim_2710551ea663416aa338ad2ee4d4173b`, resource `docs:roadmap`, role
+  INTEGRATE, participant `claude`. Release after the continuity commit.
 
-**Finding: no PR had a real git merge conflict.** What was actually blocking
-each was CI policy/lint gates or PR stacking, not colliding code.
+## KB effectiveness
 
-**Closed this session:**
-- #728 (docs/packets) — clean, green, merged as `c11c6f1`.
-- #722 (image module rename) — had 3 mechanical ruff import-order errors and
-  fell behind main twice as other PRs merged during the session. Fixed both,
-  pushed to its branch (`a5/image-module-rename`), merged as `f5b2f38`.
+- receipt: `kbr_253cd5ec6f8af90efb43` (`~/kb/metrics/kb-effectiveness.jsonl`)
+- consulted: 2
+- used: 2
+- stale/wrong: 0
+- token/quality evidence gaps: `total_tokens`, `kb_tokens_loaded`, `elapsed_seconds` and
+  `estimated_cost_usd` are null — not exposed by the tooling and deliberately not estimated. One
+  paid call was made (`scripts/second_opinion.py`, openrouter/deepseek/deepseek-v4-flash).
 
-**Held for Jacob, not merged:**
-- #725 — looks ready (green after acceptance checkboxes were completed) but
-  needs his word.
-- #726 — genuinely blocked: its description is missing the required Product
-  acceptance section entirely. Not going to write one to get past the gate;
-  someone needs to actually run it.
-- #727, #729, #730, #731, #732, #733 — the six-feature "wow" campaign wave
-  stack, each based on the PR before it. Can't merge to main until #726 does
-  and each gets re-pointed downward. This is unreviewed overnight Builder
-  output; per the standing rule it needs Jacob's explicit sign-off before any
-  of it merges, and this session did not give that sign-off on its own.
+## Notes
 
-## Verified result
-
-- PR #722: full CI green on the exact-scoped lint command
-  (`ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py`)
-  and on the repo's own pytest/pytest-integration/typecheck/merge-gate/policy-gate
-  suite, at head `c41f28a` before squash-merge.
-- PR #728: merged with all checks already green, no changes made.
-- KB effectiveness receipt `kbr_a3011375ba018d0a0aef` recorded to
-  `docs/session-notes/kb-effectiveness.jsonl` (repo-fallback scope; `~/kb`
-  absent in this cloud session).
-- One workflow-learning signal recorded
-  (`pr-policy-gate-missing-acceptance`, `docs/session-notes/workflow-signals/`),
-  status `observe` — not promoted, single occurrence this session.
-
-## Session state
-
-No local code changes were made on this branch — all engineering work
-happened directly against other PRs' branches (worktrees, since this
-session's own branch is `claude/pr-conflicts-review-8v3ms2`) and via the
-GitHub API. This branch's own diff against main is limited to this
-continuity checkpoint and the KB/workflow-signal files above.
-
-Next interactive move: none until Jacob answers on #725 and the wave stack.
-This is a genuine human decision, not a technical blocker — nothing to
-auto-check.
+The product is running again for the first time in days. The remaining WARNs in `kitty doctor` are
+all either Jacob's own configuration choices (Telegram, push channel, deadlines) or expected
+absences (`GITHUB_TOKEN` deliberately unset in favour of keyring auth; mail connector awaiting
+Jacob's Gmail OAuth). The `codegraph:daemon` stale-PID warning belongs to a third-party tool whose
+daemon is alive under a different pid; it was left untouched.
