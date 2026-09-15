@@ -36,6 +36,18 @@ def test_gate_blocks_structured_finding_plus_sentinel() -> None:
     assert pr_review_gate.agent_review_blocked(_comment(review), HEAD)
 
 
+def test_gate_blocks_structured_finding_plus_rendered_clean_phrase() -> None:
+    review = (
+        "- File: gateway/example.py\n"
+        "  Failure Mode: exact bad state is reported as success\n"
+        "  Corrective Action: return the durable state instead\n\n"
+        "No actionable findings in this diff."
+    )
+
+    assert not pr_review_gate.agent_review_approved(_comment(review), HEAD)
+    assert pr_review_gate.agent_review_blocked(_comment(review), HEAD)
+
+
 def test_gate_blocks_actionable_verdict_without_sentinel() -> None:
     review = (
         "- File: gateway/example.py\n"

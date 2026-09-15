@@ -214,6 +214,7 @@ resources:
     - tests/test_pr_review.py
     - tests/test_pr_review_file_chunks.py
     - tests/test_pr_review_gate.py
+    - tests/test_pr_review_verdict_normalization.py
   review:scope-classification:
     paths:
     - scripts/pr_scope.py
@@ -221,8 +222,12 @@ resources:
   repo:maintenance:
     paths:
     - .gitignore
+    - config/builder_paid_routes.json
+    - gateway/flux2_targets.py
+    - gateway/token_spend_report.py
     - opencode.jsonc
     - scripts/agent_council.py
     - scripts/nightly_packet_drain.sh
     - scripts/ops/kitty_task.py
     - scripts/transcript_reader.py
+    - tests/test_builder_cli.py
