@@ -4,6 +4,8 @@ import pytest
 
 from scripts import pr_review
 
+APPROVE_REVIEW_JSON = '{"schema_version":1,"verdict":"approve","findings":[]}'
+
 
 def test_render_review_body_replaces_no_findings_sentinel() -> None:
     body = pr_review.render_review_body(
@@ -61,10 +63,12 @@ def test_issue_comments_follows_pagination() -> None:
     assert seen == [1, 2]
 
 
-def test_prompt_requires_concrete_findings_and_exact_empty_result() -> None:
+def test_prompt_requires_concrete_findings_and_exact_machine_record() -> None:
     assert "name the changed file" in pr_review.SYSTEM_PROMPT
     assert "specific failure mode" in pr_review.SYSTEM_PROMPT
-    assert pr_review.NO_FINDINGS in pr_review.SYSTEM_PROMPT
+    assert '"schema_version":1' in pr_review.SYSTEM_PROMPT
+    assert '"verdict":"approve"' in pr_review.SYSTEM_PROMPT
+    assert "no markdown, prose, code fence, or thinking text" in pr_review.SYSTEM_PROMPT
 
 
 def test_upsert_review_fails_loud_without_github_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -280,7 +284,7 @@ def test_review_chunk_uses_independent_model_for_deepseek_builder_event(
 
     class Result:
         returncode = 0
-        stdout = pr_review.NO_FINDINGS + "\n"
+        stdout = APPROVE_REVIEW_JSON + "\n"
         stderr = ""
 
     monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
@@ -338,6 +342,74 @@ def test_agent_review_workflow_rechecks_override_metadata_without_recalling_mode
     assert "github.event.action == 'labeled'" not in workflow
     assert "github.event.action == 'unlabeled'" not in workflow
 
+def test_timed_out_reviewer_is_not_retried_on_later_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model that times out must not be handed a fresh timeout per chunk.
+
+    Observed 2026-09-15 on PR #879: the primary reviewer timed out on all three
+    chunks. Each attempt spent 240s of the one shared 900s budget before the
+    fallback ran, the budget ran out, and a single unfinished chunk voided the
+    whole review -- discarding the chunks the fallback had already reviewed.
+    """
+    attempted: list[str] = []
+
+    class Result:
+        returncode = 0
+        stdout = APPROVE_REVIEW_JSON + "\n"
+        stderr = ""
+
+    def fake_run(command, **_kwargs):
+        model = command[command.index("--model") + 1]
+        attempted.append(model)
+        if "deepseek" in model:
+            raise pr_review.subprocess.TimeoutExpired(cmd=command, timeout=240)
+        return Result()
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/deepseek/deepseek-v4-flash", "openrouter/minimax/minimax-m3"),
+    )
+
+    unresponsive: set[str] = set()
+    first = pr_review._review_chunk("diff one", unresponsive=unresponsive)
+    second = pr_review._review_chunk("diff two", unresponsive=unresponsive)
+
+    assert first == pr_review.NO_FINDINGS
+    assert second == pr_review.NO_FINDINGS
+    # Chunk one pays for the timeout once; chunk two must go straight to the
+    # model that actually answers.
+    assert attempted == [
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/minimax/minimax-m3",
+        "openrouter/minimax/minimax-m3",
+    ]
+
+
+def test_every_reviewer_timing_out_still_reports_no_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Demotion must not invent a verdict when nothing answered."""
+
+    def fake_run(command, **_kwargs):
+        raise pr_review.subprocess.TimeoutExpired(cmd=command, timeout=240)
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/deepseek/deepseek-v4-flash", "openrouter/minimax/minimax-m3"),
+    )
+
+    unresponsive: set[str] = set()
+    assert pr_review._review_chunk("a", unresponsive=unresponsive) is None
+    # Both are now known bad, and the next chunk must still refuse rather than
+    # silently pass because no candidate remains.
+    assert pr_review._review_chunk("b", unresponsive=unresponsive) is None
+
+
 def test_review_request_uses_restricted_opencode_agent_and_paid_flash_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -345,7 +417,7 @@ def test_review_request_uses_restricted_opencode_agent_and_paid_flash_model(
 
     class Result:
         returncode = 0
-        stdout = pr_review.NO_FINDINGS + "\n"
+        stdout = APPROVE_REVIEW_JSON + "\n"
         stderr = ""
 
     def fake_run(command, **_kwargs):
@@ -364,7 +436,7 @@ def test_review_request_uses_restricted_opencode_agent_and_paid_flash_model(
 
 
 def test_review_chunk_falls_back_to_different_model_once(monkeypatch: pytest.MonkeyPatch) -> None:
-    outputs = iter(["", pr_review.NO_FINDINGS + "\n"])
+    outputs = iter(["", APPROVE_REVIEW_JSON + "\n"])
     calls: list[tuple[list[str], int]] = []
 
     class Result:
@@ -762,3 +834,117 @@ def test_failure_publish_does_not_replace_an_existing_verdict(
 
     assert published is False
     assert len(calls) == 1  # read only: the existing verdict was left alone
+
+
+def test_off_contract_output_is_not_published_as_a_finding() -> None:
+    """Regression: narration must fail loud, not become a finding.
+
+    Observed live on PR #869 and again on #873: the reviewer returned process
+    narration, the workflow published it as a review body, and the gate then reported
+    a blocking finding for a defect that was never produced. Naming a file does not
+    make narration a finding either.
+    """
+    assert pr_review._normalize_opencode_review(
+        "Looking at this diff, I need to verify the claims made in the comments and "
+        "check for concrete defects. Let me examine the actual code."
+    ) is None
+    assert pr_review._normalize_opencode_review(
+        "I'll review the PR diff chunk carefully. Let me first understand what's being "
+        "changed by examining the repository structure and the relevant files."
+    ) is None
+    assert pr_review._normalize_opencode_review(
+        "I need to inspect scripts/pr_review_gate.py before deciding."
+    ) is None
+
+
+def test_legacy_text_review_shapes_fail_closed() -> None:
+    """Sentinels and rubric-looking prose are no longer model evidence."""
+    assert pr_review._normalize_opencode_review(pr_review.NO_FINDINGS) is None
+    assert pr_review._normalize_opencode_review(
+        "Failure Mode: the retry loop double-charges on timeout."
+    ) is None
+    assert pr_review._normalize_opencode_review(
+        f"{pr_review.NO_FINDINGS}\n\nFailure Mode: the loop double-charges."
+    ) is None
+
+
+def test_gate_and_workflow_share_one_finding_definition() -> None:
+    """The producer and the reader must not drift apart."""
+    from scripts import pr_review_gate
+
+    assert pr_review_gate._agent_body_has_rubric_fields(
+        "File / Hunk: gateway/x.py — retry\n"
+        "Trigger: timeout after charge\n"
+        "Failure Mode: the loop double-charges.\n"
+        "Corrective Action: make the retry idempotent."
+    )
+    assert not pr_review_gate._agent_body_has_rubric_fields(
+        "I need to inspect scripts/pr_review_gate.py before deciding."
+    )
+
+
+def test_live_pr876_truncation_narration_is_not_a_verdict() -> None:
+    """Regression: the malformed live #876 reviewer transcript is not evidence."""
+    output = (
+        "Let me look at the diff context. The user message seems to be a PR diff but "
+        "the actual diff content is missing. I need to find the actual PR diff. "
+        "Let me check the git state. Conclusion: No reportable findings."
+    )
+
+    assert pr_review._normalize_opencode_review(output) is None
+
+
+def test_partial_rubric_labels_are_not_a_review_verdict() -> None:
+    """A label-shaped fragment must not satisfy the four-field finding contract."""
+    assert pr_review._normalize_opencode_review(
+        "Failure Mode: something is wrong."
+    ) is None
+    assert pr_review._normalize_opencode_review(
+        "Failure Mode: something is wrong.\n"
+        "Corrective Action: change it."
+    ) is None
+
+
+def test_exact_json_review_contract_normalizes_approve_and_findings() -> None:
+    """Only one exact machine-readable record becomes review evidence."""
+    approve = '{"schema_version":1,"verdict":"approve","findings":[]}'
+    assert pr_review._normalize_opencode_review(approve) == pr_review.NO_FINDINGS
+
+    finding = (
+        '{"schema_version":1,"verdict":"findings","findings":['
+        '{"file":"scripts/pr_review.py","hunk":"_normalize_opencode_review",'
+        '"trigger":"reviewer returns narration with one rubric label",'
+        '"failure_mode":"narration is published as a blocking finding",'
+        '"corrective_action":"reject non-schema reviewer output"}]}'
+    )
+    normalized = pr_review._normalize_opencode_review(finding)
+
+    assert normalized is not None
+    assert "File / Hunk: scripts/pr_review.py — _normalize_opencode_review" in normalized
+    assert "Trigger: reviewer returns narration with one rubric label" in normalized
+    assert "Failure Mode: narration is published as a blocking finding" in normalized
+    assert "Corrective Action: reject non-schema reviewer output" in normalized
+
+
+def test_review_json_must_be_exact_and_each_finding_complete() -> None:
+    valid = '{"schema_version":1,"verdict":"approve","findings":[]}'
+    assert pr_review._normalize_opencode_review("thinking first\n" + valid) is None
+    assert pr_review._normalize_opencode_review(valid + "\nextra prose") is None
+    assert pr_review._normalize_opencode_review(
+        '{"schema_version":1,"verdict":"findings","findings":['
+        '{"file":"scripts/pr_review.py","hunk":"parser",'
+        '"trigger":"bad output","failure_mode":"false evidence"}]}'
+    ) is None
+
+
+def test_validated_json_finding_renders_for_the_existing_gate() -> None:
+    rendered = (
+        "File / Hunk: scripts/pr_review.py — parser\n"
+        "Trigger: malformed model output\n"
+        "Failure Mode: false review evidence\n"
+        "Corrective Action: reject the output"
+    )
+    assert pr_review.is_reportable_finding(rendered)
+    assert not pr_review.is_reportable_finding(
+        "I need to inspect scripts/pr_review.py before deciding."
+    )

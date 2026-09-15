@@ -118,8 +118,11 @@ resources:
     - gateway/agent_room_cli.py
     - gateway/app.py
     - gateway/doctor.py
+    - gateway/kitty-chat/.gitignore
+    - gateway/kitty-chat/next.config.ts
     - gateway/kitty-chat/package.json
     - gateway/kitty-chat/scripts/**
+    - gateway/kitty-chat/tsconfig.json
     - gateway/lib/load_env_safe.sh
     - gateway/llm_client.py
     - gateway/local_review.py
@@ -214,8 +217,13 @@ resources:
     - tests/test_pr_scope.py
   repo:maintenance:
     paths:
+    - .gitignore
+    - config/builder_paid_routes.json
+    - gateway/flux2_targets.py
+    - gateway/token_spend_report.py
     - opencode.jsonc
     - scripts/agent_council.py
     - scripts/nightly_packet_drain.sh
     - scripts/ops/kitty_task.py
     - scripts/transcript_reader.py
+    - tests/test_builder_cli.py

@@ -74,8 +74,12 @@ data loss, resource leaks with a concrete trigger, and user-visible failure/reco
 Do not repeat the PR summary. Before answering, remove any finding that is not directly grounded
 in changed code shown in this chunk.
 
-Use concise bullets. If there are no actionable findings, respond with exactly:
-NO_ACTIONABLE_FINDINGS
+Return exactly one JSON object and no markdown, prose, code fence, or thinking text. The only
+accepted shapes are:
+{"schema_version":1,"verdict":"approve","findings":[]}
+or
+{"schema_version":1,"verdict":"findings","findings":[{"file":"path","hunk":"changed symbol or hunk","trigger":"exact reaching state","failure_mode":"exact wrong observable outcome","corrective_action":"smallest correction"}]}
+Every finding must contain all five finding fields as non-empty strings. Do not add keys.
 """
 
 
@@ -285,16 +289,96 @@ def get_pr_diff() -> tuple[str, int, str, str, str]:
     return diff, pr_number, owner, name, head_sha
 
 
+# Model output is untrusted until it satisfies this exact schema. The workflow
+# renders validated findings into deterministic markdown for the existing gate.
+REVIEW_RECORD_KEYS = {"schema_version", "verdict", "findings"}
+REVIEW_FINDING_FIELDS = (
+    "file",
+    "hunk",
+    "trigger",
+    "failure_mode",
+    "corrective_action",
+)
+FINDING_FIELD_MARKERS = (
+    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Failure Mode(?:\*\*)?\s*:",
+    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Corrective Action(?:\*\*)?\s*:",
+)
+
+
+def is_reportable_finding(text: str) -> bool:
+    """True when the durable rendered body carries a finding marker."""
+    return any(re.search(pattern, text) for pattern in FINDING_FIELD_MARKERS)
+
+
+def _review_field(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return " ".join(value.split())
+
+
+def _invalid_review(reason: str, text: str) -> None:
+    print(
+        f"Reviewer returned no verdict ({len(text)} chars): {reason}. "
+        "Treating this as a failed review rather than publishing model narration as evidence.",
+        file=sys.stderr,
+    )
+
+
 def _normalize_opencode_review(output: str) -> str | None:
-    """Normalize OpenCode's final text into the deterministic review contract."""
+    """Parse exactly one schema-valid model record into the durable review contract."""
     text = output.strip()
     if not text:
         return None
-    if re.search(rf"(?m)^\s*{re.escape(NO_FINDINGS)}\s*$", text):
-        finding_markers = ("Failure Mode:", "Corrective Action:")
-        if not any(marker.lower() in text.lower() for marker in finding_markers):
-            return NO_FINDINGS
-    return text
+    try:
+        record = json.loads(text)
+    except json.JSONDecodeError:
+        _invalid_review("response is not exactly one JSON object", text)
+        return None
+
+    if not isinstance(record, dict) or set(record) != REVIEW_RECORD_KEYS:
+        _invalid_review("top-level review schema does not match", text)
+        return None
+    if record.get("schema_version") != 1:
+        _invalid_review("unsupported review schema version", text)
+        return None
+
+    verdict = record.get("verdict")
+    findings = record.get("findings")
+    if not isinstance(findings, list):
+        _invalid_review("findings is not a list", text)
+        return None
+    if verdict == "approve":
+        if findings:
+            _invalid_review("approve verdict contains findings", text)
+            return None
+        return NO_FINDINGS
+    if verdict != "findings" or not findings:
+        _invalid_review("verdict must be approve or findings with matching findings", text)
+        return None
+
+    rendered: list[str] = []
+    expected_finding_keys = set(REVIEW_FINDING_FIELDS)
+    for index, raw_finding in enumerate(findings, start=1):
+        if not isinstance(raw_finding, dict) or set(raw_finding) != expected_finding_keys:
+            _invalid_review(f"finding {index} schema does not match", text)
+            return None
+        values = {name: _review_field(raw_finding.get(name)) for name in REVIEW_FINDING_FIELDS}
+        if any(value is None for value in values.values()):
+            _invalid_review(f"finding {index} contains an empty or non-string field", text)
+            return None
+        rendered.append(
+            "\n".join(
+                (
+                    f"### Finding {index}",
+                    f"File / Hunk: {values['file']} — {values['hunk']}",
+                    f"Trigger: {values['trigger']}",
+                    f"Failure Mode: {values['failure_mode']}",
+                    f"Corrective Action: {values['corrective_action']}",
+                )
+            )
+        )
+
+    return "\n\n".join(rendered)
 
 
 def _model_timeout(deadline: float | None) -> float:
@@ -309,11 +393,31 @@ def _model_timeout(deadline: float | None) -> float:
     return min(float(REVIEW_MODEL_TIMEOUT_SECONDS), deadline - time.monotonic())
 
 
-def _review_chunk(chunk: str, *, deadline: float | None = None) -> str | None:
+def _review_chunk(
+    chunk: str,
+    *,
+    deadline: float | None = None,
+    unresponsive: set[str] | None = None,
+) -> str | None:
     review_models = review_models_for_current_event()
     if not review_models:
         print("No independent PR reviewer model is configured.", file=sys.stderr)
         return None
+    # A model that already timed out this run does not get another full timeout
+    # on every remaining chunk. Each wasted attempt is spent from the one shared
+    # total budget, and the budget running out voids the whole review — including
+    # the chunks a working fallback already reviewed.
+    if unresponsive:
+        responsive = tuple(m for m in review_models if m not in unresponsive)
+        if responsive:
+            skipped = [m for m in review_models if m in unresponsive]
+            if skipped:
+                print(
+                    "Skipping reviewer(s) that already timed out this run: "
+                    + ", ".join(skipped),
+                    file=sys.stderr,
+                )
+            review_models = responsive
     if any(model.startswith("openrouter/") for model in review_models) and not os.environ.get(
         "OPENROUTER_API_KEY"
     ):
@@ -357,6 +461,8 @@ def _review_chunk(chunk: str, *, deadline: float | None = None) -> str | None:
                 check=False,
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
+            if isinstance(exc, subprocess.TimeoutExpired) and unresponsive is not None:
+                unresponsive.add(review_model)
             print(
                 f"DSH reviewer {review_model} infrastructure error: "
                 f"{type(exc).__name__}: {exc}",
@@ -445,6 +551,7 @@ def review_diff(diff: str) -> str | None:
 
     deadline = time.monotonic() + REVIEW_TOTAL_TIMEOUT_SECONDS
     findings: list[str] = []
+    unresponsive: set[str] = set()
     for index, chunk in enumerate(chunks, start=1):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -456,7 +563,7 @@ def review_diff(diff: str) -> str | None:
             )
             return None
         print(f"Reviewing diff chunk {index}/{len(chunks)} ({len(chunk)} chars).")
-        verdict = _review_chunk(chunk, deadline=deadline)
+        verdict = _review_chunk(chunk, deadline=deadline, unresponsive=unresponsive)
         if not verdict:
             return None
         if verdict.strip() != NO_FINDINGS:
