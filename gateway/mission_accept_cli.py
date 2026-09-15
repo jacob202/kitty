@@ -175,11 +175,35 @@ def _cmd_record(args: argparse.Namespace) -> int:
     if not isinstance(evidence, dict):
         print("The evidence file must contain one JSON object.", file=sys.stderr)
         return 2
-    # The file carries these for the operator's benefit; the authority is the
-    # Mission's own bound candidate, never the file's copy of it.
-    evidence.pop("mission_id", None)
-    evidence.pop("candidate_ref", None)
-    evidence.pop("candidate_digest", None)
+    # The template stamps the binding it was generated against. The Mission's
+    # own candidate is still the authority, but a file written against a
+    # superseded candidate must be refused rather than silently re-pointed:
+    # otherwise an old fully-passing evidence file accepts a replacement
+    # candidate that was never exercised.
+    stamped_mission = evidence.pop("mission_id", None)
+    stamped_ref = evidence.pop("candidate_ref", None)
+    stamped_digest = evidence.pop("candidate_digest", None)
+    live_ref = candidate.get("ref") or ""
+    live_digest = candidate.get("digest") or ""
+    stale: list[str] = []
+    if stamped_mission is not None and stamped_mission != args.mission_id:
+        stale.append(f"job {stamped_mission!r}, not {args.mission_id!r}")
+    if stamped_ref is not None and stamped_ref != live_ref:
+        stale.append(f"result {stamped_ref!r}, now {live_ref!r}")
+    if stamped_digest is not None and stamped_digest != live_digest:
+        stale.append("a different version of that result")
+    if stale:
+        print(
+            "Refused — this evidence file describes " + "; ".join(stale) + ".",
+            file=sys.stderr,
+        )
+        print(
+            "  what to do: the job produced a new result while you were filling "
+            "this in. Run `kitty accept template` again and redo the checks "
+            "against the current result.",
+            file=sys.stderr,
+        )
+        return 1
     try:
         accepted = mission_runtime.record_running_product_acceptance(
             args.mission_id,

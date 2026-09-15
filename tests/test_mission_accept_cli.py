@@ -208,11 +208,22 @@ def test_record_accepts_against_the_missions_own_bound_candidate(
         lambda sha: {"gateway": {"commit": sha}, "ui": {"commit": sha}, "data_root": "/tmp/data"},
     )
     evidence_file = tmp_path / "evidence.json"
-    # A stale candidate copied into the evidence file must not be able to steer
-    # the verdict; the Mission's own binding is the authority.
+    # An evidence file stamped for a superseded candidate is refused outright.
+    # Silently re-pointing it at the live binding would accept a candidate the
+    # operator never actually exercised.
     evidence_file.write_text(
         json.dumps({**_passing_evidence(), "candidate_digest": "0" * 64}), encoding="utf-8"
     )
+
+    assert mission_accept_cli.main(["record", "accept-cli", "-e", str(evidence_file)]) == 1
+
+    mission = memory_mission.get_mission("accept-cli", db_path=mission_db)
+    assert mission["status"] == "VERIFYING"
+    assert mission["acceptance"]["state"] == "unreviewed"
+
+    # The Mission's own binding remains the authority for a current file: the
+    # operator never supplies the digest that is recorded.
+    evidence_file.write_text(json.dumps(_passing_evidence()), encoding="utf-8")
 
     assert mission_accept_cli.main(["record", "accept-cli", "-e", str(evidence_file)]) == 0
 
@@ -220,6 +231,32 @@ def test_record_accepts_against_the_missions_own_bound_candidate(
     assert mission["status"] == "DONE"
     assert mission["acceptance"]["reviewer_id"] == mission_runtime._LOCAL_ACCEPTANCE_REVIEWER_ID
     assert mission["acceptance"]["evidence"]["candidate_digest"] == candidate["candidate_digest"]
+
+
+def test_record_refuses_an_evidence_file_stamped_for_another_job(
+    mission_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A template generated for a different Mission must never be submitted here."""
+    _executing_mission(mission_db)
+    candidate = _candidate()
+    memory_mission.record_candidate(
+        "accept-cli",
+        candidate_ref=f"artifact:{candidate['artifact_id']}",
+        candidate_digest=candidate["candidate_digest"],
+        db_path=mission_db,
+    )
+    monkeypatch.setattr(mission_runtime, "_reviewed_builder_result", lambda mission: candidate)
+    evidence_file = tmp_path / "evidence.json"
+    evidence_file.write_text(
+        json.dumps({**_passing_evidence(), "mission_id": "some-other-job"}), encoding="utf-8"
+    )
+
+    assert mission_accept_cli.main(["record", "accept-cli", "-e", str(evidence_file)]) == 1
+
+    err = capsys.readouterr().err
+    assert "some-other-job" in err
+    assert memory_mission.get_mission("accept-cli", db_path=mission_db)["status"] == "VERIFYING"
 
 
 def test_record_refuses_when_the_running_product_is_not_the_reviewed_one(

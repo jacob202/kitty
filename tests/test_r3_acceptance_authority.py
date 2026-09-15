@@ -401,3 +401,82 @@ def test_runtime_identity_rejects_other_gateway_data_root(
 
     with pytest.raises(mission_runtime.ResultCandidateUnavailable, match="does not match operator data root"):
         mission_runtime._running_product_runtime_identity(sha)
+
+
+def _failing_evidence() -> dict:
+    """A legitimate rejection: the degraded scenario left the product unhealthy."""
+    evidence = {
+        "steps": ["Chat request", "Mission approval", "Builder result"],
+        "unmet_gates": ["degraded: Gateway stopped serving mid-run"],
+    }
+    for key in mission_runtime.REQUIRED_RUNNING_STATES:
+        evidence[key] = {"state": "passed", "evidence": f"evidence://{key}"}
+    evidence["degraded"] = {"state": "failed", "evidence": "evidence://degraded"}
+    return evidence
+
+
+def _bound_candidate(db_path: Path, monkeypatch: pytest.MonkeyPatch, mission_id: str) -> dict:
+    _verifying_mission(db_path, mission_id=mission_id)
+    candidate = _candidate()
+    memory_mission.record_candidate(
+        mission_id,
+        candidate_ref=f"artifact:{candidate['artifact_id']}",
+        candidate_digest=candidate["candidate_digest"],
+        db_path=db_path,
+    )
+    monkeypatch.setattr(mission_runtime, "_reviewed_builder_result", lambda mission: candidate)
+
+    def unavailable(_sha):
+        raise mission_runtime.ResultCandidateUnavailable("Gateway runtime checkout is not clean")
+
+    monkeypatch.setattr(mission_runtime, "_running_product_runtime_identity", unavailable)
+    return candidate
+
+
+def test_rejection_records_when_the_running_product_is_unhealthy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stopped/stale/dirty Gateway is the outcome being rejected, not a blocker.
+
+    Requiring the failed product to be healthy at record time would strand the
+    Mission in VERIFYING instead of letting it move to REPAIRING.
+    """
+    db_path = tmp_path / "kitty.db"
+    monkeypatch.setattr(memory_mission, "MISSION_DB_FILE", db_path)
+    candidate = _bound_candidate(db_path, monkeypatch, "r3-reject")
+
+    result = mission_runtime.record_running_product_acceptance(
+        "r3-reject",
+        candidate_ref=f"artifact:{candidate['artifact_id']}",
+        candidate_digest=candidate["candidate_digest"],
+        verdict="rejected",
+        evidence=_failing_evidence(),
+    )
+
+    assert result["status"] == "REPAIRING"
+    proof = result["acceptance"]["evidence"]
+    # The reason the runtime could not be bound is preserved, not discarded.
+    assert "not clean" in proof["runtime_identity_unavailable"]
+    assert proof["runtime_identity"] is None
+    assert proof["running_sha"] is None
+    # The rejection is still bound to the exact candidate.
+    assert proof["candidate_digest"] == candidate["candidate_digest"]
+    assert proof["artifact_provenance"]["review_sha"] == candidate["review_sha"]
+
+
+def test_acceptance_still_refuses_when_the_running_product_is_unhealthy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The rejection allowance must not weaken acceptance."""
+    db_path = tmp_path / "kitty.db"
+    monkeypatch.setattr(memory_mission, "MISSION_DB_FILE", db_path)
+    candidate = _bound_candidate(db_path, monkeypatch, "r3-accept-strict")
+
+    with pytest.raises(mission_runtime.ResultCandidateUnavailable):
+        mission_runtime.record_running_product_acceptance(
+            "r3-accept-strict",
+            candidate_ref=f"artifact:{candidate['artifact_id']}",
+            candidate_digest=candidate["candidate_digest"],
+            verdict="accepted",
+            evidence=_passing_evidence(),
+        )

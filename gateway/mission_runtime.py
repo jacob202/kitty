@@ -579,13 +579,29 @@ def record_running_product_acceptance(
     if reviewed_ref != candidate_ref or reviewed_digest != candidate_digest:
         raise memory_mission.MissionError("acceptance candidate does not match reviewed Builder provenance")
     validated = _validated_running_product_evidence(evidence, verdict=verdict)
-    runtime_identity = _running_product_runtime_identity(reviewed["review_sha"])
+    # Acceptance must prove the running product IS the reviewed candidate.
+    # Rejection must not require it: a stopped, stale or dirty Gateway is
+    # precisely one of the degraded/recovery outcomes a rejection exists to
+    # record. Requiring the failed product to be healthy at record time would
+    # strand the Mission in VERIFYING instead of moving it to REPAIRING. The
+    # rejection stays candidate-bound through the ref/digest and reviewed
+    # provenance checks above, which need no live runtime.
+    runtime_identity: dict[str, Any] | None = None
+    runtime_unavailable: str | None = None
+    try:
+        runtime_identity = _running_product_runtime_identity(reviewed["review_sha"])
+    except ResultCandidateUnavailable as exc:
+        if verdict == "accepted":
+            raise
+        runtime_unavailable = str(exc)
     validated.update(
         {
             "candidate_ref": candidate_ref,
             "candidate_digest": candidate_digest,
-            "running_sha": runtime_identity["gateway"]["commit"],
-            "data_root": runtime_identity["data_root"],
+            "running_sha": (
+                runtime_identity["gateway"]["commit"] if runtime_identity else None
+            ),
+            "data_root": runtime_identity["data_root"] if runtime_identity else None,
             "runtime_identity": runtime_identity,
             "artifact_provenance": {
                 "artifact_id": reviewed["artifact_id"],
@@ -596,6 +612,10 @@ def record_running_product_acceptance(
             },
         }
     )
+    if runtime_unavailable is not None:
+        # Preserve why the runtime could not be bound; this is often the very
+        # defect being rejected, so it must survive into the durable receipt.
+        validated["runtime_identity_unavailable"] = runtime_unavailable
     return memory_mission.record_acceptance(
         mission_id,
         reviewer_id=_LOCAL_ACCEPTANCE_REVIEWER_ID,
