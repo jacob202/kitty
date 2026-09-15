@@ -868,6 +868,16 @@ async def chat_completions(request: Request):
             raise SelectedSkillTooLargeError(
                 "Selected skill instructions cannot fit alongside the current chat context"
             )
+        selected_expert_evidence_block = getattr(bundle, "selected_expert_evidence_block", None)
+        if (
+            isinstance(selected_expert_evidence_block, str)
+            and selected_expert_evidence_block
+            and selected_expert_evidence_block not in system_prompt
+        ):
+            raise HTTPException(
+                status_code=413,
+                detail="Selected expert evidence cannot fit alongside the current chat context",
+            )
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
             _finish_lifecycle_or_raise(

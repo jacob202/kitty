@@ -841,6 +841,42 @@ async def test_evidence_has_its_own_budget_and_is_not_crowded_out_by_memory():
 
 
 @pytest.mark.asyncio
+async def test_single_long_evidence_keeps_truthful_visible_receipt_when_outer_budget_clips():
+    long_text = "factory procedure detail " * 500
+    knowledge = Item(
+        text=long_text,
+        source=Source.KNOWLEDGE,
+        score=1.0,
+        metadata={
+            "evidence": {
+                "source_id": "oem-long",
+                "logical_unit_id": "work:oem-long",
+                "retrieval_title": "OEM Long Procedure",
+            },
+            "metadata": {"locator_start": "44", "locator_end": "45"},
+        },
+    )
+    deps = _AssemblerDeps(
+        adapters=[FakeAdapter("knowledge", items=[knowledge])],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    bundle = await assemble_context(
+        "What is the exact procedure?", deps=deps, tier="standard", expert_profile="automotive"
+    )
+
+    assert bundle.system.startswith("## Evidence")
+    assert bundle.selected_expert_evidence_block
+    assert bundle.system.startswith(bundle.selected_expert_evidence_block)
+    assert bundle.injected_evidence_items
+    receipt = bundle.injected_evidence_items[0]
+    assert receipt["text"] in bundle.system
+    assert len(receipt["text"]) < len(long_text)
+    assert receipt["source_id"] == "oem-long"
+
+
+@pytest.mark.asyncio
 async def test_clipped_evidence_receipt_only_reports_whole_visible_records(monkeypatch):
     import gateway.context_assembler as assembler
 

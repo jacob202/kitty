@@ -415,7 +415,15 @@ def test_thread_objective_reaches_lifecycle_and_context():
 
 def test_selected_expert_is_validated_scoped_into_context_and_not_forwarded_upstream():
     seen = {}
-    mock_assemble = AsyncMock(return_value=ContextBundle(system="EXPERT_SYSTEM"))
+    expert_evidence = "## Evidence\nSelected retrieval profile: automotive.\n[E1] OEM manual evidence"
+    # Keep enough generic context after the selected evidence to force the final
+    # system fitter to clip the bundle. The expert evidence must still survive.
+    mock_assemble = AsyncMock(
+        return_value=ContextBundle(
+            system=expert_evidence + "\n\n" + ("generic context " * 1200),
+            selected_expert_evidence_block=expert_evidence,
+        )
+    )
 
     async def fake_stream(payload):
         seen.update(payload)
@@ -445,6 +453,8 @@ def test_selected_expert_is_validated_scoped_into_context_and_not_forwarded_upst
     validate.assert_called_once_with("automotive")
     assert mock_assemble.call_args.kwargs["expert_profile"] == "automotive"
     assert "expert_id" not in seen
+    system = next(message["content"] for message in seen["messages"] if message["role"] == "system")
+    assert expert_evidence in system
 
 
 def test_selected_expert_fails_closed_when_profile_is_not_active():

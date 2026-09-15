@@ -212,6 +212,9 @@ class ContextBundle:
     # Exact model-visible block for an explicitly selected skill. The chat route
     # uses this to fail closed if its final system-message budget would clip it.
     selected_skill_block: str | None = None
+    # Exact model-visible evidence block for an explicitly selected expert.
+    # The chat route fails closed if the final system-message budget would clip it.
+    selected_expert_evidence_block: str | None = None
     context_health: dict[str, object] = field(
         default_factory=lambda: {
             "mode": "full",
@@ -467,20 +470,46 @@ def _render_evidence_items(
 def _reconcile_evidence_receipts(
     items: list[EvidenceReceipt], rendered_prompt: str
 ) -> list[EvidenceReceipt]:
-    """Keep only complete evidence records that survived whole-context clipping."""
+    """Return truthful receipts for the evidence text that actually reached the model."""
     visible: list[EvidenceReceipt] = []
     cursor = 0
-    for item in items:
+    for index, item in enumerate(items):
         header = _evidence_header(item)
         header_index = rendered_prompt.find(header, cursor)
         if header_index < 0:
             continue
+        content_start = header_index + len(header)
+        while content_start < len(rendered_prompt) and rendered_prompt[content_start] in "\r\n":
+            content_start += 1
         text = item.get("text", "")
-        text_index = rendered_prompt.find(text, header_index + len(header)) if text else -1
-        if text_index < 0:
+        text_index = rendered_prompt.find(text, content_start) if text else -1
+        if text_index >= 0:
+            visible.append(item)
+            cursor = text_index + len(text)
             continue
-        visible.append(item)
-        cursor = text_index + len(text)
+
+        # The outer whole-context budget can clip an otherwise valid excerpt.
+        # Preserve a receipt for exactly the visible prefix rather than either
+        # dropping provenance or claiming the model saw the full source text.
+        end_candidates = [len(rendered_prompt)]
+        marker_index = rendered_prompt.find(_CONTEXT_TRUNCATION_MARKER, content_start)
+        if marker_index >= 0:
+            end_candidates.append(marker_index)
+        section_index = rendered_prompt.find("\n\n## ", content_start)
+        if section_index >= 0:
+            end_candidates.append(section_index)
+        if index + 1 < len(items):
+            next_header = _evidence_header(items[index + 1])
+            next_index = rendered_prompt.find(next_header, content_start)
+            if next_index >= 0:
+                end_candidates.append(next_index)
+        visible_text = rendered_prompt[content_start : min(end_candidates)].strip()
+        if not visible_text:
+            continue
+        clipped = cast(EvidenceReceipt, dict(item))
+        clipped["text"] = visible_text
+        visible.append(clipped)
+        cursor = content_start + len(visible_text)
     return visible
 
 
@@ -781,6 +810,11 @@ async def assemble_context(
     # its complete instructions at this layer.
     if selected_skill_block:
         context_blocks.append(("skill", hint, _CONTEXT_BLOCK_SHARES["skill"]))
+    # An explicitly selected expert is also user intent. Keep its evidence (or
+    # truthful no-match statement) ahead of generic context so the route's final
+    # prefix fitter cannot silently erase the reason the expert was selected.
+    if expert_profile and evidence_block:
+        context_blocks.append(("evidence", evidence_block, _CONTEXT_BLOCK_SHARES["evidence"]))
     context_blocks.extend([
         ("domain", domain_block, _CONTEXT_BLOCK_SHARES["domain"]),
         ("objective", objective_block, _CONTEXT_BLOCK_SHARES["objective"]),
@@ -789,7 +823,8 @@ async def assemble_context(
     ])
     if not selected_skill_block:
         context_blocks.append(("skill", hint, _CONTEXT_BLOCK_SHARES["skill"]))
-    context_blocks.append(("evidence", evidence_block, _CONTEXT_BLOCK_SHARES["evidence"]))
+    if not expert_profile:
+        context_blocks.append(("evidence", evidence_block, _CONTEXT_BLOCK_SHARES["evidence"]))
     context_blocks.append(("memory", memory_block, _CONTEXT_BLOCK_SHARES["memory"]))
     context_blocks.extend(
         (f"enrichment:{index}", block, each_enrichment_share)
@@ -798,7 +833,11 @@ async def assemble_context(
     system, budget_evidence, _budget_warnings = _fit_context_blocks(
         context_blocks,
         tier=tier,
-        required_full_names={"skill"} if selected_skill_block else None,
+        required_full_names=(
+            ({"skill"} if selected_skill_block else set())
+            | ({"evidence"} if expert_profile and evidence_block else set())
+        )
+        or None,
     )
     budget_evidence["truncations"] = list(_budget_warnings)
     warnings.extend(_budget_warnings)
@@ -816,6 +855,7 @@ async def assemble_context(
         evidence_policy=evidence_policy,
         context_budget=budget_evidence,
         selected_skill_block=selected_skill_block,
+        selected_expert_evidence_block=(evidence_block if expert_profile and evidence_block else None),
         context_health=_context_health(warnings),
     )
 
