@@ -158,8 +158,14 @@ def _has_phrase(text: str, *phrases: str) -> bool:
     return any(phrase in lowered for phrase in phrases)
 
 
-def build_evidence_policy(query: str, expert_profile: str | None = None) -> EvidencePolicy:
+def build_evidence_policy(
+    query: str, expert_profile: str | None = None, domain: str | None = None
+) -> EvidencePolicy:
     """Infer bounded evidence requirements without creating a persistent expert agent."""
+    if domain is None:
+        from gateway.domain_router import classify_domain
+
+        domain = classify_domain(query)
     text = query.lower()
     tokens = _query_tokens(query)
     reasons: list[str] = []
@@ -170,7 +176,7 @@ def build_evidence_policy(query: str, expert_profile: str | None = None) -> Evid
             competencies.append(name)
             reasons.append(reason)
 
-    health = expert_profile == "health_biology" or bool(tokens & {
+    health = domain == "health" or expert_profile == "health_biology" or bool(tokens & {
         "medical", "clinical", "medicine", "medication", "prescription", "drug",
         "supplement", "herbal", "symptom", "treatment", "pharmacology", "health",
     })

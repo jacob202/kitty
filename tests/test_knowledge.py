@@ -949,6 +949,17 @@ def test_health_expert_actionable_medication_questions_require_current_verificat
     assert policy.current_verification_required is True
 
 
+def test_health_domain_actionable_medication_question_requires_current_verification():
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy("Can I take ibuprofen?")
+
+    assert policy.task_type == "current_safety"
+    assert policy.competencies == ["health_biology"]
+    assert policy.freshness == "current_external_required"
+    assert policy.current_verification_required is True
+
+
 def test_evidence_policy_uses_token_boundaries_not_substring_domain_matches():
     from gateway.knowledge import build_evidence_policy
 

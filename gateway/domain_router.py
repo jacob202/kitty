@@ -46,7 +46,7 @@ DOMAIN_KEYWORDS = {
         "pain",
         "doctor",
         "medication",
-        "med",
+        "meds",
         "blood",
         "test",
         "sleep",

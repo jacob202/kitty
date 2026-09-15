@@ -37,3 +37,10 @@ def test_get_specialist_reads_canonical_registry():
 
     assert specialist["name"] == "audio_repair"
     assert specialist["collection_id"] == "ac05f7c1-f341-449c-b520-80882fda3a8e"
+
+def test_health_keyword_does_not_match_med_substring_in_medium():
+    assert classify_domain("Derive the wave equation in a homogeneous medium") != "health"
+
+
+def test_ibuprofen_routes_to_health():
+    assert classify_domain("Can I take ibuprofen?") == "health"
