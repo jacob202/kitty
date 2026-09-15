@@ -665,6 +665,7 @@ async def test_active_corpus_fts_treats_hyphenated_query_as_literal_terms(tmp_pa
     hits = await knowledge.search(
         "How do I get the in-tank gasoline sending unit out of a pickup?",
         limit=3,
+        collections=["expert_corpus_evidence"],
         stitch_context=False,
     )
     assert hits
