@@ -1,5 +1,10 @@
 # KX-04 Coherence Audit
 
+> **Not on the active sequence as of 2026-09-14.** This is planning evidence, not work
+> that is owed. The one live sequence and the real status of each step are in
+> [`ACTIVE_MISSION.md`](../ACTIVE_MISSION.md). Re-verify against current code and
+> runtime before acting on anything here.
+
 Built 2026-07-23 after KX-04-01 through KX-04-05 refit.
 
 ## Token Compliance

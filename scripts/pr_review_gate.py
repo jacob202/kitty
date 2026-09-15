@@ -33,20 +33,17 @@ def _agent_exact_head_body(comment: dict[str, Any], head_sha: str) -> str | None
     return body
 
 
-_AGENT_FINDING_MARKERS = (
-    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Failure Mode(?:\*\*)?\s*:",
-    r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Corrective Action(?:\*\*)?\s*:",
-)
-
-
 def _agent_body_has_rubric_fields(body: str) -> bool:
     """True when the body carries the rubric's explicit finding fields.
 
     This is the only signal that may affect the decision. A clean verdict is allowed
     to mention file paths while explaining why an observation was *not* promoted to a
     finding, so a path mention must never veto a sentinel.
+
+    Delegates to pr_review, which owns the definition, so the workflow that produces
+    a verdict and the gate that reads it cannot drift apart.
     """
-    return any(re.search(pattern, body) for pattern in _AGENT_FINDING_MARKERS)
+    return pr_review.is_reportable_finding(body)
 
 
 def agent_review_confirmed_finding(comment: dict[str, Any], head_sha: str) -> bool:
