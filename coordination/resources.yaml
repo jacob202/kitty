@@ -26,12 +26,14 @@ resources:
     - tests/test_builder_initiative.py
   builder:queue-reconciliation:
     paths:
+    - config/compute_governor.json
     - gateway/builder_cli.py
     - gateway/builder_commands.py
     - gateway/builder_loop.py
     - gateway/builder_queue.py
     - gateway/builder_status.py
     - gateway/builder_supervisor.py
+    - gateway/compute_governor.py
     - tests/test_builder_commands.py
     - tests/test_builder_loop.py
     - tests/test_builder_publication_infrastructure.py
@@ -39,6 +41,7 @@ resources:
     - tests/test_builder_run.py
     - tests/test_builder_status.py
     - tests/test_builder_supervisor.py
+    - tests/test_compute_governor.py
   docs:roadmap:
     paths:
     - '*.md'
@@ -117,6 +120,7 @@ resources:
     - gateway/doctor.py
     - gateway/kitty-chat/package.json
     - gateway/kitty-chat/scripts/**
+    - gateway/lib/load_env_safe.sh
     - gateway/llm_client.py
     - gateway/local_review.py
     - gateway/model_routing.py
@@ -138,6 +142,7 @@ resources:
     - scripts/kitty_backup.py
     - scripts/preflight.sh
     - scripts/scan.py
+    - scripts/start_builder_supervisor.sh
     - tests/conftest.py
     - tests/test_agent_coordination_acceptance.py
     - tests/test_agent_room_cli.py
@@ -146,6 +151,7 @@ resources:
     - tests/test_app_lifespan_hermetic.py
     - tests/test_doctor.py
     - tests/test_doctor_freshness.py
+    - tests/test_env_loader.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py
     - tests/test_kb_effectiveness.py
