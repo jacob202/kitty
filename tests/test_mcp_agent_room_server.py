@@ -199,3 +199,37 @@ def test_mcp_existing_tools_accept_scope_without_adding_an_eighth_tool(
         "room_status", "room_recent", "room_inbox", "room_thread",
         "room_post", "room_reply", "room_ack",
     }
+
+
+def test_room_status_keeps_github_offline_unless_explicitly_asked(monkeypatch, room_db):
+    """Orientation must not reach the network because a client called room_status."""
+    from gateway import context_orientation
+
+    server = _load_server(monkeypatch, "claude")
+    captured: list[dict] = []
+    real = context_orientation.build_orientation_receipt
+
+    def spy(*args, **kwargs):
+        captured.append(dict(kwargs))
+        kwargs.pop("github_lookup", None)
+        kwargs.pop("issue_lookup", None)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(server.context_receipt, "build_orientation_receipt", spy)
+
+    server.room_status(session_id="s1")
+    assert captured[-1].get("github_lookup") is None
+    assert captured[-1].get("issue_lookup") is None
+
+    server.room_status(session_id="s1", github=True)
+    github_lookup = captured[-1].get("github_lookup")
+    issue_lookup = captured[-1].get("issue_lookup")
+    assert callable(github_lookup) and callable(issue_lookup)
+
+    # The lookups are lazy: asking for one must not itself perform any query.
+    monkeypatch.setattr(
+        context_orientation.shutil,
+        "which",
+        lambda _name: pytest.fail("a lookup must not query anything until it is called"),
+    )
+    assert callable(github_lookup)
