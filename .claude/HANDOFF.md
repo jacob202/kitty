@@ -4,54 +4,58 @@
 {
   "active_mission": "docs/ACTIVE_MISSION.md",
   "blockers": [
-    "#874 needs a risk label, an exact-head approval and a review override, all of which only Jacob can originate. Recommendation from this review is to close it and switch to the already-built local reviewer instead.",
-    "#870 (R-3) is blocked on 6 unresolved reviewer threads; the end-to-end product journey has still never been driven.",
-    "Builder autonomy stays off: ~/Library/LaunchAgents/com.kitty.builder.supervisor.plist still points ProgramArguments[1] and WorkingDirectory at /Users/jacobbrizinnski/Projects/kitty-autonomy-runtime, which does not exist. Editing LaunchAgents was blocked by the sandbox, so this needs Jacob or an explicit permission."
+    "R-3/BUILDER-001 still needs the product journey DRIVEN. PR #870 had 9 unresolved reviewer threads (not 6); 6 were already fixed by later commits and the 3 live ones are fixed in the worktree at ~/Projects/kitty-r3-builder-finish (320 tests pass, nothing pushed). #870 still needs Jacob to merge.",
+    "The Builder runway is deliberately empty. All 12 queued tasks sit behind initiatives paused with explicit do-not-dispatch reasons (several are stale duplicates of merged work). Driving R-3 needs a FRESH packet against current HEAD, not an unpause.",
+    "#874 needs a risk label, an exact-head approval and a review override, all of which only Jacob can originate."
   ],
-  "branch": "main",
+  "branch": "chore/builder-route-and-activation-20260915",
   "completed_items": [
-    "RESTORED the product. Stopped the scratch stack (pids proven to own 8100/8101/4100 before signalling, per the 2026-09-01 kill-by-port correction), fast-forwarded main 505bdc09 -> a98f2fee, rebuilt the UI because the existing .next predated the R-2 source changes, and started gateway + LiteLLM + UI on canonical 8000/8001/4000.",
-    "VERIFIED the restore: /health ok with litellm_reachable true, UI HTTP 200, ./kitty status reports build source a98f2fee with freshness checkout-current and gateway-truth PASS, ./kitty doctor 39 PASS / 8 WARN / 0 FAIL (was 2 FAIL).",
-    "VERIFIED Jacob's real data is intact and served: data/kitty/kitty.db holds 5 projects, 16 chat conversations, 140 artifacts.",
-    "CLEANED the workspace: 26 worktrees -> 5, 87 branches -> 61. Every dirty worktree's uncommitted diff was preserved as a patch under ~/kb/evidence/worktree-cleanup-20260914/ before removal. Only provably-merged branches were deleted with git branch -d; squash-merge candidates were left alone because git cherry cannot distinguish them from genuine unlanded work.",
-    "COMMITTED 196f3ae6: four skills (catchup, debug-fix, remember, second-opinion) and three standing preferences that had been untracked for days.",
-    "FOUND the identity defect behind the blocked commit: gateway/agent_coordination_cli.py:98 defaults KITTY_AGENT_PARTICIPANT to 'chatgpt', so any agent without that env var commits as chatgpt, and .git/kitty-agent-session held an expired chatgpt session. Worked around by claiming docs:roadmap as claude; the default itself is unfixed."
+    "BUILDER SCHEDULER ON. It had two independent off-switches, not one: the LaunchAgent pointed at the nonexistent ~/Projects/kitty-autonomy-runtime AND the label was disabled in the launchd user domain (an override outside the plist that survives reinstalling it, and that `launchctl print` cannot see). Reinstalled from the canonical renderer, enabled, bootstrapped. Now loaded/healthy, LastExitStatus 0.",
+    "CAUGHT A REGRESSION THE REPAIR INTRODUCED. The canonical plist carries only PATH by design, but load_env_safe.sh parses .env with $PYTHON_BIN and falls back to a system python3 with no dotenv, so the load failed silently inside an eval: no OpenRouter credentials and no KITTYBUILDER_LOCAL_REVIEW_SHADOW. start_builder_supervisor.sh now exports PYTHON_BIN from the Python it already resolves, and fails loud if a non-empty .env yields nothing. Verified in a bare launchd-like env.",
+    "DOCTOR NOW SEES IT. builder:scheduler projects scheduler_status() (one authority, no second source of truth) and names the disabled-override case. The drift hid for two weeks only because nothing read truth that already existed.",
+    "GAR NOISE IS A PROJECTION FIX, NOT A STORE FIX. list_inbox(attention_only=True) keeps everything addressed to you plus broadcast prompts/handoffs/reviews; measured live chatgpt 263->121, claude 500->258. Nothing deleted, room_recent unchanged. direct_only stays the lossy option because it also hides broadcast handoffs.",
+    "BUILDER ROUTE IS NOW DEEPSEEK V4.1 FLASH (openrouter/deepseek/deepseek-v4.1-flash), selectable via KITTY_BUILDER_SUPERVISOR_ROUTE (default cheap; set free to revert). Paid uses the SAME DSH adapters, so this is a route choice, not a wider execution surface. Three fail-loud guards had to be answered: registered the price (highest listed provider, USD 0.375/1.50 per Mtok), cheap ceiling 0.10->0.15, weekly budget 6.00->10.00 approved by Jacob.",
+    "ADR-0040 decision 1 demoted FLUX.2 from 'primary model family' to the current benchmarked routing default; the durable seam is ImageIntent -> reference binding -> routing -> compiler -> adapter -> artifact.",
+    "TREE CLEAN, 0 FAIL. Sorted coordination/resources.yaml runtime:provenance (was failing six acceptance gates), committed in three attributed commits, rebuilt the UI on the clean tree so provenance stamps 25e0cca5 rather than dirty: \u2014 which unblocks R-3 acceptance, since it requires dirty is False."
   ],
-  "head_sha": "196f3ae6ea106bee4e3531dfe79f5b135cb362a5",
+  "head_sha": "25e0cca58e9eea55e24444d52a91ed3342660bd9",
   "invalidation_conditions": [
-    "origin/main advances past a98f2fee.",
-    "#874 is merged or closed, or #870's reviewer threads are resolved.",
-    "The canonical stack is stopped or restarted, which changes every runtime observation here."
+    "This branch is merged, rebased, or abandoned \u2014 the work is unpushed and local only.",
+    "#870 is merged or its branch moves past ea908853.",
+    "The canonical stack is stopped or restarted, which changes every runtime observation here.",
+    "Builder spends against the CAD 10.00/week ceiling \u2014 budget observations here assume 0.00 spent."
   ],
-  "next_action": "ready:switch-reviewers",
+  "next_action": "ready:drive-r3",
   "parallel_work": [
     {
       "kind": "pull_request",
-      "observed_at": "2026-09-15T02:15:00Z",
+      "observed_at": "2026-09-15T09:24:52Z",
       "owner": "other-lane",
       "ref": "#870",
       "touches": [
         "gateway/mission_runtime.py",
-        "gateway/routes/missions.py"
+        "gateway/routes/missions.py",
+        "gateway/mission_accept_cli.py"
       ]
     },
     {
       "kind": "pull_request",
-      "observed_at": "2026-09-15T02:15:00Z",
+      "observed_at": "2026-09-15T09:24:52Z",
       "owner": "other-lane",
       "ref": "#874",
       "touches": [
-        "scripts/pr_review.py",
-        "scripts/pr_review_gate.py"
+        "scripts/pr_review.py"
       ]
     },
     {
-      "kind": "branch",
-      "observed_at": "2026-09-15T02:15:00Z",
-      "owner": "other-lane",
-      "ref": "feat/expert-evidence-runtime-20260913",
+      "kind": "worktree",
+      "observed_at": "2026-09-15T09:24:52Z",
+      "owner": "this-session",
+      "ref": "~/Projects/kitty-r3-builder-finish",
       "touches": [
-        "gateway/expert_evidence.py"
+        "gateway/mission_accept_cli.py",
+        "gateway/mission_runtime.py",
+        "gateway/routes/conversation_handoff.py"
       ]
     }
   ],
@@ -59,76 +63,54 @@
   "recommendations": [
     {
       "blocked_by": null,
-      "class": "life",
+      "class": "code",
       "deferred_count": 0,
       "first_deferred": null,
-      "id": "switch-reviewers",
+      "id": "drive-r3",
       "release_check": null,
       "status": "ready",
-      "what": "Close #874, set KITTYBUILDER_LOCAL_REVIEW_SHADOW to enable gateway/local_review.py, and stop investing in scripts/pr_review.py.",
-      "why": "The local reviewer is already built, benchmarked across 15 models, and its 4.6GB model is on disk; it is gated behind an env var set in zero files. Meanwhile scripts/pr_review.py took 36 commits since Aug 15 without once improving what it looks for, stalls at 240s on a 40-line diff, and burns paid calls for no verdict. ADR-0041 also establishes the human-approval gate #874 protects is unenforceable while agents act as jacob202."
+      "what": "Drive chat -> Mission -> Builder -> result -> resume in the running product and record acceptance.",
+      "why": "The missions table exists but holds 0 rows and 0 events: the Mission control plane has still never run against real data. Implementation evidence is not user-outcome completion."
     },
     {
       "blocked_by": null,
       "class": "code",
       "deferred_count": 0,
       "first_deferred": null,
-      "id": "enforce-dont-record",
+      "id": "review-r3-thread-fixes",
       "release_check": null,
       "status": "ready",
-      "what": "Turn the three repeatedly-relearned lessons into mechanisms: the WIP stop-intake rule into scripts/hooks/pre-push reading kb-effectiveness.jsonl; a promoted signal must name an implementing SHA or path or session_end_survey.sh fails it; and fix gateway/agent_coordination_cli.py:98 so participant identity is never silently 'chatgpt'.",
-      "why": "The 2026-09-12 council reached the WIP conclusion independently three times and it was written into ~/kb/PLAYBOOK.md, which agents do not read; the backlog then went to 54 completed_unreviewed against a rule that says stop at 2. A promoted signal with no mechanism recurred three times in four days."
-    },
-    {
-      "blocked_by": null,
-      "class": "code",
-      "deferred_count": 0,
-      "first_deferred": null,
-      "id": "close-r3-by-driving-it",
-      "release_check": null,
-      "status": "ready",
-      "what": "Resolve the 6 reviewer threads on #870, merge it, then actually drive chat request -> proposal -> approve -> Work progress -> real result -> Library -> Chat, plus one interruption and reload, at desktop and iPhone-class widths.",
-      "why": "R-3 and BUILDER-001 are the same job and it is the only remaining step before the return program's value checkpoint. Merging #870 is not this item; driving the journey is."
+      "what": "Review the 3 reviewer-thread fixes in ~/Projects/kitty-r3-builder-finish, then merge #870.",
+      "why": "They are the live blockers on #870; 320 tests pass on the branch and nothing was pushed."
     }
   ],
   "schema_version": 2,
-  "session_id": "claude-6fb80449814b4824a85ef292910078e5",
+  "session_id": "claude-dede17d80baf41c7a3e9be9bb1c3a44e",
   "status": "awaiting_review",
-  "updated_at": "2026-09-15T02:15:00Z",
+  "updated_at": "2026-09-15T09:24:52Z",
   "worktree": "."
 }
 -->
 
-## What happened this session
+## Execution ownership
 
-A read-only consolidation review, then two authorised actions: Kitty was restored and the
-workspace was cleaned.
+- this session: `interactive`
+- Builder: supervisor **loaded and healthy**, ticking every 900s on the governed cheap route
+  (DeepSeek V4.1 Flash). It launches nothing today because every initiative holding queued work is
+  deliberately paused. Budget CAD 10.00/week, 0.00 spent.
+- Coordination: claim `claim_f6543f0042654f2bbcda4e6039e23ae0`, resource `runtime:provenance`,
+  role OWN, participant `claude`. Released after the commits.
 
-**Restored.** The scratch acceptance stack in `/private/tmp` was stopped (PID ownership of
-8100/8101/4100 proven first), `main` fast-forwarded `505bdc09` -> `a98f2fee`, the UI rebuilt
-because the existing `.next` predated the R-2 source changes, and the canonical stack started on
-8000/8001/4000. `kitty doctor` went from 2 FAIL to 0 FAIL. Jacob's real data is served: 5 projects,
-16 conversations, 140 artifacts.
+## Deliberately off — do not re-litigate
 
-**Cleaned.** 26 worktrees -> 5; 87 branches -> 61. Every dirty worktree diff was preserved as a
-patch under `~/kb/evidence/worktree-cleanup-20260914/` before removal. Only provably-merged
-branches were deleted.
+`kitty doctor` reports 0 FAIL. The remaining WARNs are decisions, not defects:
 
-## The finding worth carrying
-
-`gateway/agent_coordination_cli.py:98` defaults `KITTY_AGENT_PARTICIPANT` to `"chatgpt"`. Any agent
-that does not set it commits as ChatGPT, and `.git/kitty-agent-session` was pinning an expired
-ChatGPT session, which blocked a commit from this session. This is the same class of defect as
-ADR-0041's finding that human approvals are unattributable: identity is assumed, never established.
-
-## Next move
-
-Close #874 and switch to the already-built local reviewer (`gateway/local_review.py`, gated behind
-`KITTYBUILDER_LOCAL_REVIEW_SHADOW`, set in zero files, model already on disk). Then turn the
-repeatedly-relearned lessons into mechanisms rather than notes. Then close R-3 by driving the
-journey, not by merging #870.
-
-## DO NOT REDO
-
-The consolidation, the branch/worktree triage, the 93%/4% measurement, the launchd and queue-state
-verification, or the month-long log archaeology of GAR and reviewer effectiveness.
+- **Telegram** (`env:telegram_token`) — stays off. A Telegram bot is a *second front door*, which
+  the product purpose explicitly rejects: specialist surfaces must not become entrances that make
+  Jacob reconstruct context. It is not on the mission sequence.
+- **Mail connector** (`connector:mail`) — deferred, not broken. It needs a Google Cloud OAuth client
+  only Jacob can create, and it sits downstream of R-3 in the sequence. Revisit after VALUE-001.
+- **`deadlines:watch`** — "no open deadlines" is a true statement about an empty set, not a fault.
+- **`push:channel`** — the one genuinely worth turning on now, because Builder runs unattended and
+  spends real money. iMessage needs exactly one value: `PUSH_IMESSAGE_RECIPIENT=<Jacob's iMessage
+  handle>` in `.env`. Messages.app is running, so nothing else is required.
