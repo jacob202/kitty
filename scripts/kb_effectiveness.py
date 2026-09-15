@@ -706,8 +706,14 @@ def session_total_tokens(session_id: str, *, root: Path | None = None) -> int | 
     try:
         from scripts.analyze_claude_usage import parse_session
     except ImportError:  # running the file directly puts scripts/ on sys.path
+        # Resolved dynamically on purpose. A second *static* import of the same
+        # source file makes mypy see one module under two names
+        # ("scripts.analyze_claude_usage" and "analyze_claude_usage") and fail
+        # the types gate before it checks anything else.
+        import importlib
+
         try:
-            from analyze_claude_usage import parse_session  # type: ignore[no-redef]
+            parse_session = importlib.import_module("analyze_claude_usage").parse_session
         except ImportError:
             return None
     search_root = TRANSCRIPT_ROOT if root is None else root
