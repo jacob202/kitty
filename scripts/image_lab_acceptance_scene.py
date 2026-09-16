@@ -133,7 +133,7 @@ def build_two_character_plan(
 
 
 async def _dispatch(plan_id: str, session_id: str, *, quality: str) -> Any:
-    from gateway.routes.extended import StudioGenerateRequest, studio_generate
+    from gateway.routes.image_studio import StudioGenerateRequest, studio_generate
 
     return await studio_generate(
         StudioGenerateRequest(prompt="", quality=quality, plan_id=plan_id, session_id=session_id)

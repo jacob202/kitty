@@ -146,7 +146,7 @@ async def test_stored_intent_not_mutable_session_drives_flux2_compiler(
     from types import SimpleNamespace
 
     from gateway import image_jobs
-    from gateway.routes import extended
+    from gateway.routes import image_studio
 
     session = sessions.create_session(title="immutable edit contract")
     plan = build_image_plan(
@@ -190,8 +190,8 @@ async def test_stored_intent_not_mutable_session_drives_flux2_compiler(
 
     monkeypatch.setattr("gateway.image_runner.run", fake_run)
 
-    await extended.studio_generate(
-        extended.StudioGenerateRequest(
+    await image_studio.studio_generate(
+        image_studio.StudioGenerateRequest(
             prompt="ignored mutable request",
             plan_id=stored.plan_id,
             session_id=session.session_id,
@@ -212,7 +212,7 @@ async def test_flux2_compiler_uses_typed_reference_roles_and_order(
     from types import SimpleNamespace
 
     from gateway import image_jobs
-    from gateway.routes import extended
+    from gateway.routes import image_studio
 
     session = sessions.create_session(title="reference roles")
     identity_path = tmp_path / "identity.png"
@@ -315,8 +315,8 @@ async def test_flux2_compiler_uses_typed_reference_roles_and_order(
 
     monkeypatch.setattr("gateway.image_runner.run", fake_run)
 
-    await extended.studio_generate(
-        extended.StudioGenerateRequest(
+    await image_studio.studio_generate(
+        image_studio.StudioGenerateRequest(
             prompt="ignored",
             plan_id=stored.plan_id,
             session_id=session.session_id,
@@ -561,7 +561,7 @@ async def test_dispatch_fails_closed_on_unsupported_reference_capability(
     from starlette.exceptions import HTTPException as StarletteHTTPException
 
     from gateway import image_jobs
-    from gateway.routes import extended
+    from gateway.routes import image_studio
 
     session = sessions.create_session(title="fail-closed capability")
     pose_path = tmp_path / "pose.png"
@@ -650,8 +650,8 @@ async def test_dispatch_fails_closed_on_unsupported_reference_capability(
     monkeypatch.setattr("gateway.image_runner.run", fake_run)
 
     with pytest.raises(StarletteHTTPException) as exc_info:
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="ignored",
                 plan_id=stored.plan_id,
                 session_id=session.session_id,

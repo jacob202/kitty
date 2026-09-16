@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from gateway import image_sessions
-from gateway.routes import extended, image_studio_jobs
+from gateway.routes import image_studio, image_studio_jobs
 
 
 def test_patch_session_route_binds_character(monkeypatch):
@@ -15,13 +15,13 @@ def test_patch_session_route_binds_character(monkeypatch):
 
     monkeypatch.setattr(image_sessions, "update_session", fake_update)
     monkeypatch.setattr(
-        extended,
+        image_studio,
         "_session_payload",
         lambda session: {"session_id": "imgses_1", "character_id": "char_1"},
     )
 
     app = FastAPI()
-    app.include_router(extended.router)
+    app.include_router(image_studio.router)
     app.include_router(image_studio_jobs.router)
     response = TestClient(app).patch(
         "/studio/sessions/imgses_1",
@@ -45,13 +45,13 @@ def test_patch_session_route_clears_character(monkeypatch):
 
     monkeypatch.setattr(image_sessions, "update_session", fake_update)
     monkeypatch.setattr(
-        extended,
+        image_studio,
         "_session_payload",
         lambda session: {"session_id": "imgses_1", "character_id": None},
     )
 
     app = FastAPI()
-    app.include_router(extended.router)
+    app.include_router(image_studio.router)
     app.include_router(image_studio_jobs.router)
     response = TestClient(app).patch(
         "/studio/sessions/imgses_1",

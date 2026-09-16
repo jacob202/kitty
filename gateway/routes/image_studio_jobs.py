@@ -162,7 +162,7 @@ def _validate_iteration_route(request: dict) -> None:
 
 async def _runtime_available_providers() -> set[str]:
     """Return provider ids whose actual execution transports are ready now."""
-    from gateway.routes.extended import image_status
+    from gateway.routes.image_generation import image_status
 
     status = await image_status()
     return {
@@ -401,7 +401,7 @@ async def studio_cancel_batch(batch_id: str) -> dict:
 async def studio_clear_anchor(session_id: str) -> dict:
     from gateway import undo_journal
     from gateway.image_sessions import ImageSessionError, SessionNotFoundError, require_session
-    from gateway.routes.extended import _session_payload
+    from gateway.routes.image_studio import _session_payload
 
     try:
         journal_id = undo_journal.clear_anchor_with_undo(session_id)
@@ -474,7 +474,7 @@ async def execute_studio_batch_request(request: dict) -> dict:
     metadata after routing remains the source of truth for observations.
     """
     from gateway import image_jobs
-    from gateway.routes.extended import StudioGenerateRequest, studio_generate
+    from gateway.routes.image_studio import StudioGenerateRequest, studio_generate
 
     _validate_iteration_route(request)
     payload = {

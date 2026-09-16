@@ -1,5 +1,6 @@
 IMAGE_LAB = "gateway/kitty-chat/src/components/ImageLab.tsx"
-EXTENDED = "gateway/routes/extended.py"
+IMAGE_GENERATION = "gateway/routes/image_generation.py"
+IMAGE_STUDIO = "gateway/routes/image_studio.py"
 IMAGE_JOBS = "gateway/routes/image_studio_jobs.py"
 REGISTER = "gateway/routes/register.py"
 
@@ -12,21 +13,23 @@ def _read(path: str) -> str:
 def test_image_lab_owning_routers_are_mounted() -> None:
     source = _read(REGISTER)
     assert source.count("image_studio_jobs,") >= 2
-    assert source.count("extended,") >= 2
+    assert source.count("image_generation,") >= 2
+    assert source.count("image_studio,") >= 2
 
 
 def test_image_lab_mutating_and_truth_routes_have_matching_methods() -> None:
-    extended = _read(EXTENDED)
+    image_generation = _read(IMAGE_GENERATION)
+    image_studio = _read(IMAGE_STUDIO)
     image_jobs = _read(IMAGE_JOBS)
     required = {
-        '@router.get("/image/status")': extended,
-        '@router.post("/studio/sessions")': extended,
-        '@router.get("/studio/sessions/{session_id}")': extended,
-        '@router.patch("/studio/sessions/{session_id}")': extended,
-        '@router.post("/studio/sessions/{session_id}/anchor")': extended,
-        '@router.post("/studio/agent")': extended,
-        '@router.get("/studio/characters")': extended,
-        '@router.post("/studio/characters/{character_id}/references")': extended,
+        '@router.get("/image/status")': image_generation,
+        '@router.post("/studio/sessions")': image_studio,
+        '@router.get("/studio/sessions/{session_id}")': image_studio,
+        '@router.patch("/studio/sessions/{session_id}")': image_studio,
+        '@router.post("/studio/sessions/{session_id}/anchor")': image_studio,
+        '@router.post("/studio/agent")': image_studio,
+        '@router.get("/studio/characters")': image_studio,
+        '@router.post("/studio/characters/{character_id}/references")': image_studio,
         '@router.post("/studio/estimate")': image_jobs,
         '@router.post("/studio/batches")': image_jobs,
         '@router.get("/studio/batches")': image_jobs,

@@ -27,7 +27,7 @@ from gateway.image_policy import (
     PrivateExecutionRequiredError,
     validate_image_execution_policy,
 )
-from gateway.routes import extended
+from gateway.routes import image_studio
 
 #: Neutral sentinel prompt: no EXPLICIT_KW is ever a policy signal, so tests
 #: deliberately do not rely on keywords to reach the private lane.
@@ -230,8 +230,8 @@ class TestSafeBackcompat:
         monkeypatch.setattr("gateway.image_runner.run", fake_run)
         monkeypatch.setattr("gateway.image_recipes.auto_route", fake_auto_route)
 
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="mutable", plan_id=stored.plan_id, session_id=s.session_id
             )
         )
@@ -260,8 +260,8 @@ class TestDurableRoundTripDispatch:
 
         captured: dict = {}
         _capture_run_edit(monkeypatch, captured)
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="mutable", plan_id=stored.plan_id, session_id=s.session_id
             )
         )
@@ -346,8 +346,8 @@ class TestPrivateRequiresAdult:
             conn.commit()
 
         with pytest.raises(HTTPException) as exc:
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="x", plan_id=stored.plan_id, session_id=s.session_id
                 )
             )
@@ -402,8 +402,8 @@ class TestHostedLeakPrevention:
             _edit_recipe_mock(captured, provider="flux"),
         )
 
-        result = await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        result = await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="mutable", plan_id=stored.plan_id, session_id=s.session_id
             )
         )
@@ -437,8 +437,8 @@ class TestFallbackLeakPrevention:
         )
 
         with pytest.raises(HTTPException) as exc:
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="x", plan_id=stored.plan_id, session_id=s.session_id
                 )
             )
@@ -473,8 +473,8 @@ class TestPrivatePreflightTruth:
         )
         _capture_run_edit(monkeypatch, captured)
 
-        result = await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        result = await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="mutable", plan_id=stored.plan_id, session_id=s.session_id
             )
         )
@@ -630,8 +630,8 @@ class TestRequestCannotOverride:
         monkeypatch.setattr("gateway.image_runner.run_edit", fail_run_edit)
         monkeypatch.setattr("gateway.image_recipes.auto_route", fake_auto_route)
 
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="mutable",
                 plan_id=stored.plan_id,
                 session_id=s.session_id,
@@ -655,8 +655,8 @@ class TestRequestCannotOverride:
         captured: dict = {}
         _capture_run_edit(monkeypatch, captured)
 
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="mutable",
                 plan_id=stored.plan_id,
                 session_id=s.session_id,
@@ -714,8 +714,8 @@ class TestKeywordsHaveZeroAuthority:
     @pytest.mark.asyncio
     async def test_plan_endpoint_accepts_policy_declaration(self, tmp_path: Path):
         s, anchor = _private_session_with_anchor(tmp_path)
-        result = await extended.studio_plan(
-            extended.PlanPreviewRequest(
+        result = await image_studio.studio_plan(
+            image_studio.PlanPreviewRequest(
                 prompt=SENTINEL_PROMPT,
                 session_id=s.session_id,
                 content_lane="private_adult",

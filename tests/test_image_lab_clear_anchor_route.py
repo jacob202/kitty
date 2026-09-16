@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from gateway import image_sessions, undo_journal
-from gateway.routes import extended, image_studio_jobs
+from gateway.routes import image_studio, image_studio_jobs
 
 
 def test_delete_anchor_route_calls_durable_clear(monkeypatch):
@@ -16,13 +16,13 @@ def test_delete_anchor_route_calls_durable_clear(monkeypatch):
     monkeypatch.setattr(undo_journal, "clear_anchor_with_undo", fake_clear_with_undo)
     monkeypatch.setattr(image_sessions, "require_session", lambda session_id: cleared)
     monkeypatch.setattr(
-        extended,
+        image_studio,
         "_session_payload",
         lambda session: {"session_id": "imgses_1", "anchor_job_id": None},
     )
 
     app = FastAPI()
-    app.include_router(extended.router)
+    app.include_router(image_studio.router)
     app.include_router(image_studio_jobs.router)
     response = TestClient(app).delete("/studio/sessions/imgses_1/anchor")
 

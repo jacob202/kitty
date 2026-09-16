@@ -68,9 +68,14 @@ resources:
     - gateway/kitty-chat/src/components/ImageLab.tsx
     - gateway/kitty-chat/src/components/StudioView.tsx
     - gateway/kitty-chat/tests/ImageLab*.tsx
+    - gateway/routes/image_generation.py
+    - gateway/routes/image_studio.py
     - gateway/routes/image_studio_jobs.py
     - mcp/imagen/requirements.txt
+    - scripts/image_lab_acceptance_scene.py
+    - tests/test_flux2_transport.py
     - tests/test_image_*.py
+    - tests/test_imagelab_iteration.py
     - workers/comfy_worker/requirements.txt
   knowledge:retrieval:
     paths:
@@ -224,16 +229,22 @@ resources:
     - gateway/kitty-chat/tests/actionsContract.test.ts
     - gateway/kitty-chat/tests/chatClient.test.ts
     - gateway/kitty-chat/tests/smoke/**
+    - gateway/routes/agents.py
     - gateway/routes/chats.py
     - gateway/routes/completions.py
     - gateway/routes/conversation_handoff.py
-    - gateway/routes/extended.py
+    - gateway/routes/notifications.py
+    - gateway/routes/skills.py
+    - gateway/routes/todos.py
     - gateway/voice_middleware.py
+    - tests/test_agent_runner.py
     - tests/test_chat_completions.py
     - tests/test_chats_route.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
+    - tests/test_extended_notify_route.py
     - tests/test_library_chat_001.py
+    - tests/test_undo_route_wiring.py
     - tests/test_voice_middleware.py
     - tests/test_work_projection.py
   review:agent-workflow:
@@ -265,3 +276,4 @@ resources:
     - scripts/ops/kitty_task.py
     - scripts/transcript_reader.py
     - tests/test_builder_cli.py
+
