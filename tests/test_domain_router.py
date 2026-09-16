@@ -44,3 +44,14 @@ def test_health_keyword_does_not_match_med_substring_in_medium():
 
 def test_ibuprofen_routes_to_health():
     assert classify_domain("Can I take ibuprofen?") == "health"
+
+
+def test_drug_interaction_question_routes_to_health():
+    """"warfarin with ginkgo" carries no symptom or body-part word, so it only
+    routes to health via the medication vocabulary."""
+    assert classify_domain("Can I take warfarin with ginkgo?") == "health"
+
+
+def test_ordinary_taking_question_stays_out_of_health():
+    """Adding medication vocabulary must not capture ordinary uses of 'take'."""
+    assert classify_domain("Can I take my dog with me to the store?") != "health"

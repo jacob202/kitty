@@ -83,6 +83,33 @@ DOMAIN_KEYWORDS = {
         "allergic",
         "infection",
         "wound",
+        # Medication and drug-interaction vocabulary. The classifier is a plain
+        # substring match, so this is restricted to terms that are unambiguous in
+        # a health context. Drug names are unbounded, so this narrows the gap
+        # rather than closing it: an unrecognised drug still falls through.
+        "warfarin",
+        "anticoagulant",
+        "blood thinner",
+        "ginkgo",
+        "acetaminophen",
+        "naproxen",
+        "motrin",
+        "aleve",
+        "antibiotic",
+        "antidepressant",
+        "ssri",
+        "opioid",
+        "metformin",
+        "insulin",
+        "cholesterol",
+        "blood pressure",
+        "side effect",
+        "side effects",
+        "contraindicated",
+        "overdose",
+        "dosage",
+        "pharmacy",
+        "pharmacist",
     ],
     "research": [
         "research",

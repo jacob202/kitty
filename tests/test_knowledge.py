@@ -960,6 +960,42 @@ def test_health_domain_actionable_medication_question_requires_current_verificat
     assert policy.current_verification_required is True
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Can I take warfarin with ginkgo?",
+        "Is ginkgo safe with my blood thinner?",
+        "What's a typical dosage of metformin?",
+    ],
+)
+def test_unscoped_medication_questions_require_current_verification(query):
+    """A drug question with no expert selected must still demand current verification."""
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(query)
+
+    assert policy.task_type == "current_safety"
+    assert policy.freshness == "current_external_required"
+    assert policy.current_verification_required is True
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Can I take the bus to the airport?",
+        "Can I take my dog with me to the store?",
+        "What should I take to the meeting?",
+    ],
+)
+def test_ordinary_taking_questions_do_not_require_current_verification(query):
+    """Widening the medication vocabulary must not make ordinary questions abstain."""
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(query)
+
+    assert policy.current_verification_required is False
+
+
 def test_evidence_policy_uses_token_boundaries_not_substring_domain_matches():
     from gateway.knowledge import build_evidence_policy
 
