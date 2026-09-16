@@ -324,6 +324,75 @@ def _invalid_review(reason: str, text: str) -> None:
     )
 
 
+# A response that says it did not finish is not a verdict, however well-formed any
+# object inside it looks.
+REVIEW_INCOMPLETE_MARKERS = (
+    "could not complete",
+    "cannot complete",
+    "unable to complete",
+    "not able to complete",
+    "hypothetical",
+)
+
+
+def _brace_spans(text: str) -> list[tuple[int, int]]:
+    """Bounds of every balanced top-level brace span, ignoring braces in strings."""
+    spans: list[tuple[int, int]] = []
+    depth = 0
+    start = -1
+    in_string = False
+    escaped = False
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "}" and depth:
+            depth -= 1
+            if depth == 0 and start >= 0:
+                spans.append((start, index + 1))
+                start = -1
+    return spans
+
+
+def _decoded_review_record(
+    text: str,
+) -> tuple[dict[str, Any] | None, tuple[int, int] | None, str | None]:
+    """Decode the one schema-bearing object a reviewer emitted, if unambiguous.
+
+    Braces in prose (`{name}`) are not candidate records: only spans that actually
+    decode to a JSON object count. The record must also be the reviewer's final
+    word, so a worked example followed by more narration cannot be promoted into a
+    verdict. Returns the record, its span, and the last decode error seen.
+    """
+    decoded: list[tuple[int, int, dict[str, Any]]] = []
+    detail: str | None = None
+    for start, end in _brace_spans(text):
+        try:
+            candidate = json.loads(text[start:end])
+        except json.JSONDecodeError as exc:
+            detail = f"{exc.msg} at line {exc.lineno} column {exc.colno}"
+            continue
+        if isinstance(candidate, dict):
+            decoded.append((start, end, candidate))
+    if len(decoded) != 1:
+        return None, None, detail
+    start, end, record = decoded[0]
+    if text[end:].strip().strip("`").strip():
+        return None, None, detail
+    return record, (start, end), detail
+
+
 def _normalize_opencode_review(output: str) -> str | None:
     """Parse exactly one schema-valid model record into the durable review contract."""
     text = output.strip()
@@ -332,8 +401,24 @@ def _normalize_opencode_review(output: str) -> str | None:
     try:
         record = json.loads(text)
     except json.JSONDecodeError:
-        _invalid_review("response is not exactly one JSON object", text)
-        return None
+        if any(marker in text.lower() for marker in REVIEW_INCOMPLETE_MARKERS):
+            _invalid_review("response reports an incomplete review", text)
+            return None
+        record, span, detail = _decoded_review_record(text)
+        if record is None or span is None:
+            _invalid_review(
+                "response does not contain exactly one JSON object"
+                + (f": {detail}" if detail else ""),
+                text,
+            )
+            return None
+        # Transport formatting is tolerated; prose that reads as a finding is not.
+        # An `approve` record must not silently clear a narrated defect.
+        if record.get("verdict") == "approve" and is_reportable_finding(
+            text[: span[0]] + text[span[1] :]
+        ):
+            _invalid_review("approve record accompanied by narrated finding text", text)
+            return None
 
     if not isinstance(record, dict) or set(record) != REVIEW_RECORD_KEYS:
         _invalid_review("top-level review schema does not match", text)
