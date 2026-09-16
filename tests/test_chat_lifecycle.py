@@ -255,3 +255,68 @@ def test_list_running_conversations_reports_the_requested_model(monkeypatch, tmp
     running = chat_lifecycle.list_running_conversations()
     assert len(running) == 1
     assert running[0]["requested_model"] == "gpt-5-pro"
+
+def test_finish_turn_persists_source_evidence_separately_from_memory(monkeypatch, tmp_path):
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
+    handle = chat_lifecycle.start_turn(
+        conversation_id="chat-evidence",
+        project_id=None,
+        title="Evidence chat",
+        user_message_id="user-evidence",
+        user_text="What does the source say?",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    receipt = {
+        "evidence_id": "E1",
+        "text": "Exact excerpt",
+        "title": "Service Manual",
+        "locator_start": "12",
+    }
+    chat_lifecycle.finish_turn(
+        handle,
+        status="succeeded",
+        assistant_text="See [E1].",
+        resolved_model="kitty-default",
+        memory_items=[{"text": "remembered preference"}],
+        evidence_items=[receipt],
+    )
+    assistant = next(
+        message for message in chat_lifecycle.get_turn(handle.turn_id)["messages"]
+        if message["role"] == "assistant"
+    )
+    assert 'remembered preference' in assistant["memory_items"]
+    assert '"evidence_id": "E1"' in assistant["evidence_items"]
+    assert 'Service Manual' in assistant["evidence_items"]
+
+
+def test_finish_turn_persists_evidence_with_empty_assistant_text(monkeypatch, tmp_path):
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
+    handle = chat_lifecycle.start_turn(
+        conversation_id="chat-empty-evidence",
+        project_id=None,
+        title="Empty evidence chat",
+        user_message_id="user-empty-evidence",
+        user_text="Return the source receipt",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    chat_lifecycle.finish_turn(
+        handle,
+        status="succeeded",
+        assistant_text="",
+        resolved_model="kitty-default",
+        evidence_items=[{
+            "evidence_id": "E1",
+            "text": "Exact excerpt",
+        }],
+    )
+
+    assistant = next(
+        message for message in chat_lifecycle.get_turn(handle.turn_id)["messages"]
+        if message["role"] == "assistant"
+    )
+    assert assistant["content"] == ""
+    assert '"evidence_id": "E1"' in assistant["evidence_items"]

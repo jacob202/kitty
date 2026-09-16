@@ -737,3 +737,225 @@ async def test_explicit_skill_that_cannot_fit_fails_instead_of_truncating(monkey
             "Use skill: enormous\n\nReview this",
             deps=_AssemblerDeps(adapters=[FakeAdapter("memory", items=[])], enrichments=()),
         )
+
+
+@pytest.mark.asyncio
+async def test_knowledge_renders_as_first_class_evidence_not_memory():
+    memory = Item(text="Jacob prefers concise answers", source=Source.MEMORY, score=0.7)
+    excerpt = "This historical herbal reference discusses adverse effects and interactions."
+    knowledge = Item(
+        text=excerpt,
+        source=Source.KNOWLEDGE,
+        score=0.95,
+        metadata={
+            "evidence": {
+                "source_id": "health-src",
+                "source_sha256": "a" * 64,
+                "logical_unit_id": "work:health-src",
+                "retrieval_title": "Historical Herbal Reference",
+                "authority_tier": "contextual_or_traditional_health_reference",
+                "currency_status": "authority_and_recency_review_required",
+                "clinical_use_policy": "verify_current_clinical_guidance_externally_before_action",
+            },
+            "metadata": {"locator_start": "12", "locator_end": "13"},
+        },
+    )
+    deps = _AssemblerDeps(
+        adapters=[
+            FakeAdapter("memory", items=[memory]),
+            FakeAdapter("knowledge", items=[knowledge]),
+        ],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    bundle = await assemble_context(
+        "Is this herbal supplement safe to combine with a prescription medicine today?",
+        deps=deps,
+    )
+
+    assert "## Evidence" in bundle.system
+    assert "## Knowledge" not in bundle.system
+    assert "[E1] Historical Herbal Reference" in bundle.system
+    assert "pp. 12-13" in bundle.system
+    assert "authority=contextual_or_traditional_health_reference" in bundle.system
+    assert "currentness=authority_and_recency_review_required" in bundle.system
+    assert excerpt in bundle.system
+    assert "## Memory" in bundle.system
+    assert memory.text in bundle.system
+    assert bundle.evidence_items == [knowledge]
+    assert {"text": excerpt} not in bundle.injected_memory_items
+    assert bundle.injected_memory_items == [{"text": memory.text}]
+    assert bundle.injected_evidence_items[0]["evidence_id"] == "E1"
+    assert bundle.injected_evidence_items[0]["source_id"] == "health-src"
+    assert bundle.injected_evidence_items[0]["locator_start"] == "12"
+    assert bundle.evidence_policy.current_verification_required is True
+    assert "current external verification is required" in bundle.system.lower()
+
+
+@pytest.mark.asyncio
+async def test_evidence_has_its_own_budget_and_is_not_crowded_out_by_memory():
+    huge_memory = Item(text="personal history " * 4000, source=Source.MEMORY, score=1.0)
+    knowledge = Item(
+        text="Factory manual torque specification: 128 N m.",
+        source=Source.KNOWLEDGE,
+        score=1.0,
+        metadata={
+            "evidence": {
+                "source_id": "oem-manual",
+                "source_sha256": "b" * 64,
+                "logical_unit_id": "work:ridgeline-manual",
+                "retrieval_title": "Honda Ridgeline Service Manual",
+                "authority_tier": "official_or_primary_candidate",
+                "currency_status": "model_year_specific",
+            },
+            "metadata": {"locator_start": "18-42", "locator_end": "18-43"},
+        },
+    )
+    deps = _AssemblerDeps(
+        adapters=[
+            FakeAdapter("memory", items=[huge_memory]),
+            FakeAdapter("knowledge", items=[knowledge]),
+        ],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    bundle = await assemble_context(
+        "What is the exact rear caliper bracket torque on a 2010 Honda Ridgeline?",
+        deps=deps,
+        tier="standard",
+    )
+
+    assert "[E1] Honda Ridgeline Service Manual" in bundle.system
+    assert "Factory manual torque specification: 128 N m." in bundle.system
+    evidence_budget = next(
+        block for block in bundle.context_budget["blocks"] if block["name"] == "evidence"
+    )
+    memory_budget = next(
+        block for block in bundle.context_budget["blocks"] if block["name"] == "memory"
+    )
+    assert evidence_budget["included_chars"] > 0
+    assert memory_budget["truncated"] is True
+    assert bundle.injected_evidence_items
+
+
+@pytest.mark.asyncio
+async def test_single_long_evidence_keeps_truthful_visible_receipt_when_outer_budget_clips():
+    long_text = "factory procedure detail " * 500
+    knowledge = Item(
+        text=long_text,
+        source=Source.KNOWLEDGE,
+        score=1.0,
+        metadata={
+            "evidence": {
+                "source_id": "oem-long",
+                "logical_unit_id": "work:oem-long",
+                "retrieval_title": "OEM Long Procedure",
+            },
+            "metadata": {"locator_start": "44", "locator_end": "45"},
+        },
+    )
+    deps = _AssemblerDeps(
+        adapters=[FakeAdapter("knowledge", items=[knowledge])],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    bundle = await assemble_context(
+        "What is the exact procedure?", deps=deps, tier="standard", expert_profile="automotive"
+    )
+
+    assert bundle.system.startswith("## Evidence")
+    assert bundle.selected_expert_evidence_block
+    assert bundle.system.startswith(bundle.selected_expert_evidence_block)
+    assert bundle.injected_evidence_items
+    receipt = bundle.injected_evidence_items[0]
+    assert receipt["text"] in bundle.system
+    assert len(receipt["text"]) < len(long_text)
+    assert receipt["source_id"] == "oem-long"
+
+
+@pytest.mark.asyncio
+async def test_clipped_evidence_receipt_only_reports_whole_visible_records(monkeypatch):
+    import gateway.context_assembler as assembler
+
+    one = Item(
+        text="short complete evidence",
+        source=Source.KNOWLEDGE,
+        score=1.0,
+        metadata={
+            "evidence": {
+                "source_id": "s1",
+                "logical_unit_id": "u1",
+                "retrieval_title": "Source One",
+            },
+            "metadata": {"locator_start": "1", "locator_end": "1"},
+        },
+    )
+    two = Item(
+        text="very long evidence " * 3000,
+        source=Source.KNOWLEDGE,
+        score=0.9,
+        metadata={
+            "evidence": {
+                "source_id": "s2",
+                "logical_unit_id": "u2",
+                "retrieval_title": "Source Two",
+            },
+            "metadata": {"locator_start": "2", "locator_end": "3"},
+        },
+    )
+    monkeypatch.setattr(assembler, "personality_block", lambda: "P" * 2000)
+    monkeypatch.setattr(assembler.user_context, "load_user_context", lambda: "U" * 3000)
+    deps = _AssemblerDeps(
+        adapters=[FakeAdapter("knowledge", items=[one, two])],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    bundle = await assemble_context("explain this evidence", deps=deps, tier="standard")
+
+    assert bundle.injected_evidence_items
+    for record in bundle.injected_evidence_items:
+        assert record["text"] in bundle.system
+        assert f"[{record['evidence_id']}]" in bundle.system
+
+
+@pytest.mark.asyncio
+async def test_selected_health_expert_keeps_current_safety_policy_for_terse_combination_question():
+    deps = _AssemblerDeps(
+        adapters=[FakeAdapter("knowledge", items=[])],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    bundle = await assemble_context(
+        "Can I combine these?",
+        deps=deps,
+        tier="standard",
+        expert_profile="health_biology",
+    )
+
+    assert bundle.evidence_policy.safety == "high_health"
+    assert bundle.evidence_policy.task_type == "current_safety"
+    assert bundle.evidence_policy.current_verification_required is True
+
+
+@pytest.mark.asyncio
+async def test_selected_expert_fails_closed_when_knowledge_adapter_fails():
+    from gateway.knowledge import CorpusProjectionUnavailableError
+
+    deps = _AssemblerDeps(
+        adapters=[FakeAdapter("knowledge", exc=RuntimeError("expert index unavailable"))],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    with pytest.raises(CorpusProjectionUnavailableError, match="expert.*unavailable"):
+        await assemble_context(
+            "What is the procedure?",
+            deps=deps,
+            tier="standard",
+            expert_profile="automotive",
+        )

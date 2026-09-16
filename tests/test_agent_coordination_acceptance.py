@@ -30,6 +30,7 @@ REQUIRED_RESOURCES = {
     "memory:continuity",
     "mission:runtime",
     "image-lab:generation",
+    "knowledge:retrieval",
     "review:agent-workflow",
 }
 
@@ -381,6 +382,12 @@ def test_registry_seed_is_exact_deterministic_and_points_at_real_tree() -> None:
     )
     assert one == two == ["docs:roadmap", "runtime:provenance"]
 
+    memory = agent_coordination.resolve_paths_to_resources(
+        ["tests/test_context_assembler.py", "tests/test_memory_graph.py"],
+        registry_path=TRACKED_REGISTRY,
+    )
+    assert memory == ["memory:continuity"]
+
     containment = agent_coordination.resolve_paths_to_resources(
         [
             "gateway/builder_contract_gate.py",
@@ -459,6 +466,7 @@ def test_registry_covers_current_runtime_and_action_packet_fences() -> None:
         "tests/test_start_ui_script.py",
     ]
     action_paths = [
+        "gateway/kitty-chat/src/components/HomeState.tsx",
         "gateway/kitty-chat/src/lib/gateway.ts",
         "gateway/kitty-chat/src/lib/queries.ts",
         "gateway/kitty-chat/src/lib/actions-contract.ts",
@@ -519,6 +527,22 @@ def test_registry_covers_mission_runtime_and_automation_execution() -> None:
         assert agent_coordination.resolve_paths_to_resources(
             [path], registry_path=TRACKED_REGISTRY
         ) == ["automation:execution"], path
+
+def test_registry_covers_knowledge_retrieval_owner() -> None:
+    paths = [
+        "contracts/knowledge_pipeline.py",
+        "gateway/archivist.py",
+        "gateway/hybrid_search.py",
+        "gateway/knowledge.py",
+        "gateway/routes/knowledge.py",
+        "tests/test_knowledge.py",
+        "tests/test_knowledge_routes.py",
+    ]
+    for path in paths:
+        assert agent_coordination.resolve_paths_to_resources(
+            [path], registry_path=TRACKED_REGISTRY
+        ) == ["knowledge:retrieval"], path
+
 
 def test_registry_covers_agent_room_interfaces() -> None:
     runtime_paths = [

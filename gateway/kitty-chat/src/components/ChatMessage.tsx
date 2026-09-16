@@ -4,7 +4,7 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { Message, type MemoryEvidence } from '@/lib/types'
+import { Message, type EvidenceReceipt, type MemoryEvidence } from '@/lib/types'
 import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
@@ -129,6 +129,9 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
           </div>
         {isKitty && !isStreaming && message.memoryItems && message.memoryItems.length > 0 && (
           <MemoryBlock items={message.memoryItems} />
+        )}
+        {isKitty && !isStreaming && message.evidenceItems && message.evidenceItems.length > 0 && (
+          <SourcesBlock items={message.evidenceItems} />
         )}
         {showActions && (
           <div className="msg-actions" style={{ ...actionRowStyle, opacity: actionsVisible ? 1 : 0 }}>
@@ -516,6 +519,43 @@ function MemoryBlock({ items }: { items: MemoryEvidence[] }) {
               <MemoryRow item={item} />
             </li>
           ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function SourcesBlock({ items }: { items: EvidenceReceipt[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ paddingLeft: 6, maxWidth: 560 }}>
+      <button
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        style={memoryToggleStyle}
+      >
+        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+        sources {items.length}
+      </button>
+      {open && (
+        <ul style={memoryListStyle}>
+          {items.map((item) => {
+            const locator = item.locatorStart
+              ? item.locatorEnd && item.locatorEnd !== item.locatorStart
+                ? `pp. ${item.locatorStart}-${item.locatorEnd}`
+                : `p. ${item.locatorStart}`
+              : undefined
+            return (
+              <li key={item.evidenceId} style={memoryItemStyle}>
+                <div>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', marginRight: 6 }}>[{item.evidenceId}]</span>
+                  <strong>{item.title ?? 'Unknown source'}</strong>
+                  {locator && <span style={{ marginLeft: 6, color: 'var(--ink-2)' }}>{locator}</span>}
+                </div>
+                <div style={{ marginTop: 3 }}>{item.text}</div>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

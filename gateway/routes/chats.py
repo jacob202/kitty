@@ -58,6 +58,36 @@ def _recover_memory_items(raw_memory: object) -> list[dict[str, str]]:
     return normalized
 
 
+_EVIDENCE_ITEM_FIELDS = {
+    "evidence_id", "text", "source_id", "source_sha256", "logical_unit_id",
+    "work_id", "series_id", "title", "locator_start", "locator_end",
+    "authority_tier", "currency_status", "clinical_use_policy",
+}
+
+
+def _recover_evidence_items(raw_evidence: object) -> list[dict[str, str]]:
+    """Recover validated source receipts from durable ledger JSON."""
+    try:
+        decoded = json.loads(raw_evidence) if isinstance(raw_evidence, str) else []
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(decoded, list):
+        return []
+    normalized: list[dict[str, str]] = []
+    for item in decoded:
+        if not isinstance(item, dict) or set(item) - _EVIDENCE_ITEM_FIELDS:
+            return []
+        record: dict[str, str] = {}
+        for key, value in item.items():
+            if not isinstance(value, str) or not value:
+                return []
+            record[key] = value
+        if not record.get("evidence_id") or not record.get("text"):
+            return []
+        normalized.append(record)
+    return normalized
+
+
 @router.get("/chats")
 async def get_chats():
     """Return all saved chat sessions."""
@@ -244,6 +274,7 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                     "status": turn_status,
                     "artifact_ids": artifact_ids,
                     "memory_items": _recover_memory_items(msg.get("memory_items")),
+                    "evidence_items": _recover_evidence_items(msg.get("evidence_items")),
                 }
             )
 

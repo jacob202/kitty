@@ -282,3 +282,32 @@ def test_retry_recovery_preserves_original_attachments(client, tmp_path):
     recovered = client.get("/chats/retry-with-attachment/messages").json()["messages"]
     user_message = next(message for message in recovered if message["role"] == "user")
     assert [a["id"] for a in user_message["attachments"]] == [artifact["id"]]
+
+def test_reload_recovers_source_evidence_receipts(client):
+    handle = chat_lifecycle.start_turn(
+        conversation_id="evidence-reload",
+        project_id=None,
+        title="Evidence reload",
+        user_message_id="user-evidence",
+        user_text="Show me the source",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    receipt = {
+        "evidence_id": "E1",
+        "text": "Exact excerpt",
+        "title": "Honda Service Manual",
+        "locator_start": "9",
+        "locator_end": "10",
+    }
+    chat_lifecycle.finish_turn(
+        handle,
+        status="succeeded",
+        assistant_text="See [E1].",
+        resolved_model="kitty-default",
+        evidence_items=[receipt],
+    )
+    recovered = client.get("/chats/evidence-reload/messages").json()["messages"]
+    assistant = next(message for message in recovered if message["role"] == "assistant")
+    assert assistant["evidence_items"] == [receipt]
+    assert assistant["memory_items"] == []

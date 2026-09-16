@@ -209,6 +209,34 @@ class TestMemoryTrailer:
         finish_kwargs = mocks["finish"].call_args.kwargs
         assert finish_kwargs["memory_items"] == [{"text": "short"}, {"text": "y" * 300}]
 
+    def test_source_receipts_share_trailer_and_ledger_truth(self):
+        receipt = {
+            "evidence_id": "E1",
+            "text": "Charging-system evidence",
+            "title": "Honda Service Manual",
+            "locator_start": "12",
+        }
+        bundle = ContextBundle(
+            system="SYS",
+            injected_memory_items=[{"text": "vehicle is a Ridgeline"}],
+            injected_evidence_items=[receipt],
+        )
+        response, mocks = _post_stream(
+            [CONTENT_CHUNK_1, DONE_CHUNK],
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": True,
+            },
+            lifecycle_patches=True,
+        )
+        assert b'"memory_items": [{"text": "vehicle is a Ridgeline"}]' in response.content
+        assert b'"evidence_items": [{"evidence_id": "E1"' in response.content
+        finish_kwargs = mocks["finish"].call_args.kwargs
+        assert finish_kwargs["memory_items"] == [{"text": "vehicle is a Ridgeline"}]
+        assert finish_kwargs["evidence_items"] == [receipt]
+
     def test_no_ledger_evidence_when_trailer_was_never_delivered(self):
         """A cut stream (no [DONE]) delivered no trailer — the ledger must
         not claim evidence the client never saw."""
@@ -297,6 +325,27 @@ class TestNonStreamMemoryEvidence:
         response, _ = self._post_non_stream(bundle)
         assert response.status_code == 200
         assert "memory_items" not in response.json()
+
+    def test_response_and_ledger_carry_source_receipts(self):
+        receipt = {
+            "evidence_id": "E1",
+            "text": "Exact source excerpt",
+            "title": "Service Manual",
+            "locator_start": "44",
+            "locator_end": "45",
+        }
+        bundle = ContextBundle(system="SYS", injected_evidence_items=[receipt])
+        response, mocks = self._post_non_stream(
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": False,
+            },
+            lifecycle_patches=True,
+        )
+        assert response.json()["evidence_items"] == [receipt]
+        assert mocks["finish"].call_args.kwargs["evidence_items"] == [receipt]
 
     def test_ledger_evidence_matches_response_body(self):
         bundle = ContextBundle(
@@ -411,6 +460,71 @@ def test_thread_objective_reaches_lifecycle_and_context():
     assert mock_start.call_args.kwargs["objective"] == "Submit one application"
     assert mock_assemble.call_args.kwargs["objective"] == "Submit one application"
 
+
+
+def test_selected_expert_is_validated_scoped_into_context_and_not_forwarded_upstream():
+    seen = {}
+    expert_evidence = "## Evidence\nSelected retrieval profile: automotive.\n[E1] OEM manual evidence"
+    # Keep enough generic context after the selected evidence to force the final
+    # system fitter to clip the bundle. The expert evidence must still survive.
+    mock_assemble = AsyncMock(
+        return_value=ContextBundle(
+            system=expert_evidence + "\n\n" + ("generic context " * 1200),
+            selected_expert_evidence_block=expert_evidence,
+        )
+    )
+
+    async def fake_stream(payload):
+        seen.update(payload)
+        yield DONE_CHUNK
+
+    with patch("gateway.routes.completions.classify_domain", return_value="soul"), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.knowledge.require_active_corpus_expert", return_value=None
+    ) as validate, patch(
+        "gateway.context_assembler.assemble_context", new=mock_assemble
+    ), patch(
+        "gateway.routes.completions.iter_chat_completions_stream", new=fake_stream
+    ):
+        from gateway.app import app
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "model": "kitty-default",
+                "stream": True,
+                "expert_id": "automotive",
+                "messages": [{"role": "user", "content": "rear brake service"}],
+            },
+        )
+
+    assert response.status_code == 200
+    validate.assert_called_once_with("automotive")
+    assert mock_assemble.call_args.kwargs["expert_profile"] == "automotive"
+    assert "expert_id" not in seen
+    system = next(message["content"] for message in seen["messages"] if message["role"] == "system")
+    assert expert_evidence in system
+
+
+def test_selected_expert_fails_closed_when_profile_is_not_active():
+    from gateway.knowledge import UnknownCorpusExpertError
+
+    with patch(
+        "gateway.knowledge.require_active_corpus_expert",
+        side_effect=UnknownCorpusExpertError("unknown expert profile 'made_up'"),
+    ):
+        from gateway.app import app
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "stream": False,
+                "expert_id": "made_up",
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+
+    assert response.status_code == 400
+    assert "unknown expert profile" in response.json()["detail"]
 
 def test_chat_completions_non_stream_health_uses_route_model_and_passes_domain():
     """Health domain goes through route_model (no longer hardcoded kitty-private)."""
@@ -757,6 +871,7 @@ def _captured_upstream_payload(body):
 
 
 TOOL_SCHEMA = [{"type": "function", "function": {"name": "search_memory"}}]
+CURRENT_SOURCE_TOOL_SCHEMA = [{"type": "function", "function": {"name": "search_web"}}]
 
 
 def test_tool_schemas_are_forwarded_when_the_caller_executes_them():
@@ -818,3 +933,178 @@ def test_total_context_failure_does_not_serve_a_healthy_looking_empty_answer():
                 "/v1/chat/completions",
                 json={"messages": [{"role": "user", "content": "hi"}], "stream": False},
             )
+
+
+def _current_verification_bundle() -> ContextBundle:
+    from gateway.knowledge import build_evidence_policy
+
+    return ContextBundle(
+        system="SYS",
+        evidence_policy=build_evidence_policy(
+            "Is this herbal supplement safe to combine with a prescription medicine today?"
+        ),
+    )
+
+
+def test_current_verification_required_without_tools_streams_deterministic_abstention():
+    async def upstream_must_not_run(_payload):
+        raise AssertionError("provider must not run without current verification capability")
+        yield b""  # pragma: no cover
+
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=_current_verification_bundle()),
+    ), patch(
+        "gateway.routes.completions.iter_chat_completions_stream",
+        new=upstream_must_not_run,
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Is this herbal supplement safe with my prescription today?",
+                    }
+                ],
+                "stream": True,
+            },
+        )
+
+    assert response.status_code == 200
+    assert "current authoritative verification" in response.text
+    assert "local corpus or model memory" in response.text
+    assert response.headers["x-kitty-current-verification"] == "required-unavailable"
+    assert response.content.endswith(b"data: [DONE]\n\n")
+
+
+def test_current_verification_required_without_tools_nonstream_skips_provider():
+    upstream = AsyncMock(side_effect=AssertionError("provider must not run"))
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=_current_verification_bundle()),
+    ), patch(
+        "gateway.routes.completions.chat_completions_non_stream",
+        new=upstream,
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Is this safe today?"}],
+                "stream": False,
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model"] == "kitty-policy/current-verification-abstention"
+    assert "current authoritative verification" in payload["choices"][0]["message"]["content"]
+    assert payload["kitty_runtime"]["current_verification"] == "required_unavailable"
+    upstream.assert_not_awaited()
+
+
+def test_current_verification_with_current_source_tool_preserves_external_verification_path():
+    captured = {}
+
+    async def fake_stream(payload):
+        captured.update(payload)
+        yield DONE_CHUNK
+
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=_current_verification_bundle()),
+    ), patch(
+        "gateway.routes.completions.iter_chat_completions_stream",
+        new=fake_stream,
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Is this safe today?"}],
+                "stream": True,
+                "tools": CURRENT_SOURCE_TOOL_SCHEMA,
+                "tool_choice": "auto",
+            },
+        )
+
+    assert response.status_code == 200
+    assert captured["tools"] == CURRENT_SOURCE_TOOL_SCHEMA
+    assert captured["tool_choice"] == "auto"
+    assert "current authoritative verification" not in response.text
+
+def test_current_verification_tool_choice_none_cannot_bypass_abstention():
+    upstream = AsyncMock(side_effect=AssertionError("provider must not run when current source tool is disabled"))
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=_current_verification_bundle()),
+    ), patch(
+        "gateway.routes.completions.chat_completions_non_stream",
+        new=upstream,
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Is this safe today?"}],
+                "stream": False,
+                "tools": CURRENT_SOURCE_TOOL_SCHEMA,
+                "tool_choice": "none",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["kitty_runtime"]["current_verification"] == "required_unavailable"
+    upstream.assert_not_awaited()
+
+
+def test_current_verification_generic_memory_tool_cannot_bypass_abstention():
+    upstream = AsyncMock(side_effect=AssertionError("provider must not run without a current source tool"))
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=_current_verification_bundle()),
+    ), patch(
+        "gateway.routes.completions.chat_completions_non_stream",
+        new=upstream,
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": "Is this safe today?"}],
+                "stream": False,
+                "tools": TOOL_SCHEMA,
+                "tool_choice": "auto",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["kitty_runtime"]["current_verification"] == "required_unavailable"
+    upstream.assert_not_awaited()

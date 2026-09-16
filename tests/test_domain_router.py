@@ -37,3 +37,21 @@ def test_get_specialist_reads_canonical_registry():
 
     assert specialist["name"] == "audio_repair"
     assert specialist["collection_id"] == "ac05f7c1-f341-449c-b520-80882fda3a8e"
+
+def test_health_keyword_does_not_match_med_substring_in_medium():
+    assert classify_domain("Derive the wave equation in a homogeneous medium") != "health"
+
+
+def test_ibuprofen_routes_to_health():
+    assert classify_domain("Can I take ibuprofen?") == "health"
+
+
+def test_drug_interaction_question_routes_to_health():
+    """"warfarin with ginkgo" carries no symptom or body-part word, so it only
+    routes to health via the medication vocabulary."""
+    assert classify_domain("Can I take warfarin with ginkgo?") == "health"
+
+
+def test_ordinary_taking_question_stays_out_of_health():
+    """Adding medication vocabulary must not capture ordinary uses of 'take'."""
+    assert classify_domain("Can I take my dog with me to the store?") != "health"

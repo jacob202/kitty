@@ -34,6 +34,53 @@ export function normalizeMemoryEvidence(value: unknown): MemoryEvidence[] {
   })
 }
 
+export interface EvidenceReceipt {
+  evidenceId: string
+  text: string
+  title?: string
+  sourceId?: string
+  sourceSha256?: string
+  logicalUnitId?: string
+  workId?: string
+  seriesId?: string
+  locatorStart?: string
+  locatorEnd?: string
+  authorityTier?: string
+  currencyStatus?: string
+  clinicalUsePolicy?: string
+}
+
+/** Accept durable snake_case receipts and already-normalized client records. */
+export function normalizeEvidenceReceipts(value: unknown): EvidenceReceipt[] {
+  if (!Array.isArray(value)) return []
+  const pick = (record: Record<string, unknown>, snake: string, camel: string): string | undefined => {
+    const value = record[snake] ?? record[camel]
+    return typeof value === 'string' && value ? value : undefined
+  }
+  return value.flatMap((item): EvidenceReceipt[] => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+    const record = item as Record<string, unknown>
+    const evidenceId = pick(record, 'evidence_id', 'evidenceId')
+    const text = pick(record, 'text', 'text')
+    if (!evidenceId || !text) return []
+    const normalized: EvidenceReceipt = { evidenceId, text }
+    const fields: Array<[keyof EvidenceReceipt, string, string]> = [
+      ['title', 'title', 'title'], ['sourceId', 'source_id', 'sourceId'],
+      ['sourceSha256', 'source_sha256', 'sourceSha256'],
+      ['logicalUnitId', 'logical_unit_id', 'logicalUnitId'], ['workId', 'work_id', 'workId'],
+      ['seriesId', 'series_id', 'seriesId'], ['locatorStart', 'locator_start', 'locatorStart'],
+      ['locatorEnd', 'locator_end', 'locatorEnd'], ['authorityTier', 'authority_tier', 'authorityTier'],
+      ['currencyStatus', 'currency_status', 'currencyStatus'],
+      ['clinicalUsePolicy', 'clinical_use_policy', 'clinicalUsePolicy'],
+    ]
+    for (const [key, snake, camel] of fields) {
+      const field = pick(record, snake, camel)
+      if (field) Object.assign(normalized, { [key]: field })
+    }
+    return [normalized]
+  })
+}
+
 export interface ToolCall {
   id: string
   name: string
@@ -62,6 +109,8 @@ export interface Message {
    * memories were injected into the completion.
    */
   memoryItems?: MemoryEvidence[]
+  /** Source receipts that informed this reply, distinct from personal memory. */
+  evidenceItems?: EvidenceReceipt[]
   /**
    * Council routing metadata — which expert/agent produced each part of the
    * answer. Present when a reply is assembled from multiple routed tasks; lets

@@ -490,3 +490,837 @@ async def test_ingest_same_second_refresh_uses_disjoint_replacement_ids(tmp_path
     assert result.status == "success"
     assert added_ids
     assert set(added_ids).isdisjoint(old_ids)
+
+
+@pytest.mark.asyncio
+async def test_search_returns_typed_evidence_metadata(tmp_path, monkeypatch):
+    import chromadb
+
+    from contracts.knowledge_pipeline import EvidenceMetadata, LibrarianReport
+    from gateway import knowledge
+
+    collection = chromadb.EphemeralClient().get_or_create_collection(
+        "kitty_test_evidence_metadata", metadata={"hnsw:space": "cosine"}
+    )
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: collection)
+    monkeypatch.setattr(knowledge.archivist, "_embed", lambda texts, timeout=120: [[1.0, 0.0] for _ in texts])
+    monkeypatch.setattr(knowledge.archivist, "_embed_cached", lambda text: (1.0, 0.0))
+    monkeypatch.setattr(
+        knowledge.librarian,
+        "generate_source_summary",
+        lambda *args: LibrarianReport(summary="source", authority_score=0.5),
+    )
+
+    source = tmp_path / "herbal.txt"
+    source.write_text("Herbal reference material discussing botanical preparations and safety context.")
+    evidence = EvidenceMetadata(
+        source_id="health-src",
+        source_sha256="b" * 64,
+        logical_unit_id="work:health-src",
+        retrieval_title="Historical Herbal Reference",
+        domains=["health_biology_medicine"],
+        expert_profiles=["health_biology"],
+        authority_tier="contextual_or_traditional_health_reference",
+        authority_status="named_author_needs_bibliographic_review",
+        currency_sensitivity="high_health_or_clinical",
+        currency_status="authority_and_recency_review_required",
+        clinical_use_policy="verify_current_clinical_guidance_externally_before_action",
+    )
+    result = await knowledge.ingest(source, source_label="Historical Herbal Reference", evidence=evidence)
+    assert result.status == "success"
+
+    hits = await knowledge.search("botanical preparations", limit=1, stitch_context=False)
+    assert hits[0]["evidence"]["source_id"] == "health-src"
+    assert hits[0]["evidence"]["logical_unit_id"] == "work:health-src"
+    assert hits[0]["evidence"]["authority_tier"] == "contextual_or_traditional_health_reference"
+    assert hits[0]["evidence"]["clinical_use_policy"] == "verify_current_clinical_guidance_externally_before_action"
+
+
+@pytest.mark.asyncio
+async def test_search_rejects_malformed_evidence_metadata(monkeypatch):
+    from gateway import knowledge
+
+    collection = MagicMock()
+    collection.count.return_value = 1
+    collection.query.return_value = {
+        "documents": [["corrupted provenance row"]],
+        "metadatas": [[{
+            "source": "broken.txt",
+            "source_id": "broken-source",
+            "logical_unit_id": "work:broken",
+            "domains_json": "{not-json",
+        }]],
+        "distances": [[0.1]],
+    }
+    monkeypatch.setattr(knowledge, "_search_active_corpus_fts", lambda *args, **kwargs: None)
+    monkeypatch.setattr(knowledge.archivist, "_embed_cached", lambda _query: (0.1, 0.2))
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: collection)
+
+    with pytest.raises(knowledge.KnowledgeSearchError, match="JSONDecodeError"):
+        await knowledge.search("corrupted provenance", limit=1, stitch_context=False)
+
+
+@pytest.mark.asyncio
+async def test_default_search_surfaces_vector_failure_even_when_corpus_has_hits(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text, "
+            "tokenize='porter unicode61')"
+        )
+        conn.execute(
+            "INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "chunk-1",
+                "health-src",
+                "work:health-src",
+                "Historical Herbal Reference",
+                "Historical Herbal Reference",
+                "work:health-src",
+                "Historical Herbal Reference",
+                "health_biology_medicine",
+                "botanical_medicine",
+                "textbook",
+                "12",
+                "13",
+                "Herbal medicine adverse effects interactions and pharmacology require careful safety review.",
+            ),
+        )
+
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text(
+        json.dumps(
+            {
+                "source_id": "health-src",
+                "sha256": "c" * 64,
+                "logical_unit_id": "work:health-src",
+                "work_id": "work:health-src",
+                "series_id": None,
+                "series_order": None,
+                "retrieval_title": "Historical Herbal Reference",
+                "publication_year": 1998,
+                "edition": "2",
+                "metadata_basis": "curated_bibliographic_review",
+                "domains": ["health_biology_medicine"],
+                "subjects": ["botanical_medicine"],
+                "expert_profiles": ["health_biology"],
+                "authority_tier": "contextual_or_traditional_health_reference",
+                "authority_status": "named_author_needs_bibliographic_review",
+                "currency_sensitivity": "high_health_or_clinical",
+                "currency_status": "authority_and_recency_review_required",
+                "evidence_role": "contextual_reference_not_current_clinical_authority",
+                "clinical_use_policy": "verify_current_clinical_guidance_externally_before_action",
+                "work_relation": "unique_or_unresolved",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    projection = tmp_path / "projection.json"
+    projection.write_text(
+        json.dumps(
+            {
+                "schema": "kitty.runtime-retrieval-projection.v1",
+                "status": "active",
+                "fts_db": str(db),
+                "source_manifest": str(manifest),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+    monkeypatch.setattr(
+        knowledge.archivist,
+        "_embed_cached",
+        lambda query: (_ for _ in ()).throw(RuntimeError("embedding unavailable")),
+    )
+
+    with pytest.raises(knowledge.KnowledgeSearchError, match="embedding unavailable"):
+        await knowledge.search(
+            "herbal medicine adverse effects interactions pharmacology",
+            limit=2,
+            stitch_context=False,
+        )
+
+@pytest.mark.asyncio
+async def test_active_corpus_fts_treats_hyphenated_query_as_literal_terms(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text, "
+            "tokenize='porter unicode61')"
+        )
+        conn.execute(
+            "INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "chunk-1", "vehicle-src", "work:vehicle", "Vehicle Manual", "Vehicle Manual",
+                "work:vehicle", "Vehicle Manual", "automotive", "fuel_system", "service_manual",
+                "44", "45", "Remove the in-tank fuel pump and sending unit from the pickup fuel tank.",
+            ),
+        )
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text(json.dumps({
+        "source_id":"vehicle-src", "sha256":"d"*64, "logical_unit_id":"work:vehicle",
+        "work_id":"work:vehicle", "retrieval_title":"Vehicle Manual", "domains":["automotive"],
+        "expert_profiles":["automotive"], "metadata_basis":"curated",
+    }) + "\n")
+    projection = tmp_path / "projection.json"
+    projection.write_text(json.dumps({
+        "status":"active", "fts_db":str(db), "source_manifest":str(manifest)
+    }))
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+    monkeypatch.setattr(
+        knowledge.archivist,
+        "_embed_cached",
+        lambda _query: (_ for _ in ()).throw(AssertionError("FTS search must not use embeddings")),
+    )
+
+    hits = knowledge._search_active_corpus_fts(
+        "How do I get the in-tank gasoline sending unit out of a pickup?",
+        3,
+    )
+    assert hits
+    assert hits[0]["source"] == "Vehicle Manual"
+
+
+
+@pytest.mark.asyncio
+async def test_active_corpus_fts_filters_selected_expert_before_ranking(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text, "
+            "tokenize='porter unicode61')"
+        )
+        conn.execute(
+            "CREATE TABLE expert_membership ("
+            "expert TEXT NOT NULL, source_id TEXT NOT NULL, logical_unit_id TEXT NOT NULL, "
+            "PRIMARY KEY (expert, source_id))"
+        )
+        conn.executemany(
+            "INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                ("audio", "audio-src", "work:audio", "Audio Manual", "Audio Manual", "work:audio", "Audio Manual", "audio", "power", "manual", "1", "1", "power supply transistor service"),
+                ("vehicle", "vehicle-src", "work:vehicle", "Vehicle Manual", "Vehicle Manual", "work:vehicle", "Vehicle Manual", "automotive", "fuel", "service_manual", "44", "45", "power supply fuel service vehicle"),
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO expert_membership VALUES (?,?,?)",
+            [
+                ("electronics_audio", "audio-src", "work:audio"),
+                ("automotive", "vehicle-src", "work:vehicle"),
+                ("general_research", "audio-src", "work:audio"),
+                ("general_research", "vehicle-src", "work:vehicle"),
+            ],
+        )
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text("\n".join([
+        json.dumps({"source_id":"audio-src","sha256":"a"*64,"logical_unit_id":"work:audio","retrieval_title":"Audio Manual","expert_profiles":["electronics_audio","general_research"]}),
+        json.dumps({"source_id":"vehicle-src","sha256":"b"*64,"logical_unit_id":"work:vehicle","retrieval_title":"Vehicle Manual","expert_profiles":["automotive","general_research"]}),
+    ]) + "\n")
+    projection = tmp_path / "projection.json"
+    projection.write_text(json.dumps({"status":"active","fts_db":str(db),"source_manifest":str(manifest)}))
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+
+    hits = await knowledge.search("power supply service", limit=3, expert_profile="automotive")
+
+    assert [hit["source"] for hit in hits] == ["Vehicle Manual"]
+    assert hits[0]["evidence"]["expert_profiles"] == ["automotive", "general_research"]
+
+    general_hits = await knowledge.search(
+        "power supply service", limit=3, expert_profile="general_research"
+    )
+    assert {hit["source"] for hit in general_hits} == {"Audio Manual", "Vehicle Manual"}
+
+
+
+@pytest.mark.asyncio
+async def test_default_search_keeps_uploaded_chroma_results_with_active_corpus(monkeypatch):
+    from gateway import knowledge
+
+    corpus_hit = {
+        "text": "factory brake procedure",
+        "source": "Factory Manual",
+        "score": 1.0,
+        "ingested_at": 0,
+        "index": 0,
+        "metadata": {},
+        "evidence": {"logical_unit_id": "work:factory"},
+        "retrieval_method": "fts",
+    }
+    monkeypatch.setattr(knowledge, "_search_active_corpus_fts", lambda *args, **kwargs: [corpus_hit])
+    monkeypatch.setattr(knowledge.archivist, "_embed_cached", lambda _query: (0.1, 0.2))
+
+    collection = MagicMock()
+    collection.count.return_value = 1
+    collection.query.return_value = {
+        "documents": [["Jacob's uploaded brake note"]],
+        "metadatas": [[{"source": "uploaded-note.txt", "collection": "general", "chunk_index": 0}]],
+        "distances": [[0.05]],
+    }
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: collection)
+
+    hits = await knowledge.search("brake note", limit=2, stitch_context=False)
+
+    assert [hit["source"] for hit in hits] == ["Factory Manual", "uploaded-note.txt"]
+    assert hits[1]["retrieval_method"] == "vector"
+
+
+@pytest.mark.asyncio
+async def test_active_corpus_fts_reads_past_duplicate_logical_unit_window(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text, "
+            "tokenize='porter unicode61')"
+        )
+        rows = [
+            (f"dup-{i}", "dup-src", "work:dup", "Duplicate Work", "Duplicate Work",
+             "work:dup", "Duplicate Work", "electronics", "power", "textbook",
+             str(i), str(i), f"power supply service common term {i}")
+            for i in range(70)
+        ]
+        rows.append((
+            "other-1", "other-src", "work:other", "Other Work", "Other Work",
+            "work:other", "Other Work", "electronics", "power", "textbook",
+            "1", "1", "power supply service common term alternate source",
+        ))
+        conn.executemany("INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text("\n".join([
+        json.dumps({"source_id":"dup-src","sha256":"a"*64,"logical_unit_id":"work:dup","retrieval_title":"Duplicate Work"}),
+        json.dumps({"source_id":"other-src","sha256":"b"*64,"logical_unit_id":"work:other","retrieval_title":"Other Work"}),
+    ]) + "\n")
+    projection = tmp_path / "projection.json"
+    projection.write_text(json.dumps({"status":"active","fts_db":str(db),"source_manifest":str(manifest)}))
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+
+    hits = knowledge._search_active_corpus_fts("power supply service common term", 2)
+
+    assert hits is not None
+    assert [hit["source"] for hit in hits] == ["Duplicate Work", "Other Work"]
+
+def test_active_corpus_experts_are_derived_from_active_manifest(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE expert_membership (expert TEXT, source_id TEXT, logical_unit_id TEXT)")
+        conn.executemany("INSERT INTO expert_membership VALUES (?,?,?)", [
+            ("automotive", "s1", "work:a"),
+            ("automotive", "s2", "work:a"),
+            ("automotive", "s3", "work:b"),
+        ])
+    manifest = tmp_path / "sources.jsonl"
+    manifest.write_text("\n".join([
+        json.dumps({"source_id":"s1","logical_unit_id":"work:a","retrieval_title":"Manual A","expert_profiles":["automotive"],"subjects":["brakes"],"format":".pdf"}),
+        json.dumps({"source_id":"s2","logical_unit_id":"work:a","retrieval_title":"Manual A chapter","expert_profiles":["automotive"],"subjects":["brakes"],"format":".pdf"}),
+        json.dumps({"source_id":"s3","logical_unit_id":"work:b","retrieval_title":"Manual B","expert_profiles":["automotive"],"subjects":["fuel_system"],"format":".pdf"}),
+    ]) + "\n")
+    projection = tmp_path / "projection.json"
+    projection.write_text(json.dumps({"status":"active","fts_db":str(db),"source_manifest":str(manifest)}))
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(projection))
+
+    state = knowledge.active_corpus_experts()
+
+    assert state["status"] == "active"
+    assert state["experts"] == [
+        {
+            "id": "automotive",
+            "label": "Automotive",
+            "book_count": 2,
+            "source_count": 3,
+            "tags": ["brakes", "fuel_system"],
+            "formats": [".pdf"],
+            "sample_title": "Manual A",
+        },
+        {
+            "id": "general_research",
+            "label": "General Research",
+            "book_count": 2,
+            "source_count": 3,
+            "tags": ["brakes", "fuel_system"],
+            "formats": [".pdf"],
+            "sample_title": "Manual A",
+        },
+    ]
+
+@pytest.mark.parametrize(
+    ("query", "task_type", "competencies", "freshness", "authority", "diversity"),
+    [
+        (
+            "What is the exact rear caliper bracket torque on a 2010 Honda Ridgeline?",
+            "exact_lookup", {"automotive"}, "corpus_ok", "primary_preferred", "single_authoritative_ok",
+        ),
+        (
+            "Derive the electromagnetic wave equation from Maxwell equations in a homogeneous medium.",
+            "derivation", {"math_physics", "electronics_audio"}, "corpus_ok", "established_reference_preferred", "multiple_logical_units",
+        ),
+        (
+            "Is this herbal supplement safe to combine with a prescription medicine today?",
+            "current_safety", {"health_biology"}, "current_external_required", "current_authoritative_required", "multiple_logical_units",
+        ),
+        (
+            "How do I call the current OpenAI responses API in Python today?",
+            "current_api", {"ai_software"}, "current_external_required", "primary_preferred", "single_authoritative_ok",
+        ),
+        (
+            "Compare Popper and Kuhn on scientific progress without treating either position as consensus.",
+            "comparison", {"philosophy_humanities"}, "corpus_ok", "source_attribution_required", "preserve_disagreement",
+        ),
+        (
+            "My power amplifier transformer hums mechanically and makes the chassis vibrate. How should I diagnose it?",
+            "diagnostic", {"electronics_audio", "mechanical_systems"}, "corpus_ok", "established_reference_preferred", "multiple_logical_units",
+        ),
+        (
+            "A medical paper mentions code allocation. What evidence supports the clinical claim?",
+            "evidence_review", {"health_biology"}, "current_external_preferred", "current_authoritative_required", "multiple_logical_units",
+        ),
+        (
+            "What are the current Saskatchewan rules for this benefit?",
+            "current_lookup", {"general_research"}, "current_external_required", "primary_preferred", "single_authoritative_ok",
+        ),
+    ],
+)
+def test_build_evidence_policy_routes_task_authority_and_freshness(
+    query, task_type, competencies, freshness, authority, diversity
+):
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(query)
+    assert policy.task_type == task_type
+    assert set(policy.competencies) == competencies
+    assert policy.freshness == freshness
+    assert policy.authority_requirement == authority
+    assert policy.diversity == diversity
+    assert policy.current_verification_required == (freshness == "current_external_required")
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Can I take warfarin with ginkgo?",
+        "What dose of vitamin D should I take?",
+    ],
+)
+def test_health_expert_actionable_medication_questions_require_current_verification(query):
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(query, expert_profile="health_biology")
+
+    assert policy.task_type == "current_safety"
+    assert policy.freshness == "current_external_required"
+    assert policy.current_verification_required is True
+
+
+def test_health_domain_actionable_medication_question_requires_current_verification():
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy("Can I take ibuprofen?")
+
+    assert policy.task_type == "current_safety"
+    assert policy.competencies == ["health_biology"]
+    assert policy.freshness == "current_external_required"
+    assert policy.current_verification_required is True
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Can I take warfarin with ginkgo?",
+        "Is ginkgo safe with my blood thinner?",
+        "What's a typical dosage of metformin?",
+    ],
+)
+def test_unscoped_medication_questions_require_current_verification(query):
+    """A drug question with no expert selected must still demand current verification."""
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(query)
+
+    assert policy.task_type == "current_safety"
+    assert policy.freshness == "current_external_required"
+    assert policy.current_verification_required is True
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Can I take the bus to the airport?",
+        "Can I take my dog with me to the store?",
+        "What should I take to the meeting?",
+    ],
+)
+def test_ordinary_taking_questions_do_not_require_current_verification(query):
+    """Widening the medication vocabulary must not make ordinary questions abstain."""
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(query)
+
+    assert policy.current_verification_required is False
+
+
+def test_evidence_policy_uses_token_boundaries_not_substring_domain_matches():
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(
+        "Derive the electromagnetic wave equation in a homogeneous medium."
+    )
+    assert "health_biology" not in policy.competencies
+    assert policy.safety == "standard"
+
+
+def test_evidence_policy_preserves_vehicle_applicability_and_equipment_specificity():
+    from gateway.knowledge import build_evidence_policy
+
+    vehicle = build_evidence_policy(
+        "What is the exact rear caliper bracket torque on a 2010 Honda Ridgeline?"
+    )
+    audio = build_evidence_policy(
+        "What bias voltage should I set on a Sansui AU-7900 service procedure?"
+    )
+    assert "vehicle_model_specific" in vehicle.applicability
+    assert vehicle.exactness == "exact"
+    assert "equipment_model_specific" in audio.applicability
+    assert audio.exactness == "exact"
+    assert audio.authority_requirement == "service_manual_preferred"
+
+
+
+def test_evidence_policy_cross_routes_acoustics_to_physics():
+    from gateway.knowledge import build_evidence_policy
+
+    policy = build_evidence_policy(
+        "Why does a loudspeaker cabinet resonance couple to room modes?"
+    )
+    assert set(policy.competencies) == {"electronics_audio", "math_physics"}
+
+
+def _write_synthetic_corpus_candidate(tmp_path):
+    import json
+    import sqlite3
+
+    profiles = [
+        "electronics_audio", "automotive", "mechanical_systems", "ai_software",
+        "math_physics", "mind_learning_communication", "health_biology",
+        "philosophy_humanities", "general_research",
+    ]
+    specialist = profiles[:-1]
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    manifest_rows = []
+    ingest_rows = []
+    memberships = {profile: [] for profile in profiles}
+    for index, profile in enumerate(specialist, start=1):
+        source_id = f"source-{index}"
+        sha = f"{index:064x}"[-64:]
+        row = {
+            "source_id": source_id,
+            "sha256": sha,
+            "logical_unit_id": f"work:{index}",
+            "work_id": f"work:{index}",
+            "retrieval_title": f"Reference {profile}",
+            "domains": [profile],
+            "subjects": [f"subject_{index}"],
+            "expert_profiles": [profile],
+            "publication_year": 2020,
+            "edition": "1",
+            "clinical_use_policy": "background_only" if profile == "health_biology" else "",
+        }
+        manifest_rows.append(row)
+        memberships[profile].append(source_id)
+        memberships["general_research"].append(source_id)
+        ingest_rows.append({
+            "path": str(tmp_path / f"{source_id}.pdf"),
+            "source_label": f"Reference {profile} [src:{source_id}]",
+            "tags": [f"expert_{profile}", f"domain_{profile}"],
+            "evidence": {
+                "source_id": source_id,
+                "source_sha256": sha,
+                "logical_unit_id": f"work:{index}",
+                "retrieval_title": f"Reference {profile}",
+                "domains": [profile],
+                "subjects": [f"subject_{index}"],
+                "expert_profiles": [profile],
+                "publication_year": 2020,
+                "edition": "1",
+                "clinical_use_policy": row["clinical_use_policy"],
+            },
+        })
+
+    manifest = tmp_path / "manifest.jsonl"
+    manifest.write_text("\n".join(json.dumps(row) for row in manifest_rows) + "\n")
+    ingest = tmp_path / "ingest.jsonl"
+    ingest.write_text("\n".join(json.dumps(row) for row in ingest_rows) + "\n")
+    collections = tmp_path / "collections.json"
+    collections.write_text(json.dumps({
+        "profiles": {
+            profile: {
+                "ready_source_count": len(memberships[profile]),
+                "ready_logical_unit_count": len(memberships[profile]),
+            }
+            for profile in profiles
+        },
+        "source_memberships": memberships,
+    }))
+    profile_path = tmp_path / "profiles.json"
+    profile_path.write_text(json.dumps({profile: {} for profile in profiles}))
+    benchmark = tmp_path / "benchmark.json"
+    benchmark.write_text(json.dumps({
+        "policy_version": "evidence-policy-2026-09-15.v1",
+        "ranking_version": "fts-bm25-logical-diversity-2026-09-15.v1",
+        "clinical_policy_version": "clinical-current-guidance-separation-2026-09-15.v1",
+        "summary": {"cases": len(profiles), "passed": len(profiles), "failed": 0},
+        "results": [
+            {"id": f"fixture-{profile}", "profile": profile, "pass": True, "top5": []}
+            for profile in profiles
+        ],
+    }))
+    ledger = tmp_path / "correction-ledger.json"
+    ledger.write_text(json.dumps({"schema": "kitty.corpus-correction-ledger.v1", "changes": []}))
+
+    db = tmp_path / "corpus.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks USING fts5("
+            "chunk_id UNINDEXED, source_id UNINDEXED, logical_unit_id UNINDEXED, "
+            "source_title, retrieval_title, work_id UNINDEXED, work_title, domains, subjects, "
+            "doc_type UNINDEXED, locator_start UNINDEXED, locator_end UNINDEXED, text)"
+        )
+        conn.execute("CREATE TABLE expert_membership (expert TEXT, source_id TEXT, logical_unit_id TEXT)")
+        for index, row in enumerate(manifest_rows, start=1):
+            conn.execute(
+                "INSERT INTO chunks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (f"chunk-{index}", row["source_id"], row["logical_unit_id"], row["retrieval_title"],
+                 row["retrieval_title"], row["logical_unit_id"], row["retrieval_title"],
+                 row["domains"][0], row["subjects"][0], "textbook", "1", "2",
+                 f"evidence for {row['expert_profiles'][0]}"),
+            )
+        for profile, source_ids in memberships.items():
+            for source_id in source_ids:
+                logical = next(row["logical_unit_id"] for row in manifest_rows if row["source_id"] == source_id)
+                conn.execute("INSERT INTO expert_membership VALUES (?,?,?)", (profile, source_id, logical))
+
+    return {
+        "source_manifest": manifest,
+        "collections": collections,
+        "ingest_requests": ingest,
+        "fts_db": db,
+        "profiles": profile_path,
+        "benchmark": benchmark,
+        "correction_ledger": ledger,
+    }
+
+
+def test_validate_corpus_candidate_requires_one_membership_truth_and_nine_profiles(tmp_path):
+    import json
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path)
+    summary = knowledge.validate_corpus_candidate(artifacts)
+    assert summary["source_count"] == 8
+    assert summary["logical_unit_count"] == 8
+    assert summary["membership_count"] == 16
+    assert summary["chunk_count"] == 8
+    assert summary["benchmark_profiles"] == set(knowledge.CORPUS_REQUIRED_PROFILES)
+
+    rows = [json.loads(line) for line in artifacts["ingest_requests"].read_text().splitlines()]
+    rows[0]["evidence"]["expert_profiles"] = ["wrong_profile"]
+    artifacts["ingest_requests"].write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+    with pytest.raises(knowledge.CorpusProjectionUnavailableError, match="ingest evidence"):
+        knowledge.validate_corpus_candidate(artifacts)
+
+
+def test_publish_candidate_is_content_addressed_and_repair_invalidates_proof(tmp_path):
+    import json
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    publication_root = tmp_path / "published"
+    first = knowledge.publish_corpus_candidate(artifacts, publication_root, publisher_git_commit="abc123")
+    assert first["candidate_id"]
+    receipt = first["receipt_path"]
+    assert receipt.exists()
+    published_manifest = receipt.parent / json.loads(receipt.read_text())["artifacts"]["source_manifest"]["filename"]
+    assert published_manifest.stat().st_mode & 0o222 == 0
+
+    benchmark = json.loads(artifacts["benchmark"].read_text())
+    benchmark["results"][0]["note"] = "repair changes candidate bytes"
+    artifacts["benchmark"].write_text(json.dumps(benchmark))
+    second = knowledge.publish_corpus_candidate(artifacts, publication_root, publisher_git_commit="abc123")
+    assert second["candidate_id"] != first["candidate_id"]
+    assert second["receipt_sha256"] != first["receipt_sha256"]
+
+
+def test_activate_published_candidate_requires_exact_binding_and_rolls_back(tmp_path, monkeypatch):
+    import json
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    published = knowledge.publish_corpus_candidate(artifacts, tmp_path / "published", publisher_git_commit="abc123")
+    pointer = tmp_path / "active.json"
+    pointer.write_text(json.dumps({"status": "active", "legacy": True}))
+
+    monkeypatch.setattr(knowledge, "CORPUS_PUBLICATION_BINDING", {
+        "candidate_id": published["candidate_id"],
+        "receipt_sha256": "0" * 64,
+    })
+    with pytest.raises(knowledge.CorpusProjectionUnavailableError, match="binding"):
+        knowledge.activate_published_corpus_candidate(published["receipt_path"], pointer)
+    assert json.loads(pointer.read_text())["legacy"] is True
+
+    monkeypatch.setattr(knowledge, "CORPUS_PUBLICATION_BINDING", {
+        "candidate_id": published["candidate_id"],
+        "receipt_sha256": published["receipt_sha256"],
+    })
+    projection = knowledge.activate_published_corpus_candidate(published["receipt_path"], pointer)
+    assert projection["candidate_id"] == published["candidate_id"]
+    assert projection["status"] == "active"
+    assert projection["schema"] == "kitty.runtime-retrieval-projection.v2"
+
+
+def test_published_projection_runtime_rejects_tampered_exact_candidate(tmp_path, monkeypatch):
+    import json
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    published = knowledge.publish_corpus_candidate(artifacts, tmp_path / "published", publisher_git_commit="abc123")
+    monkeypatch.setattr(knowledge, "CORPUS_PUBLICATION_BINDING", {
+        "candidate_id": published["candidate_id"],
+        "receipt_sha256": published["receipt_sha256"],
+    })
+    pointer = tmp_path / "active.json"
+    knowledge.activate_published_corpus_candidate(published["receipt_path"], pointer)
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(pointer))
+    knowledge._verify_published_receipt.cache_clear()
+    assert knowledge._active_corpus_projection() is not None
+
+    receipt = json.loads(published["receipt_path"].read_text())
+    manifest_path = published["receipt_path"].parent / receipt["artifacts"]["source_manifest"]["filename"]
+    manifest_path.chmod(0o644)
+    manifest_path.write_text(manifest_path.read_text() + "tamper\n")
+    knowledge._verify_published_receipt.cache_clear()
+    with pytest.raises(knowledge.CorpusProjectionUnavailableError, match="artifact hash"):
+        knowledge._active_corpus_projection()
+
+
+def test_corpus_diversity_cap_allows_bounded_repeat_for_exact_authority_lookup():
+    from gateway.knowledge import _corpus_logical_unit_cap
+
+    assert _corpus_logical_unit_cap("Why does a power amplifier hum?") == 1
+    assert _corpus_logical_unit_cap("What is the exact bias voltage on this amplifier?") == 2
+
+
+def test_published_projection_can_query_readonly_immutable_sqlite(tmp_path, monkeypatch):
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    published = knowledge.publish_corpus_candidate(
+        artifacts, tmp_path / "published", publisher_git_commit="abc123"
+    )
+    monkeypatch.setattr(knowledge, "CORPUS_PUBLICATION_BINDING", {
+        "candidate_id": published["candidate_id"],
+        "receipt_sha256": published["receipt_sha256"],
+    })
+    pointer = tmp_path / "active.json"
+    knowledge.activate_published_corpus_candidate(published["receipt_path"], pointer)
+    monkeypatch.setenv("KITTY_CORPUS_RETRIEVAL_PROJECTION", str(pointer))
+    knowledge._verify_published_receipt.cache_clear()
+
+    hits = knowledge._search_active_corpus_fts(
+        "evidence electronics audio", 2, expert_profile="electronics_audio"
+    )
+
+    assert hits
+    assert hits[0]["evidence"]["expert_profiles"] == ["electronics_audio"]
+
+
+def test_publish_candidate_freezes_committed_wal_state_before_hashing(tmp_path):
+    import json
+    import sqlite3
+
+    from gateway import knowledge
+
+    artifacts = _write_synthetic_corpus_candidate(tmp_path / "inputs")
+    db = artifacts["fts_db"]
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute("PRAGMA journal_mode=WAL").fetchone()[0].lower() == "wal"
+        conn.execute("PRAGMA wal_autocheckpoint=0")
+        conn.execute(
+            "UPDATE chunks SET retrieval_title=? WHERE source_id=?",
+            ("WAL-updated electronics reference", "source-1"),
+        )
+        conn.commit()
+        assert db.with_name(db.name + "-wal").exists()
+
+        manifest_rows = [json.loads(line) for line in artifacts["source_manifest"].read_text().splitlines()]
+        manifest_rows[0]["retrieval_title"] = "WAL-updated electronics reference"
+        artifacts["source_manifest"].write_text(
+            "\n".join(json.dumps(row) for row in manifest_rows) + "\n"
+        )
+        ingest_rows = [json.loads(line) for line in artifacts["ingest_requests"].read_text().splitlines()]
+        ingest_rows[0]["evidence"]["retrieval_title"] = "WAL-updated electronics reference"
+        artifacts["ingest_requests"].write_text(
+            "\n".join(json.dumps(row) for row in ingest_rows) + "\n"
+        )
+
+        published = knowledge.publish_corpus_candidate(
+            artifacts, tmp_path / "published", publisher_git_commit="abc123"
+        )
+    finally:
+        conn.close()
+
+    receipt = json.loads(published["receipt_path"].read_text())
+    frozen_db = published["receipt_path"].parent / receipt["artifacts"]["fts_db"]["filename"]
+    with sqlite3.connect(f"file:{frozen_db}?immutable=1", uri=True) as frozen:
+        title = frozen.execute(
+            "SELECT retrieval_title FROM chunks WHERE source_id=? LIMIT 1", ("source-1",)
+        ).fetchone()[0]
+    assert title == "WAL-updated electronics reference"
+
+    frozen_artifacts = {
+        key: published["receipt_path"].parent / desc["filename"]
+        for key, desc in receipt["artifacts"].items()
+    }
+    summary = knowledge.validate_corpus_candidate(frozen_artifacts)
+    assert summary == published["validation"]
