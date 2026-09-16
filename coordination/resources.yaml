@@ -232,7 +232,6 @@ resources:
     - gateway/routes/chats.py
     - gateway/routes/completions.py
     - gateway/routes/conversation_handoff.py
-    - gateway/routes/extended.py
     - gateway/voice_middleware.py
     - tests/test_chat_completions.py
     - tests/test_chats_route.py
@@ -274,7 +273,6 @@ resources:
   gateway:route-surface:
     paths:
     - gateway/routes/agents.py
-    - gateway/routes/extended.py
     - gateway/routes/notifications.py
     - gateway/routes/skills.py
     - gateway/routes/todos.py
