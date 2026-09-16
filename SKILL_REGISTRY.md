@@ -104,10 +104,13 @@ lean-out had no evidence strong enough to overturn that. Remaining:
   `AGENTS.md` marks dead or optional-only ("AgentRouter is dead", "Freebuff and
   9Router are optional only"); untouched since 2026-07-21; no active references.
 
-All eleven archived skills are listed in `.commandcode/settings.json` →
-`disabledSkills` so Command Code's recursive discovery cannot invoke archived
-content as if it were current (installation listings still enumerate them;
-invocation is disabled). Archived here means inert everywhere.
+Archived here means inert for Kitty's own registry: `gateway/skill_registry.py`
+excludes the top-level `_archive` namespace, enforced by
+`tests/test_skill_registry.py`. External recursive discovery (Command Code)
+still enumerates `_archive/`; where that matters, a machine-local, gitignored
+`.commandcode/settings.json` → `disabledSkills` entry hides the archived names
+from invocation. That entry is local hygiene, not a tracked repo contract —
+the tracked guarantee is the Kitty-registry exclusion.
 
 ## Recorded human decisions
 

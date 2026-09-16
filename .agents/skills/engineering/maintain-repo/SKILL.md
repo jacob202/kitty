@@ -1,7 +1,7 @@
 ---
 name: maintain-repo
 description: Triage a repository-upkeep request and route it to the right specialist — stale or drifting documentation, delivery/CI workflow and gate defects, and dependency/supply-chain quiet failure. Use when the user says "audit the repo", "what's stale", "what's drifting", "check the dependencies", "are the docs still accurate", "is anything rotting", "clean up the repo", "repo maintenance", or any broad upkeep ask that doesn't name a specific lane. This is the entry point of the upkeep family — it decides whether the leverage is in written truth (audit-docs), process/enforcement truth (audit-workflow), or the dependency boundary (harden-codebase), and cross-routes to the improvement family when the real problem is code shape, behavior, surface, or tests. Use a specialist directly when the user already named the lane.
-when_to_use: audit the repo, what's stale, what's drifting, check the dependencies, are the docs still accurate, is anything rotting, clean up the repo, repo maintenance, repo upkeep, stale docs, dependency check, CI audit, workflow check, maintenance audit
+when_to_use: audit the repo, what's stale, what's drifting, are the docs still accurate, is anything rotting, clean up the repo, repo maintenance, repo upkeep, stale docs, dependency check, CI audit, workflow check, maintenance audit
 ---
 
 # Maintain Repo (Router)

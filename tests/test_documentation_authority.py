@@ -401,5 +401,7 @@ def test_registry_document_lists_every_active_skill():
 
 @pytest.mark.parametrize(("phrase", "expected"), TRIGGER_CASES)
 def test_natural_request_suggests_expected_skill(phrase: str, expected: str):
-    names = [skill["name"] for skill in suggest(phrase, limit=5)]
-    assert expected in names, f"{phrase!r} suggested {names}, expected {expected}"
+    # Production (gateway/context_assembler.py) consumes only the first
+    # suggestion; membership among five would let a competing route win silently.
+    names = [skill["name"] for skill in suggest(phrase, limit=1)]
+    assert names == [expected], f"{phrase!r} suggested {names}, expected {expected}"
