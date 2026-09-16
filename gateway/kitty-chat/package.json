@@ -7,7 +7,6 @@
     "build": "next build && node scripts/stamp-source-sha.mjs",
     "start": "next start -H 127.0.0.1 -p 4000",
     "test": "vitest run",
-    "test:production-env": "env NODE_ENV=production vitest run tests/testEnvironment.test.ts",
     "test:watch": "vitest",
     "test:smoke": "playwright test",
     "test:smoke:hermetic": "playwright test --config playwright.hermetic.config.ts",
