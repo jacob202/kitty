@@ -95,7 +95,22 @@ def _coordination_paths(context: dict[str, Any]) -> tuple[Path, Path]:
 
 
 def _participant() -> str:
-    return os.environ.get("KITTY_AGENT_PARTICIPANT", "chatgpt").strip() or "chatgpt"
+    """Return the declaring participant, or refuse to guess one.
+
+    This used to fall back to "chatgpt", which silently filed one agent's claim
+    under another agent's name. The damage is delayed and confusing: the real
+    agent then cannot commit, because its own mutation is checked against a lease
+    it never held. Identity is authority here, so an unset identity must stop the
+    mutation instead of borrowing a name.
+    """
+    participant = os.environ.get("KITTY_AGENT_PARTICIPANT", "").strip()
+    if not participant:
+        raise agent_coordination.CoordinationClaimError(
+            "KITTY_AGENT_PARTICIPANT is not set: refusing to attribute this claim to "
+            "another agent. Export your own participant id, e.g. "
+            "KITTY_AGENT_PARTICIPANT=claude."
+        )
+    return participant
 
 
 def _session_file(context: dict[str, Any]) -> Path:
@@ -133,8 +148,14 @@ def _session_id(
 
 
 def _retire_session_binding(context: dict[str, Any], session_id: str) -> None:
-    if os.environ.get("KITTY_AGENT_SESSION_ID"):
-        return
+    """Drop this worktree's binding once the session it names is gone.
+
+    The env override used to skip this entirely, so a release performed with
+    KITTY_AGENT_SESSION_ID exported left the binding file pointing at a released
+    session. The next command to read the file then failed against a lease that no
+    longer existed. Unlinking only when the file names the session being retired
+    is safe regardless of where that session id came from.
+    """
     session_file = _session_file(context)
     if not session_file.exists():
         return
@@ -280,7 +301,10 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         required_role = "INTEGRATE" if context["canonical"] else None
         db_path, registry_path = _coordination_paths(context)
         result = agent_coordination.preflight_mutation(
-            _session_id(context, create=False),
+            # Rotate a binding whose session holds no claim: otherwise a stale
+            # file makes the gate report "session X has no active claim" instead of
+            # the actionable "run kitty agent claim first".
+            _session_id(context, create=False, rotate_if_inactive=True),
             _staged_paths(context),
             required_role=required_role,
             db_path=db_path,

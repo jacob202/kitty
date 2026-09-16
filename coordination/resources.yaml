@@ -144,7 +144,9 @@ resources:
     - gateway/kitty-chat/next.config.ts
     - gateway/kitty-chat/package.json
     - gateway/kitty-chat/scripts/**
+    - gateway/kitty-chat/tests/testEnvironment.test.ts
     - gateway/kitty-chat/tsconfig.json
+    - gateway/kitty-chat/vitest.config.ts
     - gateway/lib/load_env_safe.sh
     - gateway/llm_client.py
     - gateway/local_review.py
@@ -170,6 +172,7 @@ resources:
     - scripts/start_builder_supervisor.sh
     - tests/conftest.py
     - tests/test_agent_coordination_acceptance.py
+    - tests/test_agent_coordination_cli.py
     - tests/test_agent_room_cli.py
     - tests/test_agent_room_lifecycle_hooks.py
     - tests/test_agent_room_lifecycle_review_regressions.py
