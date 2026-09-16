@@ -18,7 +18,7 @@
   "invalidation_conditions": [
     "A fresh exact-head review finds an actionable defect."
   ],
-  "next_action": "ready:publish-pr877-for-review",
+  "next_action": "continue with the current branch's next authorized task; PR #877 is retired",
   "parallel_work": [
     {
       "kind": "pull_request",
@@ -33,7 +33,7 @@
       "owner": "other-lane",
       "ref": "#870",
       "touches": ["gateway", "mcp", "tests"]
-    },
+    }
   ],
   "pull_request": null,
   "recommendations": [
@@ -74,7 +74,4 @@
 
 - #876 and #870 remain other lanes; do not touch their worktrees or claims.
 - Do not start a Builder packet from this interactive closeout.
-- Pushing `e02434f6` requires explicit user authorization.
-ot touch their worktrees or claims.
-- Do not start a Builder packet from this interactive closeout.
-- Pushing `e02434f6` requires explicit user authorization.
+- `e02434f6` reached main through PR #879; no publication action remains.

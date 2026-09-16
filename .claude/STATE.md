@@ -33,7 +33,7 @@
       "owner": "other-lane",
       "ref": "#870",
       "touches": ["gateway", "mcp", "tests"]
-    },
+    }
   ],
   "pull_request": null,
   "recommendations": [
