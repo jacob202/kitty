@@ -1,6 +1,13 @@
 """Regression coverage for Kitty's documentation authority boundary."""
 
+import re
 from pathlib import Path
+
+import pytest
+import yaml
+
+from gateway.paths import PROJECT_ROOT
+from gateway.skill_registry import SKILL_ROOTS, discover, invoke, suggest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -279,3 +286,122 @@ def test_cross_client_startup_uses_shared_room_briefing_as_orientation_owner() -
     assert "local bridge" in start_here
     assert "direct inbox first" not in agents
     assert "unread direct inbox first" not in start_here
+
+
+# --- Skill-health contracts (skill registry authority, 2026-09-16) ---
+# Strict frontmatter, spec limits, registry sync, glossary includes, and
+# natural-request trigger routing. A skill that stops satisfying these
+# silently leaves discovery for some consumer; the contracts make it loud.
+
+
+ENGINEERING_FAMILY = (
+    "improve-codebase",
+    "improve-codebase-architecture",
+    "harden-codebase",
+    "improve-daily-ux",
+    "verify-by-mutation",
+    "maintain-repo",
+    "audit-docs",
+    "audit-workflow",
+    "audit-architecture",
+)
+
+# Natural request -> the skill that must be suggested for it. These are literal
+# phrase contracts: Kitty matches on trigger phrases from when_to_use and the
+# USE WHEN clause, so a rephrasing that stops matching is a regression.
+TRIGGER_CASES = (
+    ("improve the codebase", "improve-codebase"),
+    ("make this better", "improve-codebase"),
+    ("what should I fix", "improve-codebase"),
+    ("harden this", "improve-codebase"),
+    ("are the docs stale", "audit-docs"),
+    ("docs out of date", "audit-docs"),
+    ("audit the ci workflows", "audit-workflow"),
+    ("are the gates real", "audit-workflow"),
+    ("harden the error handling", "harden-codebase"),
+    ("check the dependencies for anything sketchy", "harden-codebase"),
+    ("refactor this module", "improve-codebase-architecture"),
+    ("is this test real", "verify-by-mutation"),
+    ("polish the ui", "improve-daily-ux"),
+    ("audit the architecture", "audit-architecture"),
+    ("audit the repo, what is stale", "maintain-repo"),
+)
+
+
+def _active_skill_files() -> list[Path]:
+    files: list[Path] = []
+    for root in SKILL_ROOTS:
+        if not root.exists():
+            continue
+        for skill_file in sorted(root.rglob("SKILL.md")):
+            parts = skill_file.relative_to(root).parts
+            if parts and parts[0] == "_archive":
+                continue
+            files.append(skill_file)
+    return files
+
+
+def _strict_frontmatter(path: Path) -> dict:
+    text = path.read_text()
+    match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
+    assert match, f"{path}: no frontmatter block"
+    result = yaml.safe_load(match.group(1))  # raises on anything strict YAML rejects
+    assert isinstance(result, dict), f"{path}: frontmatter is not a mapping"
+    return result
+
+
+def test_active_skill_frontmatter_is_strict_yaml():
+    """An unquoted colon-space is invalid YAML: Kitty's parser falls back to a
+    tolerant line parse, Command Code drops the skill. Every active skill must
+    parse strictly so both consumers see the same set."""
+    for path in _active_skill_files():
+        _strict_frontmatter(path)
+
+
+def test_active_skill_descriptions_fit_spec_limits():
+    for path in _active_skill_files():
+        meta = _strict_frontmatter(path)
+        description = meta.get("description", "")
+        name = meta.get("name", "")
+        assert isinstance(description, str) and description, path
+        assert len(description) <= 1024, f"{path}: description is {len(description)} chars"
+        assert isinstance(name, str) and re.fullmatch(r"[a-z0-9-]{1,64}", name), path
+        assert path.parent.name == name, f"{path}: directory name must match skill name"
+
+
+def test_engineering_family_is_discoverable():
+    names = {skill["name"] for skill in discover(force_refresh=True)}
+    for name in ENGINEERING_FAMILY:
+        assert name in names, name
+
+
+def test_engineering_family_glossary_includes_are_expanded():
+    """Each specialist's LANGUAGE.md include must resolve through invoke(); an
+    inert shell token reaching the prompt is a silent skill failure."""
+    skills = {skill["name"]: skill for skill in discover(force_refresh=True)}
+    for name in ENGINEERING_FAMILY:
+        skill = skills.get(name)
+        assert skill, name
+        if not (Path(skill["path"]).parent / "LANGUAGE.md").exists():
+            continue
+        result = invoke(name)
+        assert "error" not in result, name
+        assert "COMMANDCODE_SKILL_DIR" not in result["prompt"], name
+        assert "Shared vocabulary" in result["prompt"], name
+
+
+def test_registry_document_lists_every_active_skill():
+    """SKILL_REGISTRY.md is the single source of truth for bundled skills; its own
+    freshness clause requires a re-walk when a skill is added or removed."""
+    registry_text = (PROJECT_ROOT / "SKILL_REGISTRY.md").read_text()
+    names = {skill["name"] for skill in discover(force_refresh=True)}
+    missing = sorted(name for name in names if name not in registry_text)
+    assert not missing, f"active skills missing from SKILL_REGISTRY.md: {missing}"
+
+
+@pytest.mark.parametrize(("phrase", "expected"), TRIGGER_CASES)
+def test_natural_request_suggests_expected_skill(phrase: str, expected: str):
+    # Production (gateway/context_assembler.py) consumes only the first
+    # suggestion; membership among five would let a competing route win silently.
+    names = [skill["name"] for skill in suggest(phrase, limit=1)]
+    assert names == [expected], f"{phrase!r} suggested {names}, expected {expected}"

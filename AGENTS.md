@@ -176,7 +176,12 @@ a checkpoint, pending review/CI, or any case where assigned work remains.
 
 For implementation, repair, review, or completion claims, use
 `.agents/skills/verified-delivery/SKILL.md`. For modernization or maintenance
-cost reduction, use `.agents/skills/aim42-software-improvement/SKILL.md`.
+cost reduction, use `.agents/skills/aim42-software-improvement/SKILL.md`. For
+codebase improvement or hardening triage, use
+`.agents/skills/engineering/improve-codebase/SKILL.md` (internal shape, runtime
+failure behaviour, user surface, test trustworthiness). For repository upkeep —
+stale docs, CI/gate drift, architecture conformance, dependency checks — use
+`.agents/skills/engineering/maintain-repo/SKILL.md`.
 
 Read-only dependency sources under `.slim/clonedeps/repos/` may be inspected
 but not edited.

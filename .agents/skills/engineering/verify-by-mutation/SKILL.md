@@ -1,6 +1,7 @@
 ---
 name: verify-by-mutation
-description: Prove a test actually catches the defect it claims to guard, by mutating the code under test and confirming the test fails. Use when the user wants to verify a test is real, harden a test suite, check that a smoke assertion isn't vacuous, prove a regression test would catch a regression, or audit test quality. Grounded in Kitty's standard: a spec that passes vacuously is a fake pass, and mutation-testing is the bar for smoke assertions. The verification sibling of improve-codebase-architecture, harden-codebase, and improve-daily-ux — those propose changes; this one proves the tests guarding them are real.
+description: Prove a test actually catches the defect it claims to guard, by mutating the code under test and confirming the test fails. Use when the user wants to verify a test is real, harden a test suite, check that a smoke assertion isn't vacuous, prove a regression test would catch a regression, prove a test can fail, or audit test quality. Grounded in Kitty's standard — a spec that passes vacuously is a fake pass, and mutation-testing is the bar for smoke assertions. The verification sibling of improve-codebase-architecture, harden-codebase, and improve-daily-ux — those propose changes; this one proves the tests guarding them are real.
+when_to_use: verify a test is real, is this test real, fake test, vacuous test, test audit, mutation testing, prove the test catches the bug, prove it can fail, harden tests, test quality, regression test check, does this test actually test anything, test is fake, does this test actually test
 ---
 
 # Verify By Mutation
@@ -111,6 +112,10 @@ For each claimed behaviour:
    - Test FAILS for an unrelated reason (crash, timeout, different assertion) →
      **wrong-reason kill.** Not real. Note it.
 4. **Revert every mutation** before moving on. Never leave mutated code in the tree.
+   Revert by writing the original bytes back (read them before mutating). Never
+   `git checkout --` or `git restore` a file to undo a mutation: in an active
+   repo with uncommitted work that also destroys edits which predate your run —
+   the mutation-safety rule is "restore what I read", not "restore what git has".
 
 Run the exact command the CI gate runs (`pytest <path> -q` for Python,
 `vitest run <path>` for frontend) so the verdict matches what the gate sees.

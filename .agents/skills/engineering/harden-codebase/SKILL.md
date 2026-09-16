@@ -1,6 +1,7 @@
 ---
 name: harden-codebase
-description: Find robustness and correctness gaps in a codebase — silent failures, swallowed exceptions, invented defaults, hidden unavailability, missing evidence, unhandled edge cases, weak invariants, and observability blind spots. Grounded in Kitty's fail-loud prime directive in AGENTS.md. Use when the user wants to harden code, make failures loud, audit error handling, find where the system fails quietly, improve reliability or observability, or check data integrity. The complement to improve-codebase-architecture: that skill shapes modules; this one makes them behave and fail correctly at runtime.
+description: Find robustness and correctness gaps in a codebase — silent failures, swallowed exceptions, invented defaults, hidden unavailability, missing evidence, unhandled edge cases, weak invariants, observability blind spots, and dependency-boundary quiet failure (unpinned, ghost, or drifting packages). Grounded in Kitty's fail-loud prime directive in AGENTS.md. Use when the user wants to harden code, make failures loud, audit error handling, find where the system fails quietly, improve reliability or observability, check data integrity, or run a dependency or supply-chain check. The complement to improve-codebase-architecture — that skill shapes modules; this one makes them behave and fail correctly at runtime.
+when_to_use: harden code, make failures loud, audit error handling, find quiet failures, silent failure, swallowed exception, improve reliability, observability audit, check data integrity, dependency check, dependency audit, supply chain audit, outdated packages, unpinned dependencies, ghost dependency, version drift, harden the error handling, check the dependencies, quiet failure
 ---
 
 # Harden Codebase
@@ -46,6 +47,7 @@ Before exploring, read:
 | `gateway/doctor.py` | The existing health/preflight surface — what Kitty already checks |
 | `docs/research/ktf-001-reliability-reconciliation-2026-07-30.md` | Recorded reliability findings and reconciliation doctrine |
 | `docs/adr/` | Accepted decisions — treat as load-bearing unless Jacob changes them |
+| [DEPENDENCY-AUDIT.md](DEPENDENCY-AUDIT.md) (this skill) | The executable dependency-boundary procedure: manifests, existing advisory machinery, checks, and authorization rules |
 
 **Domain vocabulary:** use names from `gateway/` — e.g. `run_workspace` fail-closed
 wrapping, `image_runner` health probes, the `lifespan` reconciliation passes,
@@ -97,6 +99,10 @@ only when the scope is large. Hunt for quiet failure:
   a generic error with no cause?
 - Where do edge cases (empty, partial, concurrent, timeout, malformed) fall through
   to behaviour nobody decided on?
+- **Dependency boundary:** when the request names dependencies, supply chain, or
+  package hygiene, run [DEPENDENCY-AUDIT.md](DEPENDENCY-AUDIT.md) instead of
+  hunting failure paths — it is this skill's executable boundary procedure, and
+  the vocabulary in LANGUAGE.md → "Dependency boundary" stays the language.
 
 Apply the **fail-loud test** to anything you suspect: trace the failure path end to
 end. A path that ends in a swallow, a guess, or silence is the signal you want.

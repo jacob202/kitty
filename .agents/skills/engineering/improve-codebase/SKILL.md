@@ -1,7 +1,7 @@
 ---
 name: improve-codebase
-description: Triage a codebase-improvement request and route it to the right specialist skill. Use when the user says "improve the codebase", "make this better", "what should I fix", "review the quality", "harden this", "clean this up", or any broad code-improvement ask that doesn't name a specific layer. This is the entry point of the improvement family — it decides whether the highest-leverage problem is internal shape (improve-codebase-architecture), runtime failure behaviour (harden-codebase), user-facing experience (improve-daily-ux), or test trustworthiness (verify-by-mutation), then hands off. Use the specialist directly only when the user already named the layer.
-when_to_use: improve the codebase, make this better, what should I fix, review the quality, harden this, clean this up
+description: Triage a codebase-improvement request and route it to the right specialist skill. Use when the user says "improve the codebase", "make this better", "what should I fix", "review the quality", "harden this", "clean this up", "code health", or any broad code-improvement ask that doesn't name a specific layer. This is the entry point of the improvement family — it decides whether the highest-leverage problem is internal shape (improve-codebase-architecture), runtime failure behaviour (harden-codebase), user-facing experience (improve-daily-ux), or test trustworthiness (verify-by-mutation), then hands off. Use the specialist directly only when the user already named the layer. NOT FOR repository upkeep — stale docs, CI/gate drift, or dependency checks enter through the maintain-repo router.
+when_to_use: improve the codebase, make this better, what should I fix, what should I work on, review the quality, code health, find things to fix, harden this, clean this up, codebase improvement
 ---
 
 # Improve Codebase (Router)
@@ -28,6 +28,13 @@ know which one to call.
 Each specialist has its own `LANGUAGE.md` glossary, grounding docs, failure modes,
 and explore→candidates→grilling process. **Do not duplicate their vocabulary here** —
 route to them and let them speak in their own terms.
+
+**Upkeep lanes are a sibling family.** Stale documentation, CI/gate drift,
+architecture conformance, and dependency checks enter through the `maintain-repo`
+router (specialists `audit-docs`, `audit-workflow`, and `audit-architecture`,
+plus this family's `harden-codebase` for the dependency boundary). Route there
+when the leverage is written truth, process truth, documented-design conformance,
+or the supply chain rather than the code layers.
 
 ## When to use the router vs. a specialist
 
@@ -129,7 +136,10 @@ An unpinned dep is a silent-upgrade quiet failure; a ghost package (declared, ne
 imported) is hidden evidence; version drift across sub-requirements is an unenforced
 invariant. When triage surfaces a dependency problem, route it to `harden-codebase`
 and name the specific quiet-failure framing. See that skill's `LANGUAGE.md` →
-"Dependency boundary" for the vocabulary.
+"Dependency boundary" for the vocabulary and
+[DEPENDENCY-AUDIT.md](../harden-codebase/DEPENDENCY-AUDIT.md) for the executable
+procedure. Broad upkeep requests (docs, workflow, dependencies together) enter
+through the `maintain-repo` router instead.
 
 ## Failure modes to avoid
 

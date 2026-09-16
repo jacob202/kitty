@@ -1,6 +1,7 @@
 ---
 name: improve-daily-ux
-description: Find the highest-leverage user-experience gaps in the surfaces people touch every day — loading, empty, error, degraded, and stale states, perceived latency, confusing copy, and inconsistent feedback. Grounded in Kitty's canonical AsyncState 9-state surface. Use when the user wants to improve day-to-day experience, polish the UI, fix what the user sees when something loads or fails, reduce friction, or prioritize customer-experience-facing work. The user-facing sibling of improve-codebase-architecture (shape) and harden-codebase (runtime failure): this skill owns what the user actually sees and feels.
+description: Find the highest-leverage user-experience gaps in the surfaces people touch every day — loading, empty, error, degraded, and stale states, perceived latency, confusing copy, and inconsistent feedback. Grounded in Kitty's canonical AsyncState 9-state surface. Use when the user wants to improve day-to-day experience, polish the UI, fix what the user sees when something loads or fails, reduce friction, or prioritize customer-experience-facing work. The user-facing sibling of improve-codebase-architecture (shape) and harden-codebase (runtime failure) — this skill owns what the user actually sees and feels. NOT FOR pure visual-craft polish (radii, motion values, optical alignment) — this skill owns states, honesty, copy, and recovery.
+when_to_use: improve day-to-day experience, UI polish, UX audit, polish the UI, loading state, empty state, error state, degraded state, confusing error message, reduce friction, what the user sees, fix the UI, surface states, UX gaps, user-facing polish
 ---
 
 # Improve Daily UX
@@ -44,7 +45,7 @@ Before exploring, read:
 
 | Doc / file | Purpose |
 |-----|---------|
-| `gateway/kitty-chat/src/components/ui/AsyncState.tsx` | The canonical 9-state surface: loading / empty / degraded / unavailable / stale / error / retrying / partial / forbidden. The reference every async view should match. |
+| `gateway/kitty-chat/src/components/ui/AsyncState.tsx` | The canonical 9-state surface: loading / empty / degraded / unavailable / stale / error / retrying / partial / forbidden. Check its actual adoption before treating it as the pattern in use — as of 2026-09-16 no product component imports it (only its own test does), so zero adoption plus per-surface ad-hoc states is itself a finding, not a premise to skip. |
 | `gateway/kitty-chat/src/components/ui/StatusBadge.tsx` | Canonical status vocabulary (working / done / failed / …) |
 | `docs/ARCHITECTURE.md` | Live stack, the frontend package layout, what surfaces exist |
 | `gateway/llm_client.py` → `describe_chain_exhaustion` | The existing pattern for turning raw provider errors into user-actionable messages |
