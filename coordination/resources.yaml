@@ -204,7 +204,6 @@ resources:
     paths:
     - gateway/_work_projection_item.py
     - gateway/conversation_handoff.py
-    - gateway/kitty-chat/src/components/ChatMessage.tsx
     - gateway/kitty-chat/src/components/HomeState.tsx
     - gateway/kitty-chat/src/components/LibraryView.tsx
     - gateway/kitty-chat/src/components/WorkView.tsx
@@ -212,32 +211,35 @@ resources:
     - gateway/kitty-chat/src/components/chat/ActionCard.tsx
     - gateway/kitty-chat/src/lib/actions-adapters.ts
     - gateway/kitty-chat/src/lib/actions-contract.ts
-    - gateway/kitty-chat/src/lib/chat-client.ts
     - gateway/kitty-chat/src/lib/gateway.ts
     - gateway/kitty-chat/src/lib/queries.ts
-    - gateway/kitty-chat/src/lib/types.ts
     - gateway/kitty-chat/src/lib/work.ts
     - gateway/kitty-chat/src/state/KittyContext.tsx
     - gateway/kitty-chat/tests/ActionCard.test.tsx
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
-    - gateway/kitty-chat/tests/ChatMessage.test.tsx
     - gateway/kitty-chat/tests/HomeState.test.tsx
     - gateway/kitty-chat/tests/LibraryView.test.tsx
     - gateway/kitty-chat/tests/WorkViewActions.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx
     - gateway/kitty-chat/tests/WorkViewProjection.test.tsx
     - gateway/kitty-chat/tests/actionsContract.test.ts
-    - gateway/kitty-chat/tests/chatClient.test.ts
     - gateway/kitty-chat/tests/smoke/**
+    - gateway/routes/agents.py
     - gateway/routes/chats.py
     - gateway/routes/completions.py
     - gateway/routes/conversation_handoff.py
+    - gateway/routes/notifications.py
+    - gateway/routes/skills.py
+    - gateway/routes/todos.py
     - gateway/voice_middleware.py
+    - tests/test_agent_runner.py
     - tests/test_chat_completions.py
     - tests/test_chats_route.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
+    - tests/test_extended_notify_route.py
     - tests/test_library_chat_001.py
+    - tests/test_undo_route_wiring.py
     - tests/test_voice_middleware.py
     - tests/test_work_projection.py
   review:agent-workflow:
@@ -270,12 +272,3 @@ resources:
     - scripts/transcript_reader.py
     - tests/test_builder_cli.py
 
-  gateway:route-surface:
-    paths:
-    - gateway/routes/agents.py
-    - gateway/routes/notifications.py
-    - gateway/routes/skills.py
-    - gateway/routes/todos.py
-    - tests/test_agent_runner.py
-    - tests/test_extended_notify_route.py
-    - tests/test_undo_route_wiring.py
