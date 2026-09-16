@@ -2,7 +2,7 @@
 
 **Initiative:** builder-frontend-proof-v1
 **Owner:** builder
-**Depends on:** BFP-01-resolve, BFP-02-expose
+**Depends on:** BFP-01-resolve, BFP-02-expose, BFP-02B-deps
 **Free or paid:** free
 
 ## What Jacob can do after this
@@ -47,11 +47,21 @@ already disposable, and grant write access to exactly that.
 ## Not in scope
 
 Running an actual vitest invocation inside the sandbox as part of this packet's
-Tier 1 — the gates here stay Python. Installing `node_modules` into a worker
-worktree, in any form, including symlinks. Changing
-The exact `npx vitest` and `npx tsc` shapes remain prohibited until a sandbox
-run proves project dependencies are available without network access or writable
-shared state.
+Tier 1 — the gates here stay Python.
+
+Making the dependency tree resolvable at all: that is BFP-02B, which this packet
+now depends on. The two are separate needs and both are required. BFP-02B makes
+`node_modules` readable from the worktree; this packet makes the single directory
+Vite writes to writable. Neither alone is enough.
+
+Changing `gateway/kitty-chat/vitest.config.ts`: another lane is already editing
+that file in `.worktrees/fix-ui-test-env-20260916`, and touching it here would
+collide.
+
+The exact `npx vitest` and `npx tsc` shapes stay prohibited in authored packets
+until a sandboxed run proves the dependencies are available without network
+access or writable shared state. BFP-04 owns lifting that prohibition and may
+only do so against that recorded evidence.
 
 ## Verification
 

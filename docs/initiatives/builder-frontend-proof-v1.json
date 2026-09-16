@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "initiative_id": "builder-frontend-proof-v1",
   "title": "Builder can prove the work it is given",
-  "description": "Two holes stop Builder proving anything visual. First, workers get a Python toolchain and no Node toolchain, so every frontend gate is unrunnable and scripts/packet_preflight.py hard-blocks authoring one; that is an omission, not a decision, because nobody wrote the Node half of _validation_toolchain. Second, pytest.ini deselects integration-marked tests by default, so a gate naming tests/test_builder_runner.py runs zero tests and still exits green. This initiative closes both. Companion docs: docs/packets/BFP-01.md through BFP-05.md.",
+  "description": "Two holes stop Builder proving anything visual. First, workers get a Python toolchain and no Node toolchain, so every frontend gate is unrunnable and scripts/packet_preflight.py hard-blocks authoring one; that is an omission, not a decision, because nobody wrote the Node half of _validation_toolchain. Closing it takes both halves - the interpreter and the locked dependency tree - because a worktree has no node_modules either, and an interpreter alone still leaves npx vitest with nothing to run. Second, pytest.ini deselects integration-marked tests by default, so a gate naming tests/test_builder_runner.py runs zero tests and still exits green. This initiative closes both, and refuses to relax the authoring block until a recorded run shows the real command shapes working. Companion docs: docs/packets/BFP-01.md through BFP-05.md.",
   "packets": [
     {
       "id": "BFP-01-resolve",
@@ -56,12 +56,43 @@
       }
     },
     {
-      "id": "BFP-03-cache",
-      "title": "Grant the one write path Vite needs inside the sandbox",
-      "objective": "Vite writes a dependency-optimisation cache while running tests, so a read-only Node exposure makes vitest fail inside the Seatbelt sandbox even when node itself resolves. Extend gateway/builder_execution_boundary.py so a caller can grant one scoped writable cache directory, and have gateway/builder_runner.py point Vite at a per-run directory beneath the run directory rather than at any shared node_modules. This packet edits existing modules only and creates no new files.",
+      "id": "BFP-02B-deps",
+      "title": "Make the locked frontend dependencies resolvable in a worker worktree",
+      "objective": "Exposing the Node interpreter is not enough to run a frontend gate. A Builder worktree has no gateway/kitty-chat/node_modules - the directory is gitignored and exists only in the checkout that owns the repository - so npx vitest and npx tsc still cannot find their executables or their dependency tree. Make the locked dependencies resolvable from inside the worker's worktree without network access during the run and without making any shared checkout writable. This packet edits existing modules only and creates no new files.",
       "depends_on": [
         "BFP-01-resolve",
         "BFP-02-expose"
+      ],
+      "acceptance_criteria": [
+        "a sandboxed worker can execute npx vitest and npx tsc from gateway/kitty-chat and receive a real result rather than a missing-executable or unresolved-import error",
+        "the owning checkout's node_modules is never made writable, so a throwaway worker cannot corrupt the install every other lane shares",
+        "resolution requires no network access during the run, because the sandbox has none and a ten-minute budget cannot absorb an install",
+        "when the dependencies cannot be provided the runner says so explicitly, instead of letting the gate fail as though the code under test were wrong",
+        "tests cover both the provisioned path and the refusal path"
+      ],
+      "allowed_paths": [
+        "gateway/builder_execution_boundary.py",
+        "gateway/builder_runner.py",
+        "tests/test_builder_execution_boundary.py",
+        "tests/test_builder_runner.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_builder_runner.py tests/test_builder_execution_boundary.py",
+        "python -m ruff check gateway/builder_runner.py gateway/builder_execution_boundary.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      }
+    },
+    {
+      "id": "BFP-03-cache",
+      "title": "Grant the one write path Vite needs inside the sandbox",
+      "objective": "Vite writes a dependency-optimisation cache while running tests, so a read-only dependency tree makes vitest fail inside the Seatbelt sandbox even when node and node_modules both resolve. Extend gateway/builder_execution_boundary.py so a caller can grant one scoped writable cache directory, and have gateway/builder_runner.py point Vite at a per-run directory beneath the run directory rather than at any shared node_modules. This packet edits existing modules only and creates no new files.",
+      "depends_on": [
+        "BFP-01-resolve",
+        "BFP-02-expose",
+        "BFP-02B-deps"
       ],
       "acceptance_criteria": [
         "the execution boundary grants write access to a caller-supplied cache directory and to nothing else that was not already writable",
@@ -87,11 +118,13 @@
     {
       "id": "BFP-04-authoring",
       "title": "Let frontend gates be authored again",
-      "objective": "scripts/packet_preflight.py rejects any validation command needing Node, and docs/packets/PACKET_STANDARD.md records that rule as failure F9. Once the runner exposes Node both are stale and every UI packet stays unauthorable. Narrow the preflight rule so a Node gate is permitted, keep rejecting 'npm run' because it still exits 194 silently, and amend F9 in the standard to record what superseded it rather than deleting the evidence. This packet edits existing files only and creates no new files.",
+      "objective": "scripts/packet_preflight.py rejects any validation command needing Node, and docs/packets/PACKET_STANDARD.md records that rule as failure F9. Once a worker can actually run a frontend gate, both are stale and every UI packet stays unauthorable. Narrow the preflight rule so a Node gate is permitted, keep rejecting 'npm run' because it still exits 194 silently, and amend F9 in the standard to record what superseded it rather than deleting the evidence. This may only land once a recorded sandboxed run shows the exact 'npx vitest' and 'npx tsc' command shapes producing a real result; authorizing gates that still cannot execute would be the same defect F9 exists to prevent. This packet edits existing files only and creates no new files.",
       "depends_on": [
+        "BFP-02B-deps",
         "BFP-03-cache"
       ],
       "acceptance_criteria": [
+        "a recorded sandboxed worker run shows 'npx vitest' and 'npx tsc' executing from gateway/kitty-chat and returning a real result, and that evidence is cited before the rule is relaxed",
         "a validation command using npx is accepted by preflight instead of rejected",
         "a validation command using 'npm run' is still rejected, because it still exits 194 and reports a success it never proved",
         "a validation command pinning an interpreter version is still rejected",

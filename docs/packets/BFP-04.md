@@ -2,7 +2,7 @@
 
 **Initiative:** builder-frontend-proof-v1
 **Owner:** builder
-**Depends on:** BFP-03-cache
+**Depends on:** BFP-02B-deps, BFP-03-cache
 **Free or paid:** free
 
 ## What Jacob can do after this
@@ -67,10 +67,18 @@ passes preflight and an `npm run` gate is still rejected.
 
 ## Stop condition
 
-Stop and escalate if BFP-03's evidence does not exist — that is, if no recorded
-run shows a worker executing a Node command inside the sandbox successfully.
-Relaxing this rule on the strength of code that was written but never observed
-working is how F9 happened the first time. No evidence, no relaxation.
+Stop and escalate if the evidence does not exist — that is, if no recorded run
+shows a sandboxed worker executing the exact `npx vitest` and `npx tsc` shapes
+from `gateway/kitty-chat` and getting a real result. Not "a Node command":
+`node --version` succeeding proves the interpreter resolves and says nothing
+about whether the dependency tree does, and that distinction is the reason this
+packet gained BFP-02B as a dependency.
+
+Relaxing the rule on code that was written but never observed working is how F9
+happened the first time. Relaxing it far enough to authorize eight studio gates
+that still cannot execute would be worse: a check declared runnable that cannot
+run is the same defect as a gate collecting zero tests, which this initiative
+exists to remove. No evidence, no relaxation.
 
 ## Recovery
 
