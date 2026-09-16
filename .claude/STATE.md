@@ -16,11 +16,9 @@
   ],
   "head_sha": "e02434f6281bef19bea9d139233daa689abbe0ec",
   "invalidation_conditions": [
-    "The branch is pushed, rebased, merged, or abandoned.",
-    "PR #877 remote head changes after publication.",
     "A fresh exact-head review finds an actionable defect."
   ],
-  "next_action": "ready:publish-pr877-for-review",
+  "next_action": "continue with the current branch's next authorized task; PR #877 is retired",
   "parallel_work": [
     {
       "kind": "pull_request",
@@ -36,27 +34,9 @@
       "ref": "#870",
       "touches": ["gateway", "mcp", "tests"]
     },
-    {
-      "kind": "local-branch",
-      "observed_at": "2026-09-15T11:07:51Z",
-      "owner": "this-session",
-      "ref": "PR #877 local repair",
-      "touches": ["13 review-repair paths"]
-    }
   ],
   "pull_request": null,
   "recommendations": [
-    {
-      "blocked_by": null,
-      "class": "code",
-      "deferred_count": 0,
-      "first_deferred": null,
-      "id": "publish-pr877-for-review",
-      "release_check": null,
-      "status": "ready",
-      "what": "Obtain explicit authorization to push the local PR #877 repair, then bind an independent exact-head review.",
-      "why": "The local candidate is verified but not published or independently reviewed."
-    },
     {
       "blocked_by": null,
       "class": "code",
@@ -73,7 +53,12 @@
   "session_id": "chatgpt-pr877-repair-20260915",
   "status": "in_progress",
   "updated_at": "2026-09-15T11:07:51Z",
-  "worktree": "."
+  "worktree": ".",
+  "task_ownership": {
+    "owner": "continuity-maintenance",
+    "owned_paths": [".claude/STATE.md", ".claude/HANDOFF.md"],
+    "purpose": "Retire merged PR #877 publication state"
+  }
 }
 -->
 
@@ -81,8 +66,8 @@
 
 - this session: `interactive`
 - Builder: read-only survey only; no packet claimed or launched.
-- Result: PR #877 repair committed locally at `e02434f6`; worktree was clean before this compatibility snapshot.
-- Publication: live PR #877 is at `fc911dd4`; local repair `e02434f6` is not on the PR; no push or merge by this session.
+- Result: PR #877 and its repair are merged through PR #879; the local repair is retired.
+- Publication: no publication action remains for PR #877.
 - Coordination: this session's implementation claims were released at closeout.
 
 ## KB effectiveness
