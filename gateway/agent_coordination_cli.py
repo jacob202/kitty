@@ -301,10 +301,10 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         required_role = "INTEGRATE" if context["canonical"] else None
         db_path, registry_path = _coordination_paths(context)
         result = agent_coordination.preflight_mutation(
-            # Rotate a binding whose session holds no claim: otherwise a stale
-            # file makes the gate report "session X has no active claim" instead of
-            # the actionable "run kitty agent claim first".
-            _session_id(context, create=False, rotate_if_inactive=True),
+            # Keep this check non-destructive: claim acquisition may be concurrently
+            # establishing the binding, so stale bindings are rotated by claim.
+            
+            _session_id(context, create=False),
             _staged_paths(context),
             required_role=required_role,
             db_path=db_path,

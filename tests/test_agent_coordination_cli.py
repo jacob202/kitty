@@ -287,7 +287,7 @@ def test_release_with_an_exported_session_id_still_retires_the_binding(
     assert not binding.exists()
 
 
-def test_preflight_rotates_a_stale_binding_and_names_the_real_fix(
+def test_preflight_preserves_a_stale_binding_and_names_the_real_fix(
     repo: Path, cli_env: dict[str, str]
 ) -> None:
     """A dead binding must report the actionable cause, not a dead lease."""
@@ -299,4 +299,4 @@ def test_preflight_rotates_a_stale_binding_and_names_the_real_fix(
 
     assert result.returncode != 0
     assert "kitty agent claim" in result.stderr
-    assert not binding.exists()
+    assert binding.exists()
