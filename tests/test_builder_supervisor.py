@@ -314,11 +314,17 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
 
     argv = popen.call_args.args[0]
     # Unattended dispatch runs the governed cheap route (DeepSeek V4 Flash) by
-    # default; the free route was too slow to be worth waiting for.
+    # default; the free route was too slow to be worth waiting for. It also
+    # publishes each succeeded packet as its own branch and pull request, parked
+    # at awaiting_review — authorized 2026-09-16 and scoped in
+    # docs/ACTIVE_MISSION.md to opening a PR, never merging one.
     assert argv == [
         str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1",
-        "--paid", "--tier", "cheap", "--json",
+        "--paid", "--tier", "cheap", "--publish", "--gate", "manual", "--json",
     ]
+    # The merge decision stays human. The auto gate is a real capability under
+    # ADRs 0018/0021 and is deliberately not what unattended dispatch uses.
+    assert "auto" not in argv
     assert popen.call_args.kwargs["start_new_session"] is True
     assert popen.call_args.kwargs["shell"] is False
     assert len(popen.call_args.kwargs["pass_fds"]) == 1

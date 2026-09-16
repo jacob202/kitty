@@ -85,11 +85,13 @@ unless `--publish` is present — no push, no PR, no merge. With `--publish`,
 evidence-gated low-risk auto-merge; `--gate manual` parks each packet at
 `awaiting_review` for a human merge decision.
 
-That ADR auto-merge is a *capability*, distinct from the current
-`docs/ACTIVE_MISSION.md` standing constraint that Builder may not push, open a
-PR, or merge without Jacob's explicit approval. Neither is weakened here: the
-capability remains as the ADRs define it, and the mission constraint still
-gates publication until Jacob approves it.
+That ADR auto-merge is a *capability*, and unattended dispatch does not use it.
+Jacob authorized publication on 2026-09-16, so the scheduled supervisor now runs
+`--publish --gate manual`: every succeeded packet pushes its own branch and
+opens its own pull request, parked at `awaiting_review`. The authorization
+covers opening a pull request and stops there — Builder still may not merge, and
+`--gate auto` stays off the unattended path. `docs/ACTIVE_MISSION.md` records the
+scope.
 
 Full detail and negative tests: `docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md` §3.
 

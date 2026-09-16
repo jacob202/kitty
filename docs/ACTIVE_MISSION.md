@@ -143,9 +143,13 @@ cancelled tasks were cancelled on 2026-09-01 as a deliberate curation, and
 - Reuse the existing memory, work, artifact, action, session, and provider
   systems. Do not build a parallel model registry, queue, artifact store, or
   frontend state machine to make the UI easier.
-- Builder may run unattended on its schedule. It may not push, open a PR, merge,
-  provision paid infrastructure, or alter credentials without Jacob's explicit
-  approval.
+- Builder may run unattended on its schedule. **Jacob authorized publication on
+  2026-09-16**: each succeeded packet may push its own branch and open its own
+  pull request, parked at `awaiting_review`. That authorization stops there.
+  Builder may not merge, provision paid infrastructure, or alter credentials,
+  and the ADR 0018 / ADR 0021 evidence-gated auto-merge capability remains
+  unused by unattended dispatch. Opening a pull request is how the work becomes
+  visible; merging it stays a human decision.
 - User-facing copy carries no packet IDs, ports, env vars, raw HTTP status,
   stack traces, or internal service names.
 - Pending, skipped, stale, or self-authored review evidence is unverified.
