@@ -6,11 +6,14 @@ owns one domain (architecture claim: "Routes should remain thin").
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+logger = logging.getLogger("kitty.routes.image_generation")
 
 router = APIRouter(tags=["images"])
 
@@ -66,7 +69,14 @@ async def _kitty_worker_runtime_status() -> tuple[bool, str | None]:
     try:
         client = client_from_env(timeout_seconds=3.0)
         await client.assert_ready()
-    except (RunPodWorkerError, RunPodConfigurationError, httpx.HTTPError):
+    except (RunPodWorkerError, RunPodConfigurationError, httpx.HTTPError) as exc:
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        logger.warning(
+            "kitty worker readiness probe failed (%s%s): %s",
+            type(exc).__name__,
+            f", status {status_code}" if status_code else "",
+            exc,
+        )
         return False, KITTY_WORKER_OFFLINE_REASON
     finally:
         if client is not None:
