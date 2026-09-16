@@ -4,66 +4,53 @@
 {
   "active_mission": "docs/ACTIVE_MISSION.md",
   "blockers": [
-    "Local PR #877 repair e02434f6281bef19bea9d139233daa689abbe0ec is not pushed; explicit publication authority is required.",
-    "The repaired local head is completed_unreviewed until an independent exact-head review is bound after publication.",
-    "R-3/#870 remains separate parallel work and was not touched."
+    "PR #885 is CLEAN and green but NOT merged: merging to main needs Jacob's separate explicit authorization (AGENTS.md), and this session deliberately stopped there. policy-gate passes on exact head 6de763b6 (run 35043706451 logs 'PR policy passed.'); no auto-merge is enabled so merge stays manual.",
+    "PR #876 is BLOCKED on 13 unresolved reviewer threads (several not outdated) -- substantive review work in another lane, not an approval gap.",
+    "PR #877 merged as 59b878cb via admin override with no bound independent review verdict; that cannot be repaired retroactively. PR #882 was closed as redundant, so the checkpoint blocker that pointed at it is discharged."
   ],
   "branch": "chore/builder-route-and-activation-20260915",
   "completed_items": [
-    "Restored CAD 6/week across executable and config budget authority.",
-    "Unknown supervisor routes fail closed; launchd, stamp, dotenv, and launcher credential boundaries now fail truthfully.",
-    "Added regression coverage and registered all repaired paths in coordination/resources.yaml.",
-    "bash -n passed and 237 focused tests passed at the exact local head."
+    "Ran the bootloader and Room Briefing as commandcode. Assignment resolved 'unresolved', so the strict validated legacy receipt was used and returned ok: true.",
+    "Verified #882's redundancy independently: scripts/pr_review_gate.py byte-identical to origin/main (sha256 0efc21b198ef2aab9f6d2d695231746124f34916), regression test present, resources.yaml entry present, two-dot residual diff 0 lines.",
+    "Closed PR #882 as redundant at 2026-09-16T01:20:22Z on Jacob's decision, evidence in the closing comment.",
+    "Originated PR #885's exact-head risk approval at Jacob's explicit direction and proved it: policy-gate run 35043706451 logs 'PR policy passed.'; PR moved BLOCKED -> CLEAN.",
+    "Recorded the standing preference that agents apply Jacob-originated approval mechanics themselves rather than handing Jacob the recipe."
   ],
-  "head_sha": "e02434f6281bef19bea9d139233daa689abbe0ec",
+  "head_sha": "361d775d3dfdd4376d7687f903d9555b31bebe5b",
   "invalidation_conditions": [
-    "The branch is pushed, rebased, merged, or abandoned.",
-    "PR #877 remote head changes after publication.",
-    "A fresh exact-head review finds an actionable defect."
+    "PR #885 is merged, closed, or its remote head changes past 6de763b6.",
+    "PR #876's unresolved reviewer threads are resolved or that lane is transferred.",
+    "The risk-approval boundary recorded in this closeout is superseded by an ADR-0041 implementation."
   ],
-  "next_action": "ready:publish-pr877-for-review",
+  "next_action": "ready:jacob-authorize-merge-885",
   "parallel_work": [
     {
       "kind": "pull_request",
-      "observed_at": "2026-09-15T11:07:51Z",
+      "observed_at": "2026-09-16T01:24:00Z",
       "owner": "other-lane",
-      "ref": "#876",
-      "touches": ["contracts", "gateway", "tests"]
+      "ref": "#885",
+      "touches": [".pr_agent.toml", "scripts/pr_scope.py", "tests/test_pr_scope.py"]
     },
     {
       "kind": "pull_request",
-      "observed_at": "2026-09-15T11:07:51Z",
+      "observed_at": "2026-09-16T01:24:00Z",
       "owner": "other-lane",
-      "ref": "#870",
-      "touches": ["gateway", "mcp", "tests"]
-    },
-    {
-      "kind": "local-branch",
-      "observed_at": "2026-09-15T11:07:51Z",
-      "owner": "this-session",
-      "ref": "PR #877 local repair",
-      "touches": ["13 review-repair paths"]
+      "ref": "#876",
+      "touches": ["contracts", "gateway", "tests"]
     }
   ],
-  "pull_request": {
-    "number": 877,
-    "state": "OPEN",
-    "head_sha": "fc911dd4a6f8b769cc7d2fea029d3108d205e698",
-    "remote_head": "fc911dd4a6f8b769cc7d2fea029d3108d205e698",
-    "local_head": "e02434f6281bef19bea9d139233daa689abbe0ec",
-    "publication": "local_only"
-  },
+  "pull_request": null,
   "recommendations": [
     {
       "blocked_by": null,
       "class": "code",
       "deferred_count": 0,
       "first_deferred": null,
-      "id": "publish-pr877-for-review",
+      "id": "jacob-authorize-merge-885",
       "release_check": null,
       "status": "ready",
-      "what": "Obtain explicit authorization to push the local PR #877 repair, then bind an independent exact-head review.",
-      "why": "The local candidate is verified but not published or independently reviewed."
+      "what": "PR #885 (Qodo review overlay) is CLEAN with every check green and a bound exact-head agent-review approval. Jacob says the word and it merges to main.",
+      "why": "Its policy-gate blocker is discharged (proven: run 35043706451 'PR policy passed.'). Merging is the one remaining step, and AGENTS.md reserves it for Jacob's explicit authorization."
     },
     {
       "blocked_by": null,
@@ -74,27 +61,39 @@
       "release_check": null,
       "status": "ready",
       "what": "Drive chat -> Mission -> Builder -> result -> resume in the running product.",
-      "why": "This is separate parallel work and was not changed by this session."
+      "why": "Separate parallel work, untouched here. It is the product proof that matters, per the 2026-09-15 architecture diagnosis (TEST_FIRST, not redesign)."
     }
   ],
   "schema_version": 2,
-  "session_id": "chatgpt-pr877-repair-20260915",
+  "session_id": "commandcode-ebccf3a365c04bf5b800fb361084f8df",
   "status": "awaiting_review",
-  "updated_at": "2026-09-15T11:07:51Z",
+  "updated_at": "2026-09-16T01:24:07Z",
   "worktree": "."
 }
 -->
 
-## Execution ownership
+## Outcome
 
-- this session: `interactive`
-- Builder: read-only survey only; no packet claimed or launched.
-- Result: PR #877 repair committed locally at `e02434f6`; worktree was clean before this compatibility snapshot.
-- Publication: live PR #877 is at `fc911dd4`; local repair `e02434f6` is not on the PR; no push or merge by this session.
-- Coordination: this session's implementation claims were released at closeout.
+- Closed PR #882 as redundant (verified 0 residual lines against `origin/main`, not trusted from the checkpoint).
+- Discharged PR #885's mechanical approval gate and proved it green: `policy-gate` run `35043706451` logs `PR policy passed.`, PR moved `BLOCKED` -> `CLEAN`.
+- Execution owner: `interactive` (Command Code / `commandcode`). No push, no branch, no Builder packet, no spend.
 
-## Parallel work and boundaries
+## Blockers
 
-- #876 and #870 remain other lanes; do not touch their worktrees or claims.
-- Do not start a Builder packet from this interactive closeout.
-- Pushing `e02434f6` requires explicit user authorization.
+- #885 is CLEAN but unmerged — merging needs Jacob's separate explicit authorization. No auto-merge is enabled.
+- #876 is blocked on 13 unresolved reviewer threads (real review work, another lane).
+- #877 merged without a bound independent review verdict; not repairable retroactively.
+
+## Evidence
+
+- `scripts/pr_review_gate.py` on `origin/main` sha256 `0efc21b198ef2aab9f6d2d695231746124f34916`, identical to #882's branch.
+- `git diff origin/main fix/review-gate-clean-phrase-veto-20260915 -- scripts/pr_review_gate.py tests/test_pr_review_verdict_normalization.py` = empty.
+- policy-gate run `35043706451` on head `6de763b627dafe198b1a0258c87583736802c8e8`: `Independent review: GitHub agent review approved exact head 6de763b6...` then `PR policy passed.`
+
+## Next move
+
+Jacob explicitly authorizes (or declines) merging PR #885.
+
+## Boundary update
+
+The 2026-09-15 rule "never write the risk-approval line on Jacob's behalf, even under explicit chat instruction" was explicitly overridden by Jacob for #885. Revised rule: agents apply Jacob-originated approval mechanics from his directive, name him as director, and show the passing evidence; agents still never self-approve risky scope unattended, and merge still needs his separate authorization. Detail: `~/kb/corrections/2026-09-16-agents-handed-jacob-a-mechanical-approval-recipe.md`.
