@@ -4,8 +4,7 @@
 {
   "active_mission": "docs/ACTIVE_MISSION.md",
   "blockers": [
-    "Local PR #877 repair e02434f6281bef19bea9d139233daa689abbe0ec is not pushed; explicit publication authority is required.",
-    "The repaired local head is completed_unreviewed until an independent exact-head review is bound after publication.",
+    "Resolved 2026-09-16: PR #877 merged, and its local repair e02434f6281bef19bea9d139233daa689abbe0ec reached main through PR #879 - the paths it touched are now identical to origin/main.",
     "R-3/#870 remains separate parallel work and was not touched."
   ],
   "branch": "chore/builder-route-and-activation-20260915",
@@ -17,11 +16,9 @@
   ],
   "head_sha": "e02434f6281bef19bea9d139233daa689abbe0ec",
   "invalidation_conditions": [
-    "The branch is pushed, rebased, merged, or abandoned.",
-    "PR #877 remote head changes after publication.",
     "A fresh exact-head review finds an actionable defect."
   ],
-  "next_action": "ready:publish-pr877-for-review",
+  "next_action": "continue with the current branch's next authorized task; PR #877 is retired",
   "parallel_work": [
     {
       "kind": "pull_request",
@@ -36,35 +33,10 @@
       "owner": "other-lane",
       "ref": "#870",
       "touches": ["gateway", "mcp", "tests"]
-    },
-    {
-      "kind": "local-branch",
-      "observed_at": "2026-09-15T11:07:51Z",
-      "owner": "this-session",
-      "ref": "PR #877 local repair",
-      "touches": ["13 review-repair paths"]
     }
   ],
-  "pull_request": {
-    "number": 877,
-    "state": "OPEN",
-    "head_sha": "fc911dd4a6f8b769cc7d2fea029d3108d205e698",
-    "remote_head": "fc911dd4a6f8b769cc7d2fea029d3108d205e698",
-    "local_head": "e02434f6281bef19bea9d139233daa689abbe0ec",
-    "publication": "local_only"
-  },
+  "pull_request": null,
   "recommendations": [
-    {
-      "blocked_by": null,
-      "class": "code",
-      "deferred_count": 0,
-      "first_deferred": null,
-      "id": "publish-pr877-for-review",
-      "release_check": null,
-      "status": "ready",
-      "what": "Obtain explicit authorization to push the local PR #877 repair, then bind an independent exact-head review.",
-      "why": "The local candidate is verified but not published or independently reviewed."
-    },
     {
       "blocked_by": null,
       "class": "code",
@@ -81,7 +53,12 @@
   "session_id": "chatgpt-pr877-repair-20260915",
   "status": "awaiting_review",
   "updated_at": "2026-09-15T11:07:51Z",
-  "worktree": "."
+  "worktree": ".",
+  "task_ownership": {
+    "owner": "continuity-maintenance",
+    "owned_paths": [".claude/STATE.md", ".claude/HANDOFF.md"],
+    "purpose": "Retire merged PR #877 publication state"
+  }
 }
 -->
 
@@ -89,12 +66,12 @@
 
 - this session: `interactive`
 - Builder: read-only survey only; no packet claimed or launched.
-- Result: PR #877 repair committed locally at `e02434f6`; worktree was clean before this compatibility snapshot.
-- Publication: live PR #877 is at `fc911dd4`; local repair `e02434f6` is not on the PR; no push or merge by this session.
+- Result: PR #877 and its repair are merged through PR #879; the local repair is retired.
+- Publication: no publication action remains for PR #877.
 - Coordination: this session's implementation claims were released at closeout.
 
 ## Parallel work and boundaries
 
 - #876 and #870 remain other lanes; do not touch their worktrees or claims.
 - Do not start a Builder packet from this interactive closeout.
-- Pushing `e02434f6` requires explicit user authorization.
+- `e02434f6` reached main through PR #879; no publication action remains.

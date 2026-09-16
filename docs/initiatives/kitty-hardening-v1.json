@@ -1,0 +1,172 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-hardening-v1",
+  "title": "Harden the parts that failed quietly",
+  "description": "Every packet here comes from a defect observed on 2026-09-15/16, not from taste. Builder ran switched-on and dead for a day because a route named a model no check validates. The continuity gate blocked every push in the repository over a pull request that had merged. The agent room returns replies too large for an agent to read. The local reviewer costs money on every dispatch and saves none. The pre-push gate refuses frontend work in a worktree without saying what would fix it. And the frontier tier names two unregistered models, so any escalation to it dies the way Builder did. Each packet fails loud where the system currently fails silently. Companion docs: docs/packets/KH-ROUTE-01.md through KH-GATE-01.md.",
+  "packets": [
+    {
+      "id": "KH-ROUTE-01",
+      "title": "Refuse a route that names a model nothing serves",
+      "objective": "Add validation that every model named in config/builder_paid_routes.json is registered in the openrouter provider block of opencode.jsonc, and surface it through kitty builder initiative doctor so a broken route is visible before dispatch rather than after three burned attempts. This packet edits existing modules only and creates no new files.",
+      "acceptance_criteria": [
+        "resolving a route whose worker or reviewer model is absent from the provider registry fails with a message naming the model and the file that must register it",
+        "the doctor reports a FAIL for any configured route naming an unregistered model, and lists every offending route rather than stopping at the first",
+        "a route whose models are all registered produces no new doctor finding, so a healthy configuration stays quiet",
+        "reviewer fallback models are validated on the same terms as the primary models, because a fallback that cannot serve is the same outage one step later",
+        "tests cover a registered route, an unregistered worker model, an unregistered fallback, and the doctor output for each"
+      ],
+      "allowed_paths": [
+        "gateway/builder_paid_routing.py",
+        "gateway/doctor.py",
+        "tests/test_builder_paid_routing.py",
+        "tests/test_doctor.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_builder_paid_routing.py tests/test_doctor.py",
+        "python -m ruff check gateway/builder_paid_routing.py gateway/doctor.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 10
+      }
+    },
+    {
+      "id": "KH-FRONTIER-01",
+      "title": "Remove the frontier tier",
+      "objective": "Delete the frontier route and its governor plumbing. It names deepseek/deepseek-v4-pro and qwen/qwen3.7-max, neither registered with any provider, so every escalation to it dies exactly the way the cheap route did. Removing the tier means removing its route entry, its ROUTE_FRONTIER constant and pass-cost shape, its downgrade branch, the frontier_floor_ratio reserve threshold and its validation, the CLI tier option, and the documentation that offers it. This packet edits existing files only and creates no new files.",
+      "depends_on": [
+        "KH-ROUTE-01"
+      ],
+      "acceptance_criteria": [
+        "no route named frontier can be requested: the CLI rejects it as an unknown tier rather than accepting it and failing later at the provider",
+        "the governor's remaining routes are free and cheap, and a dispatch that previously downgraded from frontier to cheap now simply runs as cheap",
+        "the reserve configuration no longer carries frontier_floor_ratio, and loading a config that still contains it does not crash",
+        "the hard floor still applies, so a dispatch with insufficient remaining budget is still refused rather than silently downgraded",
+        "documentation offering a frontier tier is updated so no reader is pointed at a route that no longer exists",
+        "tests cover an unknown-tier rejection, a cheap dispatch under a low reserve, and a config file that still names the removed threshold"
+      ],
+      "allowed_paths": [
+        "config/builder_paid_routes.json",
+        "config/compute_governor.json",
+        "docs/CAMPAIGN_PLAYBOOK.md",
+        "docs/FREE_WORKERS.md",
+        "gateway/builder_cli.py",
+        "gateway/builder_paid_routing.py",
+        "gateway/compute_governor.py",
+        "tests/test_builder_cli.py",
+        "tests/test_builder_loop.py",
+        "tests/test_builder_paid_routing.py",
+        "tests/test_builder_supervisor.py",
+        "tests/test_compute_governor.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_compute_governor.py tests/test_builder_paid_routing.py tests/test_builder_cli.py tests/test_builder_supervisor.py",
+        "python -m ruff check gateway/compute_governor.py gateway/builder_cli.py gateway/builder_paid_routing.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      }
+    },
+    {
+      "id": "KH-CONT-04",
+      "title": "A merged pull request must not block publication",
+      "objective": "The continuity checkpoint declares a pull request and the receipt fails when that PR is no longer open. When the PR merges and nobody rewrites the checkpoint, the gate blocks every push in the repository until someone edits a file they were told not to edit during ordinary work. Make a recorded PR that has since merged a warning that names the merge rather than a failure, while a genuinely contradictory record still fails. This packet edits existing modules only and creates no new files.",
+      "acceptance_criteria": [
+        "a checkpoint naming a PR that has since merged produces a WARN that states the PR merged and gives the merge commit, not a FAIL",
+        "a checkpoint naming a PR that is still open at a different head than recorded still FAILs, because that is a real contradiction about live work",
+        "a checkpoint naming a PR that was closed without merging still FAILs",
+        "a checkpoint naming no pull request stays PASS, unchanged",
+        "the WARN text says what to do about it, so the reader reconciles the checkpoint deliberately instead of discovering the edit by trial",
+        "tests cover merged, open-at-a-different-head, closed-unmerged, and absent"
+      ],
+      "allowed_paths": [
+        "gateway/context_receipt_legacy.py",
+        "tests/test_check_continuity_state.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_check_continuity_state.py",
+        "python -m ruff check gateway/context_receipt_legacy.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 8
+      }
+    },
+    {
+      "id": "KH-GAR-02",
+      "title": "Bound what the agent room hands back",
+      "objective": "room_status and room_inbox return their entire contents, which for this room is several hundred thousand characters - more than an agent can read, so the call that exists to orient an agent is the one call it cannot afford to make. Give both a bounded default: a capped number of the most recent entries, the counts that were elided, and an explicit way to ask for more. This packet edits existing modules only and creates no new files.",
+      "acceptance_criteria": [
+        "room_status and room_inbox return a bounded payload by default, and the bound is stated in the response rather than left for the caller to infer",
+        "a truncated response says how many entries were omitted, so a caller can tell a quiet room from a truncated one",
+        "an explicit limit or offset argument retrieves the omitted entries, so nothing becomes unreachable",
+        "the newest entries are the ones retained by default, because orientation needs current state rather than history",
+        "a room small enough to fit under the bound returns exactly what it returns today",
+        "tests cover the bounded default, a truncation that reports its own elision, explicit retrieval of older entries, and a small room being unaffected"
+      ],
+      "allowed_paths": [
+        "gateway/agent_room_cli.py",
+        "mcp/agent_room/server.py",
+        "tests/test_agent_room_cli.py",
+        "tests/test_mcp_agent_room_server.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_agent_room_cli.py tests/test_mcp_agent_room_server.py",
+        "python -m ruff check gateway/agent_room_cli.py mcp/agent_room/server.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 7
+      }
+    },
+    {
+      "id": "KH-REVIEW-01",
+      "title": "Give the local reviewer a way to graduate or die",
+      "objective": "The local reviewer runs as a shadow beside the authoritative review, which still always runs, so it currently costs time on every dispatch and saves nothing. It needs stated criteria: the measured agreement at which it may replace a paid review, and the disagreement at which it is switched off. Record its verdict against the authoritative one and report that agreement, so the decision is made on evidence rather than on how long it has been running. This packet edits existing modules only and creates no new files.",
+      "acceptance_criteria": [
+        "each shadow review records its own verdict alongside the authoritative verdict for the same exact candidate, so the two are comparable after the fact",
+        "an agreement rate over the recorded history is reportable, and the report states the sample size beside it",
+        "graduation and kill thresholds are declared in one place and named in the report, so the criteria cannot drift with whoever reads it",
+        "an unavailable or erroring shadow reviewer is recorded as unavailable and never as agreement, because an absent verdict is not a matching one",
+        "the shadow reviewer still cannot affect the authoritative outcome, so nothing here changes what merges",
+        "tests cover agreement, disagreement, an unavailable shadow, and a report that names its sample size and thresholds"
+      ],
+      "allowed_paths": [
+        "gateway/local_review.py",
+        "tests/test_local_review.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_local_review.py",
+        "python -m ruff check gateway/local_review.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 6
+      }
+    },
+    {
+      "id": "KH-GATE-01",
+      "title": "A gate that cannot run must say what would fix it",
+      "objective": "The pre-push frontend gates run ./node_modules/.bin/vitest and next from the pushing checkout. A git worktree has no node_modules, so both gates report that they could not run reliably and the push is blocked with no indication that one install would clear it. Refusing to claim an unproven pass is correct and stays; the message becomes actionable. This packet edits existing files only and creates no new files.",
+      "acceptance_criteria": [
+        "when a frontend gate cannot run because dependencies are absent, the message names the exact command that installs them and the directory to run it in",
+        "the gate still blocks the push, because an unrunnable check is never a passing one",
+        "a gate that fails on its merits is still reported as a failure and is not confused with one that could not run",
+        "no gate is skipped or downgraded as a result of this change",
+        "tests assert the actionable message appears for an absent dependency and does not appear for a genuine test failure"
+      ],
+      "allowed_paths": [
+        "scripts/hooks/pre-push",
+        "tests/test_pre_push_gate.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_pre_push_gate.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 5
+      }
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-studio-r5-v1",
+  "title": "R-5: Image Lab and Library as real working surfaces",
+  "description": "Applies the accepted studio direction to Image Lab and Library: real visual work leads, and provider, route, cost and provenance truth stays reachable but subordinate unless a decision depends on it. This is presentation over capability that already exists. The functional contracts are described in the unactivated drafts docs/packets/OK-IMAGE-01.md and docs/packets/OK-LIBRARY-01.md; this initiative does not re-derive them and does not build new pipeline capability. Every criterion is a test assertion rather than a visual judgement, so a worker and a reviewing agent reach the same verdict. Packets run in sequence because they share component and test directories. Requires builder-frontend-proof-v1 to have landed, and follows kitty-studio-r4-v1, whose shell and token contract these surfaces inherit. Companion docs: docs/packets/R5-00.md through R5-03.md.",
+  "packets": [
+    {
+      "id": "kitty-studio-r5-proto",
+      "title": "Image Lab hierarchy skeleton",
+      "objective": "Establish the create-to-result hierarchy in Image Lab against fixture sessions so the shape is visible before the full recomposition: reference and prompt controls lead while no result exists, and a real succeeded result takes over once one does. Keep existing Image Lab state, hooks and API calls untouched; this is arrangement, not rewiring.",
+      "acceptance_criteria": [
+        "with a session holding no result, the create and reference controls lead the surface and no result region is rendered",
+        "with a session holding a real succeeded result, that result becomes the dominant region and configuration controls become subordinate or collapsible",
+        "a queued or running job stays visible in both arrangements rather than disappearing between states",
+        "no image element renders a source the session does not actually own, asserted against a fixture with no result",
+        "the existing Image Lab state hooks and API calls are unchanged, asserted by the existing Image Lab tests still passing",
+        "every visible primary control either completes its task or is disabled with one plain-language reason next to it",
+        "no raw server error, status code, stack trace, port, environment variable name or file path is the primary message a person reads",
+        "nothing reports state it did not measure: no client-only success and no healthy label over a stale source",
+        "desktop and iPhone-class widths show no horizontal overflow, clipped dialog or off-screen primary control"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components",
+        "gateway/kitty-chat/tests"
+      ],
+      "validation_commands": [
+        "cd gateway/kitty-chat && npx vitest run tests/ImageLab.test.tsx tests/ImageLabLayout.test.tsx --reporter=dot",
+        "cd gateway/kitty-chat && npx tsc --noEmit"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 10
+      }
+    },
+    {
+      "id": "kitty-studio-r5-image",
+      "title": "Image Lab becomes a visual working studio",
+      "objective": "Complete the Image Lab recomposition: the current series and selected result dominate, next creative actions appear only when the real backend supports them, and provider, route, cost and provenance remain reachable without leading the page. Recompose presentation only; do not rewrite Image Lab state.",
+      "depends_on": [
+        "kitty-studio-r5-proto"
+      ],
+      "acceptance_criteria": [
+        "a result action such as variations, compare, upscale or use-as-reference renders only when the existing status, job or result contract reports it available, asserted by a fixture where it is unavailable and the control is absent",
+        "a failed provider or job renders a recovery path and preserves the session context rather than replacing the surface with an error",
+        "provenance, route and cost remain reachable from a selected result but are not the leading region, asserted over the rendered order",
+        "source and reference upload continues to work against the existing contract, asserted by the existing upload test",
+        "no fabricated or placeholder image is rendered in place of a missing result",
+        "every visible primary control either completes its task or is disabled with one plain-language reason next to it",
+        "no raw server error, status code, stack trace, port, environment variable name or file path is the primary message a person reads",
+        "nothing reports state it did not measure: no client-only success and no healthy label over a stale source",
+        "desktop and iPhone-class widths show no horizontal overflow, clipped dialog or off-screen primary control"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components",
+        "gateway/kitty-chat/tests"
+      ],
+      "validation_commands": [
+        "cd gateway/kitty-chat && npx vitest run tests/ImageLab.test.tsx tests/ImageLabLayout.test.tsx tests/ImageLabRecovery.test.tsx tests/ImageLabSourceUpload.test.tsx tests/ImageLabAnchorClear.test.tsx --reporter=dot",
+        "cd gateway/kitty-chat && npx tsc --noEmit"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      }
+    },
+    {
+      "id": "kitty-studio-r5-library",
+      "title": "Library becomes recall you can act on",
+      "objective": "Recompose Library so a real artifact can be found, opened and used in work, with degraded retrieval represented honestly rather than hidden. Reuse the existing artifact and index authorities; introduce no second store, index or search path.",
+      "depends_on": [
+        "kitty-studio-r5-proto",
+        "kitty-studio-r5-image"
+      ],
+      "acceptance_criteria": [
+        "a real artifact can be opened from Library and used in chat through the existing artifact contract, asserted end to end in the component test",
+        "an artifact with no preview renders interface state rather than a placeholder or stock image",
+        "a degraded or unavailable retrieval source renders the context it does have plus the next useful action, and never a bare error string",
+        "the distinction between an indexed result and an unindexed one is visible rather than silently flattened",
+        "no second store, index or search path is introduced, asserted by the existing artifact gateway tests still passing unchanged",
+        "every visible primary control either completes its task or is disabled with one plain-language reason next to it",
+        "no raw server error, status code, stack trace, port, environment variable name or file path is the primary message a person reads",
+        "nothing reports state it did not measure: no client-only success and no healthy label over a stale source",
+        "desktop and iPhone-class widths show no horizontal overflow, clipped dialog or off-screen primary control"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components",
+        "gateway/kitty-chat/tests"
+      ],
+      "validation_commands": [
+        "cd gateway/kitty-chat && npx vitest run tests/LibraryView.test.tsx tests/ArtifactChatCard.test.tsx tests/artifactGateway.test.ts tests/library-chat-001.test.tsx --reporter=dot",
+        "cd gateway/kitty-chat && npx tsc --noEmit"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 8
+      }
+    },
+    {
+      "id": "kitty-studio-r5-acceptance",
+      "title": "Prove the make-it, keep-it, reuse-it loop",
+      "objective": "Add browser coverage for the loop that makes Image Lab and Library worth having: start in Chat, make something in Image Lab, keep the result, find it again in Library and bring it back into work. This packet adds coverage and changes product code only where that coverage exposes a real defect.",
+      "depends_on": [
+        "kitty-studio-r5-proto",
+        "kitty-studio-r5-image",
+        "kitty-studio-r5-library"
+      ],
+      "acceptance_criteria": [
+        "a smoke spec walks Chat to Image Lab to a saved result to Library and back into work, with the same artifact identity throughout",
+        "the identity survives a reload partway through the loop",
+        "the spec runs under both the desktop and the mobile project, because the repository runs every spec under both",
+        "the spec covers the day theme and the night theme",
+        "the spec asserts no horizontal page overflow at iPhone-class widths",
+        "a degraded retrieval source is covered and keeps context plus a next action",
+        "every visible primary control either completes its task or is disabled with one plain-language reason next to it",
+        "no raw server error, status code, stack trace, port, environment variable name or file path is the primary message a person reads",
+        "nothing reports state it did not measure: no client-only success and no healthy label over a stale source"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components",
+        "gateway/kitty-chat/tests"
+      ],
+      "validation_commands": [
+        "cd gateway/kitty-chat && npx vitest run tests/ImageLabLayout.test.tsx tests/LibraryView.test.tsx --reporter=dot",
+        "cd gateway/kitty-chat && npx tsc --noEmit"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 7
+      }
+    }
+  ]
+}

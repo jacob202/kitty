@@ -150,6 +150,14 @@ def test_agent_context_receipt_runs_outside_checkout(tmp_path: Path) -> None:
     # Accept 0 (ok) or 1 (receipt built, continuity not ok); reject a real
     # invocation failure (bad import, crash) that produces no parseable receipt.
     assert result.returncode in (0, 1), result.stdout + result.stderr
+    # An exit of 1 covers both "receipt built, continuity not ok" and "crashed
+    # before printing anything", so the returncode alone cannot tell them apart.
+    # Carry stderr into the failure or the next reader gets a bare
+    # JSONDecodeError at character 0 and no way to find out why.
+    assert result.stdout.strip(), (
+        "context --agent exited "
+        f"{result.returncode} with no receipt on stdout; stderr:\n{result.stderr}"
+    )
     receipt = json.loads(result.stdout)
     assert receipt["repository"]["repo_path"] == str(ROOT)
     assert isinstance(receipt["schema_version"], int)
