@@ -315,7 +315,7 @@ class TestZeroStepSessionIsNotMissing:
 class TestAgentStatusRoute:
     @pytest.mark.asyncio
     async def test_interrupted_session_returns_its_preserved_output(self):
-        from gateway.routes.extended import agent_status
+        from gateway.routes.agents import agent_status
 
         with patch(
             "gateway.agent_runner.get_status",
@@ -329,7 +329,7 @@ class TestAgentStatusRoute:
     async def test_missing_session_is_a_404(self):
         from fastapi import HTTPException
 
-        from gateway.routes.extended import agent_status
+        from gateway.routes.agents import agent_status
 
         with patch(
             "gateway.agent_runner.get_status",

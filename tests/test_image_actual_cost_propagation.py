@@ -8,7 +8,7 @@ import pytest
 @pytest.mark.asyncio
 async def test_studio_generate_returns_provider_reported_actual_cost(monkeypatch) -> None:
     from gateway import image_agent, image_recipes, image_runner, image_sessions
-    from gateway.routes.extended import StudioGenerateRequest, studio_generate
+    from gateway.routes.image_studio import StudioGenerateRequest, studio_generate
 
     recipe = SimpleNamespace(provider="openrouter", recipe_id="hosted")
     monkeypatch.setattr(
@@ -60,7 +60,7 @@ async def test_studio_generate_returns_provider_reported_actual_cost(monkeypatch
 @pytest.mark.asyncio
 async def test_studio_generate_keeps_local_provider_cost_unknown(monkeypatch) -> None:
     from gateway import image_recipes, image_runner
-    from gateway.routes.extended import StudioGenerateRequest, studio_generate
+    from gateway.routes.image_studio import StudioGenerateRequest, studio_generate
 
     monkeypatch.setattr(
         image_recipes,
@@ -87,7 +87,7 @@ async def test_studio_generate_keeps_local_provider_cost_unknown(monkeypatch) ->
 @pytest.mark.asyncio
 async def test_batch_executor_records_propagated_actual_cost(monkeypatch) -> None:
     from gateway import image_jobs
-    from gateway.routes import extended, image_studio_jobs
+    from gateway.routes import image_studio, image_studio_jobs
 
     async def fake_studio_generate(_request):
         return {
@@ -96,7 +96,7 @@ async def test_batch_executor_records_propagated_actual_cost(monkeypatch) -> Non
             "actual_cost_usd": 0.041,
         }
 
-    monkeypatch.setattr(extended, "studio_generate", fake_studio_generate)
+    monkeypatch.setattr(image_studio, "studio_generate", fake_studio_generate)
     monkeypatch.setattr(
         image_jobs,
         "get_job",
@@ -127,7 +127,7 @@ async def test_batch_executor_records_propagated_actual_cost(monkeypatch) -> Non
 @pytest.mark.asyncio
 async def test_batch_executor_warns_when_returned_job_is_not_visible(monkeypatch, caplog) -> None:
     from gateway import image_jobs
-    from gateway.routes import extended, image_studio_jobs
+    from gateway.routes import image_studio, image_studio_jobs
 
     async def fake_studio_generate(_request):
         return {
@@ -136,7 +136,7 @@ async def test_batch_executor_warns_when_returned_job_is_not_visible(monkeypatch
             "actual_cost_usd": 0.041,
         }
 
-    monkeypatch.setattr(extended, "studio_generate", fake_studio_generate)
+    monkeypatch.setattr(image_studio, "studio_generate", fake_studio_generate)
     monkeypatch.setattr(image_jobs, "get_job", lambda _job_id: None)
 
     await image_studio_jobs.execute_studio_batch_request({"prompt": "cat"})

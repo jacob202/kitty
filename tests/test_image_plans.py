@@ -28,7 +28,7 @@ from gateway.image_plan_store import (
     persist_plan,
     require_approved_plan,
 )
-from gateway.routes import extended
+from gateway.routes import image_studio
 
 
 @pytest.fixture(autouse=True)
@@ -226,8 +226,8 @@ class TestRoutePlanPersistence:
     @pytest.mark.asyncio
     async def test_studio_plan_persists_when_session_given(self):
         s = sessions.create_session()
-        result = await extended.studio_plan(
-            extended.PlanPreviewRequest(
+        result = await image_studio.studio_plan(
+            image_studio.PlanPreviewRequest(
                 prompt="a cozy portrait",
                 guidance_tags=["text_rendering"],
                 session_id=s.session_id,
@@ -239,8 +239,8 @@ class TestRoutePlanPersistence:
 
     @pytest.mark.asyncio
     async def test_studio_plan_without_session_stays_ephemeral(self):
-        result = await extended.studio_plan(
-            extended.PlanPreviewRequest(prompt="a cozy portrait")
+        result = await image_studio.studio_plan(
+            image_studio.PlanPreviewRequest(prompt="a cozy portrait")
         )
         assert "plan_id" not in result
 
@@ -286,8 +286,8 @@ class TestPlanDispatchRoute:
         stored = persist_plan(s.session_id, _build_plan())
         captured = self._capture_run(monkeypatch)
 
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="totally different live text",
                 plan_id=stored.plan_id,
                 session_id=s.session_id,
@@ -305,8 +305,8 @@ class TestPlanDispatchRoute:
         captured = self._capture_run(monkeypatch)
 
         # The user re-edits the form: new prompt AND a different character.
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="editted after approval",
                 character_id="char_other",
                 recipe_id="r_other",
@@ -327,8 +327,8 @@ class TestPlanDispatchRoute:
         self._capture_run(monkeypatch)
 
         with pytest.raises(HTTPException, match="session_id must not be empty"):
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="x", plan_id=stored.plan_id, session_id=None
                 )
             )
@@ -337,8 +337,8 @@ class TestPlanDispatchRoute:
     async def test_generate_unknown_plan_404(self, monkeypatch):
         self._capture_run(monkeypatch)
         with pytest.raises(HTTPException) as exc:
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="x", plan_id="imgplan_nope", session_id="imgses_any"
                 )
             )
@@ -352,8 +352,8 @@ class TestPlanDispatchRoute:
         self._capture_run(monkeypatch)
 
         with pytest.raises(HTTPException) as exc:
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="x", plan_id=stored.plan_id, session_id=other.session_id
                 )
             )
@@ -369,8 +369,8 @@ class TestPlanDispatchRoute:
         self._capture_run(monkeypatch)
 
         with pytest.raises(HTTPException) as exc:
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="x", plan_id=stored.plan_id, session_id=s.session_id
                 )
             )
@@ -438,8 +438,8 @@ class TestEditPlanDispatchRoute:
         )
         captured = self._capture_run_edit(monkeypatch)
 
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="mutable live text must be ignored",
                 plan_id=stored.plan_id,
                 session_id=s.session_id,
@@ -491,7 +491,7 @@ class TestEditPlanDispatchRoute:
         monkeypatch.setattr("gateway.image_runner.run_edit", fail_run_edit)
         monkeypatch.setattr("gateway.image_runner.estimated_cost_usd", lambda engine: 0.0)
 
-        await extended.studio_generate(extended.StudioGenerateRequest(
+        await image_studio.studio_generate(image_studio.StudioGenerateRequest(
             prompt="mutable text ignored", plan_id=stored.plan_id, session_id=s.session_id
         ))
 
@@ -533,8 +533,8 @@ class TestEditPlanDispatchRoute:
         monkeypatch.setattr("gateway.image_runner.run", fail_dispatch)
 
         with pytest.raises(HTTPException) as exc:
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="x", plan_id=stored.plan_id, session_id=other.session_id
                 )
             )
@@ -558,8 +558,8 @@ class TestEditPlanDispatchRoute:
         monkeypatch.setattr("gateway.image_runner.run", fail_dispatch)
 
         with pytest.raises(HTTPException) as exc:
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="x", plan_id=stored.plan_id, session_id=s.session_id
                 )
             )
@@ -598,8 +598,8 @@ class TestEditPlanDispatchRoute:
         monkeypatch.setattr("gateway.image_runner.run", fail_dispatch)
 
         with pytest.raises(HTTPException) as exc:
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="x", plan_id=stored.plan_id, session_id=s.session_id
                 )
             )

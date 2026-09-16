@@ -6,7 +6,7 @@ import pytest
 
 from gateway import cron, image_characters, image_sessions, undo_journal
 from gateway.routes import cron as cron_routes
-from gateway.routes import extended, loops, memories
+from gateway.routes import image_studio, loops, memories
 
 
 @pytest.mark.asyncio
@@ -62,8 +62,8 @@ async def test_character_patch_returns_undo_receipt(monkeypatch):
         lambda character_id: SimpleNamespace(to_dict=lambda: {"character_id": character_id, "name": "Aria v2"}),
     )
 
-    result = await extended.studio_update_character(
-        "char_1", extended.CharacterUpdate(name="Aria v2")
+    result = await image_studio.studio_update_character(
+        "char_1", image_studio.CharacterUpdate(name="Aria v2")
     )
 
     assert seen[0][0] == "char_1"
@@ -110,12 +110,12 @@ async def test_anchor_set_returns_undo_receipt(monkeypatch):
     session = SimpleNamespace(session_id="imgses_1")
     monkeypatch.setattr(image_sessions, "require_session", lambda session_id: session)
     monkeypatch.setattr(
-        extended,
+        image_studio,
         "_session_payload",
         lambda value: {"session_id": value.session_id, "anchor_job_id": "job_1"},
     )
 
-    result = await extended.studio_set_anchor("imgses_1", extended.AnchorRequest(job_id="job_1"))
+    result = await image_studio.studio_set_anchor("imgses_1", image_studio.AnchorRequest(job_id="job_1"))
 
     assert result["anchor_job_id"] == "job_1"
     assert result["undo_journal_id"] == "undo_anchor_1"

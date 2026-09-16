@@ -46,7 +46,7 @@ from gateway.flux2_targets import (
     resolve_flux2_target,
 )
 from gateway.image_runner import ImageRunnerError, JobResult, run
-from gateway.routes import extended
+from gateway.routes import image_studio
 
 
 @pytest.fixture(autouse=True)
@@ -168,7 +168,7 @@ class TestKindRouting:
             lambda **_: image_recipes.RoutingDecision(recipe_id="bfl_flux2_draft", recipe=recipe, reason="draft"),
         )
         session = image_sessions.create_session(title="flux2 draft")
-        await extended.studio_generate(extended.StudioGenerateRequest(
+        await image_studio.studio_generate(image_studio.StudioGenerateRequest(
             prompt="wolf", quality="fast", session_id=session.session_id
         ))
         assert captured["target"].target_id == "flux2-klein-4b-h"
@@ -196,7 +196,7 @@ class TestKindRouting:
             lambda **_: image_recipes.RoutingDecision(recipe_id="bfl_flux2_pro", recipe=recipe, reason="final"),
         )
         session = image_sessions.create_session(title="flux2 final")
-        await extended.studio_generate(extended.StudioGenerateRequest(
+        await image_studio.studio_generate(image_studio.StudioGenerateRequest(
             prompt="astronaut", quality="quality", session_id=session.session_id
         ))
         assert captured["target"].target_id == "flux2-pro-h"
@@ -548,7 +548,7 @@ class TestCostReconciliation:
         monkeypatch.setattr("gateway.image_runner.run", fake_run)
         monkeypatch.setattr(image_sessions, "attach_job", lambda *_: None)
 
-        await extended.studio_generate(extended.StudioGenerateRequest(
+        await image_studio.studio_generate(image_studio.StudioGenerateRequest(
             prompt="astronaut", quality="quality", session_id=session.session_id
         ))
         after = image_sessions.require_session(session.session_id)
@@ -605,7 +605,7 @@ class TestPrivateLane:
         monkeypatch.setattr("gateway.image_runner.read_anchor_artifact",
                             lambda *a, **k: (b"anchor", "anchor.png"))
 
-        await extended.studio_generate(extended.StudioGenerateRequest(
+        await image_studio.studio_generate(image_studio.StudioGenerateRequest(
             prompt="ignored", plan_id="plan_priv", session_id=session.session_id
         ))
         assert calls == 1
@@ -679,8 +679,8 @@ async def test_studio_passes_session_project_scope_to_renderer(monkeypatch):
         project_id = int(cur.lastrowid)
     session = image_sessions.create_session(title="project-scoped", project_id=project_id)
 
-    await extended.studio_generate(
-        extended.StudioGenerateRequest(
+    await image_studio.studio_generate(
+        image_studio.StudioGenerateRequest(
             prompt="project portrait", quality="fast", session_id=session.session_id
         )
     )
@@ -738,8 +738,8 @@ async def test_studio_unknown_session_refuses_before_renderer(monkeypatch):
     )
 
     with pytest.raises(Exception) as exc_info:
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="must not render", quality="fast", session_id="imgses_missing"
             )
         )
@@ -757,8 +757,8 @@ async def test_studio_session_create_exposes_explicit_project_scope():
         )
         project_id = int(cur.lastrowid)
 
-    payload = await extended.studio_create_session(
-        extended.SessionCreateRequest(title="scoped session", project_id=project_id)
+    payload = await image_studio.studio_create_session(
+        image_studio.SessionCreateRequest(title="scoped session", project_id=project_id)
     )
 
     assert payload["project_id"] == project_id
@@ -880,8 +880,8 @@ class TestMultiCharacterFlux2Route:
         monkeypatch.setattr("gateway.image_runner.run", fake_run)
         monkeypatch.setattr(image_sessions, "attach_job", lambda *_: None)
 
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="ignored",
                 plan_id=stored.plan_id,
                 session_id=session.session_id,
@@ -917,8 +917,8 @@ class TestMultiCharacterFlux2Route:
 
         monkeypatch.setattr("gateway.image_runner.run", fail_run)
         with pytest.raises(Exception, match="supports at most 1 character.*requires 2"):
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="ignored",
                     plan_id=stored.plan_id,
                     session_id=session.session_id,
@@ -964,8 +964,8 @@ class TestMultiCharacterFlux2Route:
         monkeypatch.setattr("gateway.image_runner.run", fail_run)
 
         with pytest.raises(Exception, match="allows at most 4 references.*compiled 6"):
-            await extended.studio_generate(
-                extended.StudioGenerateRequest(
+            await image_studio.studio_generate(
+                image_studio.StudioGenerateRequest(
                     prompt="ignored",
                     plan_id=stored.plan_id,
                     session_id=session.session_id,

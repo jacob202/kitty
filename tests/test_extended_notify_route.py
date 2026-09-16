@@ -8,12 +8,12 @@ send. It is now POST-only.
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway.routes import extended as extended_route
+from gateway.routes import notifications as notifications_route
 
 
 def _client():
     app = FastAPI()
-    app.include_router(extended_route.router)
+    app.include_router(notifications_route.router)
     return TestClient(app)
 
 

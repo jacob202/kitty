@@ -316,7 +316,7 @@ async def test_iteration_batch_refuses_route_drift_before_generation(monkeypatch
     from fastapi import HTTPException
 
     from gateway import image_recipes
-    from gateway.routes import extended
+    from gateway.routes import image_studio
     from gateway.routes import image_studio_jobs as routes
 
     source = _succeeded_job(
@@ -339,7 +339,7 @@ async def test_iteration_batch_refuses_route_drift_before_generation(monkeypatch
     async def must_not_generate(_req):
         raise AssertionError("route drift must be rejected before generation")
 
-    monkeypatch.setattr(extended, "studio_generate", must_not_generate)
+    monkeypatch.setattr(image_studio, "studio_generate", must_not_generate)
 
     with pytest.raises(HTTPException, match="source route"):
         await routes.execute_studio_batch_request({

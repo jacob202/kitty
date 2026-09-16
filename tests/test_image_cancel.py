@@ -333,14 +333,14 @@ async def test_durable_status_changes_only_after_provider_success(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cancel_route_maps_known_job_failures(monkeypatch):
-    from gateway.routes import extended
+    from gateway.routes import image_generation
 
     async def missing(_job_id: str):
         raise JobNotFoundError("not found")
 
     monkeypatch.setattr(image_gen, "cancel", missing)
     with pytest.raises(HTTPException) as missing_error:
-        await extended.image_cancel("job_missing")
+        await image_generation.image_cancel("job_missing")
     assert missing_error.value.status_code == 404
 
     async def terminal(_job_id: str):
@@ -348,7 +348,7 @@ async def test_cancel_route_maps_known_job_failures(monkeypatch):
 
     monkeypatch.setattr(image_gen, "cancel", terminal)
     with pytest.raises(HTTPException) as terminal_error:
-        await extended.image_cancel("job_terminal")
+        await image_generation.image_cancel("job_terminal")
     assert terminal_error.value.status_code == 409
 
     async def unsupported(_job_id: str):
@@ -356,7 +356,7 @@ async def test_cancel_route_maps_known_job_failures(monkeypatch):
 
     monkeypatch.setattr(image_gen, "cancel", unsupported)
     with pytest.raises(HTTPException) as unsupported_error:
-        await extended.image_cancel("job_dt")
+        await image_generation.image_cancel("job_dt")
     assert unsupported_error.value.status_code == 422
 
     async def conflict(_job_id: str):
@@ -364,7 +364,7 @@ async def test_cancel_route_maps_known_job_failures(monkeypatch):
 
     monkeypatch.setattr(image_gen, "cancel", conflict)
     with pytest.raises(HTTPException) as conflict_error:
-        await extended.image_cancel("job_conflict")
+        await image_generation.image_cancel("job_conflict")
     assert conflict_error.value.status_code == 409
 
 

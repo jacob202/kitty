@@ -12,7 +12,7 @@ from gateway import image_jobs, image_plan_store
 from gateway import image_sessions as sessions
 from gateway.image_plan_store import PlanMalformedError, PlanStoreError, persist_plan
 from gateway.image_plan_types import build_image_plan
-from gateway.routes import extended
+from gateway.routes import image_studio
 
 
 @pytest.fixture(autouse=True)
@@ -106,8 +106,8 @@ async def test_edit_refuses_running_anchor_before_renderer(monkeypatch):
     monkeypatch.setattr("gateway.image_runner.run", fail_dispatch)
 
     with pytest.raises(HTTPException) as exc:
-        await extended.studio_generate(
-            extended.StudioGenerateRequest(
+        await image_studio.studio_generate(
+            image_studio.StudioGenerateRequest(
                 prompt="mutable request text",
                 plan_id=stored.plan_id,
                 session_id=session.session_id,

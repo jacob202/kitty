@@ -68,9 +68,14 @@ resources:
     - gateway/kitty-chat/src/components/ImageLab.tsx
     - gateway/kitty-chat/src/components/StudioView.tsx
     - gateway/kitty-chat/tests/ImageLab*.tsx
+    - gateway/routes/image_generation.py
+    - gateway/routes/image_studio.py
     - gateway/routes/image_studio_jobs.py
     - mcp/imagen/requirements.txt
+    - scripts/image_lab_acceptance_scene.py
+    - tests/test_flux2_transport.py
     - tests/test_image_*.py
+    - tests/test_imagelab_iteration.py
     - workers/comfy_worker/requirements.txt
   knowledge:retrieval:
     paths:
@@ -265,3 +270,14 @@ resources:
     - scripts/ops/kitty_task.py
     - scripts/transcript_reader.py
     - tests/test_builder_cli.py
+
+  gateway:route-surface:
+    paths:
+    - gateway/routes/agents.py
+    - gateway/routes/extended.py
+    - gateway/routes/notifications.py
+    - gateway/routes/skills.py
+    - gateway/routes/todos.py
+    - tests/test_agent_runner.py
+    - tests/test_extended_notify_route.py
+    - tests/test_undo_route_wiring.py

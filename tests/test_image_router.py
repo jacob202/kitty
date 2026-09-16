@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from gateway.routes import extended
+from gateway.routes import image_generation
 
 
 @pytest.mark.asyncio
@@ -23,7 +23,7 @@ async def test_image_status_reports_each_engine(monkeypatch):
     monkeypatch.setattr("gateway.image_gen.is_available", comfy_available)
     monkeypatch.setattr("mcp.imagen.engines.get", lambda name: DrawThings())
 
-    result = await extended.image_status()
+    result = await image_generation.image_status()
 
     assert result["available"] is True
     # Local engines first because they are free, then the hosted lanes cheapest
@@ -83,7 +83,7 @@ async def test_image_status_exposes_configured_kitty_worker(monkeypatch):
         "gateway.runpod_worker.client_from_env", lambda **_kwargs: WorkerClient()
     )
 
-    result = await extended.image_status()
+    result = await image_generation.image_status()
     by_name = {engine["name"]: engine for engine in result["engines"]}
     assert by_name["kitty_worker"]["available"] is True
     assert by_name["kitty_worker"]["supports_img2img"] is True
@@ -108,7 +108,7 @@ async def test_offline_local_engines_say_what_to_do_next(monkeypatch):
     monkeypatch.setattr("gateway.image_gen.is_available", comfy_available)
     monkeypatch.setattr("mcp.imagen.engines.get", lambda name: DrawThings())
 
-    result = await extended.image_status()
+    result = await image_generation.image_status()
 
     assert result["available"] is False
     by_name = {engine["name"]: engine for engine in result["engines"]}
@@ -134,7 +134,7 @@ async def test_available_local_engine_carries_no_offline_reason(monkeypatch):
     monkeypatch.setattr("gateway.image_gen.is_available", comfy_available)
     monkeypatch.setattr("mcp.imagen.engines.get", lambda name: DrawThings())
 
-    result = await extended.image_status()
+    result = await image_generation.image_status()
 
     by_name = {engine["name"]: engine for engine in result["engines"]}
     assert by_name["comfyui"]["unavailable_reason"] is None
@@ -144,7 +144,7 @@ async def test_available_local_engine_carries_no_offline_reason(monkeypatch):
 @pytest.mark.asyncio
 async def test_image_generate_rejects_unknown_engine():
     with pytest.raises(HTTPException, match="engine must be"):
-        await extended.image_generate(extended.ImageGenRequest(prompt="cat", engine="unknown"))
+        await image_generation.image_generate(image_generation.ImageGenRequest(prompt="cat", engine="unknown"))
 
 
 @pytest.mark.asyncio
@@ -155,7 +155,7 @@ async def test_legacy_image_generate_rejects_hosted_engine_before_dispatch(monke
     monkeypatch.setattr("gateway.image_runner.run", should_not_run)
 
     with pytest.raises(HTTPException) as exc_info:
-        await extended.image_generate(extended.ImageGenRequest(prompt="cat", engine="fal"))
+        await image_generation.image_generate(image_generation.ImageGenRequest(prompt="cat", engine="fal"))
 
     assert exc_info.value.status_code == 409
     assert "Studio" in str(exc_info.value.detail)
@@ -169,6 +169,6 @@ async def test_image_view_serves_persisted_local_artifact(monkeypatch, tmp_path:
     image = tmp_path / "drawthings_1.png"
     image.write_bytes(b"png")
 
-    response = await extended.image_view(str(image))
+    response = await image_generation.image_view(str(image))
 
     assert Path(response.path) == image
