@@ -4,8 +4,7 @@
 {
   "active_mission": "docs/ACTIVE_MISSION.md",
   "blockers": [
-    "Local PR #877 repair e02434f6281bef19bea9d139233daa689abbe0ec is not pushed; explicit publication authority is required.",
-    "The repaired local head is completed_unreviewed until an independent exact-head review is bound after publication.",
+    "Resolved 2026-09-16: PR #877 merged, and its local repair e02434f6281bef19bea9d139233daa689abbe0ec reached main through PR #879 - the paths it touched are now identical to origin/main.",
     "R-3/#870 remains separate parallel work and was not touched."
   ],
   "branch": "chore/builder-route-and-activation-20260915",
@@ -45,14 +44,7 @@
       "touches": ["13 review-repair paths"]
     }
   ],
-  "pull_request": {
-    "number": 877,
-    "state": "OPEN",
-    "head_sha": "fc911dd4a6f8b769cc7d2fea029d3108d205e698",
-    "remote_head": "fc911dd4a6f8b769cc7d2fea029d3108d205e698",
-    "local_head": "e02434f6281bef19bea9d139233daa689abbe0ec",
-    "publication": "local_only"
-  },
+  "pull_request": null,
   "recommendations": [
     {
       "blocked_by": null,
