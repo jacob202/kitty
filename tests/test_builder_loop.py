@@ -11,6 +11,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,6 +30,30 @@ pytestmark = pytest.mark.integration
 
 INITIATIVE = "loop-test"
 PACKET = "LP-1"
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_review_command_canonicalizes_macos_tmp_alias_result_path() -> None:
+    """The reviewer must receive the same canonical path Seatbelt authorizes."""
+    if Path("/tmp").resolve() == Path("/tmp"):
+        pytest.skip("host has no /tmp path alias")
+    with tempfile.TemporaryDirectory(prefix="kitty-review-alias-", dir="/tmp") as raw:
+        canonical_worktree = Path(raw).resolve()
+        aliased_result = Path(raw) / "review.json"
+        canonical_result = aliased_result.resolve()
+        script = (
+            "import json, os, pathlib; "
+            "pathlib.Path(os.environ['KB_REVIEW_RESULT_PATH']).write_text("
+            "json.dumps({'path': os.environ['KB_REVIEW_RESULT_PATH']}))"
+        )
+        error = bl._run_review_command(
+            [str(Path(sys.executable).resolve()), "-c", script],
+            cwd=canonical_worktree,
+            env_extra={"KB_REVIEW_RESULT_PATH": str(aliased_result)},
+            timeout_seconds=5,
+        )
+        assert error is None
+        assert json.loads(canonical_result.read_text()) == {"path": str(canonical_result)}
+
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -71,6 +96,42 @@ def isolated_loop_kx(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("KITTY_COORDINATION_DB_PATH", str(coordination_db))
     monkeypatch.setenv("KITTY_COORDINATION_REGISTRY_PATH", str(registry))
     monkeypatch.setattr(artifact_store, "ARTIFACTS_DB_FILE", workspace_db)
+
+
+def test_trusted_parent_commit_reacquires_kx_for_commit_hook(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Parent commit must own KX after the worker-run lease has been released."""
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text(
+        "#!/bin/sh\n"
+        "test \"$KITTY_AGENT_SESSION_ID\" = \"builder-parent-commit:task-1:7\"\n"
+        f"{sys.executable} - <<'PY'\n"
+        "import os\n"
+        "from pathlib import Path\n"
+        "from gateway import agent_coordination as ac\n"
+        "db=Path(os.environ['KITTY_COORDINATION_DB_PATH'])\n"
+        "registry=Path(os.environ['KITTY_COORDINATION_REGISTRY_PATH'])\n"
+        "r=ac.preflight_mutation(os.environ['KITTY_AGENT_SESSION_ID'], ['done.txt'], db_path=db, registry_path=registry, required_role='OWN')\n"
+        "raise SystemExit(0 if r.get('ok') else 1)\n"
+        "PY\n",
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+    (repo / "done.txt").write_text("done\n", encoding="utf-8")
+
+    committed = bl._commit_completed_worker_changes(
+        repo, packet_id=PACKET, task_id="task-1", attempt_id=7
+    )
+
+    assert committed == bl.worktree_head(repo)
+    assert subprocess.run(
+        ["git", "status", "--porcelain=v1"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout == ""
+    assert not [
+        claim for claim in ac.list_claims(active_only=True, db_path=Path(os.environ["KITTY_COORDINATION_DB_PATH"]))
+        if claim["session_id"] == "builder-parent-commit:task-1:7"
+    ]
 
 
 def _apply(db_path: Path, *, max_attempts: int = 2,
@@ -4184,6 +4245,37 @@ def test_independent_readonly_review_executor_rejects_the_implementer_model_fami
         bl.run_independent_readonly_review(
             "Review this exact plan.", root=tmp_path, governor_db=tmp_path / "governor.db"
         )
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_independent_readonly_review_canonicalizes_macos_tmp_prompt_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The DSH command must see the same prompt path Seatbelt authorizes."""
+    if Path("/tmp").resolve() == Path("/tmp"):
+        pytest.skip("host has no /tmp path alias")
+    repo = _review_fixture_repo(
+        tmp_path,
+        launcher_body=(
+            "#!/bin/bash\n"
+            "set -eu\n"
+            "task_file=''\n"
+            "while [ \"$#\" -gt 0 ]; do\n"
+            "  if [ \"$1\" = --task-file ]; then task_file=$2; shift 2; else shift; fi\n"
+            "done\n"
+            "test -f \"$task_file\"\n"
+            "printf '%s\\n' '{\"verdict\":\"approve\",\"summary\":\"prompt visible\"}'\n"
+        ),
+    )
+    monkeypatch.setenv("OPENROUTER_API_KEY", "provider-key")
+    monkeypatch.setenv("KITTYBUILDER_REVIEW_MODEL", "openrouter/deepseek/deepseek-chat")
+    monkeypatch.setattr(tempfile, "tempdir", "/tmp")
+
+    result = bl.run_independent_readonly_review(
+        "Review this exact plan.", root=repo, governor_db=tmp_path / "governor.db"
+    )
+
+    assert result["output"] == '{"verdict":"approve","summary":"prompt visible"}'
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")

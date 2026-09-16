@@ -248,6 +248,23 @@ def test_finished_builder_task_reports_that_acceptance_is_still_open(
     assert "not accepted" in result["awaiting_acceptance_because"]
 
 
+def test_unbindable_result_says_why_instead_of_only_not_accepted(
+    monkeypatch: pytest.MonkeyPatch, snapshot: dict
+) -> None:
+    """A background reconciliation failure must reach the surface, not just the log."""
+    packet = snapshot["initiatives"][0]["packets"][0]
+    packet["task_state"] = "done"
+    acceptance = _mission("unreviewed")["acceptance"]
+    acceptance["result_error"] = "Builder result artifact is not ready"
+    monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
+    monkeypatch.setattr(context, "_mission_acceptance", lambda _id: acceptance)
+
+    result = context.work_result(task_id="kb_1234_abcd")["result"]
+
+    assert result["awaiting_acceptance"] is True
+    assert "Builder result artifact is not ready" in result["awaiting_acceptance_because"]
+
+
 def test_accepted_outcome_stops_waiting_on_acceptance(
     monkeypatch: pytest.MonkeyPatch, snapshot: dict
 ) -> None:
@@ -306,6 +323,7 @@ def test_acceptance_lookup_reports_the_bound_mission(monkeypatch: pytest.MonkeyP
         "reviewer_id": "reviewer-1",
         "mission_id": "mission_gw_1",
         "error": None,
+        "result_error": None,
     }
     assert context._mission_acceptance(None)["state"] == context.ACCEPTANCE_NONE
 

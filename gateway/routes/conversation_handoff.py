@@ -117,12 +117,35 @@ def approve_builder_job(body: ApproveRequest) -> dict:
 
 
 @router.get("/builder/conversation/resume")
-def resume_builder_job(mission_id: str | None = None, task_id: str | None = None) -> dict:
-    """Recover durable job state for a reloaded conversation, no transcript required."""
+def resume_builder_job(
+    background_tasks: BackgroundTasks,
+    mission_id: str | None = None,
+    task_id: str | None = None,
+) -> dict:
+    """Recover durable state and reconcile a finished Builder result into Mission."""
     try:
-        return _translate_receipt_error(
+        result = _translate_receipt_error(
             conversation_handoff.resume(mission_id=mission_id, task_id=task_id)
         )
+        acceptance = result.get("mission_acceptance") if isinstance(result, dict) else None
+        gateway_mission_id = acceptance.get("mission_id") if isinstance(acceptance, dict) else None
+        # Gate on the exact Builder/Mission facts, not the aggregate receipt.
+        # `ok: false` can mean an unrelated cold-start source is degraded while
+        # these three fields are still authoritative. Startup recovery is
+        # one-shot and may have run before the task finished, so suppressing
+        # reconciliation here would leave the reviewed result unbound — and the
+        # Mission unacceptable — for as long as the unrelated failure persists.
+        if (
+            isinstance(result, dict)
+            and result.get("builder_task_complete") is True
+            and result.get("awaiting_acceptance") is True
+            and isinstance(gateway_mission_id, str)
+            and gateway_mission_id
+        ):
+            background_tasks.add_task(
+                mission_runtime.reconcile_result_candidate_background, gateway_mission_id
+            )
+        return result
     except Exception:
         logger.exception("conversation resume failed")
         return {

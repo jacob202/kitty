@@ -252,6 +252,9 @@ def _mission_acceptance(
         "reviewer_id": acceptance.get("reviewer_id"),
         "mission_id": mission.get("mission_id"),
         "error": None,
+        # Why the finished result never became a candidate, when that is the
+        # real reason acceptance has not happened.
+        "result_error": (mission.get("candidate") or {}).get("error"),
     }
 
 
@@ -278,6 +281,9 @@ def _awaiting_acceptance(
         )
     if state == ACCEPTANCE_NONE:
         return False, None
+    result_error = acceptance.get("result_error")
+    if isinstance(result_error, str) and result_error.strip():
+        return True, f"the finished result could not be bound for acceptance: {result_error}"
     return True, f"the Mission outcome is {state}, not accepted"
 
 
