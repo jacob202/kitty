@@ -107,6 +107,25 @@ def _supervisor_route_argv() -> list[str]:
     return ["--paid", "--tier", route]
 
 
+# Unattended dispatch publishes each succeeded packet as its own branch and pull
+# request, and stops there. Jacob authorized publication on 2026-09-16 and
+# docs/ACTIVE_MISSION.md records the scope: opening a pull request, never
+# merging one.
+#
+# 'manual' is the load-bearing word. The auto gate is a real capability under
+# ADRs 0018 and 0021 — evidence-gated auto-merge with auto-revert — and it is
+# deliberately not used here. Without publication a finished packet produced a
+# branch nobody saw; with the auto gate it would merge itself. Parking each PR
+# at awaiting_review is the only shape that makes the work visible while leaving
+# the merge decision where it belongs.
+SUPERVISOR_PUBLISH_ARGV = ["--publish", "--gate", "manual"]
+
+
+def _supervisor_dispatch_argv() -> list[str]:
+    """Every run-packet flag unattended dispatch uses: route, then publication."""
+    return [*_supervisor_route_argv(), *SUPERVISOR_PUBLISH_ARGV]
+
+
 class SupervisorError(RuntimeError):
     """Raised when a supervisor operation cannot run safely."""
 
@@ -756,7 +775,7 @@ def _launch_run(
 
     command = [
         str(kitty), "builder", "initiative", "run-packet",
-        initiative_id, packet_id, *_supervisor_route_argv(), "--json",
+        initiative_id, packet_id, *_supervisor_dispatch_argv(), "--json",
     ]
     log_dir = root / "data" / "kittybuilder" / "supervisor-launch"
     log_dir.mkdir(parents=True, exist_ok=True)
