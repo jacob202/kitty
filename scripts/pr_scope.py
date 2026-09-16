@@ -42,6 +42,7 @@ FRONTEND_PREFIX = "gateway/kitty-chat/"
 RISK_PATTERNS = (
     re.compile(r"^\.github/workflows/"),
     re.compile(r"^\.github/dependabot\.yml$"),
+    re.compile(r"^\.pr_agent\.toml$"),
     re.compile(r"^scripts/pr_(?:policy|review|review_gate|scope)\.py$"),
     re.compile(r"^gateway/routes/auth", re.I),
     re.compile(r"^gateway/auth", re.I),
