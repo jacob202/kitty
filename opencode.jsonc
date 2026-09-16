@@ -113,6 +113,14 @@
             }
           }
         },
+        "deepseek/deepseek-v4.1-flash": {
+          "options": {
+            "provider": {
+              "sort": "price",
+              "allow_fallbacks": true
+            }
+          }
+        },
         "minimax/minimax-m3": {
           "options": {
             "provider": {

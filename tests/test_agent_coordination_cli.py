@@ -246,3 +246,57 @@ def test_expired_binding_rotates_before_new_claim(repo: Path, cli_env: dict[str,
     assert second.returncode == 0, second.stderr
     second_session = json.loads(second.stdout)["claim"]["session_id"]
     assert second_session != first_session
+
+
+def _git_dir(repo: Path) -> Path:
+    return repo / _git(repo, "rev-parse", "--git-dir")
+
+
+def test_claim_refuses_to_borrow_another_agents_name(
+    repo: Path, cli_env: dict[str, str]
+) -> None:
+    """An unset participant must fail loudly.
+
+    Defaulting to "chatgpt" filed this agent's claim under another agent's name,
+    and the real agent was then refused the commit it had legitimately claimed.
+    """
+    env = {k: v for k, v in cli_env.items() if k != "KITTY_AGENT_PARTICIPANT"}
+    result = _claim(repo, env)
+    assert result.returncode != 0
+    assert "KITTY_AGENT_PARTICIPANT" in result.stderr
+
+
+def test_release_with_an_exported_session_id_still_retires_the_binding(
+    repo: Path, cli_env: dict[str, str]
+) -> None:
+    """Retiring must not depend on where the session id came from.
+
+    Claiming without an exported id writes the worktree binding; releasing with
+    that id exported used to skip retirement, leaving the file pointing at a
+    released session and blocking every later commit in the worktree.
+    """
+    file_env = {k: v for k, v in cli_env.items() if k != "KITTY_AGENT_SESSION_ID"}
+    claim = _claim(repo, file_env)
+    assert claim.returncode == 0, claim.stderr
+    session_id = json.loads(claim.stdout)["claim"]["session_id"]
+    binding = _git_dir(repo) / "kitty-agent-session"
+    assert binding.read_text(encoding="utf-8").strip() == session_id
+
+    released = _run(repo, {**cli_env, "KITTY_AGENT_SESSION_ID": session_id}, "release", "--json")
+    assert released.returncode == 0, released.stderr
+    assert not binding.exists()
+
+
+def test_preflight_preserves_a_stale_binding_and_names_the_real_fix(
+    repo: Path, cli_env: dict[str, str]
+) -> None:
+    """A dead binding must report the actionable cause, not a dead lease."""
+    env = {k: v for k, v in cli_env.items() if k != "KITTY_AGENT_SESSION_ID"}
+    binding = _git_dir(repo) / "kitty-agent-session"
+    binding.write_text("chatgpt-releasedsession\n", encoding="utf-8")
+
+    result = _run(repo, env, "preflight", "--staged", "--json")
+
+    assert result.returncode != 0
+    assert "kitty agent claim" in result.stderr
+    assert binding.exists()
