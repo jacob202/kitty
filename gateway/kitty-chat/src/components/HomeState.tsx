@@ -548,6 +548,7 @@ const HEALTH_LABELS: Record<string, string> = {
   image_providers: 'image creation',
   image_queue: 'image jobs',
   ollama: 'local AI',
+  mcp_tools: 'connected tools',
   pending_grants: 'pending approvals',
 };
 

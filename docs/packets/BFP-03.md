@@ -2,7 +2,7 @@
 
 **Initiative:** builder-frontend-proof-v1
 **Owner:** builder
-**Depends on:** BFP-01-resolve, BFP-02-expose
+**Depends on:** BFP-01-resolve, BFP-02-expose, BFP-02B-deps
 **Free or paid:** free
 
 ## What Jacob can do after this
@@ -34,8 +34,10 @@ already disposable, and grant write access to exactly that.
 2. In `gateway/builder_runner.py`, choose a cache directory beneath the existing
    per-run `run_dir` and pass it in. Do not place it in the worktree, and never
    inside `node_modules`.
-3. Set the environment variable Vite reads for its cache location to that
-   directory, alongside the Node exposure added in BFP-02.
+3. Add `gateway/kitty-chat/vitest.config.ts` to the packet fence and configure
+   Vite's `cacheDir` from `KITTY_BUILDER_VITE_CACHE_DIR`, defaulting to the
+   existing project cache location outside Builder. Set that variable to the
+   per-run directory alongside the Node exposure added in BFP-02.
 4. Prove the fence still holds: a test asserting a path *outside* the granted
    directory is still refused. A packet that widens a sandbox has to show what it
    did not widen — that assertion is the point of this packet, not a nicety.
@@ -45,10 +47,21 @@ already disposable, and grant write access to exactly that.
 ## Not in scope
 
 Running an actual vitest invocation inside the sandbox as part of this packet's
-Tier 1 — the gates here stay Python. Installing `node_modules` into a worker
-worktree, in any form, including symlinks. Changing
-`gateway/kitty-chat/vitest.config.ts`: another lane is already editing that file
-in `.worktrees/fix-ui-test-env-20260916` and touching it here would collide.
+Tier 1 — the gates here stay Python.
+
+Making the dependency tree resolvable at all: that is BFP-02B, which this packet
+now depends on. The two are separate needs and both are required. BFP-02B makes
+`node_modules` readable from the worktree; this packet makes the single directory
+Vite writes to writable. Neither alone is enough.
+
+Changing `gateway/kitty-chat/vitest.config.ts`: another lane is already editing
+that file in `.worktrees/fix-ui-test-env-20260916`, and touching it here would
+collide.
+
+The exact `npx vitest` and `npx tsc` shapes stay prohibited in authored packets
+until a sandboxed run proves the dependencies are available without network
+access or writable shared state. BFP-04 owns lifting that prohibition and may
+only do so against that recorded evidence.
 
 ## Verification
 

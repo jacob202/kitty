@@ -476,6 +476,26 @@ describe('HomeState', () => {
     expect(screen.queryByText('degraded')).not.toBeInTheDocument();
   });
 
+  it('renders the MCP health domain with user-facing copy instead of backend jargon', () => {
+    (useHealthSurface as Mock).mockReturnValue({
+      data: {
+        ok: true,
+        generated_at: '2026-09-15T00:00:00Z',
+        overall: 'healthy',
+        domains: [{ name: 'mcp_tools', status: 'available', reason: '', detail: {} }],
+        degraded: [],
+        still_functional: ['mcp_tools'],
+        pending_grants: 0,
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getAllByText('connected tools').length).toBeGreaterThan(0);
+    expect(document.body.textContent ?? '').not.toContain('mcp_tools');
+  });
+
   it('lists degraded domains and expands the reason on click', async () => {
     (useHealthSurface as Mock).mockReturnValue({
       data: {
