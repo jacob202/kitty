@@ -1,6 +1,6 @@
 ---
 name: aim42-software-improvement
-description: Evidence-first software modernization workflow adapted from aim42. USE WHEN: architecture modernization, legacy system assessment, technical debt audit, migration planning, repository health review, maintenance cost reduction, refactoring strategy. NOT FOR: greenfield design, an isolated bug fix, or executing an already-approved bounded patch.
+description: Evidence-first software modernization workflow adapted from aim42. USE WHEN architecture modernization, legacy system assessment, technical debt audit, migration planning, repository health review, maintenance cost reduction, refactoring strategy. NOT FOR greenfield design, an isolated bug fix, executing an already-approved bounded patch, or routine staleness/docs/CI/dependency upkeep (use maintain-repo).
 when_to_use: architecture modernization, legacy system assessment, technical debt audit, migration planning, repository health review, maintenance cost reduction, refactoring strategy
 allowed_tools: [read, search, bash, git, github, browser]
 ---

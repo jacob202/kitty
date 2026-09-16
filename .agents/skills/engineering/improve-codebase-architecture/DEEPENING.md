@@ -35,3 +35,26 @@ Third-party services (Stripe, Twilio, etc.) you don't control. The deepened modu
 - Write new tests at the deepened module's interface. The **interface is the test surface**.
 - Tests assert on observable outcomes through the interface, not internal state.
 - Tests should survive internal refactors — they describe behaviour, not implementation. If a test has to change when the implementation changes, it's testing past the interface.
+
+## Structural moves: splitting and relocating modules
+
+A split or relocation is a pure refactor: the observable surface must not
+change. What the 2026-09-16 route-layer split taught, in order of how it bit:
+
+- **Sweep references completely.** Use `grep -rln` (names only) for the module
+  path — never a truncated content grep — and remember the import graph is not
+  the reference graph: lazy imports inside function bodies and path-string test
+  fixtures reference the module too. The `routes/extended.py` split touched 26
+  files, and two incomplete sweeps let missed lazy imports reach the test run
+  instead of the sweep.
+- **Hold the surface invariant.** For a route-layer move in Kitty, compute
+  `app.openapi()["paths"]` (with the repo venv) plus each path's method set,
+  sorted, before and after — byte-identical output is proof the API did not
+  move, stronger than any unit test. Pair it with the route-registration and
+  duplicate-operation-id tests.
+- **Claim the old path, not just the new one.** Kitty's mutation fence checks
+  staged paths against active coordination claims; deleting a claimed path — or
+  one another resource maps, like `ui:action-grammar` here — is blocked until a
+  claim covers the *old* path. Add it to `coordination/resources.yaml` under a
+  claimed scope, claim that scope, then drop the dead entry in a follow-up
+  commit so the registry holds no ghost paths.

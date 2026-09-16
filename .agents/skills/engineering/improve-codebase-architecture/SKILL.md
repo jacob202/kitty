@@ -1,11 +1,17 @@
 ---
 name: improve-codebase-architecture
-description: Find deepening opportunities in a codebase, informed by Kitty's domain language in docs/ARCHITECTURE.md and AGENTS.md. Use when the user wants to improve architecture, find refactoring opportunities, consolidate tightly-coupled modules, reduce duplication or over-abstraction, or make a codebase more testable and AI-navigable.
+description: Find deepening opportunities in a codebase, informed by Kitty's domain language in docs/ARCHITECTURE.md and AGENTS.md. Use when the user wants to improve architecture, refactor, find refactoring opportunities, consolidate tightly-coupled or shallow modules, reduce duplication or over-abstraction, split a module that does too much, or make a codebase more testable and AI-navigable.
+when_to_use: improve architecture, refactor, refactoring opportunities, consolidate modules, reduce duplication, over-abstraction, make code testable, this module is too big, split this file, module shape, architecture review, deepen this module, internal shape, refactor this module, refactor this file, clean up this module
 ---
 
 # Improve Codebase Architecture
 
 Surface architectural friction and propose **deepening opportunities** — refactors that turn shallow modules into deep ones. The aim is testability and AI-navigability.
+
+Conformance is the sibling concern: whether the running system still *matches* its
+documented design (boundaries, owners, ADRs) is `audit-architecture`'s job. When a
+finding is really a claim-vs-code mismatch rather than a shape problem, hand it
+there.
 
 ## Glossary
 
