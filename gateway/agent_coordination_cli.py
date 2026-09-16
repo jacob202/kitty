@@ -303,7 +303,6 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, int]:
         result = agent_coordination.preflight_mutation(
             # Keep this check non-destructive: claim acquisition may be concurrently
             # establishing the binding, so stale bindings are rotated by claim.
-            
             _session_id(context, create=False),
             _staged_paths(context),
             required_role=required_role,
@@ -311,7 +310,16 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, int]:
             registry_path=registry_path,
         )
         if not result["ok"]:
-            print(f"MUTATION BLOCKED: {result['reason']}", file=sys.stderr)
+            reason = result["reason"]
+            # "session X has no active claim" is true and useless: the session in
+            # the message is a dead id read out of the worktree binding, so the
+            # reader goes looking for a lease that was released rather than
+            # claiming one. Rotating the binding here would say it better but
+            # makes a read-only check destructive and races claim acquisition,
+            # so name the next move in the message instead.
+            if "has no active claim" in reason:
+                reason = f"{reason}; run kitty agent claim first"
+            print(f"MUTATION BLOCKED: {reason}", file=sys.stderr)
             return result, 2
         return result, 0
 
