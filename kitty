@@ -50,7 +50,32 @@ RUN_DIR="$KITTY_ROOT/logs/.run"
 LOG_DIR="$KITTY_ROOT/logs"
 
 # ── Load .env ────────────────────────────────────────────────────────────────
-export PYTHON_BIN="${PYTHON_BIN:-$KITTY_ROOT/venv/bin/python}"
+# A git worktree never has its own venv: the directory is gitignored, so it
+# exists only in the checkout that owns the repository. Falling straight through
+# to a bare python3 gives an interpreter with none of Kitty's dependencies, and
+# the first import fails somewhere unhelpful - `kitty context --agent`, the
+# documented cold-start command, dies on `import yaml`. Agents work in worktrees
+# almost exclusively, so resolve the owning checkout's venv before giving up.
+_kitty_default_python() {
+  local local_python="$KITTY_ROOT/venv/bin/python"
+  if [[ -x "$local_python" ]]; then
+    printf '%s\n' "$local_python"
+    return
+  fi
+  local common_dir
+  if common_dir="$(git -C "$KITTY_ROOT" rev-parse --git-common-dir 2>/dev/null)"; then
+    [[ "$common_dir" != /* ]] && common_dir="$KITTY_ROOT/$common_dir"
+    local canonical
+    if canonical="$(cd "$common_dir/.." 2>/dev/null && pwd)"; then
+      if [[ -x "$canonical/venv/bin/python" ]]; then
+        printf '%s\n' "$canonical/venv/bin/python"
+        return
+      fi
+    fi
+  fi
+  printf '%s\n' "$local_python"
+}
+export PYTHON_BIN="${PYTHON_BIN:-$(_kitty_default_python)}"
 source "$KITTY_ROOT/gateway/lib/load_env_safe.sh"
 
 if [[ -f "$KITTY_ROOT/.env" ]]; then
@@ -324,7 +349,7 @@ assert_port_available() {
 }
 
 generate_secret() {
-  local python="$KITTY_ROOT/venv/bin/python"
+  local python="$(_kitty_default_python)"
   if [[ ! -x "$python" ]]; then
     python="$(command -v python3)"
   fi
@@ -986,7 +1011,7 @@ cmd_doctor() {
 }
 
 cmd_context() {
-  local python_bin="$KITTY_ROOT/venv/bin/python"
+  local python_bin="$(_kitty_default_python)"
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12)"
   fi
@@ -1096,7 +1121,7 @@ cmd_agent() {
 }
 
 cmd_governor() {
-  local python_bin="$KITTY_ROOT/venv/bin/python"
+  local python_bin="$(_kitty_default_python)"
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12)"
   fi
@@ -1105,7 +1130,7 @@ cmd_governor() {
 }
 
 cmd_tutor() {
-  local python_bin="$KITTY_ROOT/venv/bin/python"
+  local python_bin="$(_kitty_default_python)"
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12)"
   fi
@@ -1113,7 +1138,7 @@ cmd_tutor() {
 }
 
 cmd_accept() {
-  local python_bin="$KITTY_ROOT/venv/bin/python"
+  local python_bin="$(_kitty_default_python)"
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12)"
   fi
