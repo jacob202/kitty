@@ -1,0 +1,143 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "builder-frontend-proof-v1",
+  "title": "Builder can prove the work it is given",
+  "description": "Two holes stop Builder proving anything visual. First, workers get a Python toolchain and no Node toolchain, so every frontend gate is unrunnable and scripts/packet_preflight.py hard-blocks authoring one; that is an omission, not a decision, because nobody wrote the Node half of _validation_toolchain. Second, pytest.ini deselects integration-marked tests by default, so a gate naming tests/test_builder_runner.py runs zero tests and still exits green. This initiative closes both. Companion docs: docs/packets/BFP-01.md through BFP-05.md.",
+  "packets": [
+    {
+      "id": "BFP-01-resolve",
+      "title": "Resolve a durable Node toolchain path",
+      "objective": "Extend gateway/builder_runner.py with a _node_toolchain(repo_root) resolver that returns the Node bin directory and the read roots a sandboxed child needs, or (None, []) when Node is genuinely absent. It must resolve a stable installation path, never a per-shell fnm multishell path, and never raise. This packet edits existing modules only and creates no new files; the resolver belongs beside _validation_toolchain in gateway/builder_runner.py.",
+      "acceptance_criteria": [
+        "_node_toolchain returns a bin directory containing an executable node, plus the read roots required to execute it",
+        "the returned path contains no fnm multishell segment, because those directories are named for the shell that made them and are gone by the time a later worker runs",
+        "_node_toolchain returns (None, []) rather than raising when no Node installation is found",
+        "the resolver reads the filesystem only and starts no subprocess, so it cannot hang a worker launch",
+        "tests assert that an fnm multishell path is rejected and a stable installation path is preferred"
+      ],
+      "allowed_paths": [
+        "gateway/builder_runner.py",
+        "tests/test_builder_runner.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m integration tests/test_builder_runner.py",
+        "python -m ruff check gateway/builder_runner.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 10
+      }
+    },
+    {
+      "id": "BFP-02-expose",
+      "title": "Put Node on the worker PATH and in the sandbox read roots",
+      "objective": "Wire _node_toolchain into the child environment built in gateway/builder_runner.py exactly the way the Python venv already is: prepend the Node bin directory to PATH and pass its read roots through to extra_read_subpaths, so a sandboxed worker can execute node and npx. Node exposure must never displace or weaken the existing Python venv exposure. This packet edits existing modules only and creates no new files.",
+      "depends_on": [
+        "BFP-01-resolve"
+      ],
+      "acceptance_criteria": [
+        "the child environment PATH contains the resolved Node bin directory when Node is present",
+        "the Node read roots reach the execution boundary as extra_read_subpaths alongside the existing validation read roots",
+        "the Python venv PATH entry and its read roots are still present, and runner-owned tooling still overrides attempt-supplied environment",
+        "when _node_toolchain finds nothing the child environment is unchanged from today, so an absent Node install cannot alter existing behaviour",
+        "tests cover both the Node-present and the Node-absent branch"
+      ],
+      "allowed_paths": [
+        "gateway/builder_runner.py",
+        "tests/test_builder_runner.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m integration tests/test_builder_runner.py",
+        "python -m ruff check gateway/builder_runner.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      }
+    },
+    {
+      "id": "BFP-03-cache",
+      "title": "Grant the one write path Vite needs inside the sandbox",
+      "objective": "Vite writes a dependency-optimisation cache while running tests, so a read-only Node exposure makes vitest fail inside the Seatbelt sandbox even when node itself resolves. Extend gateway/builder_execution_boundary.py so a caller can grant one scoped writable cache directory, and have gateway/builder_runner.py point Vite at a per-run directory beneath the run directory rather than at any shared node_modules. This packet edits existing modules only and creates no new files.",
+      "depends_on": [
+        "BFP-01-resolve",
+        "BFP-02-expose"
+      ],
+      "acceptance_criteria": [
+        "the execution boundary grants write access to a caller-supplied cache directory and to nothing else that was not already writable",
+        "the granted cache directory lives under the run directory, never inside a shared checkout and never inside node_modules",
+        "no canonical or shared checkout path becomes writable as a result of this change",
+        "tests assert that a path outside the granted cache directory is still refused write access"
+      ],
+      "allowed_paths": [
+        "gateway/builder_execution_boundary.py",
+        "gateway/builder_runner.py",
+        "tests/test_builder_execution_boundary.py",
+        "tests/test_builder_runner.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_builder_execution_boundary.py tests/test_builder_runner.py",
+        "python -m ruff check gateway/builder_execution_boundary.py gateway/builder_runner.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 8
+      }
+    },
+    {
+      "id": "BFP-04-authoring",
+      "title": "Let frontend gates be authored again",
+      "objective": "scripts/packet_preflight.py rejects any validation command needing Node, and docs/packets/PACKET_STANDARD.md records that rule as failure F9. Once the runner exposes Node both are stale and every UI packet stays unauthorable. Narrow the preflight rule so a Node gate is permitted, keep rejecting 'npm run' because it still exits 194 silently, and amend F9 in the standard to record what superseded it rather than deleting the evidence. This packet edits existing files only and creates no new files.",
+      "depends_on": [
+        "BFP-03-cache"
+      ],
+      "acceptance_criteria": [
+        "a validation command using npx is accepted by preflight instead of rejected",
+        "a validation command using 'npm run' is still rejected, because it still exits 194 and reports a success it never proved",
+        "a validation command pinning an interpreter version is still rejected",
+        "docs/packets/PACKET_STANDARD.md records what superseded F9 and keeps the original row, so the evidence that produced the rule survives",
+        "tests assert both the newly accepted and the still-rejected command shapes"
+      ],
+      "allowed_paths": [
+        "scripts/packet_preflight.py",
+        "tests/test_packet_preflight.py",
+        "docs/packets/PACKET_STANDARD.md"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_packet_preflight.py",
+        "python -m ruff check scripts/packet_preflight.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 7
+      }
+    },
+    {
+      "id": "BFP-05-honest-gates",
+      "title": "Refuse a gate that would run zero tests",
+      "objective": "pytest.ini sets addopts = -m \"not integration and not controlled_live\", so a validation command naming an entirely integration-marked file collects nothing and still exits 0. tests/test_builder_runner.py is exactly that file: 89 tests, all deselected by default, green every time. Make scripts/packet_preflight.py collect each pytest validation command read-only and fail the packet when the command would select no tests. This packet edits existing files only and creates no new files.",
+      "depends_on": [
+        "BFP-04-authoring"
+      ],
+      "acceptance_criteria": [
+        "preflight reports an ERROR for a pytest validation command that selects zero tests, and names the file and the number deselected",
+        "preflight accepts the same command once a marker expression selects the tests, so the message leads to the fix rather than to deletion of the gate",
+        "collection is read-only: preflight starts no test, writes no file, and leaves no cache behind that changes a later run",
+        "a validation command that is not pytest is passed through untouched",
+        "preflight still exits 0 on a manifest whose gates all select tests, so this check cannot block correct packets"
+      ],
+      "allowed_paths": [
+        "scripts/packet_preflight.py",
+        "tests/test_packet_preflight.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q -m \"integration or not integration\" tests/test_packet_preflight.py",
+        "python -m ruff check scripts/packet_preflight.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 6
+      }
+    }
+  ]
+}
