@@ -327,7 +327,9 @@ describe('Image Lab premium workspace', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Character profile description' }), { target: { value: 'Recovered without losing the edit.' } })
     fireEvent.click(screen.getByRole('button', { name: /save character profile/i }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('profile save temporarily unavailable')
+    // Raw backend text never reaches the screen: the shared translator
+    // renders its generic copy while the edits stay recoverable below.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong.')
     expect(screen.getByRole('textbox', { name: 'Character profile name' })).toHaveValue('Retry Mia Saved')
     expect(screen.getByRole('textbox', { name: 'Character profile description' })).toHaveValue('Recovered without losing the edit.')
 
