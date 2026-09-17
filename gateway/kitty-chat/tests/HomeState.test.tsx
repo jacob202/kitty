@@ -610,6 +610,37 @@ describe('HomeState', () => {
     expect(refetch).toHaveBeenCalled();
   });
 
+  it('shows a loading status instead of disappearing while signals are being fetched', () => {
+    (useSignals as Mock).mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    render(<HomeState />);
+    const heading = screen.getByText('signals');
+    const sectionCard = heading.parentElement!.parentElement as HTMLElement;
+    expect(within(sectionCard).getByRole('status')).toHaveTextContent('checking…');
+  });
+
+  it('shows a plain-language failure and a working retry when signals fails to load', () => {
+    const refetch = vi.fn();
+    (useSignals as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('Gateway returned 500'),
+      refetch,
+    });
+    render(<HomeState />);
+    const heading = screen.getByText('signals');
+    const sectionCard = heading.parentElement!.parentElement as HTMLElement;
+    expect(within(sectionCard).getByText("Kitty's service hit an error. Try again in a moment.")).toBeInTheDocument();
+    expect(within(sectionCard).queryByText('unavailable')).not.toBeInTheDocument();
+    within(sectionCard).getByRole('button', { name: 'retry loading' }).click();
+    expect(refetch).toHaveBeenCalled();
+  });
+
   // ── what's next hero ──
 
   it('puts a proposed action first in the hero, with working verbs', () => {

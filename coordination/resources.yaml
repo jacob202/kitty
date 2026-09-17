@@ -232,6 +232,7 @@ resources:
     - gateway/_work_projection_item.py
     - gateway/completion_prep.py
     - gateway/conversation_handoff.py
+    - gateway/kitty-chat/src/app/page.tsx
     - gateway/kitty-chat/src/components/ChatMessage.tsx
     - gateway/kitty-chat/src/components/HomeState.tsx
     - gateway/kitty-chat/src/components/LibraryView.tsx

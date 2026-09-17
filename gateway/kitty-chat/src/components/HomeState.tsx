@@ -344,7 +344,23 @@ function SignalsCard() {
   const signals = useSignals()
   const execRepair = useExecuteRepair()
 
-  if (signals.isPending || !signals.data) return null
+  if (signals.isPending) {
+    return (
+      <SectionCard title="signals">
+        <div role="status" style={homeEmptyState}>
+          checking…
+        </div>
+      </SectionCard>
+    )
+  }
+
+  if (signals.isError || !signals.data) {
+    return (
+      <SectionCard title="signals">
+        <ErrorCard message={describeFailure(signals.error)} onRetry={() => signals.refetch()} />
+      </SectionCard>
+    )
+  }
 
   const issues = signals.data.repairs.filter((r) => r.severity !== 'ok')
 

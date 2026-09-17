@@ -240,6 +240,21 @@ export function readPendingBuilderProposalTask(raw: string | null): BuilderPropo
   return readStoredApproval(raw)?.task ?? null
 }
 
+/** True when the checkpoint at `storageKey` still holds an unresolved
+ * approval -- the only way to reconcile that approval if the durable write
+ * landed but the HTTP receipt was lost. Preparing a new proposal into the
+ * same storage key overwrites this checkpoint, so callers must check first.
+ *
+ * Reads through `safeStorage`: a browser that refuses site data (privacy
+ * mode, sandboxed embed) throws on any localStorage access, and letting that
+ * escape would abort the caller before it could act on the answer. An
+ * unreadable checkpoint reads as "nothing to reconcile", which is the safe
+ * direction -- the same browser refuses the write too, so there is no
+ * checkpoint to overwrite and no recovery path to lose. */
+export function hasUnresolvedPendingApproval(storageKey: string): boolean {
+  return readStoredApproval(safeStorage.get(storageKey))?.pending != null
+}
+
 function proposalIdentityValue(initiativeId: string, task: BuilderProposalTask): string {
   return JSON.stringify({ version: 2, state: 'proposal', initiativeId, task } satisfies ProposalIdentityCheckpoint)
 }
@@ -377,6 +392,7 @@ export function BuilderProposalCard({
           approve={approve}
           onRetry={retryPendingApproval}
           bindingMissing={bindingMissing}
+          jobConfirmedMissing={resume.data?.error_code === 'work_not_found'}
         />
       )
     }
@@ -634,12 +650,14 @@ function PendingApprovalRecovery({
   approve,
   onRetry,
   bindingMissing = false,
+  jobConfirmedMissing = false,
 }: {
   task: BuilderProposalTask
   missionId: string
   approve: ReturnType<typeof useApproveBuilderJob>
   onRetry: () => void
   bindingMissing?: boolean
+  jobConfirmedMissing?: boolean
 }) {
   return (
     <div style={cardStyle}>
@@ -650,7 +668,9 @@ function PendingApprovalRecovery({
       <div style={warningBox}>
         {bindingMissing
           ? `Builder has a durable job for ${missionId}, but its Mission binding is still missing.`
-          : `Kitty could not confirm whether the approval receipt arrived. Builder has no durable job for ${missionId} yet.`}
+          : jobConfirmedMissing
+            ? `Kitty could not confirm whether the approval receipt arrived. Builder has no durable job for ${missionId} yet.`
+            : `Kitty can't confirm the approval status for ${missionId} right now — this doesn't mean the job is missing, just that its acceptance status isn't available yet.`}
         {' '}Retry the same approved version to reconcile it safely; Kitty will not compile a second job.
       </div>
       {approve.isError && (

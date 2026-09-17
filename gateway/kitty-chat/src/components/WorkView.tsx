@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { BuilderProposalCard, readPendingBuilderProposalTask, type BuilderProposalTask } from '@/components/builder/BuilderProposalCard'
+import { BuilderProposalCard, hasUnresolvedPendingApproval, readPendingBuilderProposalTask, type BuilderProposalTask } from '@/components/builder/BuilderProposalCard'
 import { ArtifactCanvas } from '@/components/artifacts/ArtifactCanvas'
 import { useArtifact, useCompileBuilderProposal } from '@/lib/queries'
 import { type BuilderCompileResult } from '@/lib/gateway'
@@ -155,6 +155,17 @@ function WorkBuilderRequest() {
   const prepare = async (allowProviderFallback = false) => {
     const trimmed = request.trim()
     if (!trimmed || preparing) return
+    // Preparing a new proposal overwrites this storage key. If the current
+    // card still has an unresolved approval, that's the only way left to
+    // reconcile it if the durable write landed but the HTTP receipt didn't --
+    // overwriting it here would silently lose that recovery path. The check
+    // reads storage through the non-throwing accessor: a blocked-storage
+    // throw here would abort the click handler before the compile mutation
+    // ever ran, which is a worse outcome than skipping a best-effort guard.
+    if (hasUnresolvedPendingApproval(WORK_BUILDER_PENDING_STORAGE_KEY)) {
+      setError('A previous Builder approval is still being reconciled. Wait for it to resolve before asking for another proposal.')
+      return
+    }
     setPreparing(true)
     setError(null)
     setProposal(null)

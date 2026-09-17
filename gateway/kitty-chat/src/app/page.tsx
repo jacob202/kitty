@@ -204,7 +204,7 @@ export default function KittyChat() {
           {k.activeView === 'chat' && (
             <InputBar
               value={k.input}
-              onChange={(v: string) => { k.setInput(v); if (k.attachmentErrors.length) k.setAttachments([]) }}
+              onChange={(v: string) => { k.setInput(v); if (k.attachmentErrors.length) k.setAttachmentErrors([]) }}
               onSend={() => { if (!modelUnavailable) k.handleSend() }}
               onStop={k.handleStop}
               isStreaming={k.isStreaming}
