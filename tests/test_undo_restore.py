@@ -304,3 +304,58 @@ def test_concurrent_undo_of_the_same_entry_has_exactly_one_winner(_db):
     restored = image_characters.get_character(char.character_id)
     assert restored.name == "Aria"
     assert restored.description == "a musician"
+
+
+def test_older_undo_is_refused_while_a_newer_entry_is_still_restoring(_db, monkeypatch):
+    # Reproduces: the atomic claim flipped `undone` before _restore() had
+    # finished, so a newer entry that was mid-restoration no longer matched
+    # the conflict guard's `undone = 0` predicate. An older undo then ran
+    # concurrently and the entity landed in whichever restoration wrote
+    # last, not in journal order. An in-progress restoration must keep
+    # blocking exactly like a pending one.
+    import threading
+
+    from gateway import image_characters, undo_journal
+
+    char = image_characters.create_character(
+        "Aria", description="a musician", identity_preset="balanced"
+    )
+    older = undo_journal.update_character_with_undo(
+        char.character_id, description="a painter"
+    )
+    newer = undo_journal.update_character_with_undo(
+        char.character_id, description="an architect"
+    )
+
+    inside_restore = threading.Event()
+    resume = threading.Event()
+    original_restore = undo_journal._restore
+
+    def gated_restore(entry):
+        inside_restore.set()
+        assert resume.wait(timeout=5), "test never released the restoration gate"
+        return original_restore(entry)
+
+    monkeypatch.setattr(undo_journal, "_restore", gated_restore)
+
+    outcome: dict[str, object] = {}
+
+    def undo_newer() -> None:
+        try:
+            outcome["result"] = undo_journal.undo(newer)
+        except BaseException as exc:  # noqa: BLE001 - asserted below
+            outcome["error"] = exc
+
+    thread = threading.Thread(target=undo_newer)
+    thread.start()
+    try:
+        assert inside_restore.wait(timeout=5), "newer undo never reached restoration"
+        with pytest.raises(undo_journal.UndoConflict):
+            undo_journal.undo(older)
+    finally:
+        resume.set()
+        thread.join(timeout=5)
+
+    assert "error" not in outcome, outcome.get("error")
+    restored = image_characters.get_character(char.character_id)
+    assert restored.description == "a painter"
