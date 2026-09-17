@@ -64,7 +64,7 @@
         "BFP-02-expose"
       ],
       "acceptance_criteria": [
-        "a sandboxed worker can execute npx vitest and npx tsc from gateway/kitty-chat and receive a real result rather than a missing-executable or unresolved-import error",
+        "TIER 2, NOT PROVEN BY THE GATES BELOW: a sandboxed worker can execute npx vitest and npx tsc from gateway/kitty-chat and receive a real result rather than a missing-executable or unresolved-import error. validation_commands here are Python-only because scripts/packet_preflight.py rejects any Node gate outright and BFP-04 is the packet that lifts that rejection, so a Node gate cannot be declared here without failing preflight. This is satisfied by a recorded run cited in the companion doc; a green Tier 1 run does not satisfy it.",
         "the owning checkout's node_modules is never made writable, so a throwaway worker cannot corrupt the install every other lane shares",
         "resolution requires no network access during the run, because the sandbox has none and a ten-minute budget cannot absorb an install",
         "when the dependencies cannot be provided the runner says so explicitly, instead of letting the gate fail as though the code under test were wrong",
@@ -124,7 +124,7 @@
         "BFP-03-cache"
       ],
       "acceptance_criteria": [
-        "a recorded sandboxed worker run shows 'npx vitest' and 'npx tsc' executing from gateway/kitty-chat and returning a real result, and that evidence is cited before the rule is relaxed",
+        "TIER 2 PRECONDITION, NOT PROVEN BY THE GATES BELOW: a recorded sandboxed worker run shows 'npx vitest' and 'npx tsc' executing from gateway/kitty-chat and returning a real result, and that run is cited by id in the companion doc before this packet lands. The Tier 1 gates here only prove preflight's own behaviour changed; they cannot prove a frontend command runs, and this packet must not be marked done on them alone. If the recorded run does not exist, stop - relaxing the rule without it authorizes gates that still cannot execute, which is the defect F9 exists to prevent.",
         "a validation command using npx is accepted by preflight instead of rejected",
         "a validation command using 'npm run' is still rejected, because it still exits 194 and reports a success it never proved",
         "a validation command pinning an interpreter version is still rejected",
