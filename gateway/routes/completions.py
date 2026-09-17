@@ -602,6 +602,12 @@ async def chat_completions(request: Request):
             trailer_payload["memory_items"] = trailer_memory_items
         if trailer_evidence_items:
             trailer_payload["evidence_items"] = trailer_evidence_items
+        if bundle.warnings:
+            trailer_payload["context_warnings"] = list(bundle.warnings)
+        if bundle.context_health.get("mode") != "full" or bundle.context_health.get(
+            "budget_clipped"
+        ):
+            trailer_payload["context_health"] = bundle.context_health
         metadata_trailer: bytes | None = None
         if trailer_payload:
             trailer_json = json.dumps(trailer_payload, ensure_ascii=False)
@@ -773,6 +779,9 @@ async def chat_completions(request: Request):
             response["memory_items"] = non_stream_memory_items
         if non_stream_evidence_items:
             response["evidence_items"] = non_stream_evidence_items
+        if bundle.warnings:
+            response["kitty_runtime"]["context_warnings"] = list(bundle.warnings)
+        response["kitty_runtime"]["context_health"] = bundle.context_health
         return response
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
