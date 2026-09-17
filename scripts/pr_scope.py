@@ -98,6 +98,17 @@ IRREVERSIBLE_PATTERNS = (
 
 USER_FACING_PATTERNS = (re.compile(r"^gateway/kitty-chat/(?:src|public)/"),)
 
+# Files whose irreversible-tier human signature is conditional rather than
+# unconditional: these modules are irreversible because their destructive entry
+# points (DELETE handlers) can destroy data, so when `scripts/pr_policy.py`
+# proves from the base/head file contents that the PR changes no route decorator
+# and leaves every destructive handler byte-identical, the tier's risk is not in
+# play and the trusted exact-head independent review is the sufficient anchor.
+# Every other irreversible pattern keeps the unconditional human requirement.
+REFACTOR_WAIVABLE_PATTERNS = (
+    re.compile(r"^gateway/routes/(?:chats|projects)\.py$"),
+)
+
 # GitHub's compare endpoint returns at most 300 files. A truncated comparison
 # cannot prove a merge was docs-only, so it widens to full scope instead.
 COMPARE_FILE_LIMIT = 300
@@ -204,6 +215,38 @@ def pull_request_files(
         )
         if len(payload) < 100:
             return files
+        page += 1
+
+
+def pull_request_file_changes(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    token: str,
+    *,
+    fetch: Callable[[str, str], Any] | None = None,
+) -> list[tuple[str, str | None]]:
+    """``(path, previous_path)`` for every file a PR changes.
+
+    ``previous_path`` is set for renames so callers can resolve the base-side
+    content under the name it had before the rename."""
+    fetch = fetch or _github_json
+    changes: list[tuple[str, str | None]] = []
+    page = 1
+    while True:
+        url = (
+            f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+            f"/files?per_page=100&page={page}"
+        )
+        payload = fetch(url, token)
+        if not isinstance(payload, list):
+            raise RuntimeError("GitHub list-files response was not a list")
+        for item in payload:
+            if isinstance(item, dict) and item.get("filename"):
+                previous = item.get("previous_filename")
+                changes.append((str(item["filename"]), str(previous) if previous else None))
+        if len(payload) < 100:
+            return changes
         page += 1
 
 
