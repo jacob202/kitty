@@ -1,4 +1,4 @@
-"""LiteLLM chat-completions proxy and session close."""
+"""LiteLLM chat-completions proxy."""
 
 from __future__ import annotations
 
@@ -530,11 +530,6 @@ def _resolve_attachment_image_parts(attachment_ids: list[str]) -> list[dict]:
 _ATTACHMENT_FAILURE_MESSAGE = (
     "Kitty couldn't use that image. Remove it and stage the image again."
 )
-
-
-class CloseSessionRequest(BaseModel):
-    messages: list[dict] = Field(default_factory=list)
-    session_id: str = ""
 
 
 def _static_abstention_result(text: str) -> dict:
@@ -1408,23 +1403,6 @@ async def api_providers_set(payload: ProviderPrefsRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return describe_providers()
-
-
-@router.post("/sessions/close")
-async def close_session(payload: CloseSessionRequest):
-    """End a chat session — consolidate short-term memory to long-term."""
-    from gateway.memory import consolidate_session
-
-    # Strip context markers before consolidation so durable ids never reach
-    # long-term memory as if they were user-authored text.
-    cleaned = [
-        {**message, "content": context_references.strip_context_markers(message["content"])}
-        if message.get("role") == "user" and isinstance(message.get("content"), str)
-        else message
-        for message in payload.messages
-    ]
-    consolidate_session(payload.session_id, cleaned)
-    return {"status": "ok", "session_id": payload.session_id}
 
 
 _REPAIRS_INTENT_PATTERNS = [

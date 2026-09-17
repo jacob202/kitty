@@ -12,8 +12,15 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field
 
-from gateway import artifact_store, chat_lifecycle, chats_store, context_compaction
+from gateway import (
+    artifact_store,
+    chat_lifecycle,
+    chats_store,
+    context_compaction,
+    context_references,
+)
 
 logger = logging.getLogger("kitty.routes.chats")
 
@@ -470,3 +477,25 @@ def get_chat_messages(chat_id: str) -> dict:
     is gone but the ledger survived.
     """
     return {"conversation_id": chat_id, "messages": _recover_messages(chat_id)}
+
+
+class CloseSessionRequest(BaseModel):
+    messages: list[dict] = Field(default_factory=list)
+    session_id: str = ""
+
+
+@router.post("/sessions/close")
+async def close_session(payload: CloseSessionRequest):
+    """End a chat session — consolidate short-term memory to long-term."""
+    from gateway.memory import consolidate_session
+
+    # Strip context markers before consolidation so durable ids never reach
+    # long-term memory as if they were user-authored text.
+    cleaned = [
+        {**message, "content": context_references.strip_context_markers(message["content"])}
+        if message.get("role") == "user" and isinstance(message.get("content"), str)
+        else message
+        for message in payload.messages
+    ]
+    consolidate_session(payload.session_id, cleaned)
+    return {"status": "ok", "session_id": payload.session_id}
