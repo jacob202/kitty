@@ -338,26 +338,98 @@ def test_stale_retry_claim_does_not_override_a_running_child(automation_db):
     automation_runs.finish_run(child["id"], status="interrupted", completed_at=13.0)
 
 
-def test_retry_claim_releases_when_child_run_creation_fails(automation_db, monkeypatch):
+def test_cleared_marker_cannot_dispatch_a_second_child(automation_db):
+    # Reproduces: the parent's retry marker was cleared by id alone, so a
+    # delayed contender could free a replacement claim that a newer retry was
+    # already running under. The running-child check only ran when a marker was
+    # present, so the freed parent minted and dispatched a second retry child
+    # while the first one was still running.
     from gateway import automation_runs
 
     original = automation_runs.begin_run(
-        automation_id="auto-fail", action="test.action", trigger_kind="manual", started_at=1.0
+        automation_id="auto-release", action="test.action", trigger_kind="manual", started_at=1.0
     )
     automation_runs.finish_run(original["id"], status="failed", completed_at=2.0)
+    first = automation_runs.retry_run(original["id"], started_at=3.0)
+
+    # Exactly the state a non-owner release left behind: marker gone, child live.
+    with sqlite3.connect(automation_db) as conn:
+        conn.execute(
+            "UPDATE automation_runs SET retry_claimed_at = NULL WHERE id = ?",
+            (original["id"],),
+        )
+        conn.commit()
+
+    with pytest.raises(automation_runs.AutomationRunStateError, match="already being retried"):
+        automation_runs.retry_run(original["id"], started_at=4.0)
+
+    running = automation_runs.list_runs(
+        automation_id="auto-release", statuses=frozenset({"running"})
+    )
+    assert [run["id"] for run in running] == [first["id"]]
+    automation_runs.finish_run(first["id"], status="interrupted", completed_at=5.0)
+
+
+def test_stalled_claimant_cannot_dispatch_a_second_child(automation_db, monkeypatch):
+    # Reproduces: retry_run committed the parent's claim and only then inserted
+    # the linked child, so a claimant delayed past RETRY_CLAIM_STALE_S could lose
+    # the parent to a second contender and still mint its own running child.
+    # Claim and child are written in one transaction now, so that pause cannot
+    # exist; the single-child invariant is asserted either way.
+    from gateway import automation_runs
+
+    original = automation_runs.begin_run(
+        automation_id="auto-stall", action="test.action", trigger_kind="manual", started_at=1.0
+    )
+    automation_runs.finish_run(original["id"], status="failed", completed_at=2.0)
+
     real_begin_run = automation_runs.begin_run
 
-    def fail_begin_run(**kwargs):
-        raise RuntimeError("insert failed")
+    def stalled_begin_run(**kwargs):
+        # Whatever pauses here has already committed the parent claim. A second
+        # contender takes the parent and inserts its child before this caller
+        # resumes to insert one of its own.
+        second = real_begin_run(
+            automation_id="auto-stall",
+            action="test.action",
+            trigger_kind="manual",
+            started_at=3.5,
+            retry_of_run_id=original["id"],
+        )
+        assert second["id"] != original["id"]
+        return real_begin_run(**kwargs)
 
-    monkeypatch.setattr(automation_runs, "begin_run", fail_begin_run)
-    with pytest.raises(RuntimeError, match="insert failed"):
-        automation_runs.retry_run(original["id"], started_at=3.0)
+    monkeypatch.setattr(automation_runs, "begin_run", stalled_begin_run)
+    automation_runs.retry_run(original["id"], started_at=3.0)
 
-    monkeypatch.setattr(automation_runs, "begin_run", real_begin_run)
-    retried = automation_runs.retry_run(original["id"], started_at=4.0)
-    assert retried["id"] != original["id"]
-    automation_runs.finish_run(retried["id"], status="interrupted", completed_at=5.0)
+    running = automation_runs.list_runs(automation_id="auto-stall", statuses=frozenset({"running"}))
+    assert len(running) == 1, "a stalled claimant dispatched a second retry child"
+    automation_runs.finish_run(running[0]["id"], status="interrupted", completed_at=4.0)
+
+
+def test_parent_allows_only_one_running_retry_child(automation_db):
+    # The single-flight invariant lives in the ledger, not only in retry_run: a
+    # second running child for the same parent cannot be written at all.
+    from gateway import automation_runs
+
+    original = automation_runs.begin_run(
+        automation_id="auto-index", action="test.action", trigger_kind="manual", started_at=1.0
+    )
+    automation_runs.finish_run(original["id"], status="failed", completed_at=2.0)
+    child = automation_runs.retry_run(original["id"], started_at=3.0)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        with sqlite3.connect(automation_db) as conn:
+            conn.execute(
+                "INSERT INTO automation_runs "
+                "(id, automation_id, action, trigger_kind, started_at, status, "
+                "retry_of_run_id, created_at) "
+                "VALUES ('arun_overlap', 'auto-index', 'test.action', 'manual', 3.5, "
+                "'running', ?, 3.5)",
+                (original["id"],),
+            )
+
+    automation_runs.finish_run(child["id"], status="interrupted", completed_at=4.0)
 
 
 @pytest.mark.asyncio

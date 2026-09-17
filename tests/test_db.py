@@ -299,6 +299,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "058_agent_workspace_scope_key.sql",
         "059_chat_message_evidence_items.sql",
         "060_automation_runs_retry_claim.sql",
+        "061_automation_runs_single_flight_retry.sql",
     ]
 
 
@@ -383,3 +384,50 @@ def test_assert_schema_current_raises_if_migration_file_not_applied(tmp_path):
         db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)
 
     assert "002_extra.sql" in str(exc.value)
+
+
+def test_single_flight_retry_index_migrates_a_raced_database(tmp_path):
+    """A database that raced before the retry index existed must still migrate.
+
+    Two running retry children for one parent would fail the unique index build,
+    so the migration closes the older duplicate and keeps the newest attempt.
+    """
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    source = db.DB_MIGRATIONS_DIR
+    staged = ("047_automation_runs.sql", "060_automation_runs_retry_claim.sql")
+    for name in staged:
+        (migrations_dir / name).write_text(
+            (source / name).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+    with db.connect(db_file) as conn:
+        conn.executemany(
+            "INSERT INTO automation_runs "
+            "(id, automation_id, action, trigger_kind, started_at, status, retry_of_run_id, created_at) "
+            "VALUES (?, 'auto-raced', 'test.action', 'manual', ?, 'running', 'arun_parent', ?)",
+            [("arun_first", 10.0, 10.0), ("arun_second", 20.0, 20.0)],
+        )
+
+    (migrations_dir / "061_automation_runs_single_flight_retry.sql").write_text(
+        (source / "061_automation_runs_single_flight_retry.sql").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    assert db.migrate(db_file=db_file, migrations_dir=migrations_dir) == [
+        "061_automation_runs_single_flight_retry.sql"
+    ]
+
+    with sqlite3.connect(db_file) as conn:
+        rows = conn.execute(
+            "SELECT id, status FROM automation_runs ORDER BY started_at"
+        ).fetchall()
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO automation_runs "
+                "(id, automation_id, action, trigger_kind, started_at, status, retry_of_run_id, created_at) "
+                "VALUES ('arun_overlap', 'auto-raced', 'test.action', 'manual', 30.0, 'running', "
+                "'arun_parent', 30.0)"
+            )
+
+    assert rows == [("arun_first", "interrupted"), ("arun_second", "running")]

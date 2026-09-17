@@ -289,23 +289,15 @@ def finish_run(
     return current
 
 
-def release_retry_claim(run_id: str) -> None:
-    """Release the single-flight marker for one original run."""
-    init_db()
-    with kitty_db.connect(DB_FILE) as conn:
-        conn.execute(
-            "UPDATE automation_runs SET retry_claimed_at = NULL WHERE id = ?",
-            (run_id,),
-        )
-        conn.commit()
-
-
 def retry_run(run_id: str, *, started_at: float | None = None) -> dict[str, Any]:
     """Create a fresh running attempt while holding a claim on the original.
 
-    The claim remains held while the retry child is running. ``finish_run``
-    releases it atomically with the child's terminal transition. A stale marker
-    is recoverable only when no linked retry child is still running.
+    The claim and its linked child are written in one transaction, so a
+    contender that stalls after taking the claim cannot resume later to mint a
+    second child once another contender has replaced the claim. The claim stays
+    held for the child's whole life: ``finish_run`` releases it atomically with
+    the child's terminal transition, and an expired marker is recoverable only
+    when no linked retry child is still running.
     """
     init_db()
     original = get_run(run_id)
@@ -316,6 +308,10 @@ def retry_run(run_id: str, *, started_at: float | None = None) -> dict[str, Any]
 
     claimed_at = time.time()
     stale_before = claimed_at - RETRY_CLAIM_STALE_S
+    started = time.time() if started_at is None else float(started_at)
+    child_id = f"arun_{uuid.uuid4().hex}"
+    payload = original.get("payload")
+    payload_json = json.dumps(payload, sort_keys=True) if payload is not None else None
     with kitty_db.connect(DB_FILE) as conn:
         conn.execute("BEGIN IMMEDIATE")
         try:
@@ -325,39 +321,57 @@ def retry_run(run_id: str, *, started_at: float | None = None) -> dict[str, Any]
             ).fetchone()
             if row is None:
                 raise AutomationRunNotFound(run_id)
+            # A running child is the authoritative single-flight state, whether
+            # or not its claim marker is still present.
+            active_child = conn.execute(
+                "SELECT 1 FROM automation_runs "
+                "WHERE retry_of_run_id = ? AND status = 'running' LIMIT 1",
+                (run_id,),
+            ).fetchone()
+            if active_child is not None:
+                raise AutomationRunStateError(f"run {run_id} is already being retried")
             previous_claim = row["retry_claimed_at"]
-            if previous_claim is not None:
-                active_child = conn.execute(
-                    "SELECT 1 FROM automation_runs "
-                    "WHERE retry_of_run_id = ? AND status = 'running' LIMIT 1",
-                    (run_id,),
-                ).fetchone()
-                if previous_claim > stale_before or active_child is not None:
-                    raise AutomationRunStateError(f"run {run_id} is already being retried")
-            conn.execute(
+            if previous_claim is not None and previous_claim > stale_before:
+                raise AutomationRunStateError(f"run {run_id} is already being retried")
+            cursor = conn.execute(
                 "UPDATE automation_runs SET retry_claimed_at = ? WHERE id = ? AND status != 'running'",
                 (claimed_at, run_id),
             )
+            if cursor.rowcount != 1:
+                raise AutomationRunStateError(f"run {run_id} is already being retried")
+            conn.execute(
+                "INSERT INTO automation_runs "
+                "(id, automation_id, action, trigger_kind, trigger_ref, schedule_id, due_at, "
+                "started_at, status, payload_json, retry_of_run_id, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?)",
+                (
+                    child_id,
+                    original["automation_id"],
+                    original["action"],
+                    original["trigger_kind"],
+                    original.get("trigger_ref"),
+                    original.get("schedule_id"),
+                    original.get("due_at"),
+                    started,
+                    payload_json,
+                    run_id,
+                    started,
+                ),
+            )
             conn.commit()
+        except sqlite3.IntegrityError as exc:
+            # The single-flight index is the ledger's own guard: a violation
+            # means a retry child for this parent is already running.
+            conn.rollback()
+            raise AutomationRunStateError(f"run {run_id} is already being retried") from exc
         except Exception:
             conn.rollback()
             raise
 
-    try:
-        return begin_run(
-            automation_id=original["automation_id"],
-            action=original["action"],
-            trigger_kind=original["trigger_kind"],
-            trigger_ref=original.get("trigger_ref"),
-            schedule_id=original.get("schedule_id"),
-            due_at=original.get("due_at"),
-            started_at=started_at,
-            payload=original.get("payload"),
-            retry_of_run_id=run_id,
-        )
-    except BaseException:
-        release_retry_claim(run_id)
-        raise
+    created = get_run(child_id)
+    if created is None:
+        raise AutomationRunError("retry child insert did not persist")
+    return created
 
 
 def reconcile_interrupted_runs(*, now: float | None = None) -> int:
