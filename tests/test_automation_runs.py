@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 
 import pytest
@@ -137,6 +138,24 @@ def test_reconcile_marks_orphaned_running_run_interrupted(automation_db):
     assert current["duration_ms"] == 25_000
 
 
+def test_reconcile_interrupted_retry_releases_parent_claim(automation_db, monkeypatch):
+    from gateway import automation_runs
+
+    original = automation_runs.begin_run(
+        automation_id="auto-reconcile", action="test.action", trigger_kind="manual", started_at=1.0
+    )
+    automation_runs.finish_run(original["id"], status="failed", completed_at=2.0)
+    child = automation_runs.retry_run(original["id"], started_at=3.0)
+
+    monkeypatch.setattr(automation_runs, "PROCESS_STARTED_AT", 10.0)
+    assert automation_runs.reconcile_interrupted_runs(now=20.0) == 1
+    assert automation_runs.get_run(child["id"])["status"] == "interrupted"
+
+    again = automation_runs.retry_run(original["id"], started_at=21.0)
+    assert again["id"] != child["id"]
+    automation_runs.finish_run(again["id"], status="interrupted", completed_at=22.0)
+
+
 def test_reconcile_does_not_interrupt_a_current_process_run(automation_db, monkeypatch):
     from gateway import automation_runs
 
@@ -223,3 +242,160 @@ def test_claim_running_run_is_exact_and_single_flight(automation_db):
     )
     assert created is True
     assert different["id"] != rows[0]["id"]
+
+
+def test_concurrent_retry_of_the_same_completed_run_has_exactly_one_winner(automation_db):
+    # Reproduces: retry_run() re-checked status='running' on the original run
+    # but never mutated it, so two concurrent retries of the same completed
+    # run both read 'completed' and both minted a new run -- dispatching the
+    # underlying action twice.
+    from concurrent.futures import ThreadPoolExecutor
+
+    from gateway import automation_runs
+
+    original = automation_runs.begin_run(
+        automation_id="auto-retry", action="test.action", trigger_kind="manual", started_at=1.0
+    )
+    automation_runs.finish_run(original["id"], status="completed", completed_at=2.0)
+
+    def retry():
+        return automation_runs.retry_run(original["id"], started_at=3.0)
+
+    results = []
+    errors = []
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(retry) for _ in range(2)]
+        for future in futures:
+            try:
+                results.append(future.result(timeout=5))
+            except automation_runs.AutomationRunStateError as exc:
+                errors.append(exc)
+
+    assert len(results) == 1, "expected exactly one winning retry"
+    assert len(errors) == 1
+
+    automation_runs.finish_run(results[0]["id"], status="interrupted", completed_at=3.5)
+    again = automation_runs.retry_run(original["id"], started_at=4.0)
+    assert again["id"] != results[0]["id"]
+    automation_runs.finish_run(again["id"], status="interrupted", completed_at=4.5)
+
+
+def test_stale_retry_claim_is_recoverable(automation_db):
+    from gateway import automation_runs
+
+    original = automation_runs.begin_run(
+        automation_id="auto-stale", action="test.action", trigger_kind="manual", started_at=1.0
+    )
+    automation_runs.finish_run(original["id"], status="failed", completed_at=2.0)
+    stale = 10.0
+    with sqlite3.connect(automation_db) as conn:
+        conn.execute(
+            "UPDATE automation_runs SET retry_claimed_at = ? WHERE id = ?",
+            (stale, original["id"]),
+        )
+        conn.commit()
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(automation_runs.time, "time", lambda: stale + automation_runs.RETRY_CLAIM_STALE_S + 1)
+        retried = automation_runs.retry_run(original["id"], started_at=3.0)
+
+    assert retried["id"] != original["id"]
+    automation_runs.finish_run(retried["id"], status="interrupted", completed_at=4.0)
+
+
+def test_stale_retry_claim_does_not_override_a_running_child(automation_db):
+    from gateway import automation_runs
+
+    original = automation_runs.begin_run(
+        automation_id="auto-long",
+        action="test.action",
+        trigger_kind="manual",
+        trigger_ref="trigger-1",
+        started_at=1.0,
+    )
+    automation_runs.finish_run(original["id"], status="failed", completed_at=2.0)
+    stale = 10.0
+    with sqlite3.connect(automation_db) as conn:
+        conn.execute(
+            "UPDATE automation_runs SET retry_claimed_at = ? WHERE id = ?",
+            (stale, original["id"]),
+        )
+        conn.commit()
+    child = automation_runs.begin_run(
+        automation_id="auto-long",
+        action="test.action",
+        trigger_kind="manual",
+        trigger_ref="trigger-1",
+        started_at=11.0,
+        retry_of_run_id=original["id"],
+    )
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(automation_runs.time, "time", lambda: stale + automation_runs.RETRY_CLAIM_STALE_S + 1)
+        with pytest.raises(automation_runs.AutomationRunStateError, match="already being retried"):
+            automation_runs.retry_run(original["id"], started_at=12.0)
+
+    automation_runs.finish_run(child["id"], status="interrupted", completed_at=13.0)
+
+
+def test_retry_claim_releases_when_child_run_creation_fails(automation_db, monkeypatch):
+    from gateway import automation_runs
+
+    original = automation_runs.begin_run(
+        automation_id="auto-fail", action="test.action", trigger_kind="manual", started_at=1.0
+    )
+    automation_runs.finish_run(original["id"], status="failed", completed_at=2.0)
+    real_begin_run = automation_runs.begin_run
+
+    def fail_begin_run(**kwargs):
+        raise RuntimeError("insert failed")
+
+    monkeypatch.setattr(automation_runs, "begin_run", fail_begin_run)
+    with pytest.raises(RuntimeError, match="insert failed"):
+        automation_runs.retry_run(original["id"], started_at=3.0)
+
+    monkeypatch.setattr(automation_runs, "begin_run", real_begin_run)
+    retried = automation_runs.retry_run(original["id"], started_at=4.0)
+    assert retried["id"] != original["id"]
+    automation_runs.finish_run(retried["id"], status="interrupted", completed_at=5.0)
+
+
+@pytest.mark.asyncio
+async def test_retry_route_does_not_dispatch_twice_while_first_retry_is_running(automation_db, monkeypatch):
+    from gateway import automation_runs
+    from gateway.routes import automations as automations_routes
+
+    original = automation_runs.begin_run(
+        automation_id="auto-route-race",
+        action="retry.route-race",
+        trigger_kind="manual",
+        started_at=1.0,
+    )
+    automation_runs.finish_run(original["id"], status="failed", completed_at=2.0)
+
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    calls: list[str] = []
+
+    async def slow_run_action(name: str, **kwargs):
+        calls.append(kwargs["run_id"])
+        entered.set()
+        await release.wait()
+        automation_runs.finish_run(kwargs["run_id"], status="completed", completed_at=4.0)
+        return automation_runs.get_run(kwargs["run_id"])
+
+    monkeypatch.setattr(automations_routes.automation_actions, "run_action", slow_run_action)
+
+    first = asyncio.create_task(automations_routes.retry_automation_run(original["id"]))
+    await asyncio.wait_for(entered.wait(), timeout=2)
+    try:
+        with pytest.raises(automation_runs.AutomationRunStateError, match="already being retried"):
+            await automations_routes.retry_automation_run(original["id"])
+        assert len(calls) == 1
+    finally:
+        release.set()
+        await first
+
+    # Terminal child completion released the parent claim.
+    later = automation_runs.retry_run(original["id"], started_at=5.0)
+    automation_runs.finish_run(later["id"], status="interrupted", completed_at=6.0)

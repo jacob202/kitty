@@ -298,6 +298,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "057_project_selected_todo.sql",
         "058_agent_workspace_scope_key.sql",
         "059_chat_message_evidence_items.sql",
+        "060_automation_runs_retry_claim.sql",
     ]
 
 
