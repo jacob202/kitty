@@ -26,7 +26,7 @@ from gateway.builder_cli import main
 
 
 @pytest.fixture
-def db_path(tmp_path: Path) -> Path:
+def db_path(tmp_path: Path, hermetic_builder_base) -> Path:
     p = tmp_path / "kittybuilder" / "builder_queue.db"
     bi.init_db(p)
     return p
@@ -857,9 +857,9 @@ class TestApply:
         )
         assert result["status"] == "would_create"
 
-    def test_first_apply_without_base_ref_fails_without_mutation(
-        self, db_path: Path, tmp_path: Path
-    ):
+    def test_first_apply_without_base_ref_fails_without_mutation(self, tmp_path: Path):
+        db_path = tmp_path / "kittybuilder" / "builder_queue.db"
+        bi.init_db(db_path)
         with pytest.raises(bi.BaseSHAResolutionError, match="durable packet base SHA"):
             bi.apply_manifest(_manifest(), db_path=db_path, repo_root=tmp_path)
 
@@ -988,7 +988,7 @@ class TestReadHelpers:
 
 
 @pytest.fixture
-def cli_db(tmp_path: Path, monkeypatch) -> Path:
+def cli_db(tmp_path: Path, monkeypatch, hermetic_builder_base) -> Path:
     """Point the module-level default DB at a tmp path for end-to-end CLI runs."""
     p = tmp_path / "kittybuilder" / "builder_queue.db"
     monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", p)

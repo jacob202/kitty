@@ -1,4 +1,4 @@
-"""LiteLLM chat-completions proxy and session close."""
+"""LiteLLM chat-completions proxy."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from typing import Mapping, cast
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field
 
 from gateway import action_queue, artifact_store, chat_lifecycle, chats_store, context_references
 from gateway.chat_errors import (
@@ -22,7 +21,6 @@ from gateway.chat_errors import (
 )
 from gateway.constants import MAX_BODY_BYTES
 from gateway.domain_router import classify_domain
-from gateway.http_client import get_http_client
 from gateway.llm_client import (
     chat_completions_non_stream,
     iter_chat_completions_stream,
@@ -31,7 +29,7 @@ from gateway.llm_client import (
 )
 from gateway.memory_graph import MemoryEvidence
 from gateway.model_routing import resolve_chat_route
-from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
+from gateway.paths import LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
 _DURABLE_CHAT_OBJECT_LIMIT = 6
@@ -530,11 +528,6 @@ def _resolve_attachment_image_parts(attachment_ids: list[str]) -> list[dict]:
 _ATTACHMENT_FAILURE_MESSAGE = (
     "Kitty couldn't use that image. Remove it and stage the image again."
 )
-
-
-class CloseSessionRequest(BaseModel):
-    messages: list[dict] = Field(default_factory=list)
-    session_id: str = ""
 
 
 def _static_abstention_result(text: str) -> dict:
@@ -1318,113 +1311,6 @@ async def chat_completions(request: Request):
 async def api_chat_completions(request: Request):
     """Open WebUI-compatible alias so kitty-chat can target the gateway directly."""
     return await chat_completions(request)
-
-
-@router.get("/api/models")
-async def api_models():
-    """Return available models with display names resolved from the routing config."""
-    from gateway.model_routing import describe_routing
-
-    routing = describe_routing()
-    alias_map = {r["alias"]: r["upstream_model"] for r in routing.get("routes", []) if r.get("alias")}
-
-    client = await get_http_client()
-    try:
-        resp = await client.get(
-            f"{LITELLM_BASE}/v1/models",
-            headers={"Authorization": f"Bearer {LITELLM_KEY}"},
-        )
-        if resp.status_code != 200:
-            detail = getattr(resp, "text", "")[:500]
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    f"LiteLLM model discovery returned HTTP {resp.status_code}"
-                    + (f": {detail}" if detail else "")
-                ),
-            )
-
-        data = resp.json()
-        models = data.get("data", [])
-        for model in models:
-            alias = model.get("id", "")
-            upstream = alias_map.get(alias, "")
-            if upstream:
-                model["display_name"] = upstream.split("/")[-1]
-
-        return data
-
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.warning("Failed to fetch models from LiteLLM: %s", exc)
-        raise HTTPException(
-            status_code=502,
-            detail=f"LiteLLM model discovery failed: {exc}",
-        ) from exc
-
-
-@router.get("/api/model-routing")
-async def api_model_routing():
-    """Which provider each kitty-* alias actually calls, and whether its key is set.
-
-    /api/models only returns alias ids, which is why an out-of-credit provider
-    was indistinguishable from a healthy one everywhere in the UI.
-    """
-    from gateway.model_routing import describe_routing
-
-    return describe_routing()
-
-
-@router.get("/api/providers")
-async def api_providers():
-    """The direct-call fallback chain — order, key state, and what's disabled."""
-    from gateway.model_routing import describe_providers
-
-    return describe_providers()
-
-
-class ProviderPrefsRequest(BaseModel):
-    order: list[str] = Field(default_factory=list)
-    disabled: list[str] = Field(default_factory=list)
-    active: str = "auto"
-
-
-@router.post("/api/providers")
-async def api_providers_set(payload: ProviderPrefsRequest):
-    """Reorder or disable providers without editing Python or restarting."""
-    from gateway.llm_client import PROVIDERS
-    from gateway.model_routing import describe_providers
-    from gateway.provider_prefs import save_preferences
-
-    try:
-        save_preferences(
-            payload.order,
-            payload.disabled,
-            known=tuple(PROVIDERS.keys()),
-            active=payload.active,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return describe_providers()
-
-
-@router.post("/sessions/close")
-async def close_session(payload: CloseSessionRequest):
-    """End a chat session — consolidate short-term memory to long-term."""
-    from gateway.memory import consolidate_session
-
-    # Strip context markers before consolidation so durable ids never reach
-    # long-term memory as if they were user-authored text.
-    cleaned = [
-        {**message, "content": context_references.strip_context_markers(message["content"])}
-        if message.get("role") == "user" and isinstance(message.get("content"), str)
-        else message
-        for message in payload.messages
-    ]
-    consolidate_session(payload.session_id, cleaned)
-    return {"status": "ok", "session_id": payload.session_id}
 
 
 _REPAIRS_INTENT_PATTERNS = [

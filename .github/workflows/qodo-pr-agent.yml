@@ -1,0 +1,44 @@
+name: Qodo PR-Agent Review
+
+# Open-source Qodo PR-Agent (the-pr-agent/pr-agent): automatic review comments
+# on PRs, billed per-token through the existing OPENROUTER_API_KEY secret.
+# This is the trial-bot replacement: no seat, no subscription, same key the
+# in-house agent-review job already uses. Responds to /review, /describe,
+# /improve, and /ask commands on PR comments.
+#
+# Cost control: one run per PR at a time (cancel-in-progress), drafts skipped,
+# owner-authored PRs only.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  # Needed so /review, /describe, /improve, and /ask comments reach the action.
+  issue_comment:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: qodo-pr-agent-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  qodo-review:
+    if: >-
+      (github.event_name == 'pull_request_target' && github.event.pull_request.draft == false && github.event.pull_request.author_association == 'OWNER') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && github.event.comment.author_association == 'OWNER')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Review PR
+        uses: the-pr-agent/pr-agent@v0.45.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          openrouter__key: ${{ secrets.OPENROUTER_API_KEY }}
+          config.model: "openrouter/deepseek/deepseek-v4-flash"
+          config.fallback_models: '["openrouter/minimax/minimax-m3"]'
+          # Upstream requires this list for pull_request_target: without it,
+          # synchronize pushes start the action but produce no review.
+          github_action_config.pr_actions: '["opened", "reopened", "synchronize", "ready_for_review"]'

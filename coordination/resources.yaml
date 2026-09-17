@@ -36,9 +36,11 @@ resources:
     - gateway/builder_supervisor.py
     - gateway/compute_governor.py
     - tests/test_builder_commands.py
+    - tests/test_builder_interrupted_projection_regression.py
     - tests/test_builder_loop.py
     - tests/test_builder_publication_infrastructure.py
     - tests/test_builder_queue.py
+    - tests/test_builder_report.py
     - tests/test_builder_run.py
     - tests/test_builder_status.py
     - tests/test_builder_supervisor.py
@@ -183,6 +185,7 @@ resources:
     - tests/test_agent_room_lifecycle_hooks.py
     - tests/test_agent_room_lifecycle_review_regressions.py
     - tests/test_app_lifespan_hermetic.py
+    - tests/test_builder_doctor.py
     - tests/test_doctor.py
     - tests/test_doctor_freshness.py
     - tests/test_env_loader.py
@@ -237,7 +240,9 @@ resources:
     - gateway/routes/chats.py
     - gateway/routes/completions.py
     - gateway/routes/conversation_handoff.py
+    - gateway/routes/models.py
     - gateway/routes/notifications.py
+    - gateway/routes/providers.py
     - gateway/routes/skills.py
     - gateway/routes/todos.py
     - gateway/voice_middleware.py
@@ -255,6 +260,7 @@ resources:
     paths:
     - .github/pull_request_template.md
     - .github/workflows/pr-agent-review.yml
+    - .github/workflows/qodo-pr-agent.yml
     - scripts/pr_policy.py
     - scripts/pr_review.py
     - scripts/pr_review_gate.py
