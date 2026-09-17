@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from pathlib import Path
 
 from fastapi import APIRouter
 
 from gateway.paths import ROOT
+
+logger = logging.getLogger("kitty.routes.session_context")
 
 router = APIRouter(tags=["session"])
 
@@ -41,11 +44,16 @@ def _bullets(sections: list[tuple[str, list[str]]], heading: str) -> list[str]:
     return []
 
 
-def _live_branch() -> str | None:
-    """Best-effort current branch; this is a read-only dashboard endpoint, so a
-    missing git binary or a checkout that isn't a canonical repo (a container,
-    a detached worktree, a packaged deployment) degrades this one field to
-    None instead of 500ing the whole session-context response."""
+def _live_branch() -> tuple[str | None, str | None]:
+    """Best-effort current branch plus a separate reason when the lookup fails.
+
+    This is a read-only dashboard endpoint, so a missing git binary or a
+    checkout that isn't a canonical repo (a container, a detached worktree, a
+    packaged deployment) degrades the field to None instead of 500ing the whole
+    session-context response. Degrading must not erase the difference between
+    "git told us there is no branch" and "we never managed to ask git", so the
+    failure also logs the exception and returns an operator-visible reason
+    alongside the None."""
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
@@ -55,10 +63,19 @@ def _live_branch() -> str | None:
             text=True,
             timeout=2,
         )
-    except (OSError, subprocess.SubprocessError):
-        return None
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning(
+            "git rev-parse --abbrev-ref HEAD failed in %s: %s: %s",
+            ROOT,
+            type(exc).__name__,
+            exc,
+        )
+        return None, (
+            f"git rev-parse --abbrev-ref HEAD failed ({type(exc).__name__});"
+            " see the gateway log for details"
+        )
     branch = result.stdout.strip()
-    return branch or None
+    return (branch or None), None
 
 
 def _last_session_topic(state_sections: list[tuple[str, list[str]]]) -> str | None:
@@ -78,8 +95,10 @@ def get_session_context() -> dict[str, str | list[str] | None]:
     state_sections = _sections(STATE_FILE)
     open_threads = _bullets(handoff_sections, "Resume here")
     next_actions = open_threads + _bullets(state_sections, "Next")
+    current_branch, current_branch_error = _live_branch()
     return {
-        "current_branch": _live_branch(),
+        "current_branch": current_branch,
+        "current_branch_error": current_branch_error,
         "last_session_topic": _last_session_topic(state_sections),
         "open_threads": open_threads,
         "next_actions": next_actions,
