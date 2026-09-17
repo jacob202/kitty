@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -33,7 +34,7 @@ class DeepResearchRequest(BaseModel):
 async def nightly_reset():
     from gateway.reset import send_nightly_reset
 
-    success = send_nightly_reset()
+    success = await asyncio.to_thread(send_nightly_reset)
     return {"status": "sent" if success else "failed"}
 
 
@@ -74,7 +75,7 @@ async def inventory_photo(file: UploadFile = File(...)):
         tmp.write(b"".join(chunks))
         tmp_path = tmp.name
 
-    result = process_inventory_image(tmp_path)
+    result = await asyncio.to_thread(process_inventory_image, tmp_path)
     Path(tmp_path).unlink(missing_ok=True)
     return {"message": result}
 
@@ -99,4 +100,4 @@ async def deep_research(payload: DeepResearchRequest):
 async def weekly_mirror():
     from gateway.honcho import get_weekly_mirror
 
-    return get_weekly_mirror()
+    return await asyncio.to_thread(get_weekly_mirror)

@@ -50,11 +50,12 @@ Please provide a JSON response with the following fields:
 RESPONSE MUST BE PURE JSON.
 """
 
-    response_text = llm_client.call_llm(
+    response_text = await asyncio.to_thread(
+        llm_client.call_llm,
         messages=[{"role": "user", "content": prompt}],
         model="kitty-default",
         max_tokens=2000,
-        temperature=0.2
+        temperature=0.2,
     )
 
     # Try to extract JSON from response

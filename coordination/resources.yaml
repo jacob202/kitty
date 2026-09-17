@@ -17,6 +17,9 @@ resources:
     - gateway/run_workspace.py
     - integrations/discord_command_center/service.py
     - integrations/discord_command_center/workspace.py
+    - scripts/kittybuilder_dsh.sh
+    - scripts/kittybuilder_dsh_reviewer.sh
+    - scripts/kittybuilder_dsh_worker.sh
     - tests/test_builder_contract_gate.py
     - tests/test_builder_execution_boundary.py
     - tests/test_builder_identity.py
@@ -104,6 +107,9 @@ resources:
     - gateway/pdf_pipeline.py
     - gateway/routes/experts.py
     - gateway/routes/knowledge.py
+    - gateway/troubleshooter.py
+    - scripts/curation/curation_worker.py
+    - scripts/curation/prototype_smart_asset.py
     - tests/test_domain_router.py
     - tests/test_expert_proactive.py
     - tests/test_knowledge.py
@@ -215,6 +221,7 @@ resources:
     - tests/test_kitty_launcher.py
     - tests/test_kitty_launcher_runtime.py
     - tests/test_llm_client.py
+    - tests/test_llm_client_event_loop_blocking.py
     - tests/test_local_review.py
     - tests/test_mcp_builder_commands.py
     - tests/test_mcp_builder_context.py
@@ -264,6 +271,8 @@ resources:
     - gateway/routes/chats.py
     - gateway/routes/completions.py
     - gateway/routes/conversation_handoff.py
+    - gateway/routes/council.py
+    - gateway/routes/kitty_tools.py
     - gateway/routes/models.py
     - gateway/routes/notifications.py
     - gateway/routes/providers.py

@@ -75,6 +75,45 @@ llm-pi-ai:
       retryPolicy:
         mode: normal
         maxRetries: 0
+      # Declaring `models` REPLACES this route's installed catalog, so every
+      # model either lane can select has to appear here. deepseek-v4.1-flash is
+      # the reason: OpenRouter serves it but no published pi-ai catalog carries
+      # it (checked 0.82.1 and 0.85.1), so every paid cheap dispatch died on
+      # UNKNOWN_MODEL before reaching a provider. Catalog models are restated by
+      # id alone, which inherits their shipped configuration unchanged.
+      models:
+        - id: deepseek/deepseek-v4.1-flash
+          name: 'DeepSeek: DeepSeek V4.1 Flash'
+          contextWindow: 1048576
+          # A *configured* maxTokens becomes the per-request default output cap
+          # (a catalog model's is only a capability and never defaults). At the
+          # sibling's catalog value of 4096 a worker turn ended on max-tokens
+          # mid-task. OpenRouter allows 384000 here; this leaves ample headroom
+          # for a reasoning model without defaulting to its ceiling.
+          maxTokens: 65536
+          # A hand-declared model reasons only if it says so, and the forge
+          # preset asks for "high". Mirrors the levels its v4-flash sibling
+          # ships; without this the request fails UNSUPPORTED_REASONING_EFFORT.
+          reasoningEfforts:
+            high: high
+            xhigh: xhigh
+          compat:
+            supportsDeveloperRole: false
+            thinkingFormat: openrouter
+            requiresReasoningContentOnAssistantMessages: true
+        - id: deepseek/deepseek-v4-flash
+        - id: deepseek/deepseek-v4-pro
+        - id: minimax/minimax-m3
+        - id: qwen/qwen3.7-plus
+        - id: qwen/qwen3.7-max
+        - id: poolside/laguna-xs-2.1:free
+        - id: nvidia/nemotron-3-ultra-550b-a55b:free
+        # The free worker's second rung. OpenRouter does not actually serve this
+        # id, so it fails either way -- but omitting it moved the failure earlier,
+        # to DSH rejecting it as unknown, which exhausts the free lane instead of
+        # letting it fall through as it did before. Listed to keep this change
+        # behaviour-neutral for the free lane; the dead id is a separate problem.
+        - id: tencent/hy3:free
 SETTINGS
 patch="${runtime_root}/cordis.patch.yml"
 cleanup() { rm -rf "$runtime_root"; }
