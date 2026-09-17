@@ -14,7 +14,7 @@ from gateway import builder_report as br
 
 
 @pytest.fixture
-def db_path(tmp_path: Path) -> Path:
+def db_path(tmp_path: Path, hermetic_builder_base) -> Path:
     p = tmp_path / "kittybuilder" / "builder_queue.db"
     bi.init_db(p)
     return p
@@ -216,7 +216,7 @@ class TestCp05ReportGeneration:
 
 
 @pytest.fixture
-def cli_db(tmp_path: Path, monkeypatch) -> Path:
+def cli_db(tmp_path: Path, monkeypatch, hermetic_builder_base) -> Path:
     """Point the module-level default DB (and report output dir) at tmp_path."""
     p = tmp_path / "kittybuilder" / "builder_queue.db"
     monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", p)

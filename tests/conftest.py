@@ -137,3 +137,19 @@ def all_provider_keys(monkeypatch):
         "GEMINI_API_KEY",
     ):
         monkeypatch.setenv(name, "sk-test-key")
+
+
+@pytest.fixture
+def hermetic_builder_base(monkeypatch):
+    """Pin Builder's base-SHA resolution so unit tests never reach origin.
+
+    apply_manifest() resolves a base SHA by fetching the remote whenever one
+    exists, so every manifest applied by an un-pinned test pays a live
+    `git fetch origin main` (30s timeout, network-dependent). Tests that do
+    not exercise resolution opt in to a fixed SHA instead.
+    """
+    from gateway import builder_initiative
+
+    monkeypatch.setattr(
+        builder_initiative, "resolve_base_sha", lambda _repo_root=None: "a" * 40
+    )
