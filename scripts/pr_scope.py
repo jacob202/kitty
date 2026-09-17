@@ -57,6 +57,10 @@ RISK_PATTERNS = (
     ),
     re.compile(r"^gateway/builder_(?:publish|pr_janitor)\.py$"),
     re.compile(r"^scripts/purge_.*\.py$"),
+    # Backup/restore can wipe owner data (restore does rmtree); the packet
+    # gate moves the delivery pipeline. Both must force review.
+    re.compile(r"^scripts/kitty_backup\.py$"),
+    re.compile(r"^scripts/packet_preflight\.py$"),
     re.compile(r"^.*\.env(?:\..*)?$"),
     re.compile(r"^requirements.*\.txt$"),
     re.compile(r"^pyproject\.toml$"),
@@ -82,6 +86,8 @@ IRREVERSIBLE_PATTERNS = (
     re.compile(r"^config/(?:compute_governor|providers)\.json$"),
     re.compile(r"^gateway/(?:compute_governor|paid_review_admission|model_routing)\.py$"),
     re.compile(r"^scripts/purge_.*\.py$"),
+    # Restore replaces live data (rmtree) — a later commit cannot undo it.
+    re.compile(r"^scripts/kitty_backup\.py$"),
     re.compile(r"^.*\.env(?:\..*)?$"),
     re.compile(r"^requirements.*\.txt$"),
     re.compile(r"^pyproject\.toml$"),

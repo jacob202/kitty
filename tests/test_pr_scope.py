@@ -46,6 +46,8 @@ def test_empty_change_set_is_docs_only_rather_than_full_scope() -> None:
         "scripts/pr_review.py",
         "scripts/pr_review_gate.py",
         "scripts/pr_scope.py",
+        "scripts/kitty_backup.py",
+        "scripts/packet_preflight.py",
         ".pr_agent.toml",
         "requirements.txt",
         "pyproject.toml",
