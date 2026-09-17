@@ -62,6 +62,29 @@ async def runtime_manifest() -> dict[str, object]:
     return await _hermetic_manifest()
 
 
+@app.get("/api/models")
+async def api_models() -> dict[str, object]:
+    """OpenAI-compatible model list, which the UI requires before it will talk.
+
+    ``resolveChatModels`` keeps the composer disabled unless the curated list
+    came from a live gateway AND intersects the runtime manifest's
+    ``available_models``. This stub served /models/picker but not /api/models, so
+    ``curatedReady`` was never true, the composer rendered ``disabled``, and
+    chat-real-gateway.spec.ts failed on main for every frontend PR.
+    """
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "kitty-default",
+                "object": "model",
+                "display_name": "Kitty Default",
+                "owned_by": "kitty",
+            }
+        ],
+    }
+
+
 @app.get("/models/picker")
 async def model_picker() -> dict[str, object]:
     return {

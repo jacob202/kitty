@@ -202,7 +202,12 @@ def pull_request_files(
     *,
     fetch: Callable[[str, str], Any] | None = None,
 ) -> list[str]:
-    """List every file a pull request changes, following pagination to the end."""
+    """List every file a pull request changes, following pagination to the end.
+
+    Includes each renamed file's ``previous_filename`` alongside its new name:
+    a rename off a sensitive/irreversible path must still classify as one, or
+    renaming a protected script becomes a way to dodge its review requirement.
+    """
     fetch = fetch or _github_json
     files: list[str] = []
     page = 1
@@ -214,11 +219,13 @@ def pull_request_files(
         payload = fetch(url, token)
         if not isinstance(payload, list):
             raise RuntimeError("GitHub list-files response was not a list")
-        files.extend(
-            str(item["filename"])
-            for item in payload
-            if isinstance(item, dict) and item.get("filename")
-        )
+        for item in payload:
+            if not isinstance(item, dict) or not item.get("filename"):
+                continue
+            files.append(str(item["filename"]))
+            previous = item.get("previous_filename")
+            if previous:
+                files.append(str(previous))
         if len(payload) < 100:
             return files
         page += 1
@@ -271,11 +278,14 @@ def push_scope(owner: str, repo: str, before: str, after: str, token: str) -> Sc
     if not isinstance(payload, dict) or not isinstance(payload.get("files"), list):
         raise RuntimeError("GitHub compare response did not contain a file list")
 
-    files = [
-        str(item["filename"])
-        for item in payload["files"]
-        if isinstance(item, dict) and item.get("filename")
-    ]
+    files: list[str] = []
+    for item in payload["files"]:
+        if not isinstance(item, dict) or not item.get("filename"):
+            continue
+        files.append(str(item["filename"]))
+        previous = item.get("previous_filename")
+        if previous:
+            files.append(str(previous))
     if len(files) >= COMPARE_FILE_LIMIT:
         print(
             f"Compare listed {len(files)} files and may be truncated; "
