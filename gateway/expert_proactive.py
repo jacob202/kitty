@@ -217,7 +217,7 @@ def _read_csv_tail(path: Path, tail_lines: int = 20) -> str:
     return header + "\n" + "\n".join(tail)
 
 
-def _is_duplicate_signal(expert_id: str, new_headline: str, new_analysis: str) -> bool:
+async def _is_duplicate_signal(expert_id: str, new_headline: str, new_analysis: str) -> bool:
     """Hybrid dedup: fast jaccard pre-filter, fallback to LLM."""
     recent_signals = signal_store.list_recent(limit=10, source=f"expert.{expert_id}")
     recent_texts = []
@@ -258,7 +258,8 @@ New insight: {new_headline}
 Are these two insights describing the exact same underlying issue/event, just phrased differently?
 Reply only YES or NO."""
             try:
-                res = llm_client.call_llm([{"role": "user", "content": prompt}]).strip()
+                # Sync client would freeze the whole server; run it in a worker thread.
+                res = (await asyncio.to_thread(llm_client.call_llm, [{"role": "user", "content": prompt}])).strip()
                 if res == "YES":
                     return True
             except Exception:
@@ -317,7 +318,8 @@ If this insight is semantically identical to any recent signal, reply with 'ABOR
 """
 
     try:
-        response = llm_client.call_llm([{"role": "user", "content": router_prompt}]).strip()
+        # Sync client would freeze the whole server; run it in a worker thread.
+        response = (await asyncio.to_thread(llm_client.call_llm, [{"role": "user", "content": router_prompt}])).strip()
     except Exception as e:
         logger.error(f"[cycle={cycle_id}] Expert {expert_id} failed to evaluate: {e}")
         return
@@ -380,7 +382,8 @@ Provide your final insight formatted exactly as:
 If this insight is semantically identical to any recent signal, reply with 'ABORT'.
 """
         try:
-            response = llm_client.call_llm([{"role": "user", "content": synthesis_prompt}]).strip()
+            # Sync client would freeze the whole server; run it in a worker thread.
+            response = (await asyncio.to_thread(llm_client.call_llm, [{"role": "user", "content": synthesis_prompt}])).strip()
         except Exception as e:
             logger.error(f"[cycle={cycle_id}] Expert {expert_id} failed synthesis: {e}")
             return
@@ -408,7 +411,7 @@ If this insight is semantically identical to any recent signal, reply with 'ABOR
             analysis += f"\n\n*Note: {research_note}*"
 
         # Final hybrid semantic dedup check
-        if _is_duplicate_signal(expert_id, headline, analysis):
+        if await _is_duplicate_signal(expert_id, headline, analysis):
             logger.info(f"[cycle={cycle_id}] Expert {expert_id} skipping semantically duplicate signal.")
             return
 

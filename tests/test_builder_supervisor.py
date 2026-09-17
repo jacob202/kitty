@@ -317,7 +317,9 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     # default; the free route was too slow to be worth waiting for. It also
     # publishes each succeeded packet as its own branch and pull request, parked
     # at awaiting_review — authorized 2026-09-16 and scoped in
-    # docs/ACTIVE_MISSION.md to opening a PR, never merging one.
+    # docs/ACTIVE_MISSION.md to opening a PR, never merging one. The parser
+    # regression below keeps the dispatch/CLI contract honest; #889 dispatched
+    # these flags before the CLI accepted them and every launch died on argv.
     assert argv == [
         str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1",
         "--paid", "--tier", "cheap", "--publish", "--gate", "manual", "--json",
@@ -325,6 +327,16 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     # The merge decision stays human. The auto gate is a real capability under
     # ADRs 0018/0021 and is deliberately not what unattended dispatch uses.
     assert "auto" not in argv
+    # The argv the launch actually builds must parse on the real CLI: PR #889
+    # dispatched flags run-packet did not accept, and every unattended launch
+    # died at argument parsing. Parsing the captured argv (minus the launcher
+    # path) keeps the whole seam honest, including literals _launch_run adds
+    # outside the route helper.
+    from gateway.builder_cli import build_parser
+
+    parsed = build_parser().parse_args(argv[2:])
+    assert parsed.id == "test-init-1"
+    assert parsed.packet == "p1"
     assert popen.call_args.kwargs["start_new_session"] is True
     assert popen.call_args.kwargs["shell"] is False
     assert len(popen.call_args.kwargs["pass_fds"]) == 1
