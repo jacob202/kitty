@@ -9,6 +9,7 @@ it's a fire-and-forget asyncio.create_task with no outer handler.
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -148,6 +149,131 @@ async def test_unhandled_task_failure_retires_job(tmp_path):
                 await asyncio.sleep(0)
 
             assert record.status is JobStatus.FAILED
-            assert record.error == "[Errno 28] No space left on device"
+            assert record.error == "OSError: [Errno 28] No space left on device"
+        finally:
+            await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_unhandled_failure_with_empty_exception_message_still_names_the_cause(
+    tmp_path,
+):
+    """Qodo finding: an exception with an empty ``str()`` (e.g. ``OSError()``
+    with no arguments) must not produce an empty/uninformative job error."""
+    config = _config(tmp_path)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"prompt_id": "p1"})
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://comfy.invalid"
+    ) as http_client:
+        manager = WorkerRuntime(config, client=http_client)
+        try:
+            bundle = WorkflowBundle.load(Path("workflows"), "text_to_image_v1")
+            record = JobRecord(
+                job_id="job-empty-message",
+                status=JobStatus.QUEUED,
+                request={},
+                workflow_sha256=bundle.workflow_sha256,
+                created_at="2026-09-17T00:00:00Z",
+                updated_at="2026-09-17T00:00:00Z",
+            )
+            manager.jobs[record.job_id] = record
+            request = JobRequest(
+                workflow_id="text_to_image_v1",
+                prompt="test",
+                negative_prompt="",
+                checkpoint="model.safetensors",
+                width=512,
+                height=512,
+                steps=1,
+                guidance=5,
+                seed=1,
+            )
+
+            async def _fail(_record, _request, _bundle, _checkpoint) -> None:
+                raise OSError  # no message -> str(exc) == ""
+
+            manager.execute = _fail  # type: ignore[method-assign]
+            manager.start_job(record, request, bundle, "model.safetensors")
+
+            for _ in range(50):
+                if record.status in (
+                    JobStatus.SUCCEEDED,
+                    JobStatus.FAILED,
+                    JobStatus.CANCELLED,
+                ):
+                    break
+                await asyncio.sleep(0)
+
+            assert record.status is JobStatus.FAILED
+            assert record.error, "job was retired with no recorded cause"
+            assert "OSError" in record.error
+        finally:
+            await manager.close()
+
+
+@pytest.mark.asyncio
+async def test_persist_recovers_by_clearing_outputs_when_disk_is_full(
+    tmp_path, monkeypatch
+):
+    """Qodo finding: the OSError that fails a job can also fail persisting
+    the FAILED state to the same full filesystem, leaving job.json stuck at
+    RUNNING forever. Clearing this job's own partial outputs must free
+    enough space for the terminal write to land."""
+    config = _config(tmp_path)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"prompt_id": "p1"})
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://comfy.invalid"
+    ) as http_client:
+        manager = WorkerRuntime(config, client=http_client)
+        try:
+            bundle = WorkflowBundle.load(Path("workflows"), "text_to_image_v1")
+            record = JobRecord(
+                job_id="job-disk-full",
+                status=JobStatus.RUNNING,
+                request={},
+                workflow_sha256=bundle.workflow_sha256,
+                created_at="2026-09-17T00:00:00Z",
+                updated_at="2026-09-17T00:00:00Z",
+            )
+            manager.jobs[record.job_id] = record
+
+            job_dir = config.job_root / record.job_id
+            outputs_dir = job_dir / "outputs"
+            outputs_dir.mkdir(parents=True)
+            (outputs_dir / "partial.png").write_bytes(b"x" * 10)
+            # Seed a job.json so a failed retry still leaves a prior file in
+            # place if the fix regresses.
+            manager._persist(record)
+
+            original_write_text = Path.write_text
+
+            def flaky_write_text(self: Path, *args, **kwargs):
+                if self.name == "job.json.tmp" and outputs_dir.exists() and any(
+                    outputs_dir.iterdir()
+                ):
+                    raise OSError(28, "No space left on device")
+                return original_write_text(self, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "write_text", flaky_write_text)
+
+            manager.update(record, job_status=JobStatus.FAILED, error="disk full")
+
+            assert record.status is JobStatus.FAILED
+            assert not outputs_dir.exists() or not any(outputs_dir.iterdir()), (
+                "partial outputs were not cleared to reclaim space"
+            )
+            job_json = job_dir / "job.json"
+            assert job_json.exists()
+            persisted = json.loads(job_json.read_text())
+            assert persisted["status"] == "failed", (
+                "terminal state was not persisted to disk after the disk-full "
+                "condition cleared"
+            )
         finally:
             await manager.close()

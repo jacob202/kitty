@@ -6,9 +6,11 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import math
 import os
 import re
+import shutil
 import time
 import uuid
 from copy import deepcopy
@@ -24,6 +26,8 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_COMFY_URL = "http://127.0.0.1:8188"
 DEFAULT_WORKFLOW_ROOT = Path("/opt/kitty/workflows")
@@ -44,6 +48,17 @@ SOURCE_IMAGE_ID_PATTERN = re.compile(r"^[0-9a-f]{64}\.(?:png|jpg|webp)$")
 
 class WorkerConfigurationError(RuntimeError):
     """Worker runtime configuration or workflow bundle is invalid."""
+
+
+def _describe_exception(exc: BaseException) -> str:
+    """Format an exception so the type name is always present.
+
+    ``str(exc)`` alone can be empty (for example ``OSError()`` raised with no
+    arguments), which would otherwise leave a failed job's recorded cause
+    blank.
+    """
+    message = str(exc)
+    return f"{type(exc).__name__}: {message}" if message else type(exc).__name__
 
 
 class JobStatus(StrEnum):
@@ -471,8 +486,22 @@ class WorkerRuntime:
         payload = asdict(record)
         payload["status"] = record.status.value
         tmp_path = job_dir / "job.json.tmp"
-        tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        tmp_path.replace(job_dir / "job.json")
+        try:
+            tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            tmp_path.replace(job_dir / "job.json")
+        except OSError:
+            if record.status not in TERMINAL_STATUSES:
+                raise
+            # The same disk-full condition that failed the job can also fail
+            # writing its terminal state to the same filesystem. Reclaim
+            # space from this job's now-irrelevant partial outputs and retry
+            # once so the failure is never silently lost to the disk that
+            # caused it.
+            outputs_dir = job_dir / "outputs"
+            if outputs_dir.exists():
+                shutil.rmtree(outputs_dir, ignore_errors=True)
+            tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            tmp_path.replace(job_dir / "job.json")
 
     def store_source_image(self, image_bytes: bytes) -> dict[str, Any]:
         """Persist an uploaded image where ComfyUI's LoadImage node can read it.
@@ -577,13 +606,25 @@ class WorkerRuntime:
         self, record: JobRecord, task: asyncio.Task[None]
     ) -> None:
         """Retire a job whose fire-and-forget task escaped without a terminal state."""
-        if task.cancelled() or record.status in TERMINAL_STATUSES:
+        if task.cancelled():
             return
+        # Always retrieve the task's exception, even for an already-terminal
+        # record: asyncio only warns about an exception once, so skipping
+        # this for a terminal record would both silence "Task exception was
+        # never retrieved" and drop the only evidence of what happened.
         exc = task.exception()
+        if record.status in TERMINAL_STATUSES:
+            if exc is not None:
+                logger.error(
+                    "job %s task raised after already reaching a terminal state: %s",
+                    record.job_id,
+                    _describe_exception(exc),
+                )
+            return
         self.update(
             record,
             job_status=JobStatus.FAILED,
-            error=str(exc) if exc else "worker task ended without a terminal job state",
+            error=_describe_exception(exc) if exc is not None else "worker task ended without a terminal job state",
         )
 
     async def assert_comfy_ready(self, bundle: WorkflowBundle, checkpoint: str) -> None:
@@ -683,7 +724,7 @@ class WorkerRuntime:
                     self.update(
                         record,
                         job_status=JobStatus.FAILED,
-                        error=str(exc),
+                        error=_describe_exception(exc),
                     )
             except Exception as exc:
                 # Failures outside the network/config/value-error family (for
@@ -697,7 +738,7 @@ class WorkerRuntime:
                     self.update(
                         record,
                         job_status=JobStatus.FAILED,
-                        error=str(exc),
+                        error=_describe_exception(exc),
                     )
                 raise
 
