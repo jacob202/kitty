@@ -22,6 +22,15 @@ vi.mock('../src/components/builder/BuilderProposalCard', () => ({
       return null
     }
   },
+  hasUnresolvedPendingApproval: (raw: string | null) => {
+    if (!raw) return false
+    try {
+      const parsed = JSON.parse(raw) as { state?: string; approval?: unknown }
+      return parsed.state === 'pending' && parsed.approval != null
+    } catch {
+      return false
+    }
+  },
   BuilderProposalCard: ({
     task,
     recoveryStorageKey,
@@ -226,6 +235,35 @@ describe('WorkView recovery cockpit', () => {
     expect(card).toHaveTextContent('Recover this exact proposal')
     expect(card).toHaveAttribute('data-recovery-storage-key', 'kitty.builder-proposal.work.pending')
     expect(mutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('refuses to prepare a second proposal while an approval is still unresolved, instead of overwriting its recovery checkpoint', async () => {
+    // Reproduces: preparing a new proposal overwrote the durable localStorage
+    // checkpoint that's the only way to reconcile a prior approval whose
+    // durable write may have landed even though the HTTP receipt was lost.
+    const pendingCheckpoint = JSON.stringify({
+      version: 1,
+      state: 'pending',
+      missionId: 'conv-pending-work',
+      task: { objective: 'Recover this exact proposal', instructions: 'Do the bounded work.', allowed_paths: ['README.md'] },
+      approval: { prepared_manifest: { packets: [] }, expected_manifest_sha: 'a'.repeat(64), expected_base_sha: 'b'.repeat(40), approval_nonce: 'c'.repeat(64), confirmed: true },
+    })
+    window.localStorage.setItem('kitty.builder-proposal.work.pending', pendingCheckpoint)
+    const mutateAsync = vi.fn().mockResolvedValue({
+      ok: true,
+      task: { objective: 'A different request', instructions: 'Do something else.', allowed_paths: ['other.txt'] },
+    })
+    useCompileBuilderProposal.mockReturnValue({ mutateAsync, isPending: false })
+
+    render(<WorkView isMobile={false} />)
+    await screen.findByTestId('work-builder-proposal')
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ask Builder for work' }), { target: { value: 'A different request.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare Builder proposal' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/still being reconciled/i)
+    expect(mutateAsync).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem('kitty.builder-proposal.work.pending')).toBe(pendingCheckpoint)
   })
 
 })

@@ -610,6 +610,19 @@ describe('HomeState', () => {
     expect(refetch).toHaveBeenCalled();
   });
 
+  it('shows an error card instead of silently disappearing when signals fails to load', () => {
+    (useSignals as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('Gateway returned 500'),
+    });
+    render(<HomeState />);
+    const heading = screen.getByText('signals');
+    const sectionCard = heading.parentElement!.parentElement as HTMLElement;
+    expect(within(sectionCard).getByText('unavailable')).toBeInTheDocument();
+  });
+
   // ── what's next hero ──
 
   it('puts a proposed action first in the hero, with working verbs', () => {

@@ -179,6 +179,7 @@ interface KittyContextValue {
   handleAddFiles: (files: FileList) => Promise<void>
   handleRemoveAttachment: (id: string) => void
   attachmentErrors: AttachmentError[]
+  setAttachmentErrors: React.Dispatch<React.SetStateAction<AttachmentError[]>>
   isStreaming: boolean
 
   // model
@@ -536,6 +537,8 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     setActiveChatId(chat.id)
     setInput('')
     setContextRefs([])
+    setAttachments([])
+    setAttachmentErrors([])
   }, [activeModel.id])
 
   const handleNewExpertChat = useCallback((expert: ExpertProfile) => {
@@ -549,6 +552,8 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     setActiveChatId(chat.id)
     setInput('')
     setContextRefs([])
+    setAttachments([])
+    setAttachmentErrors([])
   }, [activeModel.id])
 
   const handleToggleTheme = useCallback(() => {
@@ -568,6 +573,12 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   const handleSelectChat = useCallback((id: string) => {
     setActiveChatId(id)
     setContextRefs([])
+    // Staged attachments are already uploaded and bound server-side to the
+    // chat that was active when handleAddFiles ran (conversationId). Carrying
+    // them into a different chat would silently attach them to the wrong
+    // conversation, so they don't survive a chat switch.
+    setAttachments([])
+    setAttachmentErrors([])
     if (isMobile) setMobileSidebarOpen(false)
   }, [isMobile])
 
@@ -858,7 +869,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     chats, activeChat, activeChatId, handleNewChat, handleNewExpertChat, handleSelectChat, handleCloseChat,
     handleSend, handleStop, handleRetry, handleSwitchBranch, handleTogglePin,
     input, setInput, attachments, setAttachments, contextRefs, handleAddContextRef, handleRemoveContextRef, handleAddFiles, handleRemoveAttachment,
-    attachmentErrors, isStreaming,
+    attachmentErrors, setAttachmentErrors, isStreaming,
     activeModel, availableModels, overrideModel, setOverrideModel, handleSelectModel,
     persistChat,
     activeView, setActiveView, viewPersistenceWarning, theme, setTheme, handleToggleTheme, isMobile, sidebarCollapsed,

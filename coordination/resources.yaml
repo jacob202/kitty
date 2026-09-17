@@ -218,6 +218,7 @@ resources:
     - gateway/_work_projection_item.py
     - gateway/completion_prep.py
     - gateway/conversation_handoff.py
+    - gateway/kitty-chat/src/app/page.tsx
     - gateway/kitty-chat/src/components/ChatMessage.tsx
     - gateway/kitty-chat/src/components/HomeState.tsx
     - gateway/kitty-chat/src/components/LibraryView.tsx
@@ -236,6 +237,7 @@ resources:
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
     - gateway/kitty-chat/tests/ChatMessage.test.tsx
     - gateway/kitty-chat/tests/HomeState.test.tsx
+    - gateway/kitty-chat/tests/KittyContextAttachmentChatScoping.test.tsx
     - gateway/kitty-chat/tests/LibraryView.test.tsx
     - gateway/kitty-chat/tests/WorkViewActions.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx

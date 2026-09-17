@@ -344,7 +344,15 @@ function SignalsCard() {
   const signals = useSignals()
   const execRepair = useExecuteRepair()
 
-  if (signals.isPending || !signals.data) return null
+  if (signals.isPending) return null
+
+  if (signals.isError || !signals.data) {
+    return (
+      <SectionCard title="signals">
+        <ErrorCard message="unavailable" />
+      </SectionCard>
+    )
+  }
 
   const issues = signals.data.repairs.filter((r) => r.severity !== 'ok')
 
