@@ -42,7 +42,7 @@
         "a schedule edit that does not supply a timezone keeps the schedule's stored timezone, asserted through the route against a schedule holding America/Regina",
         "a schedule edit that does not supply a timezone keeps every other stored metadata key, including a loop description",
         "an edit that does not supply a timezone persists metadata that is still a JSON object — the stored value decodes to a dict and the loops projection stays readable — asserted at the route level against the persisted row",
-        "a stored value that does not decode to a JSON object is left alone, never silently re-encoded or replaced with an empty object",
+        "a stored value that is malformed JSON or decodes to a non-object (including null or false) makes PATCH return HTTP 409 before the update path runs, and the raw stored metadata remains byte-for-byte unchanged",
         "a schedule edit that does supply a timezone still replaces it, asserted by the existing replacement test passing unchanged",
         "creating a schedule with no timezone still stores no timezone metadata, asserted by the existing create test passing unchanged",
         "a missing schedule still returns the existing 404 message, so the Automations surface's error text does not change"
