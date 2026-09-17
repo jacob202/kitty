@@ -676,11 +676,12 @@ treated as abandoned: the caller crashed between ``reserve_attempt`` and the
 provider call, so nothing can ever come back to settle it."""
 
 RESERVATION_JOB_GRACE_SECONDS = 1_800
-"""How long a dispatch-bound reservation may stay un-settled while its job is
-still submitted/running/unknown. Must exceed
+"""How long a dispatch-bound reservation may stay un-settled before it is
+treated as unrecoverable. Must comfortably exceed
 ``image_runner._BFL_POLL_DEADLINE_SECONDS`` (900s): a legitimate BFL render
-polls the provider that long, and its exposure has to keep counting against
-the session budget the whole time. Recovery then gets a further window."""
+polls the provider that long and its exposure has to keep counting against the
+session budget the whole time. Recovery then gets a further window. Only past
+this does the budget self-heal from a settle that will never arrive."""
 
 
 @dataclass(frozen=True)
@@ -738,12 +739,11 @@ def _reservation_is_abandoned(conn: Any, row: Any, *, now: datetime) -> bool:
     status = str(job["status"] or "")
     if status in {"failed", "cancelled"}:
         return True
-    if status == "succeeded":
-        # A real charge exists. Only an explicit settle may drop it, or a
-        # crashed settlement would silently forget money the provider billed.
-        return False
-    # submitted / running / unknown: still billable. Hold the exposure across
-    # the provider polling + recovery window.
+    # succeeded / submitted / running / unknown: while the dispatch can still
+    # bill or be settled, the exposure stays counted. Past the grace window
+    # nothing will settle it (provider polling and the recovery attempt have
+    # both expired), so the budget self-heals instead of deadlocking on a
+    # crashed settle.
     return age > RESERVATION_JOB_GRACE_SECONDS
 
 

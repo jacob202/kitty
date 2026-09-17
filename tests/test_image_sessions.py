@@ -429,6 +429,43 @@ class TestSpendAndLifecycle:
         live = sessions.require_session(s.session_id)
         assert live.reserved_spend_usd == pytest.approx(0.90)
 
+    def test_unrecoverable_dispatch_exposure_self_heals_after_the_grace_window(self):
+        # The other side of the boundary: once the provider polling and
+        # recovery windows are both over, a settle that will never arrive
+        # must not deadlock the session budget forever.
+        s = sessions.create_session()
+        reserved = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.90, max_attempts=4, max_spend_usd=1.00
+        )
+        job = jobs.create_job(
+            provider="flux2",
+            operation="txt2img",
+            prompt="abandoned settle",
+            model_id="flux-2-klein-4b",
+        )
+        sessions.bind_reservation_to_job(s.session_id, reserved.reservation_id, job.job_id)
+        stale_at = (
+            datetime.now(timezone.utc)
+            - timedelta(seconds=sessions.RESERVATION_JOB_GRACE_SECONDS + 5)
+        ).isoformat()
+        import gateway.paths as gp
+
+        conn = sqlite3.connect(str(gp.KITTY_DB_FILE))
+        try:
+            conn.execute(
+                "UPDATE image_session_reservations SET updated_at = ? "
+                "WHERE reservation_id = ?",
+                (stale_at, reserved.reservation_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        fresh = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.90, max_attempts=4, max_spend_usd=1.00
+        )
+        assert fresh.session.reserved_spend_usd == pytest.approx(0.90)
+
     def test_fresh_reservation_is_not_swept_early(self):
         s = sessions.create_session()
         sessions.reserve_attempt(
