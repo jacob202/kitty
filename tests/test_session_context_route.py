@@ -36,3 +36,53 @@ def test_session_context_returns_last_topic_and_next_actions(tmp_path, monkeypat
         "open_threads": ["Finish the queue."],
         "next_actions": ["Finish the queue.", "Run verification."],
     }
+
+
+def test_live_branch_degrades_instead_of_raising_when_git_is_unavailable(monkeypatch):
+    # Reproduces: _live_branch() used check=True with no exception handling, so
+    # this read-only GET endpoint 500d whenever cwd wasn't a canonical git
+    # checkout (a container, a detached worktree, git missing entirely).
+    import subprocess
+
+    def explode(*_args, **_kwargs):
+        raise FileNotFoundError("git binary not found")
+
+    monkeypatch.setattr(subprocess, "run", explode)
+    assert session_context._live_branch() is None
+
+    def timeout(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd="git", timeout=2)
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+    assert session_context._live_branch() is None
+
+    def not_a_repo(*_args, **_kwargs):
+        raise subprocess.CalledProcessError(128, "git")
+
+    monkeypatch.setattr(subprocess, "run", not_a_repo)
+    assert session_context._live_branch() is None
+
+
+def test_session_context_endpoint_survives_a_missing_git_binary(tmp_path, monkeypatch):
+    handoff_file = tmp_path / "HANDOFF.md"
+    state_file = tmp_path / "STATE.md"
+    handoff_file.write_text("# Handoff\n\n## Resume here\n- Finish the queue.\n", encoding="utf-8")
+    state_file.write_text("# UI wiring fix pass\n\n## Next\n- Run verification.\n", encoding="utf-8")
+    monkeypatch.setattr(session_context, "HANDOFF_FILE", handoff_file)
+    monkeypatch.setattr(session_context, "STATE_FILE", state_file)
+
+    import subprocess
+
+    def explode(*_args, **_kwargs):
+        raise FileNotFoundError("git binary not found")
+
+    monkeypatch.setattr(subprocess, "run", explode)
+
+    app = FastAPI()
+    app.include_router(session_context.router)
+    client = TestClient(app)
+
+    response = client.get("/session/context")
+
+    assert response.status_code == 200
+    assert response.json()["current_branch"] is None

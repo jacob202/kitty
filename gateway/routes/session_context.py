@@ -41,19 +41,24 @@ def _bullets(sections: list[tuple[str, list[str]]], heading: str) -> list[str]:
     return []
 
 
-def _live_branch() -> str:
-    result = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=2,
-    )
+def _live_branch() -> str | None:
+    """Best-effort current branch; this is a read-only dashboard endpoint, so a
+    missing git binary or a checkout that isn't a canonical repo (a container,
+    a detached worktree, a packaged deployment) degrades this one field to
+    None instead of 500ing the whole session-context response."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
     branch = result.stdout.strip()
-    if not branch:
-        raise RuntimeError("git returned an empty current branch")
-    return branch
+    return branch or None
 
 
 def _last_session_topic(state_sections: list[tuple[str, list[str]]]) -> str | None:
