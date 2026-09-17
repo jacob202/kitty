@@ -48,6 +48,7 @@ resources:
     - tests/test_builder_run.py
     - tests/test_builder_status.py
     - tests/test_builder_supervisor.py
+    - tests/test_builder_supervisor_api.py
     - tests/test_compute_governor.py
   docs:roadmap:
     paths:
@@ -239,6 +240,7 @@ resources:
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
     - gateway/kitty-chat/tests/ChatMessage.test.tsx
     - gateway/kitty-chat/tests/HomeState.test.tsx
+    - gateway/kitty-chat/tests/KittyContextViewRecovery.test.tsx
     - gateway/kitty-chat/tests/LibraryView.test.tsx
     - gateway/kitty-chat/tests/WorkViewActions.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx
