@@ -11,10 +11,11 @@ from fastapi import FastAPI
 import gateway.context_assembler as context_assembler
 import gateway.provider_prefs as provider_prefs
 import gateway.routes.completions as completions
-import gateway.provider_prefs as provider_prefs
 from gateway.auth import BearerAuthMiddleware
 from gateway.context_assembler import ContextBundle
 from gateway.doctor import Check
+from gateway.routes import models as model_routes
+from gateway.routes import providers as provider_routes
 from gateway.routes.chats import router as chats_router
 from gateway.routes.repairs import _to_repair
 
@@ -50,6 +51,12 @@ app = FastAPI(title="Kitty Hermetic Chat Gateway")
 app.add_middleware(BearerAuthMiddleware)
 app.include_router(chats_router)
 app.include_router(completions.router)
+# Route-extract parity: /api/models + /api/model-routing moved to models.py and
+# /api/providers (GET/POST) moved to providers.py (#895). The UI resolves chat
+# availability from those endpoints, so the seam must mount them or the
+# composer disables and chat-real-gateway.spec.ts fails at toBeEnabled().
+app.include_router(model_routes.router)
+app.include_router(provider_routes.router)
 
 
 @app.get("/health")
