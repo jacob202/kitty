@@ -236,7 +236,9 @@ resources:
     - gateway/routes/chats.py
     - gateway/routes/completions.py
     - gateway/routes/conversation_handoff.py
+    - gateway/routes/models.py
     - gateway/routes/notifications.py
+    - gateway/routes/providers.py
     - gateway/routes/skills.py
     - gateway/routes/todos.py
     - gateway/voice_middleware.py

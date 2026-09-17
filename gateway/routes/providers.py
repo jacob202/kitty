@@ -19,6 +19,7 @@ from typing import Any
 
 import yaml
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from gateway.paths import ROOT
 
@@ -242,3 +243,37 @@ async def switch_provider(payload: dict[str, Any]) -> dict[str, Any]:
     _rewrite_config(target)
     _restart_litellm()
     return {"switched": True, **_active_state()}
+
+
+@router.get("/api/providers")
+async def api_providers():
+    """The direct-call fallback chain — order, key state, and what's disabled."""
+    from gateway.model_routing import describe_providers
+
+    return describe_providers()
+
+
+class ProviderPrefsRequest(BaseModel):
+    order: list[str] = Field(default_factory=list)
+    disabled: list[str] = Field(default_factory=list)
+    active: str = "auto"
+
+
+@router.post("/api/providers")
+async def api_providers_set(payload: ProviderPrefsRequest):
+    """Reorder or disable providers without editing Python or restarting."""
+    from gateway.llm_client import PROVIDERS
+    from gateway.model_routing import describe_providers
+    from gateway.provider_prefs import save_preferences
+
+    try:
+        save_preferences(
+            payload.order,
+            payload.disabled,
+            known=tuple(PROVIDERS.keys()),
+            active=payload.active,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return describe_providers()
