@@ -107,17 +107,19 @@ def _supervisor_route_argv() -> list[str]:
     return ["--paid", "--tier", route]
 
 
-# Unattended dispatch publishes each succeeded packet as its own branch and pull
-# request, and stops there. Jacob authorized publication on 2026-09-16 and
+# Unattended dispatch publishes each succeeded packet as its own branch and
+# pull request, and stops there. Jacob authorized publication on 2026-09-16 and
 # docs/ACTIVE_MISSION.md records the scope: opening a pull request, never
 # merging one.
 #
 # 'manual' is the load-bearing word. The auto gate is a real capability under
 # ADRs 0018 and 0021 — evidence-gated auto-merge with auto-revert — and it is
-# deliberately not used here. Without publication a finished packet produced a
-# branch nobody saw; with the auto gate it would merge itself. Parking each PR
-# at awaiting_review is the only shape that makes the work visible while leaving
-# the merge decision where it belongs.
+# deliberately not used here. PR #889 dispatched these flags before the CLI
+# accepted them, and every unattended launch died at argument parsing; the
+# dispatch/CLI contract now lives in PR #895 (run-packet --publish attaches the
+# succeeded packet's final report under its lease fence, then publishes), and
+# the parser regression in tests/test_builder_supervisor.py parses this argv
+# through the real CLI parser so the seam cannot drift silently again.
 SUPERVISOR_PUBLISH_ARGV = ["--publish", "--gate", "manual"]
 
 
