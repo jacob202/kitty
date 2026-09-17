@@ -208,6 +208,8 @@ resources:
     - tests/test_gate_lock.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py
+    - tests/test_health_surface.py
+    - tests/test_health_surface_parallel.py
     - tests/test_kb_effectiveness.py
     - tests/test_kitty_backup.py
     - tests/test_kitty_launcher.py

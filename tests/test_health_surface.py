@@ -165,6 +165,46 @@ async def test_pending_grants_count_surfaced():
     assert result["pending_grants"] == 2
 
 
+@pytest.mark.asyncio
+async def test_database_source_does_not_leak_raw_exception_text(monkeypatch, caplog):
+    # Reproduces: _database_source embedded the raw sqlite exception text
+    # (which can include the full database file path) directly into the
+    # `reason` field returned by the authenticated GET /health/surface route.
+    import logging
+
+    from gateway import db as kitty_db
+    from gateway import health_surface
+
+    def explode(_path):
+        raise RuntimeError("unable to open database file: /Users/jacob/secret/kitty.db")
+
+    monkeypatch.setattr(kitty_db, "connect", explode)
+    with caplog.at_level(logging.WARNING, logger="kitty.health_surface"):
+        domain = await health_surface._database_source()
+
+    assert domain.status == "unavailable"
+    assert "/Users/jacob/secret/kitty.db" not in domain.reason
+    assert any("/Users/jacob/secret/kitty.db" in record.message for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_pending_grants_source_does_not_leak_raw_exception_text(monkeypatch, caplog):
+    import logging
+
+    from gateway import action_grants, health_surface
+
+    def explode(**_kwargs):
+        raise RuntimeError("psycopg2.OperationalError: could not connect to /var/run/secret.sock")
+
+    monkeypatch.setattr(action_grants, "list_grants", explode)
+    with caplog.at_level(logging.WARNING, logger="kitty.health_surface"):
+        domain = await health_surface._pending_grants_source()
+
+    assert domain.status == "unavailable"
+    assert "/var/run/secret.sock" not in domain.reason
+    assert any("/var/run/secret.sock" in record.message for record in caplog.records)
+
+
 def test_health_surface_route_returns_projection(monkeypatch):
     import gateway.routes.status as status_routes
     from gateway.app import app
