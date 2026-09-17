@@ -158,8 +158,11 @@ function WorkBuilderRequest() {
     // Preparing a new proposal overwrites this storage key. If the current
     // card still has an unresolved approval, that's the only way left to
     // reconcile it if the durable write landed but the HTTP receipt didn't --
-    // overwriting it here would silently lose that recovery path.
-    if (hasUnresolvedPendingApproval(window.localStorage.getItem(WORK_BUILDER_PENDING_STORAGE_KEY))) {
+    // overwriting it here would silently lose that recovery path. The check
+    // reads storage through the non-throwing accessor: a blocked-storage
+    // throw here would abort the click handler before the compile mutation
+    // ever ran, which is a worse outcome than skipping a best-effort guard.
+    if (hasUnresolvedPendingApproval(WORK_BUILDER_PENDING_STORAGE_KEY)) {
       setError('A previous Builder approval is still being reconciled. Wait for it to resolve before asking for another proposal.')
       return
     }

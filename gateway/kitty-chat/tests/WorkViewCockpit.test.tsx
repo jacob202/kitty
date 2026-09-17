@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
+import type * as BuilderProposalCardModule from '../src/components/builder/BuilderProposalCard'
 
 const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, useCompileBuilderProposal, streamChat } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(), usePreflight: vi.fn(), useSupervisor: vi.fn(), useBuilderAction: vi.fn(), useCompileBuilderProposal: vi.fn(), streamChat: vi.fn(),
@@ -12,43 +13,33 @@ vi.mock('../src/lib/chat-client', () => ({
   streamChat,
   friendlyChatError: (error: unknown) => ({ kind: 'routing', userMessage: error instanceof Error ? error.message : 'routing failed' }),
 }))
-vi.mock('../src/components/builder/BuilderProposalCard', () => ({
-  readPendingBuilderProposalTask: (raw: string | null) => {
-    if (!raw) return null
-    try {
-      const parsed = JSON.parse(raw) as { state?: string; task?: unknown }
-      return parsed.state === 'pending' ? parsed.task ?? null : null
-    } catch {
-      return null
-    }
-  },
-  hasUnresolvedPendingApproval: (raw: string | null) => {
-    if (!raw) return false
-    try {
-      const parsed = JSON.parse(raw) as { state?: string; approval?: unknown }
-      return parsed.state === 'pending' && parsed.approval != null
-    } catch {
-      return false
-    }
-  },
-  BuilderProposalCard: ({
-    task,
-    recoveryStorageKey,
-    persistResolvedMission,
-  }: {
-    task: { objective: string }
-    recoveryStorageKey?: string
-    persistResolvedMission?: boolean
-  }) => (
-    <div
-      data-testid="work-builder-proposal"
-      data-recovery-storage-key={recoveryStorageKey}
-      data-persist-resolved-mission={String(persistResolvedMission)}
-    >
-      {task.objective}
-    </div>
-  ),
-}))
+vi.mock('../src/components/builder/BuilderProposalCard', async (importOriginal) => {
+  const actual = await importOriginal<typeof BuilderProposalCardModule>()
+  return {
+    // The storage readers are the code under test for blocked-storage and
+    // ambiguous-approval handling, so keep the real ones instead of restating
+    // their behavior here; only the card itself is stubbed.
+    readPendingBuilderProposalTask: actual.readPendingBuilderProposalTask,
+    hasUnresolvedPendingApproval: actual.hasUnresolvedPendingApproval,
+    BuilderProposalCard: ({
+      task,
+      recoveryStorageKey,
+      persistResolvedMission,
+    }: {
+      task: { objective: string }
+      recoveryStorageKey?: string
+      persistResolvedMission?: boolean
+    }) => (
+      <div
+        data-testid="work-builder-proposal"
+        data-recovery-storage-key={recoveryStorageKey}
+        data-persist-resolved-mission={String(persistResolvedMission)}
+      >
+        {task.objective}
+      </div>
+    ),
+  }
+})
 
 function readySnapshot() {
   return {
@@ -264,6 +255,30 @@ describe('WorkView recovery cockpit', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/still being reconciled/i)
     expect(mutateAsync).not.toHaveBeenCalled()
     expect(window.localStorage.getItem('kitty.builder-proposal.work.pending')).toBe(pendingCheckpoint)
+  })
+
+  it('still prepares a proposal when the browser blocks storage, instead of dying before the compile mutation', async () => {
+    // Reproduces: prepare() read window.localStorage.getItem outside its try
+    // block, so in a browser that refuses site data (SecurityError from any
+    // localStorage access) the click handler rejected and no proposal was ever
+    // compiled -- the guard's answer was never used, it just killed the flow.
+    const mutateAsync = vi.fn().mockResolvedValue({
+      ok: true,
+      task: { objective: 'Add the proof file', instructions: 'Add it.', allowed_paths: ['rc0-builder-proof.txt'] },
+    })
+    useCompileBuilderProposal.mockReturnValue({ mutateAsync, isPending: false })
+    const blockedRead = vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
+      throw new DOMException('The operation is insecure.', 'SecurityError')
+    })
+
+    render(<WorkView isMobile={false} />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ask Builder for work' }), { target: { value: 'Add the proof file.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare Builder proposal' }))
+
+    expect(await screen.findByTestId('work-builder-proposal')).toHaveTextContent('Add the proof file')
+    expect(mutateAsync).toHaveBeenCalledWith({ request: 'Add the proof file.' })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    blockedRead.mockRestore()
   })
 
 })

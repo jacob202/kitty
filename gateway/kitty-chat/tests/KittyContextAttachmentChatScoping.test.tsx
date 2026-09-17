@@ -107,4 +107,56 @@ describe('attachment staging is scoped to the chat it was uploaded for', () => {
     // forward) attachments staged for a different chat's conversation_id.
     expect(kittyRef!.attachments).toHaveLength(0)
   })
+
+  it('clears staged attachments when another chat is selected from the sidebar', async () => {
+    mountHarness()
+    await waitFor(() => expect(kittyRef).not.toBeNull())
+
+    const firstId = kittyRef!.activeChat!.id
+    const file = new File(['y'], 'pick.txt', { type: 'text/plain' })
+    const fileList = { 0: file, length: 1, item: (i: number) => (i === 0 ? file : null) } as unknown as FileList
+
+    // Move to a second chat and stage a file there.
+    act(() => { kittyRef!.handleNewChat() })
+    await waitFor(() => expect(kittyRef!.activeChat!.id).not.toBe(firstId))
+    uploadCaptureFile.mockResolvedValue({ artifact_id: 'art-2' })
+    await act(async () => { await kittyRef!.handleAddFiles(fileList) })
+    expect(kittyRef!.attachments).toHaveLength(1)
+
+    // Selecting the first chat is a different handler than creating a new one
+    // and must clear the staged set just the same.
+    act(() => { kittyRef!.handleSelectChat(firstId) })
+    await waitFor(() => expect(kittyRef!.activeChat!.id).toBe(firstId))
+    expect(kittyRef!.attachments).toHaveLength(0)
+  })
+
+  it('drops an upload that resolves after the chat changed', async () => {
+    mountHarness()
+    await waitFor(() => expect(kittyRef).not.toBeNull())
+
+    const chatAId = kittyRef!.activeChat!.id
+    let release: (value: { artifact_id: string }) => void = () => {}
+    uploadCaptureFile.mockReturnValue(
+      new Promise<{ artifact_id: string }>((resolve) => { release = resolve }),
+    )
+
+    const file = new File(['z'], 'late.txt', { type: 'text/plain' })
+    const fileList = { 0: file, length: 1, item: (i: number) => (i === 0 ? file : null) } as unknown as FileList
+
+    let upload: Promise<void> = Promise.resolve()
+    act(() => { upload = kittyRef!.handleAddFiles(fileList) })
+
+    // Leave the chat while the capture is still in flight.
+    act(() => { kittyRef!.handleNewChat() })
+    await waitFor(() => expect(kittyRef!.activeChat!.id).not.toBe(chatAId))
+
+    // The capture lands after the switch. It was bound to the chat we left, so
+    // it must not be staged in the chat we moved to.
+    await act(async () => {
+      release({ artifact_id: 'art-late' })
+      await upload
+    })
+
+    expect(kittyRef!.attachments).toHaveLength(0)
+  })
 })

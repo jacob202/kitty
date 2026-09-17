@@ -240,12 +240,19 @@ export function readPendingBuilderProposalTask(raw: string | null): BuilderPropo
   return readStoredApproval(raw)?.task ?? null
 }
 
-/** True when the checkpoint still holds an unresolved approval -- the only
- * way to reconcile that approval if the durable write landed but the HTTP
- * receipt was lost. Preparing a new proposal into the same storage key
- * overwrites this checkpoint, so callers must check first. */
-export function hasUnresolvedPendingApproval(raw: string | null): boolean {
-  return readStoredApproval(raw)?.pending != null
+/** True when the checkpoint at `storageKey` still holds an unresolved
+ * approval -- the only way to reconcile that approval if the durable write
+ * landed but the HTTP receipt was lost. Preparing a new proposal into the
+ * same storage key overwrites this checkpoint, so callers must check first.
+ *
+ * Reads through `safeStorage`: a browser that refuses site data (privacy
+ * mode, sandboxed embed) throws on any localStorage access, and letting that
+ * escape would abort the caller before it could act on the answer. An
+ * unreadable checkpoint reads as "nothing to reconcile", which is the safe
+ * direction -- the same browser refuses the write too, so there is no
+ * checkpoint to overwrite and no recovery path to lose. */
+export function hasUnresolvedPendingApproval(storageKey: string): boolean {
+  return readStoredApproval(safeStorage.get(storageKey))?.pending != null
 }
 
 function proposalIdentityValue(initiativeId: string, task: BuilderProposalTask): string {
