@@ -66,6 +66,21 @@ def _klein_compiled(operation: str = "txt2img", **kw) -> CompiledFlux2Request:
                                  operation=operation, **kw)
 
 
+def _advancing_clock(step: float):
+    """A monotonic-clock stand-in that advances *step* seconds per read.
+
+    Polling deadlines are wall-clock now; tests drive them through this
+    instead of asserting that mocked no-op sleeps represent elapsed time.
+    """
+    now = {"value": 0.0}
+
+    def clock() -> float:
+        now["value"] += step
+        return now["value"]
+
+    return clock
+
+
 class _FakeClient:
     """In-memory stand-in for httpx.AsyncClient used by _run_flux2."""
 
@@ -446,6 +461,7 @@ class TestFailureModes:
 
     @pytest.mark.asyncio
     async def test_polling_timeout_preserves_unknown_receipt(self, monkeypatch):
+        from gateway import image_runner
 
         submit = {
             "id": "bfl-timeout",
@@ -459,6 +475,9 @@ class TestFailureModes:
             return None
 
         monkeypatch.setattr("asyncio.sleep", _no_sleep)
+        # The deadline is wall-clock now, so the test drives time directly
+        # instead of pretending no-op sleeps consumed the 900s budget.
+        monkeypatch.setattr(image_runner, "_monotonic_seconds", _advancing_clock(100.0))
 
         compiled = _klein_compiled()
         with pytest.raises(ImageRunnerError) as exc:
@@ -514,6 +533,48 @@ class TestFailureModes:
         assert timed_out is False
         assert status == "Ready"
         assert client.calls >= 80
+
+    @pytest.mark.asyncio
+    async def test_slow_responses_consume_the_poll_deadline(self, monkeypatch):
+        # Reproduces: elapsed time was the sum of intended sleeps only, so
+        # provider responses that each burned ~150s of wall time never
+        # advanced the nominal 900s budget -- a request could poll for hours
+        # (90+ polls x the 180s HTTP timeout) before its outcome was marked
+        # unknown. Wall time spent awaiting each client.get must consume the
+        # same deadline the sleeps do.
+        from gateway import image_runner
+        from gateway.image_runner import _poll_bfl_until_done
+
+        class _SlowClient:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def get(self, url, *, headers=None):
+                self.calls += 1
+                resp = SimpleNamespace()
+                resp.status_code = 200
+                if self.calls < 20:
+                    resp.json = lambda: {"status": "Pending"}
+                else:
+                    resp.json = lambda: {"status": "Ready", "result": {"sample": "ok"}}
+                return resp
+
+        async def _no_sleep(*_args, **_kwargs):
+            return None
+
+        monkeypatch.setattr("asyncio.sleep", _no_sleep)
+        monkeypatch.setattr(image_runner, "_monotonic_seconds", _advancing_clock(150.0))
+
+        client = _SlowClient()
+        state, status, timed_out = await _poll_bfl_until_done(
+            client,
+            "https://api.bfl.ai/v1/poll/slow",
+            {"x-key": "k"},
+            is_running=lambda s: s in {"Pending", "Queued", "Processing"},
+        )
+
+        assert timed_out is True
+        assert client.calls < 20, "stopped on the wall clock, not the provider's eventual Ready"
 
 
 class TestDownloadPersist:
