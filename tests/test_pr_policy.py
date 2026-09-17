@@ -83,6 +83,10 @@ def test_risky_scope_requires_exact_head_human_approval_and_independent_review()
     assert any("risk/approved" in item for item in missing)
     assert any("exact-head risk approval" in item.lower() for item in missing)
     assert any("independent review" in item.lower() for item in missing)
+    # Regression: the file that triggered the violation must be named in the
+    # message, not just in a separate CI job's log the approver has to
+    # cross-reference.
+    assert any(path in item for item in missing)
 
     body = f"Risk approval: APPROVE {SHA} — CI gate migration explicitly approved"
     still_missing_review = pr_policy.evaluate_policy(
@@ -91,7 +95,8 @@ def test_risky_scope_requires_exact_head_human_approval_and_independent_review()
         independent_review_approved=False,
     )
     assert still_missing_review == [
-        "risky scope requires trusted independent review approval for the exact current head"
+        "risky scope requires trusted independent review approval for the exact current head "
+        f"(risky: {path})"
     ]
 
     approved = pr_policy.evaluate_policy(
@@ -119,7 +124,8 @@ def test_sensitive_but_reversible_scope_clears_on_review_without_human_approval(
             _pr(), [path], independent_review_approved=False
         )
         assert awaiting_review == [
-            "risky scope requires trusted independent review approval for the exact current head"
+            "risky scope requires trusted independent review approval for the exact current head "
+            f"(risky: {path})"
         ], path
 
         approved_by_review = pr_policy.evaluate_policy(
