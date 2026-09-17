@@ -479,9 +479,6 @@ def get_chat_messages(chat_id: str) -> dict:
     return {"conversation_id": chat_id, "messages": _recover_messages(chat_id)}
 
 
-# --- Session close (moved from routes/completions.py, 2026-09-16) ---
-
-
 class CloseSessionRequest(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     session_id: str = ""
