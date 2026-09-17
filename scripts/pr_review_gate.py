@@ -168,16 +168,28 @@ def evaluate_review_gate(
             "no-findings sentinel nor the rubric's Failure Mode / Corrective Action "
             "fields, so any claim in it is unverified."
         )
-    if any(
-        builder_review_verdict(comment, head_sha, trusted) in {"request_changes", "reject"}
-        for comment in comments
-    ):
+    # Only the most recent trusted Builder verdict for this exact head counts:
+    # comments arrive in creation order, so a later "approve" must supersede
+    # an earlier "request_changes"/"reject" for the same commit instead of
+    # being permanently outvoted by it.
+    latest_builder_verdict = next(
+        (
+            verdict
+            for verdict in (
+                builder_review_verdict(comment, head_sha, trusted)
+                for comment in reversed(comments)
+            )
+            if verdict is not None
+        ),
+        None,
+    )
+    if latest_builder_verdict in {"request_changes", "reject"}:
         return False, f"Blocking Builder review verdict exists for exact head {head_sha}."
 
     if any(agent_review_approved(comment, head_sha) for comment in comments):
         return True, f"GitHub agent review approved exact head {head_sha}."
 
-    if any(builder_review_approved(comment, head_sha, trusted) for comment in comments):
+    if latest_builder_verdict in {"approve", "approved"}:
         return True, f"Builder independent review approved exact head {head_sha}."
 
     return False, f"No trusted exact-head review approval exists for {head_sha}."

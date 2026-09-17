@@ -412,7 +412,22 @@ def main() -> None:
         pr = _github_json(pr_url, token)
         if not isinstance(pr, dict):
             raise RuntimeError("GitHub current-PR response was not an object")
+        head_sha = str((pr.get("head") or {}).get("sha") or "")
         files = _changed_files(owner, name, number, token)
+
+        # The head can advance between the two fetches above. Re-check it
+        # before evaluating scope/approval against `pr`, or a newer commit's
+        # file list could be judged against an older head's (already
+        # satisfied) approval state -- pr_review.get_pr_diff() guards the
+        # same race for the diff fetch.
+        pr_after = _github_json(pr_url, token)
+        if not isinstance(pr_after, dict):
+            raise RuntimeError("GitHub current-PR response was not an object")
+        after_sha = str((pr_after.get("head") or {}).get("sha") or "")
+        if after_sha != head_sha:
+            raise RuntimeError(
+                f"PR head changed while policy was evaluated: {head_sha[:12]} -> {after_sha[:12]}"
+            )
 
         review_approved = True
         if _risky_files(files):
