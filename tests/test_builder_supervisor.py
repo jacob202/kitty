@@ -345,6 +345,38 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     assert result["task_id"] == task_id
 
 
+def test_dead_launch_reports_the_childs_own_output(repo: Path, db_path: Path) -> None:
+    """A dispatch that dies in the launcher must name its cause, not just its exit.
+
+    The supervisor raised only "Builder child N exited before durably claiming
+    task X" while the child's own account of the failure sat unread in the
+    launch log. On 2026-09-17 that pairing let every unattended dispatch fail
+    for two days: the queue stayed at zero claimed, the receipt said only that a
+    child exited, and the operator had no way to tell a stale checkout from a
+    transient fault. The child had been printing the real reason (a rejected
+    argv) the whole time, so a dead launch now carries it.
+    """
+    kitty = repo / "kitty"
+    kitty.write_text(
+        "#!/bin/sh\n"
+        "echo 'kitty builder: error: unrecognized arguments: --publish --gate manual' >&2\n"
+        "exit 2\n",
+        encoding="utf-8",
+    )
+    kitty.chmod(0o755)
+    result_apply = _apply(db_path, "test-init-1", [_packet("p1")], repo_root=repo)
+    task_id = result_apply["packets"][0]["task_id"]
+    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": task_id}
+
+    with pytest.raises(bs.SupervisorError) as excinfo:
+        bs._launch_run(packet, repo_root=repo, db_path=db_path)
+
+    message = str(excinfo.value)
+    assert "exited before durably claiming" in message
+    assert "child output" in message
+    assert "unrecognized arguments: --publish --gate manual" in message
+
+
 def test_launch_run_refuses_when_task_already_claimed(repo: Path, db_path: Path) -> None:
     """_launch_run must not launch if the task left dispatchable state."""
     kitty = repo / "kitty"

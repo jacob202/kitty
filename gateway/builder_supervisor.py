@@ -385,9 +385,40 @@ def _scheduler_enabled() -> bool | None:
     return None
 
 
+def _launch_log_tail(log_path: Path | None, *, limit: int = 12) -> str:
+    """Return the child's own last words, for a failure that is otherwise mute.
+
+    A dispatch that dies inside the launcher — stale checkout, rejected argv,
+    missing dependency — exits before it can claim, so the durable queue records
+    nothing and the only account of the cause is this log. Without it the
+    operator sees "child 54244 exited before durably claiming task X" for every
+    packet in the queue and cannot tell a broken checkout from a transient
+    fault, while the log held the argparse error the whole time.
+    """
+    if log_path is None:
+        return ""
+    try:
+        text = Path(log_path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    return "\n".join(lines[-limit:])
+
+
+def _claim_failure(base: str, log_path: Path | None) -> str:
+    """Attach the child's output so the failure names its own cause."""
+    tail = _launch_log_tail(log_path)
+    if not tail:
+        return base
+    return f"{base}; child output (last lines):\n{tail}"
+
+
 def _wait_for_durable_claim(
     task_id: str, process: subprocess.Popen[Any], *, initial_claim_version: int,
     db_path: Path | None, timeout_seconds: float = 60.0,
+    log_path: Path | None = None,
 ) -> dict[str, Any]:
     """Wait until the detached child has durably claimed its queue task."""
     deadline = time.monotonic() + timeout_seconds
@@ -396,7 +427,13 @@ def _wait_for_durable_claim(
         if task is not None and int(task.get("claim_version") or 0) > initial_claim_version:
             return task
         if process.poll() is not None:
-            raise SupervisorError(f"Builder child {process.pid} exited before durably claiming task {task_id}")
+            raise SupervisorError(
+                _claim_failure(
+                    f"Builder child {process.pid} exited before durably claiming "
+                    f"task {task_id}",
+                    log_path,
+                )
+            )
         time.sleep(0.05)
     try:
         os.killpg(process.pid, signal.SIGTERM)
@@ -411,7 +448,13 @@ def _wait_for_durable_claim(
             except ProcessLookupError:
                 pass
             process.wait(timeout=2.0)
-    raise SupervisorError(f"Builder child {process.pid} did not durably claim task {task_id} within {timeout_seconds:g}s")
+    raise SupervisorError(
+        _claim_failure(
+            f"Builder child {process.pid} did not durably claim task {task_id} "
+            f"within {timeout_seconds:g}s",
+            log_path,
+        )
+    )
 
 
 class SupervisorLock:
@@ -805,7 +848,8 @@ def _launch_run(
             )
         dispatch_lock.handoff_to_child()
     claimed = _wait_for_durable_claim(
-        task_id, process, initial_claim_version=initial_claim_version, db_path=db_path
+        task_id, process, initial_claim_version=initial_claim_version,
+        db_path=db_path, log_path=log_path,
     )
     return {
         "status": "dispatched",
