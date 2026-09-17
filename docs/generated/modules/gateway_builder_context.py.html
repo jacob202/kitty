@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_context — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_context</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_context</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_context.py</code> &middot; Python &middot; 5 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Collision-safe, privacy-bounded context and run manifests for KittyBuilder.
+
+The Builder needs enough evidence to reproduce a decision without copying
+private prompts, runtime data, credentials, or full transcripts into durable
+state. This module records hashes, sizes, paths, and bounded operational
+metadata; the raw files remain in their existing local locations.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.builder_brief</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-sha256_file'><code class='inline'>sha256_file</code></a></td><td>Return a file digest, raising the real read error with its path.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_context_files'><code class='inline'>_context_files</code></a></td><td>Select public repository instructions and skill definitions to hash.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-build_context_manifest'><code class='inline'>build_context_manifest</code></a></td><td>Hash the bounded worker context without persisting its contents.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-write_json_atomic'><code class='inline'>write_json_atomic</code></a></td><td>Write a manifest atomically and fail loudly on storage errors.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-write_run_manifest'><code class='inline'>write_run_manifest</code></a></td><td>Persist the current run manifest snapshot atomically.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-sha256_file'><h3><code class='inline'>sha256_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def sha256_file(path: Path) -&gt; str</code></div><p>Return a file digest, raising the real read error with its path.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_context import sha256_file
+
+result = sha256_file(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_context_files'><h3><code class='inline'>_context_files</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _context_files(repo_root: Path) -&gt; list[Path]</code></div><p>Select public repository instructions and skill definitions to hash.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_context import _context_files
+
+result = _context_files(repo_root=&quot;repo_root_example&quot;)
+# result: list[Path]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_context_manifest'><h3><code class='inline'>build_context_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def build_context_manifest(repo_root: Path, bundle_path: Path, allowed_paths: list[str] | None = None) -&gt; dict[str, Any]</code></div><p>Hash the bounded worker context without persisting its contents.
+
+``allowed_paths`` (CP-07, optional) drives a mechanical resources
+lookup (``gateway.builder_brief.resources_for_paths``) — repo scripts
+and skills relevant to the packet&#x27;s scope, so workers stop
+rediscovering what already exists. Omitted paths get an empty
+resources block, never a guess.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_context import build_context_manifest
+
+result = build_context_manifest(repo_root=&quot;repo_root_example&quot;, bundle_path=&quot;bundle_path_example&quot;, allowed_paths=&quot;allowed_paths_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-write_json_atomic'><h3><code class='inline'>write_json_atomic</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def write_json_atomic(path: Path, payload: dict[str, Any]) -&gt; None</code></div><p>Write a manifest atomically and fail loudly on storage errors.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_context import write_json_atomic
+
+result = write_json_atomic(path=&quot;path_example&quot;, payload=&quot;payload_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-write_run_manifest'><h3><code class='inline'>write_run_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def write_run_manifest(path: Path, payload: dict[str, Any]) -&gt; None</code></div><p>Persist the current run manifest snapshot atomically.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_context import write_run_manifest
+
+result = write_run_manifest(path=&quot;path_example&quot;, payload=&quot;payload_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>CONTEXT_MANIFEST_VERSION</code></td><td><code class='inline'>1</code></td></tr><tr><td><code class='inline'>RUN_MANIFEST_VERSION</code></td><td><code class='inline'>1</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

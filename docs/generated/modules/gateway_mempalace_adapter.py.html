@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.mempalace_adapter — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.mempalace_adapter</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.mempalace_adapter</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/mempalace_adapter.py</code> &middot; Python &middot; 0 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>MemPalace StoreAdapter — optional local-first semantic memory backend.
+
+MemPalace (https://github.com/MemPalace/mempalace) is a local-first semantic
+memory system with verbatim storage and a typed knowledge graph (temporal
+validity windows). This adapter slots it behind ``memory_graph`` so its
+results join the unified context alongside the existing stores — delivering
+the &quot;typed relationship graph&quot; capability without a separate always-on
+service.
+
+OFF BY DEFAULT. Enable by installing the package and setting the env flag:
+
+    pip install mempalace
+    export KITTY_MEMPALACE_ENABLED=1
+
+When disabled, missing, or erroring, ``fetch`` returns ``[]`` — the unified
+context is unaffected.
+
+Phase 2 contract: ``fetch`` returns ``list[Item]``. ``format_items`` and
+``correlate`` are gone from the adapter contract; the assembler does all
+formatting.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.memory_graph</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>shutil</code>, <code class='inline'>subprocess</code></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-MemPalaceAdapter'><code class='inline'>MemPalaceAdapter</code></a></td><td>(StoreAdapter)</td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-MemPalaceAdapter'><h3><code class='inline'>MemPalaceAdapter</code></h3><p>Adapter exposing MemPalace semantic memory to the unified memory graph.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>is_enabled</code></td><td><code class='inline'>def is_enabled() -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_search</code></td><td><code class='inline'>def _search(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_parse</code></td><td><code class='inline'>def _parse(stdout: str) -&gt; list[Item]</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>from gateway.mempalace_adapter import MemPalaceAdapter
+
+obj = MemPalaceAdapter(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_ENV_FLAG</code></td><td><code class='inline'>&#x27;KITTY_MEMPALACE_ENABLED&#x27;</code></td></tr><tr><td><code class='inline'>_SEARCH_LIMIT</code></td><td><code class='inline'>5</code></td></tr><tr><td><code class='inline'>_TIMEOUT_S</code></td><td><code class='inline'>10</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

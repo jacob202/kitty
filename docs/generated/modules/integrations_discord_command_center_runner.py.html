@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>integrations.discord_command_center.runner — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">integrations.discord_command_center.runner</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>integrations.discord_command_center.runner</code></h1>
+<p class='muted small'>Source: <code class='inline'>integrations/discord_command_center/runner.py</code> &middot; Python &middot; 6 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>.config</code>, <code class='inline'>.models</code>, <code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>collections.abc</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>signal</code>, <code class='inline'>subprocess</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-build_child_environment'><code class='inline'>build_child_environment</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-build_sandbox_profile'><code class='inline'>build_sandbox_profile</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-_git_metadata_read_paths'><code class='inline'>_git_metadata_read_paths</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_terminal_evidence'><code class='inline'>_terminal_evidence</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_escape_sbpl'><code class='inline'>_escape_sbpl</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_signal_process_group'><code class='inline'>_signal_process_group</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-build_child_environment'><h3><code class='inline'>build_child_environment</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def build_child_environment(source: Mapping[str, str] | None = None) -&gt; dict[str, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.runner import build_child_environment
+
+result = build_child_environment(source=&quot;source_example&quot;  # default: None)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_sandbox_profile'><h3><code class='inline'>build_sandbox_profile</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def build_sandbox_profile(cwd: Path, environment: Mapping[str, str], command: Sequence[str] | None = None) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.runner import build_sandbox_profile
+
+result = build_sandbox_profile(cwd=&quot;cwd_example&quot;, environment=&quot;environment_example&quot;, command=&quot;command_example&quot;  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_git_metadata_read_paths'><h3><code class='inline'>_git_metadata_read_paths</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _git_metadata_read_paths(worktree: Path) -&gt; tuple[list[str], list[str]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.runner import _git_metadata_read_paths
+
+result = _git_metadata_read_paths(worktree=&quot;worktree_example&quot;)
+# result: tuple[list[str], list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_terminal_evidence'><h3><code class='inline'>_terminal_evidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _terminal_evidence(line: bytes) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.runner import _terminal_evidence
+
+result = _terminal_evidence(line=...)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_escape_sbpl'><h3><code class='inline'>_escape_sbpl</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _escape_sbpl(value: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.runner import _escape_sbpl
+
+result = _escape_sbpl(value=&quot;value_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_signal_process_group'><h3><code class='inline'>_signal_process_group</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _signal_process_group(process: asyncio.subprocess.Process, sig: int) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.runner import _signal_process_group
+
+result = _signal_process_group(process=..., sig=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-SubprocessRunner'><code class='inline'>SubprocessRunner</code></a></td><td></td><td>4 methods</td></tr></table></div>
+<div class='card' id='cls-SubprocessRunner'><h3><code class='inline'>SubprocessRunner</code></h3><p>Undocumented class.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, sandbox_executable: str = &#x27;/usr/bin/sandbox-exec&#x27;, kill_grace_seconds: int = 10, max_lines: int = 200</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>stream</code></td><td><code class='inline'>async def stream(self, command: Sequence[str], cwd: Path, environment: Mapping[str, str], timeout_seconds: int) -&gt; Async</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>_terminate</code></td><td><code class='inline'>async def _terminate(self, process: asyncio.subprocess.Process) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_sandbox_command</code></td><td><code class='inline'>def _sandbox_command(self, command: tuple[str, ...], cwd: Path, environment: Mapping[str, str]) -&gt; tuple[str, ...]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+i
+n
+t
+e
+g
+r
+a
+t
+i
+o
+n
+s
+.
+d
+i
+s
+c
+o
+r
+d
+_
+c
+o
+m
+m
+a
+n
+d
+_
+c
+e
+n
+t
+e
+r
+.
+r
+u
+n
+n
+e
+r
+ 
+i
+m
+p
+o
+r
+t
+ 
+S
+u
+b
+p
+r
+o
+c
+e
+s
+s
+R
+u
+n
+n
+e
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+S
+u
+b
+p
+r
+o
+c
+e
+s
+s
+R
+u
+n
+n
+e
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_ENV_ALLOWLIST</code></td><td><code class='inline'>{&#x27;HOME&#x27;, &#x27;USER&#x27;, &#x27;LOGNAME&#x27;, &#x27;PATH&#x27;, &#x27;SHELL&#x27;, &#x27;TMPDIR&#x27;, &#x27;TMP&#x27;, &#x27;TEMP&#x27;, &#x27;LANG&#x27;, &#x27;LC_ALL&#x27;, &#x27;TERM&#x27;, &#x27;CODEX_HOME&#x27;, &#x27;CODEX_AUT</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='integrations_discord_command_center_adapters.py.html'><code class='inline'>integrations.discord_command_center.adapters</code></a></li><li><a href='integrations_discord_command_center_bot.py.html'><code class='inline'>integrations.discord_command_center.bot</code></a></li><li><a href='integrations_discord_command_center_config.py.html'><code class='inline'>integrations.discord_command_center.config</code></a></li><li><a href='integrations_discord_command_center_models.py.html'><code class='inline'>integrations.discord_command_center.models</code></a></li><li><a href='integrations_discord_command_center_runtime.py.html'><code class='inline'>integrations.discord_command_center.runtime</code></a></li><li><a href='integrations_discord_command_center_scrub.py.html'><code class='inline'>integrations.discord_command_center.scrub</code></a></li><li><a href='integrations_discord_command_center_service.py.html'><code class='inline'>integrations.discord_command_center.service</code></a></li><li><a href='integrations_discord_command_center_smoke.py.html'><code class='inline'>integrations.discord_command_center.smoke</code></a></li><li><a href='integrations_discord_command_center_tasks.py.html'><code class='inline'>integrations.discord_command_center.tasks</code></a></li><li><a href='integrations_discord_command_center_workspace.py.html'><code class='inline'>integrations.discord_command_center.workspace</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

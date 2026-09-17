@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.push — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.push</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.push</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/push.py</code> &middot; Python &middot; 12 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Push notification façade (P3, docs/packets/015).
+
+The only path from &quot;Kitty needs Jacob to see this&quot; to a delivered iMessage
+or Pushover push. Both transports already exist (gateway.imessage,
+gateway.notify) — this module adds no new transport, only channel
+resolution, quiet hours, dedupe, and an append-only audit log.
+
+Pushes are deliveries, not actions: no action-queue rows, no new tier
+kinds. Every attempt (successful or not) is appended to
+``logs/push_log.jsonl``.
+
+Public API:
+  push_to_jacob(message, *, kind=&quot;info&quot;, title=&quot;Kitty&quot;, url=None,
+                 dedupe_key=None) -&gt; bool</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.jsonl_tail</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_channels'><code class='inline'>_channels</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_imessage_recipient'><code class='inline'>_imessage_recipient</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_quiet_hours_window'><code class='inline'>_quiet_hours_window</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_in_quiet_hours'><code class='inline'>_in_quiet_hours</code></a></td><td>``window`` like &quot;23:00-08:00&quot; (may wrap past midnight). Local time.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_rotated_log_path'><code class='inline'>_rotated_log_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_recent_log_entries'><code class='inline'>_recent_log_entries</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_rotate_log_if_needed'><code class='inline'>_rotate_log_if_needed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_log_attempt'><code class='inline'>_log_attempt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_already_sent'><code class='inline'>_already_sent</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_send_imessage'><code class='inline'>_send_imessage</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_send_pushover'><code class='inline'>_send_pushover</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-push_to_jacob'><code class='inline'>push_to_jacob</code></a></td><td>Deliver ``message`` to Jacob&#x27;s phone. Returns True iff a channel accepted it.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr></table></div>
+<div class='card' id='fn-_channels'><h3><code class='inline'>_channels</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _channels() -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _channels
+
+result = _channels()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_imessage_recipient'><h3><code class='inline'>_imessage_recipient</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _imessage_recipient() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _imessage_recipient
+
+result = _imessage_recipient()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_quiet_hours_window'><h3><code class='inline'>_quiet_hours_window</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _quiet_hours_window() -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _quiet_hours_window
+
+result = _quiet_hours_window()
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_in_quiet_hours'><h3><code class='inline'>_in_quiet_hours</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _in_quiet_hours(window: str, now: datetime) -&gt; bool</code></div><p>``window`` like &quot;23:00-08:00&quot; (may wrap past midnight). Local time.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _in_quiet_hours
+
+result = _in_quiet_hours(window=&quot;window_example&quot;, now=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_rotated_log_path'><h3><code class='inline'>_rotated_log_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _rotated_log_path(index: int) -&gt; Any</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _rotated_log_path
+
+result = _rotated_log_path(index=0)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_recent_log_entries'><h3><code class='inline'>_recent_log_entries</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _recent_log_entries() -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _recent_log_entries
+
+result = _recent_log_entries()
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_rotate_log_if_needed'><h3><code class='inline'>_rotate_log_if_needed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _rotate_log_if_needed() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _rotate_log_if_needed
+
+result = _rotate_log_if_needed()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_log_attempt'><h3><code class='inline'>_log_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _log_attempt(kind: str, title: str, channel: str, ok: bool, dedupe_key: str | None) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _log_attempt
+
+result = _log_attempt(kind=&quot;kind_example&quot;, title=&quot;title_example&quot;, channel=&quot;channel_example&quot;, ok=True, dedupe_key=&quot;dedupe_key_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_already_sent'><h3><code class='inline'>_already_sent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _already_sent(dedupe_key: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _already_sent
+
+result = _already_sent(dedupe_key=&quot;dedupe_key_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_send_imessage'><h3><code class='inline'>_send_imessage</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _send_imessage(message: str, title: str, url: str | None) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _send_imessage
+
+result = _send_imessage(message=&quot;message_example&quot;, title=&quot;title_example&quot;, url=&quot;url_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_send_pushover'><h3><code class='inline'>_send_pushover</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _send_pushover(message: str, title: str, url: str | None) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import _send_pushover
+
+result = _send_pushover(message=&quot;message_example&quot;, title=&quot;title_example&quot;, url=&quot;url_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-push_to_jacob'><h3><code class='inline'>push_to_jacob</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def push_to_jacob(message: str, kind: str = &#x27;info&#x27;, title: str = &#x27;Kitty&#x27;, url: str | None = None, dedupe_key: str | None = None) -&gt; bool | dict</code></div><p>Deliver ``message`` to Jacob&#x27;s phone. Returns True iff a channel accepted it.
+
+``url`` is passed through to channels that support it (Pushover); iMessage
+has no separate url field and ignores it.
+
+Returns dict with {&quot;ok&quot;: bool, &quot;reason&quot;: str} when detailed result needed,
+otherwise bool for backward compatibility.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.push import push_to_jacob
+
+result = push_to_jacob(message=&quot;message_example&quot;, kind=&quot;kind_example&quot;  # default: &#x27;info&#x27;, title=&quot;title_example&quot;  # default: &#x27;Kitty&#x27;, url=&quot;url_example&quot;  # default: None, dedupe_key=&quot;dedupe_key_example&quot;  # default: None)
+# result: bool | dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>PUSH_LOG_FILE</code></td><td><code class='inline'>LOGS_DIR / &#x27;push_log.jsonl&#x27;</code></td></tr><tr><td><code class='inline'>USER_PROFILE_PATH</code></td><td><code class='inline'>CONFIG_DIR / &#x27;user_profile.json&#x27;</code></td></tr><tr><td><code class='inline'>DEDUPE_WINDOW_SECONDS</code></td><td><code class='inline'>24 * 60 * 60</code></td></tr><tr><td><code class='inline'>PUSH_LOG_MAX_BYTES</code></td><td><code class='inline'>5 * 1024 * 1024</code></td></tr><tr><td><code class='inline'>PUSH_LOG_ROTATIONS</code></td><td><code class='inline'>3</code></td></tr><tr><td><code class='inline'>PUSH_LOG_TAIL_LINES</code></td><td><code class='inline'>20000</code></td></tr><tr><td><code class='inline'>_SENDERS</code></td><td><code class='inline'>dict[str, Callable[[str, str, str | None], bool]]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

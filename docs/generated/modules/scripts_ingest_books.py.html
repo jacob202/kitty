@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.ingest_books — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.ingest_books</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.ingest_books</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/ingest_books.py</code> &middot; Python &middot; 10 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Book ingestion — 5-expert structure for wicked-fast retrieval.
+
+Scans source folders, deduplicates, routes each book to the right expert domain,
+and ingests through knowledge.ingest() with rich metadata.
+
+Experts:
+    builder  — code, systems, engineering, math, physics, electronics, automotive
+    body     — health, nutrition, anatomy, physical therapy, exercise
+    mind     — psychology, habits, cognition, learning, influence, memory
+    wisdom   — philosophy, ethics, meaning, systems thinking, meditation
+    voice    — communication, conversation, leadership, negotiation
+
+Usage:
+    python3.12 scripts/ingest_books.py                      # dry run
+    python3.12 scripts/ingest_books.py --execute             # actually ingest
+    python3.12 scripts/ingest_books.py --execute --expert builder  # one expert only
+    python3.12 scripts/ingest_books.py --execute --limit 10        # first 10 books</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_content_hash'><code class='inline'>_content_hash</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_clean_name'><code class='inline'>_clean_name</code></a></td><td>Clean a filename into a readable source label.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_detect_chapter_group'><code class='inline'>_detect_chapter_group</code></a></td><td>Detect if a file is a chapter fragment. Returns group key or None.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_route_to_expert'><code class='inline'>_route_to_expert</code></a></td><td>Route a book to an expert. Returns (expert_name, tags).</td><td><span class='pill'>complex</span><span class='muted small'>(22)</span></td></tr><tr><td><a href='#fn-scan_all_sources'><code class='inline'>scan_all_sources</code></a></td><td>Scan all source folders for ingestible files.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-deduplicate'><code class='inline'>deduplicate</code></a></td><td>Deduplicate by content hash, keeping best format.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-group_chapters'><code class='inline'>group_chapters</code></a></td><td>Group chapter fragments. Each fragment gets the same expert + source_label.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-route_all'><code class='inline'>route_all</code></a></td><td>Route all candidates to experts. Returns (routed, skipped_count).</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-ingest_book'><code class='inline'>ingest_book</code></a></td><td>Ingest a single book.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(19)</span></td></tr></table></div>
+<div class='card' id='fn-_content_hash'><h3><code class='inline'>_content_hash</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _content_hash(path: Path) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ingest_books import _content_hash
+
+result = _content_hash(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_clean_name'><h3><code class='inline'>_clean_name</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _clean_name(name: str) -&gt; str</code></div><p>Clean a filename into a readable source label.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ingest_books import _clean_name
+
+result = _clean_name(name=&quot;name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_detect_chapter_group'><h3><code class='inline'>_detect_chapter_group</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _detect_chapter_group(path: Path) -&gt; str | None</code></div><p>Detect if a file is a chapter fragment. Returns group key or None.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ingest_books import _detect_chapter_group
+
+result = _detect_chapter_group(path=&quot;path_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_route_to_expert'><h3><code class='inline'>_route_to_expert</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (22)</span></h3><div class='sig'><code>def _route_to_expert(path: Path) -&gt; tuple[str, list[str]]</code></div><p>Route a book to an expert. Returns (expert_name, tags).
+
+Priority: keyword match (high confidence) → path+keyword (medium) → skip.
+No match = skip. We don&#x27;t force books into experts.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ingest_books import _route_to_expert
+
+result = _route_to_expert(path=&quot;path_example&quot;)
+# result: tuple[str, list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-scan_all_sources'><h3><code class='inline'>scan_all_sources</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def scan_all_sources() -&gt; list[BookCandidate]</code></div><p>Scan all source folders for ingestible files.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ingest_books import scan_all_sources
+
+result = scan_all_sources()
+# result: list[BookCandidate]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-deduplicate'><h3><code class='inline'>deduplicate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def deduplicate(candidates: list[BookCandidate]) -&gt; list[BookCandidate]</code></div><p>Deduplicate by content hash, keeping best format.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ingest_books import deduplicate
+
+result = deduplicate(candidates=[])
+# result: list[BookCandidate]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-group_chapters'><h3><code class='inline'>group_chapters</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def group_chapters(candidates: list[BookCandidate]) -&gt; list[BookCandidate]</code></div><p>Group chapter fragments. Each fragment gets the same expert + source_label.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ingest_books import group_chapters
+
+result = group_chapters(candidates=[])
+# result: list[BookCandidate]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-route_all'><h3><code class='inline'>route_all</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def route_all(candidates: list[BookCandidate]) -&gt; tuple[list[BookCandidate], int]</code></div><p>Route all candidates to experts. Returns (routed, skipped_count).</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ingest_books import route_all
+
+result = route_all(candidates=[])
+# result: tuple[list[BookCandidate], int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-ingest_book'><h3><code class='inline'>ingest_book</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def ingest_book(candidate: BookCandidate, dry_run: bool = True) -&gt; dict</code></div><p>Ingest a single book.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.ingest_books import ingest_book
+
+    result = await ingest_book()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (19)</span></h3><div class='sig'><code>async def main()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.ingest_books import main
+
+    result = await main()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-BookCandidate'><code class='inline'>BookCandidate</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-Manifest'><code class='inline'>Manifest</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-BookCandidate'><h3><code class='inline'>BookCandidate</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> path: Path, source_root: Path, ext: str, format_priority: int, content_hash: str, size_bytes: int, expert: str, source_label: str, tags: list[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from scripts.ingest_books import BookCandidate
+
+obj = BookCandidate(...)</pre></div>
+<div class='card' id='cls-Manifest'><h3><code class='inline'>Manifest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> candidates: list[BookCandidate], skipped_duplicates: int, skipped_junk: int, skipped_no_expert: int</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from scripts.ingest_books import Manifest
+
+obj = Manifest(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SOURCES</code></td><td><code class='inline'>[Path(&#x27;/Volumes/DATA/books_canonical_v2&#x27;), Path(&#x27;/Volumes/DATA/Books/ingestion_curated_deep_ocr&#x27;), Path(&#x27;/Volumes/DATA/B</code></td></tr><tr><td><code class='inline'>INGESTIBLE_EXTENSIONS</code></td><td><code class='inline'>{&#x27;.pdf&#x27;, &#x27;.epub&#x27;, &#x27;.mobi&#x27;, &#x27;.azw3&#x27;, &#x27;.md&#x27;, &#x27;.txt&#x27;, &#x27;.rst&#x27;, &#x27;.docx&#x27;}</code></td></tr><tr><td><code class='inline'>MIN_FILE_SIZE_BYTES</code></td><td><code class='inline'>5000</code></td></tr><tr><td><code class='inline'>JUNK_PATTERNS</code></td><td><code class='inline'>[&#x27;jacob brizinski cv&#x27;, &#x27;jacob brizinski resume&#x27;, &#x27;empty template&#x27;, &#x27;document_cover_image&#x27;, &#x27;cover image&#x27;, &#x27;file id.diz&#x27;,</code></td></tr><tr><td><code class='inline'>JUNK_DIRS</code></td><td><code class='inline'>{&#x27;FromDocuments&#x27;, &#x27;Empty template&#x27;, &#x27;_archive&#x27;, &#x27;.DS_Store&#x27;}</code></td></tr><tr><td><code class='inline'>FORMAT_PRIORITY</code></td><td><code class='inline'>{&#x27;.md&#x27;: 1, &#x27;.txt&#x27;: 1, &#x27;.rst&#x27;: 1, &#x27;.epub&#x27;: 2, &#x27;.pdf&#x27;: 3, &#x27;.docx&#x27;: 3, &#x27;.mobi&#x27;: 4, &#x27;.azw3&#x27;: 4}</code></td></tr><tr><td><code class='inline'>EXPERTS</code></td><td><code class='inline'>[{&#x27;name&#x27;: &#x27;builder&#x27;, &#x27;description&#x27;: &#x27;Code, systems, engineering, math, physics, electronics, automotive, MLOps&#x27;, &#x27;collec</code></td></tr><tr><td><code class='inline'>EXPERT_NAMES</code></td><td><code class='inline'>{e[&#x27;name&#x27;] for e in EXPERTS}</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

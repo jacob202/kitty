@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.action_grants — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.action_grants</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.action_grants</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/action_grants.py</code> &middot; Python &middot; 27 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Scoped user grants evaluated at the action execution boundary (issue #554).
+
+``config/action_tiers.json`` stays the baseline authority: which action kinds
+exist, which are hard-disabled, and the minimum approval floor for each. That is
+code/config truth, not user preference.
+
+This module records the *user&#x27;s* standing decisions on top of that baseline —
+allow / ask / deny, bound to a scope, optionally expiring, session-bound, or
+capped by a spend ceiling — and answers one question for the action queue:
+
+    may this specific proposal dispatch right now, or must the user be asked?
+
+A grant can authorize an action the baseline would have asked about. It can
+never make a disabled kind, a missing executor, or a domain refusal valid:
+``action_queue`` checks those first and never reaches this module for them.
+
+Decision precedence, fail-closed (issue #554):
+
+1. hard-disabled / missing executor / domain refusal → deny (enforced upstream)
+2. matching explicit scoped deny → deny
+3. baseline requires approval and a valid matching standing allow exists → allow
+4. valid one-shot approval for this exact proposal → allow
+5. otherwise → ask
+
+More specific scope outranks broader scope. Within one specificity, the
+fail-closed order deny &gt; ask &gt; allow decides. Expired, revoked, or
+tier-escalated grants never authorize.
+
+Public API:
+  evaluate(*, capability, tier, status, scope_type, scope_id, session_id,
+           estimated_cost_usd, now) -&gt; Decision
+  create_grant(*, capability, decision, granted_tier, reason, ...) -&gt; dict
+  revoke_grant(grant_id) -&gt; dict
+  get_grant(grant_id) -&gt; dict | None
+  list_grants(*, capability=None, include_inactive=False, limit=100) -&gt; list[dict]
+  record_spend(grant_id, amount_usd) -&gt; dict
+  approval_posture(*, project_id=None, session_id=None) -&gt; dict</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Apply pending migrations. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-evaluate'><code class='inline'>evaluate</code></a></td><td>Decide whether this proposal may dispatch now.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_baseline_decision'><code class='inline'>_baseline_decision</code></a></td><td>No grant matched: fall back to the signed sheet&#x27;s own policy.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_allow_within_budget'><code class='inline'>_allow_within_budget</code></a></td><td>Apply a standing allow, failing closed for spend-capped grants.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_winning_grant'><code class='inline'>_winning_grant</code></a></td><td>Most specific applicable grant, fail-closed within a specificity tier.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_applies'><code class='inline'>_applies</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_scope_matches'><code class='inline'>_scope_matches</code></a></td><td>Match the small hierarchy needed by MCP without becoming a generic ACL.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_specificity'><code class='inline'>_specificity</code></a></td><td>Scope-type narrowness only. Session binding is a separate, strictly</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_is_session_bound'><code class='inline'>_is_session_bound</code></a></td><td>Final tie-break after scope and fail-closed decision precedence.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_scope_label'><code class='inline'>_scope_label</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-create_grant'><code class='inline'>create_grant</code></a></td><td>Record one standing decision with explicit provenance.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-grant_from_approved_action'><code class='inline'>grant_from_approved_action</code></a></td><td>Mint the standing allow behind the UI&#x27;s &quot;always allow here&quot; choice.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_remember_reason'><code class='inline'>_remember_reason</code></a></td><td>The preview the user saw, trimmed to the column&#x27;s bound.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-revoke_grant'><code class='inline'>revoke_grant</code></a></td><td>Stop a grant authorizing anything from now on. Past receipts stay.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-record_spend'><code class='inline'>record_spend</code></a></td><td>Reserve spend against a budget-limited grant, before the side effect runs.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-release_spend'><code class='inline'>release_spend</code></a></td><td>Return a reservation whose side effect did not happen.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_grant'><code class='inline'>get_grant</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_grants'><code class='inline'>list_grants</code></a></td><td>Grants newest first. Active-only unless ``include_inactive``.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-approval_posture'><code class='inline'>approval_posture</code></a></td><td>Effective grant posture for the runtime manifest.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_matches'><code class='inline'>_matches</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_summarize'><code class='inline'>_summarize</code></a></td><td>Manifest-safe view: what is permitted where, not why or by whom.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_active_grants'><code class='inline'>_active_grants</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_require'><code class='inline'>_require</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-validate_scope'><code class='inline'>validate_scope</code></a></td><td>Raise :class:`GrantValidationError` unless this is a scope a grant can match.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_validate_scope'><code class='inline'>_validate_scope</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_require_text'><code class='inline'>_require_text</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_row_to_grant'><code class='inline'>_row_to_grant</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Apply pending migrations. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-evaluate'><h3><code class='inline'>evaluate</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def evaluate(capability: str, tier: str, status: str, scope_type: str = &#x27;global&#x27;, scope_id: str = &#x27;&#x27;, session_id: str | None = None, estimated_cost_usd: float | None = None, auto_execute_tiers: frozenset[str] | set[str] = frozenset({&#x27;T0&#x27;, &#x27;T1&#x27;}), now: float | None = None) -&gt; Decision</code></div><p>Decide whether this proposal may dispatch now.
+
+``tier`` is the tier the signed sheet carries *now*, not the tier stamped on
+the row when it was proposed — the action queue already resolves that, and
+an escalation must gate a queued action rather than be bypassed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import evaluate
+
+result = evaluate(capability=&quot;capability_example&quot;, tier=&quot;tier_example&quot;, status=&quot;status_example&quot;, scope_type=&quot;scope_type_example&quot;  # default: &#x27;global&#x27;, scope_id=&quot;scope_id_example&quot;  # default: &#x27;&#x27;, session_id=&quot;session_id_example&quot;  # default: None, estimated_cost_usd=0.0  # default: None, auto_execute_tiers=&quot;auto_execute_tiers_example&quot;  # default: frozenset({&#x27;T0&#x27;, &#x27;T1&#x27;}), now=0.0  # default: None)
+# result: Decision</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_baseline_decision'><h3><code class='inline'>_baseline_decision</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _baseline_decision(tier: str, status: str, auto_execute_tiers: frozenset[str] | set[str]) -&gt; Decision</code></div><p>No grant matched: fall back to the signed sheet&#x27;s own policy.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _baseline_decision
+
+result = _baseline_decision(tier=&quot;tier_example&quot;, status=&quot;status_example&quot;, auto_execute_tiers=&quot;auto_execute_tiers_example&quot;)
+# result: Decision</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_allow_within_budget'><h3><code class='inline'>_allow_within_budget</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _allow_within_budget(grant: dict[str, Any], capability: str, where: str, estimated_cost_usd: float | None) -&gt; Decision</code></div><p>Apply a standing allow, failing closed for spend-capped grants.
+
+Proposal-supplied estimates are advisory data, not spending authority. Until
+the executor/provider supplies a server-owned estimate and reconciles actual
+cost, a budget-limited grant can never auto-authorize dispatch.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _allow_within_budget
+
+result = _allow_within_budget(grant=&quot;grant_example&quot;, capability=&quot;capability_example&quot;, where=&quot;where_example&quot;, estimated_cost_usd=0.0)
+# result: Decision</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_winning_grant'><h3><code class='inline'>_winning_grant</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _winning_grant(capability: str, scope_type: str, scope_id: str, session_id: str | None, tier: str, now: float) -&gt; dict[str, Any] | None</code></div><p>Most specific applicable grant, fail-closed within a specificity tier.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _winning_grant
+
+result = _winning_grant(capability=&quot;capability_example&quot;, scope_type=&quot;scope_type_example&quot;, scope_id=&quot;scope_id_example&quot;, session_id=&quot;session_id_example&quot;, tier=&quot;tier_example&quot;, now=0.0)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_applies'><h3><code class='inline'>_applies</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _applies(grant: dict[str, Any], scope_type: str, scope_id: str, session_id: str | None, tier: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _applies
+
+result = _applies(grant=&quot;grant_example&quot;, scope_type=&quot;scope_type_example&quot;, scope_id=&quot;scope_id_example&quot;, session_id=&quot;session_id_example&quot;, tier=&quot;tier_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_scope_matches'><h3><code class='inline'>_scope_matches</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _scope_matches(grant: dict[str, Any], scope_type: str, scope_id: str) -&gt; bool</code></div><p>Match the small hierarchy needed by MCP without becoming a generic ACL.
+
+Tool targets use the canonical ``&lt;server&gt;/&lt;tool&gt;`` id. A server grant
+therefore applies to all tools under that server, while an exact tool grant
+is more specific and can override it (for example allow server, deny delete).
+Other scope types remain exact-match only.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _scope_matches
+
+result = _scope_matches(grant=&quot;grant_example&quot;, scope_type=&quot;scope_type_example&quot;, scope_id=&quot;scope_id_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_specificity'><h3><code class='inline'>_specificity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _specificity(grant: dict[str, Any]) -&gt; int</code></div><p>Scope-type narrowness only. Session binding is a separate, strictly
+lower-priority tie-break (see :func:`_is_session_bound`) — it must never
+let a session-scoped grant at a broader scope outrank a narrower one that
+isn&#x27;t session-bound (AUTH-002).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _specificity
+
+result = _specificity(grant=&quot;grant_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_session_bound'><h3><code class='inline'>_is_session_bound</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _is_session_bound(grant: dict[str, Any]) -&gt; bool</code></div><p>Final tie-break after scope and fail-closed decision precedence.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _is_session_bound
+
+result = _is_session_bound(grant=&quot;grant_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_scope_label'><h3><code class='inline'>_scope_label</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _scope_label(scope_type: str, scope_id: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _scope_label
+
+result = _scope_label(scope_type=&quot;scope_type_example&quot;, scope_id=&quot;scope_id_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_grant'><h3><code class='inline'>create_grant</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def create_grant(capability: str, decision: str, granted_tier: str, reason: str, scope_type: str = &#x27;global&#x27;, scope_id: str = &#x27;&#x27;, session_id: str | None = None, expires_at: float | None = None, budget_limit_usd: float | None = None, created_by: str, user_confirmed: bool = False) -&gt; dict[str, Any]</code></div><p>Record one standing decision with explicit provenance.
+
+A permission-widening ``allow`` is accepted only from a user-confirmed
+boundary. Gateway bearer authentication alone is intentionally insufficient.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import create_grant
+
+result = create_grant()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-grant_from_approved_action'><h3><code class='inline'>grant_from_approved_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def grant_from_approved_action(action: dict[str, Any], expires_at: float | None = None, session_only: bool = False) -&gt; dict[str, Any]</code></div><p>Mint the standing allow behind the UI&#x27;s &quot;always allow here&quot; choice.
+
+This is the user-confirmed boundary :func:`create_grant` demands, and the
+only way a permission-widening grant can be created in production. It is
+reachable solely from the approve route, after ``action_queue.approve()``
+has moved a genuinely ``proposed`` row to ``approved`` — so a caller cannot
+mint an allow without a real proposal the user acted on.
+
+Every field that decides what is permitted is read off the action row, never
+supplied by the caller: capability, risk tier and scope come from the
+proposal, and the reason is the preview the user was actually shown. A
+client approving a ``todo.create`` for one project therefore cannot walk
+away holding a global ``email.send`` grant.
+
+The caller chooses only how long it lasts. There is deliberately no way to
+widen the scope past the action&#x27;s own — &quot;here&quot; means where the approved
+action was, and nowhere else.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import grant_from_approved_action
+
+result = grant_from_approved_action(action=&quot;action_example&quot;, expires_at=0.0  # default: None, session_only=True  # default: False)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_remember_reason'><h3><code class='inline'>_remember_reason</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _remember_reason(action: dict[str, Any]) -&gt; str</code></div><p>The preview the user saw, trimmed to the column&#x27;s bound.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _remember_reason
+
+result = _remember_reason(action=&quot;action_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-revoke_grant'><h3><code class='inline'>revoke_grant</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def revoke_grant(grant_id: int) -&gt; dict[str, Any]</code></div><p>Stop a grant authorizing anything from now on. Past receipts stay.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import revoke_grant
+
+result = revoke_grant(grant_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_spend'><h3><code class='inline'>record_spend</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def record_spend(grant_id: int, amount_usd: float) -&gt; dict[str, Any]</code></div><p>Reserve spend against a budget-limited grant, before the side effect runs.
+
+Conditioned on the ceiling inside the UPDATE, so two executions that both
+passed :func:`evaluate` cannot together spend past it — the second one&#x27;s
+reservation fails and its action never dispatches.
+
+Callers reserve first and :func:`release_spend` on failure. Charging after
+dispatch instead would let that same pair overspend by one action&#x27;s cost:
+both would pass the check, both would run, and only one charge would land.
+Over-reserving briefly is the safe direction for money; under-charging is
+not.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import record_spend
+
+result = record_spend(grant_id=0, amount_usd=0.0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-release_spend'><h3><code class='inline'>release_spend</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def release_spend(grant_id: int, amount_usd: float) -&gt; dict[str, Any]</code></div><p>Return a reservation whose side effect did not happen.
+
+Floored at zero so a double release cannot manufacture budget the user
+never granted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import release_spend
+
+result = release_spend(grant_id=0, amount_usd=0.0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_grant'><h3><code class='inline'>get_grant</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_grant(grant_id: int) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import get_grant
+
+result = get_grant(grant_id=0)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_grants'><h3><code class='inline'>list_grants</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def list_grants(capability: str | None = None, include_inactive: bool = False, limit: int = 100) -&gt; list[dict[str, Any]]</code></div><p>Grants newest first. Active-only unless ``include_inactive``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import list_grants
+
+result = list_grants(capability=&quot;capability_example&quot;  # default: None, include_inactive=True  # default: False, limit=0  # default: 100)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-approval_posture'><h3><code class='inline'>approval_posture</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def approval_posture(project_id: str | None = None, session_id: str | None = None, max_listed: int = _MAX_LISTED_GRANTS) -&gt; dict[str, Any]</code></div><p>Effective grant posture for the runtime manifest.
+
+Summarized, never secrets. This lands in every chat turn&#x27;s runtime context,
+so the list is capped and the overflow is reported as a count — inlining an
+unbounded fact here is what once cost ~107k tokens a turn on the Builder
+snapshot. Truncation is stated, never silent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import approval_posture
+
+result = approval_posture(project_id=&quot;project_id_example&quot;  # default: None, session_id=&quot;session_id_example&quot;  # default: None, max_listed=0  # default: _MAX_LISTED_GRANTS)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_matches'><h3><code class='inline'>_matches</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _matches(grant: dict[str, Any], scope_type: str, scope_id: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _matches
+
+result = _matches(grant=&quot;grant_example&quot;, scope_type=&quot;scope_type_example&quot;, scope_id=&quot;scope_id_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_summarize'><h3><code class='inline'>_summarize</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _summarize(grant: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Manifest-safe view: what is permitted where, not why or by whom.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _summarize
+
+result = _summarize(grant=&quot;grant_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_active_grants'><h3><code class='inline'>_active_grants</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _active_grants(capability: str, now: float) -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _active_grants
+
+result = _active_grants(capability=&quot;capability_example&quot;, now=0.0)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require'><h3><code class='inline'>_require</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _require(grant_id: int) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _require
+
+result = _require(grant_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_scope'><h3><code class='inline'>validate_scope</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def validate_scope(scope_type: str, scope_id: str) -&gt; None</code></div><p>Raise :class:`GrantValidationError` unless this is a scope a grant can match.
+
+Public so a proposer can reject a bad scope at propose time rather than
+storing a row no grant will ever apply to.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import validate_scope
+
+result = validate_scope(scope_type=&quot;scope_type_example&quot;, scope_id=&quot;scope_id_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_scope'><h3><code class='inline'>_validate_scope</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _validate_scope(scope_type: str, scope_id: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _validate_scope
+
+result = _validate_scope(scope_type=&quot;scope_type_example&quot;, scope_id=&quot;scope_id_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require_text'><h3><code class='inline'>_require_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _require_text(value: Any, field: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _require_text
+
+result = _require_text(value=..., field=&quot;field_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_grant'><h3><code class='inline'>_row_to_grant</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _row_to_grant(row: Any) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_grants import _row_to_grant
+
+result = _row_to_grant(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-GrantError'><code class='inline'>GrantError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-GrantValidationError'><code class='inline'>GrantValidationError</code></a></td><td>(GrantError)</td><td>0 methods</td></tr><tr><td><a href='#cls-GrantNotFound'><code class='inline'>GrantNotFound</code></a></td><td>(GrantError)</td><td>0 methods</td></tr><tr><td><a href='#cls-Decision'><code class='inline'>Decision</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-GrantError'><h3><code class='inline'>GrantError</code></h3><p>Base for grant errors.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_grants import GrantError
+
+obj = GrantError(...)</pre></div>
+<div class='card' id='cls-GrantValidationError'><h3><code class='inline'>GrantValidationError</code></h3><p>A grant field is missing or invalid (400-shaped).</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_grants import GrantValidationError
+
+obj = GrantValidationError(...)</pre></div>
+<div class='card' id='cls-GrantNotFound'><h3><code class='inline'>GrantNotFound</code></h3><p>No grant row with that id (404-shaped).</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_grants import GrantNotFound
+
+obj = GrantNotFound(...)</pre></div>
+<div class='card' id='cls-Decision'><h3><code class='inline'>Decision</code></h3><p>The policy layer&#x27;s answer for one proposal.
+
+``outcome`` is the tri-state the action queue acts on. ``basis`` says which
+precedence rule produced it, so a refusal or an auto-execute can be
+explained to the user without re-deriving the evaluation.</p><p class='small'><b>Attributes:</b> outcome: str, basis: str, reason: str, grant_id: int | None, charges_budget: bool</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>allowed</code></td><td><code class='inline'>def allowed(self) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.action_grants import Decision
+
+obj = Decision(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>GRANTS_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>DECISIONS</code></td><td><code class='inline'>frozenset({&#x27;allow&#x27;, &#x27;ask&#x27;, &#x27;deny&#x27;})</code></td></tr><tr><td><code class='inline'>SCOPE_TYPES</code></td><td><code class='inline'>frozenset({&#x27;global&#x27;, &#x27;project&#x27;, &#x27;repo&#x27;, &#x27;site&#x27;, &#x27;integration&#x27;, &#x27;mcp_server&#x27;, &#x27;skill&#x27;, &#x27;tool&#x27;, &#x27;provider&#x27;, &#x27;automation&#x27;, </code></td></tr><tr><td><code class='inline'>_TIER_RANK</code></td><td><code class='inline'>{&#x27;T0&#x27;: 0, &#x27;T1&#x27;: 1, &#x27;T2&#x27;: 2}</code></td></tr><tr><td><code class='inline'>_DECISION_RANK</code></td><td><code class='inline'>{&#x27;allow&#x27;: 0, &#x27;ask&#x27;: 1, &#x27;deny&#x27;: 2}</code></td></tr><tr><td><code class='inline'>_MAX_TEXT</code></td><td><code class='inline'>500</code></td></tr><tr><td><code class='inline'>_MAX_LISTED_GRANTS</code></td><td><code class='inline'>25</code></td></tr><tr><td><code class='inline'>_COLUMNS</code></td><td><code class='inline'>&#x27;id, created_at, capability, decision, scope_type, scope_id, session_id, granted_tier, expires_at, budget_limit_usd, bud</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li><li><a href='gateway_agent_runner.py.html'><code class='inline'>gateway.agent_runner</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

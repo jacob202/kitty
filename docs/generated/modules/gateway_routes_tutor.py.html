@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.tutor — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.tutor</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.tutor</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/tutor.py</code> &middot; Python &middot; 8 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Kitty Tutor HTTP entrypoint.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>pydantic</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_knowledge_type'><code class='inline'>_knowledge_type</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-tutor_ask'><code class='inline'>tutor_ask</code></a></td><td>Answer a learning question (vocab-first, grounded, never guesses).</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-tutor_learn'><code class='inline'>tutor_learn</code></a></td><td>Ingest a document into the Tutor&#x27;s knowledge collection.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-tutor_review'><code class='inline'>tutor_review</code></a></td><td>List terms due for spaced-repetition review.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-tutor_quiz'><code class='inline'>tutor_quiz</code></a></td><td>Deterministic recall quiz over due terms (DTH-04c). Empty when fewer</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-tutor_attempt'><code class='inline'>tutor_attempt</code></a></td><td>Record a quiz attempt (DTH-04): recompute mastery, reschedule review.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-tutor_grade'><code class='inline'>tutor_grade</code></a></td><td>Deterministic grading (DTH-03) — no LLM variance.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-tutor_term'><code class='inline'>tutor_term</code></a></td><td>Mastery, stage, and advisory next action for one term.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_knowledge_type'><h3><code class='inline'>_knowledge_type</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _knowledge_type(raw: str) -&gt; tutor.KnowledgeType</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.tutor import _knowledge_type
+
+result = _knowledge_type(raw=&quot;raw_example&quot;)
+# result: tutor.KnowledgeType</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tutor_ask'><h3><code class='inline'>tutor_ask</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def tutor_ask(req: TutorAsk) -&gt; dict</code></div><p>Answer a learning question (vocab-first, grounded, never guesses).</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tutor import tutor_ask
+
+    result = await tutor_ask()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tutor_learn'><h3><code class='inline'>tutor_learn</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def tutor_learn(req: TutorLearn) -&gt; dict</code></div><p>Ingest a document into the Tutor&#x27;s knowledge collection.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tutor import tutor_learn
+
+    result = await tutor_learn()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tutor_review'><h3><code class='inline'>tutor_review</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def tutor_review() -&gt; dict</code></div><p>List terms due for spaced-repetition review.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tutor import tutor_review
+
+    result = await tutor_review()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tutor_quiz'><h3><code class='inline'>tutor_quiz</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def tutor_quiz(limit: int = 5) -&gt; dict</code></div><p>Deterministic recall quiz over due terms (DTH-04c). Empty when fewer
+than two terms are due — the quiz format needs distractors.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tutor import tutor_quiz
+
+    result = await tutor_quiz()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tutor_attempt'><h3><code class='inline'>tutor_attempt</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def tutor_attempt(req: TutorAttempt) -&gt; dict</code></div><p>Record a quiz attempt (DTH-04): recompute mastery, reschedule review.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tutor import tutor_attempt
+
+    result = await tutor_attempt()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tutor_grade'><h3><code class='inline'>tutor_grade</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def tutor_grade(req: TutorGrade) -&gt; dict</code></div><p>Deterministic grading (DTH-03) — no LLM variance.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tutor import tutor_grade
+
+    result = await tutor_grade()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tutor_term'><h3><code class='inline'>tutor_term</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def tutor_term(term: str, kp_type: str = &#x27;memory&#x27;) -&gt; dict</code></div><p>Mastery, stage, and advisory next action for one term.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tutor import tutor_term
+
+    result = await tutor_term()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-TutorAsk'><code class='inline'>TutorAsk</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-TutorLearn'><code class='inline'>TutorLearn</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-TutorAttempt'><code class='inline'>TutorAttempt</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-TutorGrade'><code class='inline'>TutorGrade</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-TutorAsk'><h3><code class='inline'>TutorAsk</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> topic: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.tutor import TutorAsk
+
+obj = TutorAsk(...)</pre></div>
+<div class='card' id='cls-TutorLearn'><h3><code class='inline'>TutorLearn</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> path: str, label: str | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.tutor import TutorLearn
+
+obj = TutorLearn(...)</pre></div>
+<div class='card' id='cls-TutorAttempt'><h3><code class='inline'>TutorAttempt</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> term: str, correct: bool, kp_type: str, subject: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.tutor import TutorAttempt
+
+obj = TutorAttempt(...)</pre></div>
+<div class='card' id='cls-TutorGrade'><h3><code class='inline'>TutorGrade</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> user_answer: str, expected_answer: str, question_type: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.tutor import TutorGrade
+
+obj = TutorGrade(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.voice_gate — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.voice_gate</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.voice_gate</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/voice_gate.py</code> &middot; Python &middot; 5 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Voice Gate — pre-response filter enforcing SOUL.md compliance before user sees output.
+
+Two layers:
+- filter(response_text) -&gt; cleaned_text: Strip banned phrases, return clean + drift report.
+- check(text) -&gt; VoiceGateResult: Inspect without modifying (for streaming or logging).
+
+The gate runs BEFORE any response reaches the user. If drift is detected, the
+response is cleaned and the incident is logged to self_review for pattern tracking.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.buddy</code>, <code class='inline'>gateway.self_review</code>, <code class='inline'>logging</code>, <code class='inline'>re</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-check'><code class='inline'>check</code></a></td><td>Inspect text for SOUL.md violations. Returns result without modifying.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-filter_response'><code class='inline'>filter_response</code></a></td><td>Clean a response before sending to user. Strip banned phrases, log drift.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-get_drift_nudge'><code class='inline'>get_drift_nudge</code></a></td><td>Return a correction nudge if drift threshold has been exceeded this session.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-record_drift'><code class='inline'>record_drift</code></a></td><td>Increment the session drift counter. Call after filtering a response.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-reset_drift_counter'><code class='inline'>reset_drift_counter</code></a></td><td>Reset drift counter (e.g. on new session).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-check'><h3><code class='inline'>check</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def check(text: str) -&gt; VoiceGateResult</code></div><p>Inspect text for SOUL.md violations. Returns result without modifying.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.voice_gate import check
+
+result = check(text=&quot;text_example&quot;)
+# result: VoiceGateResult</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-filter_response'><h3><code class='inline'>filter_response</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def filter_response(text: str) -&gt; VoiceGateResult</code></div><p>Clean a response before sending to user. Strip banned phrases, log drift.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.voice_gate import filter_response
+
+result = filter_response(text=&quot;text_example&quot;)
+# result: VoiceGateResult</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_drift_nudge'><h3><code class='inline'>get_drift_nudge</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_drift_nudge() -&gt; Optional[str]</code></div><p>Return a correction nudge if drift threshold has been exceeded this session.
+
+Call this when building the system prompt. If Kitty has drifted 3+ times,
+append a reminder to stay in character.
+
+Delegated to buddy.py for unified tracking.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.voice_gate import get_drift_nudge
+
+result = get_drift_nudge()
+# result: Optional[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_drift'><h3><code class='inline'>record_drift</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def record_drift() -&gt; None</code></div><p>Increment the session drift counter. Call after filtering a response.
+
+Delegated to buddy.py for unified tracking.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.voice_gate import record_drift
+
+result = record_drift()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reset_drift_counter'><h3><code class='inline'>reset_drift_counter</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def reset_drift_counter() -&gt; None</code></div><p>Reset drift counter (e.g. on new session).
+
+Delegated to buddy.py for unified tracking.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.voice_gate import reset_drift_counter
+
+result = reset_drift_counter()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-VoiceGateResult'><code class='inline'>VoiceGateResult</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-VoiceGateResult'><h3><code class='inline'>VoiceGateResult</code></h3><p>Outcome of a voice gate check.</p><p class='small'><b>Attributes:</b> passed: bool, original: str, cleaned: str, violations: list[str], severity: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.voice_gate import VoiceGateResult
+
+obj = VoiceGateResult(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_BANNED_PHRASES</code></td><td><code class='inline'>list[str]</code></td></tr><tr><td><code class='inline'>_AGREEMENT_OPENERS</code></td><td><code class='inline'>list[str]</code></td></tr><tr><td><code class='inline'>_HEDGE_PATTERNS</code></td><td><code class='inline'>list[str]</code></td></tr><tr><td><code class='inline'>_OVER_ENTHUSIASM</code></td><td><code class='inline'>re.compile(&#x27;!!!|🎉|🔥|💯&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

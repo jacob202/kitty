@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.tutor — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.tutor</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.tutor</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/tutor.py</code> &middot; Python &middot; 22 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Kitty Tutor — RAG learning scaffold built on the existing knowledge pipeline.
+
+Designed for zero-friction daily use:
+  - Ingest a doc once:  kitty tutor learn &lt;path&gt;
+  - Ask a question:     kitty tutor ask &quot;what is refactoring&quot;
+  - Review weak spots:  kitty tutor review   /   kitty tutor rate &quot;&lt;term&gt;&quot; &lt;1-3&gt;
+
+The Tutor NEVER guesses. With no docs on a topic it says so and tells you the
+exact command to fix it. Answers are vocabulary-first, three sentences max, with
+a plain analogy and one check-in question. State lives in SQLite so it remembers
+what you struggle with and reviews it later — no effort from you.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>contracts.knowledge_pipeline</code>, <code class='inline'>datetime</code>, <code class='inline'>enum</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.db</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>sqlite3</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-ingest'><code class='inline'>ingest</code></a></td><td>Ingest a document into the Tutor collection. One command, no flags.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-retrieve'><code class='inline'>retrieve</code></a></td><td>Pull the top chunks for a topic from the Tutor collection.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_build_tutor_prompt'><code class='inline'>_build_tutor_prompt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_parse'><code class='inline'>_parse</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-ask'><code class='inline'>ask</code></a></td><td>Answer a learning question. Vocab-first, grounded, no guessing.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_default_llm'><code class='inline'>_default_llm</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_similarity'><code class='inline'>_similarity</code></a></td><td>Normalized Levenshtein similarity in [0, 1].</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-grade_answer'><code class='inline'>grade_answer</code></a></td><td>Deterministic grading — no LLM variance.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_sm2_next_interval'><code class='inline'>_sm2_next_interval</code></a></td><td>SM-2: compute (new_interval, new_ef, new_repetition).</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_sm2_schedule'><code class='inline'>_sm2_schedule</code></a></td><td>Apply SM-2 scheduling after a quiz attempt. Updates vocabulary_terms.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_conn'><code class='inline'>_conn</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-log_confidence'><code class='inline'>log_confidence</code></a></td><td>Record a 1-3 confidence rating and schedule the next review.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-due_review'><code class='inline'>due_review</code></a></td><td>Terms whose next review is due (or lost). Empty list = nothing to do.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-compute_mastery'><code class='inline'>compute_mastery</code></a></td><td>Recency-weighted mastery in [0, 1] with a low-confidence cap.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-log_attempt'><code class='inline'>log_attempt</code></a></td><td>Record one quiz attempt, recompute mastery, and reschedule review.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-mastery_of'><code class='inline'>mastery_of</code></a></td><td>Proven mastery in [0, 1] for a term, or 0.0 if never attempted.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-is_mastered'><code class='inline'>is_mastered</code></a></td><td>Whether ``term`` clears its per-type mastery gate (DeepTutor policy).</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-stage_of'><code class='inline'>stage_of</code></a></td><td>Coarse stage from proven mastery — never a stage cursor.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-next_action'><code class='inline'>next_action</code></a></td><td>Advisory next action, mirroring deeptutor/learning/policy.NextStep.action.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_stable_key'><code class='inline'>_stable_key</code></a></td><td>Content-addressed sort key — stable across processes (no RNG/hash seed).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-build_choice_question'><code class='inline'>build_choice_question</code></a></td><td>Build one deterministic multiple-choice question.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-generate_recall_quiz'><code class='inline'>generate_recall_quiz</code></a></td><td>Deterministic multiple-choice quiz from a term list.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-ingest'><h3><code class='inline'>ingest</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def ingest(path: str | Path, label: str | None = None) -&gt; IngestionResult</code></div><p>Ingest a document into the Tutor collection. One command, no flags.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.tutor import ingest
+
+    result = await ingest()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-retrieve'><h3><code class='inline'>retrieve</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def retrieve(topic: str, limit: int = 3) -&gt; list[str]</code></div><p>Pull the top chunks for a topic from the Tutor collection.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.tutor import retrieve
+
+    result = await retrieve()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_tutor_prompt'><h3><code class='inline'>_build_tutor_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _build_tutor_prompt(topic: str, chunks: Sequence[str]) -&gt; list[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import _build_tutor_prompt
+
+result = _build_tutor_prompt(topic=&quot;topic_example&quot;, chunks=&quot;chunks_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse'><h3><code class='inline'>_parse</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _parse(response: str, topic: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import _parse
+
+result = _parse(response=&quot;response_example&quot;, topic=&quot;topic_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-ask'><h3><code class='inline'>ask</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def ask(topic: str, retriever: Callable[[str], Awaitable[list[str]]] | None = None, llm: Callable[[list[dict]], str] | None = None) -&gt; dict</code></div><p>Answer a learning question. Vocab-first, grounded, no guessing.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.tutor import ask
+
+    result = await ask()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_default_llm'><h3><code class='inline'>_default_llm</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _default_llm(messages: list[dict]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import _default_llm
+
+result = _default_llm(messages=[])
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_similarity'><h3><code class='inline'>_similarity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _similarity(a: str, b: str) -&gt; float</code></div><p>Normalized Levenshtein similarity in [0, 1].</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import _similarity
+
+result = _similarity(a=&quot;a_example&quot;, b=&quot;b_example&quot;)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-grade_answer'><h3><code class='inline'>grade_answer</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def grade_answer(user_answer: str, expected_answer: str, question_type: str = &#x27;open&#x27;) -&gt; bool</code></div><p>Deterministic grading — no LLM variance.
+
+Adapted from DeepTutor&#x27;s ``deeptutor/learning/grading.py``:
+  - choice: exact match (case/space-insensitive)
+  - short:  exact match, or similarity &gt;= 0.85 when &lt;= 30 chars
+  - open:   keyword-overlap ratio &gt;= 0.6</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import grade_answer
+
+result = grade_answer(user_answer=&quot;user_answer_example&quot;, expected_answer=&quot;expected_answer_example&quot;, question_type=&quot;question_type_example&quot;  # default: &#x27;open&#x27;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_sm2_next_interval'><h3><code class='inline'>_sm2_next_interval</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _sm2_next_interval(repetition: int, ef: float, quality: int, current_interval: int = 1) -&gt; tuple[int, float, int]</code></div><p>SM-2: compute (new_interval, new_ef, new_repetition).
+
+quality is 0-5 (we map correct=4, incorrect=1).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import _sm2_next_interval
+
+result = _sm2_next_interval(repetition=0, ef=0.0, quality=0, current_interval=0  # default: 1)
+# result: tuple[int, float, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_sm2_schedule'><h3><code class='inline'>_sm2_schedule</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _sm2_schedule(term: str, correct: bool, conn: sqlite3.Connection) -&gt; None</code></div><p>Apply SM-2 scheduling after a quiz attempt. Updates vocabulary_terms.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import _sm2_schedule
+
+result = _sm2_schedule(term=&quot;term_example&quot;, correct=True, conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_conn'><h3><code class='inline'>_conn</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _conn() -&gt; sqlite3.Connection</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import _conn
+
+result = _conn()
+# result: sqlite3.Connection</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-log_confidence'><h3><code class='inline'>log_confidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def log_confidence(term: str, score: int, subject: str = &#x27;&#x27;, knowledge_type: KnowledgeType = KnowledgeType.MEMORY) -&gt; None</code></div><p>Record a 1-3 confidence rating and schedule the next review.
+
+``knowledge_type`` selects the review cadence. Defaults to MEMORY, which
+preserves the original fixed-interval behavior.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import log_confidence
+
+result = log_confidence(term=&quot;term_example&quot;, score=0, subject=&quot;subject_example&quot;  # default: &#x27;&#x27;, knowledge_type=...  # default: KnowledgeType.MEMORY)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-due_review'><h3><code class='inline'>due_review</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def due_review(now: datetime | None = None) -&gt; list[dict]</code></div><p>Terms whose next review is due (or lost). Empty list = nothing to do.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import due_review
+
+result = due_review(now=...  # default: None)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compute_mastery'><h3><code class='inline'>compute_mastery</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def compute_mastery(correctness: list[bool]) -&gt; float</code></div><p>Recency-weighted mastery in [0, 1] with a low-confidence cap.
+
+Adapted from deeptutor/learning/mastery.py: newer attempts weigh more and
+a single lucky answer cannot &quot;master&quot; a point — mastery is capped until
+there is enough evidence. The one place the pedagogy math lives.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import compute_mastery
+
+result = compute_mastery(correctness=True)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-log_attempt'><h3><code class='inline'>log_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def log_attempt(term: str, correct: bool, kp_type: KnowledgeType = KnowledgeType.MEMORY, subject: str = &#x27;&#x27;) -&gt; float</code></div><p>Record one quiz attempt, recompute mastery, and reschedule review.
+
+Returns the resulting mastery score. Qualitative types (CONCEPT/DESIGN)
+record a pass as full mastery on a correct answer.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import log_attempt
+
+result = log_attempt(term=&quot;term_example&quot;, correct=True, kp_type=...  # default: KnowledgeType.MEMORY, subject=&quot;subject_example&quot;  # default: &#x27;&#x27;)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-mastery_of'><h3><code class='inline'>mastery_of</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def mastery_of(term: str) -&gt; float</code></div><p>Proven mastery in [0, 1] for a term, or 0.0 if never attempted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import mastery_of
+
+result = mastery_of(term=&quot;term_example&quot;)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_mastered'><h3><code class='inline'>is_mastered</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def is_mastered(term: str, kp_type: KnowledgeType = KnowledgeType.MEMORY) -&gt; bool</code></div><p>Whether ``term`` clears its per-type mastery gate (DeepTutor policy).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import is_mastered
+
+result = is_mastered(term=&quot;term_example&quot;, kp_type=...  # default: KnowledgeType.MEMORY)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-stage_of'><h3><code class='inline'>stage_of</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def stage_of(term: str, kp_type: KnowledgeType = KnowledgeType.MEMORY) -&gt; LearningStage</code></div><p>Coarse stage from proven mastery — never a stage cursor.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import stage_of
+
+result = stage_of(term=&quot;term_example&quot;, kp_type=...  # default: KnowledgeType.MEMORY)
+# result: LearningStage</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-next_action'><h3><code class='inline'>next_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def next_action(term: str, kp_type: KnowledgeType = KnowledgeType.MEMORY) -&gt; str</code></div><p>Advisory next action, mirroring deeptutor/learning/policy.NextStep.action.
+
+One of: ``probe`` (new), ``practice`` (quantitative, below gate),
+``assess`` (qualitative, awaiting a Feynman check), ``complete`` (mastered).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import next_action
+
+result = next_action(term=&quot;term_example&quot;, kp_type=...  # default: KnowledgeType.MEMORY)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_stable_key'><h3><code class='inline'>_stable_key</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _stable_key(text: str) -&gt; str</code></div><p>Content-addressed sort key — stable across processes (no RNG/hash seed).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import _stable_key
+
+result = _stable_key(text=&quot;text_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_choice_question'><h3><code class='inline'>build_choice_question</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def build_choice_question(question: str, answer: str, distractors: Sequence[str]) -&gt; dict</code></div><p>Build one deterministic multiple-choice question.
+
+``answer`` is the correct body; ``distractors`` are wrong bodies. Option
+order is stable (md5 of content) so re-runs agree — no randomness. Returns
+the canonical option strings and the answer&#x27;s stable label for grading.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import build_choice_question
+
+result = build_choice_question(question=&quot;question_example&quot;, answer=&quot;answer_example&quot;, distractors=&quot;distractors_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_recall_quiz'><h3><code class='inline'>generate_recall_quiz</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def generate_recall_quiz(terms: Sequence[str], question_template: str = &#x27;What does {term} mean?&#x27;) -&gt; list[dict]</code></div><p>Deterministic multiple-choice quiz from a term list.
+
+Each term becomes the answer to one question; the remaining terms are its
+distractors. Useful for a spaced-repetition check-in without an LLM.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.tutor import generate_recall_quiz
+
+result = generate_recall_quiz(terms=&quot;terms_example&quot;, question_template=&quot;question_template_example&quot;  # default: &#x27;What does {term} mean?&#x27;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-KnowledgeType'><code class='inline'>KnowledgeType</code></a></td><td>(str, Enum)</td><td>0 methods</td></tr><tr><td><a href='#cls-TutorError'><code class='inline'>TutorError</code></a></td><td>(Exception)</td><td>0 methods</td></tr><tr><td><a href='#cls-LearningStage'><code class='inline'>LearningStage</code></a></td><td>(str, Enum)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-KnowledgeType'><h3><code class='inline'>KnowledgeType</code></h3><p>Category of a learning term, driving its review cadence.
+
+Adapted from DeepTutor&#x27;s four-type model
+(``deeptutor/learning/scheduler.py``): memory and procedure facts need
+tighter early review than concepts and designs. Each type maps a 1-3
+confidence score to a review delay in days.</p><p class='small'><b>Attributes:</b> MEMORY, CONCEPT, PROCEDURE, DESIGN</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.tutor import KnowledgeType
+
+obj = KnowledgeType(...)</pre></div>
+<div class='card' id='cls-TutorError'><h3><code class='inline'>TutorError</code></h3><p>Raised when the Tutor cannot answer without guessing.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.tutor import TutorError
+
+obj = TutorError(...)</pre></div>
+<div class='card' id='cls-LearningStage'><h3><code class='inline'>LearningStage</code></h3><p>Coarse progression derived from proven mastery (gate-driven, like
+DeepTutor&#x27;s policy — never a mere stage counter).
+
+* NEW       — never attempted.
+* LEARNING  — attempted but not yet through its gate.
+* MASTERED  — cleared its per-type mastery gate.</p><p class='small'><b>Attributes:</b> NEW, LEARNING, MASTERED</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.tutor import LearningStage
+
+obj = LearningStage(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>TUTOR_COLLECTION</code></td><td><code class='inline'>&#x27;tutor&#x27;</code></td></tr><tr><td><code class='inline'>MEMORY_DB</code></td><td><code class='inline'>KITTY_DATA_DIR / &#x27;tutor_memory.db&#x27;</code></td></tr><tr><td><code class='inline'>KNOWLEDGE_TYPE_INTERVALS</code></td><td><code class='inline'>dict[KnowledgeType, dict[int, int]]</code></td></tr><tr><td><code class='inline'>MASTERY_GATE</code></td><td><code class='inline'>dict[KnowledgeType, float]</code></td></tr><tr><td><code class='inline'>_RECENCY_WEIGHTS</code></td><td><code class='inline'>tuple[float, ...]</code></td></tr><tr><td><code class='inline'>_CONFIDENCE_CAP</code></td><td><code class='inline'>dict[int, float]</code></td></tr><tr><td><code class='inline'>_OPTION_PREFIX_RE</code></td><td><code class='inline'>re.compile(&#x27;^\\s*([A-Z])\\s*[.:：、)）-]\\s*(.+)$&#x27;, re.IGNORECASE)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

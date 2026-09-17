@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.insight_loop — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.insight_loop</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.insight_loop</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/insight_loop.py</code> &middot; Python &middot; 16 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Insight lifecycle: capture, classify, return, act, learn (issue #270).
+
+Reuses idea_mine_items as the durable store with lifecycle fields in
+payload_json. The existing review gate (user_review) maps to consent:
+- approved = explicitly consented (live capture)
+- unreviewed = inferred/imported, must be approved before surfacing
+- rejected/keep_quiet = permanently suppressed</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_now_iso'><code class='inline'>_now_iso</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_now_ts'><code class='inline'>_now_ts</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_parse_instant'><code class='inline'>_parse_instant</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_instant_is_due'><code class='inline'>_instant_is_due</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-capture'><code class='inline'>capture</code></a></td><td>Persist a new insight. Returns the item id.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-list_due'><code class='inline'>list_due</code></a></td><td>Return approved pending insights whose return_at has passed or is next_brief.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-mark_returned'><code class='inline'>mark_returned</code></a></td><td>Record that an insight was returned to Jacob. Returns False if missing.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-respond'><code class='inline'>respond</code></a></td><td>Record Jacob&#x27;s response to a returned insight.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_do_act'><code class='inline'>_do_act</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_do_snooze'><code class='inline'>_do_snooze</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_do_archive'><code class='inline'>_do_archive</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_insight'><code class='inline'>get_insight</code></a></td><td>Return one insight by its idea_mine_items id.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-list_insights'><code class='inline'>list_insights</code></a></td><td>List insights, newest first. Optional lifecycle status filter.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_metrics'><code class='inline'>get_metrics</code></a></td><td>Return counts and summary metrics for the insight loop.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_list_returnable_approved'><code class='inline'>_list_returnable_approved</code></a></td><td>Return approved insights that may participate in the due-time sweep.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-return_due'><code class='inline'>return_due</code></a></td><td>Cron action: sweep due insights, mark them returned, emit signals.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_now_iso'><h3><code class='inline'>_now_iso</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _now_iso() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import _now_iso
+
+result = _now_iso()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_now_ts'><h3><code class='inline'>_now_ts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _now_ts() -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import _now_ts
+
+result = _now_ts()
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_instant'><h3><code class='inline'>_parse_instant</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _parse_instant(value: str) -&gt; datetime</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import _parse_instant
+
+result = _parse_instant(value=&quot;value_example&quot;)
+# result: datetime</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_instant_is_due'><h3><code class='inline'>_instant_is_due</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _instant_is_due(return_at: str, now: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import _instant_is_due
+
+result = _instant_is_due(return_at=&quot;return_at_example&quot;, now=&quot;now_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-capture'><h3><code class='inline'>capture</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def capture(text: str, source_ref: str | None = None, category: str | None = None, return_at: str | None = None, return_policy: str = &#x27;next_brief&#x27;, explicit_consent: bool = False) -&gt; int</code></div><p>Persist a new insight. Returns the item id.
+
+explicit_consent=True → user_review=approved (may surface immediately).
+explicit_consent=False → user_review=unreviewed (must be approved first).
+
+Raises ValueError on bad category, policy, or missing return_at.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import capture
+
+result = capture(text=&quot;text_example&quot;, source_ref=&quot;source_ref_example&quot;  # default: None, category=&quot;category_example&quot;  # default: None, return_at=&quot;return_at_example&quot;  # default: None, return_policy=&quot;return_policy_example&quot;  # default: &#x27;next_brief&#x27;, explicit_consent=True  # default: False)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_due'><h3><code class='inline'>list_due</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def list_due(now: str | None = None) -&gt; list[dict[str, Any]]</code></div><p>Return approved pending insights whose return_at has passed or is next_brief.
+
+Items are deterministic within a call. Suppressed items never appear.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import list_due
+
+result = list_due(now=&quot;now_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-mark_returned'><h3><code class='inline'>mark_returned</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def mark_returned(item_id: int, channel: str = &#x27;signal&#x27;) -&gt; bool</code></div><p>Record that an insight was returned to Jacob. Returns False if missing.
+
+Emits a signal so the state composer and UI surface see it.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import mark_returned
+
+result = mark_returned(item_id=0, channel=&quot;channel_example&quot;  # default: &#x27;signal&#x27;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-respond'><h3><code class='inline'>respond</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def respond(item_id: int, choice: str, snooze_until: str | None = None, archive_reason: str | None = None) -&gt; dict[str, Any]</code></div><p>Record Jacob&#x27;s response to a returned insight.
+
+choice must be one of: act, snooze, archive.
+
+act → creates a todo.create action and links it.
+snooze → updates return_at and resets to pending.
+archive → closes with an outcome reason.
+
+Returns the updated item dict.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import respond
+
+result = respond(item_id=0, choice=&quot;choice_example&quot;, snooze_until=&quot;snooze_until_example&quot;  # default: None, archive_reason=&quot;archive_reason_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_do_act'><h3><code class='inline'>_do_act</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _do_act(item_id: int, item: dict[str, Any], payload: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import _do_act
+
+result = _do_act(item_id=0, item=&quot;item_example&quot;, payload=&quot;payload_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_do_snooze'><h3><code class='inline'>_do_snooze</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _do_snooze(item_id: int, payload: dict[str, Any], snooze_until: str | None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import _do_snooze
+
+result = _do_snooze(item_id=0, payload=&quot;payload_example&quot;, snooze_until=&quot;snooze_until_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_do_archive'><h3><code class='inline'>_do_archive</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _do_archive(item_id: int, payload: dict[str, Any], archive_reason: str | None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import _do_archive
+
+result = _do_archive(item_id=0, payload=&quot;payload_example&quot;, archive_reason=&quot;archive_reason_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_insight'><h3><code class='inline'>get_insight</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_insight(item_id: int) -&gt; dict[str, Any] | None</code></div><p>Return one insight by its idea_mine_items id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import get_insight
+
+result = get_insight(item_id=0)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_insights'><h3><code class='inline'>list_insights</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def list_insights(status: str | None = None, limit: int = 50) -&gt; list[dict[str, Any]]</code></div><p>List insights, newest first. Optional lifecycle status filter.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import list_insights
+
+result = list_insights(status=&quot;status_example&quot;  # default: None, limit=0  # default: 50)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_metrics'><h3><code class='inline'>get_metrics</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def get_metrics() -&gt; dict[str, Any]</code></div><p>Return counts and summary metrics for the insight loop.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import get_metrics
+
+result = get_metrics()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_list_returnable_approved'><h3><code class='inline'>_list_returnable_approved</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _list_returnable_approved() -&gt; list[dict[str, Any]]</code></div><p>Return approved insights that may participate in the due-time sweep.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insight_loop import _list_returnable_approved
+
+result = _list_returnable_approved()
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-return_due'><h3><code class='inline'>return_due</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def return_due() -&gt; None</code></div><p>Cron action: sweep due insights, mark them returned, emit signals.
+
+At most 3 per sweep. Idempotent: mark_returned only transitions pending items.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.insight_loop import return_due
+
+    result = await return_due()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>INSIGHT_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>CATEGORIES</code></td><td><code class='inline'>frozenset({&#x27;task&#x27;, &#x27;reminder&#x27;, &#x27;product_idea&#x27;, &#x27;research_question&#x27;, &#x27;script_opportunity&#x27;, &#x27;builder_packet&#x27;, &#x27;decision&#x27;, </code></td></tr><tr><td><code class='inline'>RETURN_POLICIES</code></td><td><code class='inline'>frozenset({&#x27;explicit_time&#x27;, &#x27;next_brief&#x27;})</code></td></tr><tr><td><code class='inline'>LIFECYCLE_STATUSES</code></td><td><code class='inline'>frozenset({&#x27;pending&#x27;, &#x27;returned&#x27;, &#x27;acted&#x27;, &#x27;snoozed&#x27;, &#x27;archived&#x27;})</code></td></tr><tr><td><code class='inline'>_TIME_REQUIRED_CATEGORIES</code></td><td><code class='inline'>frozenset({&#x27;reminder&#x27;})</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

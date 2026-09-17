@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.retry — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.retry</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.retry</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/retry.py</code> &middot; Python &middot; 1 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Tenacity-based retry decorator with exponential backoff.
+
+A single 429 from Gemini or DALL-E should not fail the whole call. With 3
+attempts and exponential backoff (1-10s), transient rate-limit and service
+errors recover. Retryable exceptions are logged at WARNING with the engine
+name and attempt number — no payload dump (AGENTS.md prime directive).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>google.api_core.exceptions</code>, <code class='inline'>httpx</code>, <code class='inline'>logging</code>, <code class='inline'>mcp.imagen.logger</code>, <code class='inline'>tenacity</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-retry_with_backoff'><code class='inline'>retry_with_backoff</code></a></td><td>Decorator factory: retry transient failures with exponential backoff.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-retry_with_backoff'><h3><code class='inline'>retry_with_backoff</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def retry_with_backoff(attempts: int = 3) -&gt; Callable[[Callable[..., T]], Callable[..., T]]</code></div><p>Decorator factory: retry transient failures with exponential backoff.
+
+Args:
+    attempts: Max total attempts (including the first). Default 3.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.retry import retry_with_backoff
+
+result = retry_with_backoff(attempts=0  # default: 3)
+# result: Callable[[Callable[..., T]], Callable[..., T]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_RETRYABLE</code></td><td><code class='inline'>(ResourceExhausted, ServiceUnavailable, httpx.HTTPStatusError, httpx.TimeoutException, httpx.ConnectError)</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_benchmark.py.html'><code class='inline'>mcp.imagen.benchmark</code></a></li><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_character_lock.py.html'><code class='inline'>mcp.imagen.character_lock</code></a></li><li><a href='mcp_imagen_config.py.html'><code class='inline'>mcp.imagen.config</code></a></li><li><a href='mcp_imagen_engines.py.html'><code class='inline'>mcp.imagen.engines</code></a></li><li><a href='mcp_imagen_face_match.py.html'><code class='inline'>mcp.imagen.face_match</code></a></li><li><a href='mcp_imagen_io.py.html'><code class='inline'>mcp.imagen.io</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_server.py.html'><code class='inline'>mcp.imagen.server</code></a></li><li><a href='mcp_imagen_tools.py.html'><code class='inline'>mcp.imagen.tools</code></a></li><li><a href='mcp_imagen_verify.py.html'><code class='inline'>mcp.imagen.verify</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

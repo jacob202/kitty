@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.kittybuilder_claude_adapter — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.kittybuilder_claude_adapter</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.kittybuilder_claude_adapter</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/kittybuilder_claude_adapter.py</code> &middot; Python &middot; 21 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Strict Claude Code worker/reviewer adapter for KittyBuilder packet attempts.
+
+This adapter is the fixed-model, no-fallback sibling of the free OpenCode
+adapter scripts. It drives Claude Code (``claude -p``) for exactly two roles:
+
+    worker   implements one packet attempt (Sonnet by default)
+    review   reads the implementation as an independent, read-only reviewer
+             (Opus by default)
+
+Strictness contract:
+
+- **Fixed models, no fallback.** The worker uses one Sonnet model and the
+  reviewer one Opus model; a failed run is never retried against a different
+  model. Defaults are overridable only through explicit env vars
+  (``KITTYBUILDER_CLAUDE_WORKER_MODEL`` / ``KITTYBUILDER_CLAUDE_REVIEW_MODEL``).
+- **Exit 75 with no output and no change** when the ``claude`` executable is
+  unavailable or authentication fails. The adapter probes auth with a tiny
+  no-op request before any real work; a missing binary or a failed probe exits
+  75 without writing a result, without leaving staging files, and without
+  touching the worktree. Exit 75 is the loop&#x27;s established provider-exhaustion
+  code (``builder_loop.PROVIDER_EXHAUSTED_EXIT_CODE``).
+- **Strict contracts.** Worker results and review results are validated against
+  the same bounded JSON contracts as the OpenCode adapters (bundle/context hash
+  binding, ``contract_version`` 1, fixed status/verdict enums).
+- **Reviewer immutability.** The reviewer fingerprints HEAD and worktree status
+  before and after the model run; any mutation aborts with no review published.
+
+The test-suite drives this adapter with a fake ``claude`` executable found on
+``PATH`` (or pinned via ``KITTYBUILDER_CLAUDE_BIN``), so no live Claude
+request ever happens in tests.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>shutil</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code>, <code class='inline'>tempfile</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_fail'><code class='inline'>_fail</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_require_env'><code class='inline'>_require_env</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_git_root'><code class='inline'>_git_root</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_require_external_review_note_path'><code class='inline'>_require_external_review_note_path</code></a></td><td>Require reviewer notes to live outside the reviewed Git worktree.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_resolve_claude_bin'><code class='inline'>_resolve_claude_bin</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_stage'><code class='inline'>_stage</code></a></td><td>Create staging paths in the worktree, refusing pre-existing ones.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_copy_staged'><code class='inline'>_copy_staged</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_validate_worker_binding'><code class='inline'>_validate_worker_binding</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_validate_review_binding'><code class='inline'>_validate_review_binding</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_fingerprint'><code class='inline'>_fingerprint</code></a></td><td>HEAD plus worktree status, excluding reviewer continuation residue and staging files.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_probe_auth'><code class='inline'>_probe_auth</code></a></td><td>Return (ok|unavailable|error, detail) for the no-op Claude probe.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_run_model'><code class='inline'>_run_model</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_validate_worker_result'><code class='inline'>_validate_worker_result</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_validate_review_result'><code class='inline'>_validate_review_result</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_worker_prompt'><code class='inline'>_worker_prompt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_reviewer_prompt'><code class='inline'>_reviewer_prompt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_write_review_note'><code class='inline'>_write_review_note</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_run_worker'><code class='inline'>_run_worker</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_run_review'><code class='inline'>_run_review</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-_build_parser'><code class='inline'>_build_parser</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_fail'><h3><code class='inline'>_fail</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _fail(message: str) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _fail
+
+result = _fail(message=&quot;message_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require_env'><h3><code class='inline'>_require_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _require_env(name: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _require_env
+
+result = _require_env(name=&quot;name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_git_root'><h3><code class='inline'>_git_root</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _git_root() -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _git_root
+
+result = _git_root()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require_external_review_note_path'><h3><code class='inline'>_require_external_review_note_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _require_external_review_note_path(raw_path: str) -&gt; Path</code></div><p>Require reviewer notes to live outside the reviewed Git worktree.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _require_external_review_note_path
+
+result = _require_external_review_note_path(raw_path=&quot;raw_path_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_claude_bin'><h3><code class='inline'>_resolve_claude_bin</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _resolve_claude_bin() -&gt; Path | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _resolve_claude_bin
+
+result = _resolve_claude_bin()
+# result: Path | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_stage'><h3><code class='inline'>_stage</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _stage(attempt_id: str, names: list[str]) -&gt; dict[str, Path]</code></div><p>Create staging paths in the worktree, refusing pre-existing ones.
+
+Mirrors the OpenCode adapters: the model must never see runner-owned paths
+directly, and a stale staging file is a hard error, not an overwrite.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _stage
+
+result = _stage(attempt_id=&quot;attempt_id_example&quot;, names=&quot;names_example&quot;)
+# result: dict[str, Path]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_copy_staged'><h3><code class='inline'>_copy_staged</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _copy_staged(staged: dict[str, Path], mapping: dict[str, str]) -&gt; dict[str, Path]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _copy_staged
+
+result = _copy_staged(staged=&quot;staged_example&quot;, mapping=&quot;mapping_example&quot;)
+# result: dict[str, Path]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_worker_binding'><h3><code class='inline'>_validate_worker_binding</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _validate_worker_binding(bundle_path: Path, manifest_path: Path, task_id: str, attempt_id: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _validate_worker_binding
+
+result = _validate_worker_binding(bundle_path=&quot;bundle_path_example&quot;, manifest_path=&quot;manifest_path_example&quot;, task_id=&quot;task_id_example&quot;, attempt_id=&quot;attempt_id_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_review_binding'><h3><code class='inline'>_validate_review_binding</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _validate_review_binding(bundle_path: Path, manifest_path: Path, review_context_path: Path, task_id: str, attempt_id: str, review_sha: str, diff_sha256: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _validate_review_binding
+
+result = _validate_review_binding(bundle_path=&quot;bundle_path_example&quot;, manifest_path=&quot;manifest_path_example&quot;, review_context_path=&quot;review_context_path_example&quot;, task_id=&quot;task_id_example&quot;, attempt_id=&quot;attempt_id_example&quot;, review_sha=&quot;review_sha_example&quot;, diff_sha256=&quot;diff_sha256_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fingerprint'><h3><code class='inline'>_fingerprint</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _fingerprint() -&gt; str</code></div><p>HEAD plus worktree status, excluding reviewer continuation residue and staging files.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _fingerprint
+
+result = _fingerprint()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_probe_auth'><h3><code class='inline'>_probe_auth</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _probe_auth(bin_path: Path, model: str) -&gt; tuple[str, str]</code></div><p>Return (ok|unavailable|error, detail) for the no-op Claude probe.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _probe_auth
+
+result = _probe_auth(bin_path=&quot;bin_path_example&quot;, model=&quot;model_example&quot;)
+# result: tuple[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_model'><h3><code class='inline'>_run_model</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _run_model(bin_path: Path, model: str, prompt: str, timeout: float) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _run_model
+
+result = _run_model(bin_path=&quot;bin_path_example&quot;, model=&quot;model_example&quot;, prompt=&quot;prompt_example&quot;, timeout=0.0)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_worker_result'><h3><code class='inline'>_validate_worker_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _validate_worker_result(path: Path) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _validate_worker_result
+
+result = _validate_worker_result(path=&quot;path_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_review_result'><h3><code class='inline'>_validate_review_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _validate_review_result(path: Path) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _validate_review_result
+
+result = _validate_review_result(path=&quot;path_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_worker_prompt'><h3><code class='inline'>_worker_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _worker_prompt(staged: dict[str, Path]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _worker_prompt
+
+result = _worker_prompt(staged=&quot;staged_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reviewer_prompt'><h3><code class='inline'>_reviewer_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _reviewer_prompt(staged: dict[str, Path]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _reviewer_prompt
+
+result = _reviewer_prompt(staged=&quot;staged_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_write_review_note'><h3><code class='inline'>_write_review_note</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _write_review_note(review: dict, note_path: Path, sha: str, model: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _write_review_note
+
+result = _write_review_note(review={}, note_path=&quot;note_path_example&quot;, sha=&quot;sha_example&quot;, model=&quot;model_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_worker'><h3><code class='inline'>_run_worker</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _run_worker() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _run_worker
+
+result = _run_worker()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_review'><h3><code class='inline'>_run_review</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def _run_review() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _run_review
+
+result = _run_review()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_parser'><h3><code class='inline'>_build_parser</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _build_parser() -&gt; argparse.ArgumentParser</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import _build_parser
+
+result = _build_parser()
+# result: argparse.ArgumentParser</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def main(argv: list[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kittybuilder_claude_adapter import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-AdapterError'><code class='inline'>AdapterError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-AdapterError'><h3><code class='inline'>AdapterError</code></h3><p>Raised for contract violations; exits with EXIT_CONTRACT.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from scripts.kittybuilder_claude_adapter import AdapterError
+
+obj = AdapterError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>EXIT_UNAVAILABLE</code></td><td><code class='inline'>75</code></td></tr><tr><td><code class='inline'>EXIT_CONTRACT</code></td><td><code class='inline'>1</code></td></tr><tr><td><code class='inline'>DEFAULT_WORKER_MODEL</code></td><td><code class='inline'>&#x27;claude-sonnet-4-5&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_REVIEWER_MODEL</code></td><td><code class='inline'>&#x27;claude-opus-4-6&#x27;</code></td></tr><tr><td><code class='inline'>PROBE_PROMPT</code></td><td><code class='inline'>&#x27;Reply with exactly: ok&#x27;</code></td></tr><tr><td><code class='inline'>_WORKER_REQUIRED_ENV</code></td><td><code class='inline'>(&#x27;KB_BUNDLE_PATH&#x27;, &#x27;KB_RESULT_PATH&#x27;, &#x27;KB_CONTEXT_MANIFEST_PATH&#x27;, &#x27;KB_ATTEMPT_ID&#x27;, &#x27;KB_TASK_ID&#x27;)</code></td></tr><tr><td><code class='inline'>_REVIEW_REQUIRED_ENV</code></td><td><code class='inline'>(&#x27;KB_BUNDLE_PATH&#x27;, &#x27;KB_IMPL_RESULT_PATH&#x27;, &#x27;KB_REVIEW_RESULT_PATH&#x27;, &#x27;KB_CONTEXT_MANIFEST_PATH&#x27;, &#x27;KB_REVIEW_CONTEXT_PATH&#x27;,</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

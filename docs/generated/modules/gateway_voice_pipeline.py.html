@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.voice_pipeline — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.voice_pipeline</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.voice_pipeline</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/voice_pipeline.py</code> &middot; Python &middot; 2 functions &middot; 7 classes</p>
+<div class='card'><h2>Overview</h2><p>Voice Pipeline — deep module for real-time voice conversation.
+
+This is a DEEP module. Callers should only use:
+- VoicePipeline.process_turn(audio_bytes) -&gt; VoiceTurnResult: The high-leverage entry point.
+- VoicePipeline.handle_websocket(ws): WebSocket handler for voice sessions.
+
+Internal adapters (STT, TTS, gate) are implementation details.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway.context_assembler</code>, <code class='inline'>gateway.domain_router</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>gateway.self_review</code>, <code class='inline'>gateway.stt</code>, <code class='inline'>gateway.tts</code>, <code class='inline'>gateway.voice_gate</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-handle_voice_session'><code class='inline'>handle_voice_session</code></a></td><td>Legacy entry point — delegates to VoicePipeline.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_handle_text_message'><code class='inline'>_handle_text_message</code></a></td><td>Module-level helper for legacy tests.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-handle_voice_session'><h3><code class='inline'>handle_voice_session</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def handle_voice_session(ws: WebSocket) -&gt; None</code></div><p>Legacy entry point — delegates to VoicePipeline.
+
+Kept for backward compatibility. New callers should use
+VoicePipeline directly.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.voice_pipeline import handle_voice_session
+
+    result = await handle_voice_session()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_text_message'><h3><code class='inline'>_handle_text_message</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def _handle_text_message(session: VoiceSession, text: str) -&gt; None</code></div><p>Module-level helper for legacy tests.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.voice_pipeline import _handle_text_message
+
+    result = await _handle_text_message()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-VoiceTurnResult'><code class='inline'>VoiceTurnResult</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-VoiceSessionState'><code class='inline'>VoiceSessionState</code></a></td><td></td><td>3 methods</td></tr><tr><td><a href='#cls-VoiceSession'><code class='inline'>VoiceSession</code></a></td><td></td><td>8 methods</td></tr><tr><td><a href='#cls-STTAdapter'><code class='inline'>STTAdapter</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-TTSAdapter'><code class='inline'>TTSAdapter</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-VoiceGateAdapter'><code class='inline'>VoiceGateAdapter</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-VoicePipeline'><code class='inline'>VoicePipeline</code></a></td><td></td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-VoiceTurnResult'><h3><code class='inline'>VoiceTurnResult</code></h3><p>Result of processing one voice turn.</p><p class='small'><b>Attributes:</b> user_text: str, assistant_text: str, stt_language: str, stt_duration: float, turn_count: int, violations: List[str], error: Optional[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.voice_pipeline import VoiceTurnResult
+
+obj = VoiceTurnResult(...)</pre></div>
+<div class='card' id='cls-VoiceSessionState'><h3><code class='inline'>VoiceSessionState</code></h3><p>State for one voice conversation session.</p><p class='small'><b>Attributes:</b> messages: List[Dict[str, str]], mode: str, turn_count: int, created_at: float, MAX_HISTORY: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>add_user_message</code></td><td><code class='inline'>def add_user_message(self, text: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>add_assistant_message</code></td><td><code class='inline'>def add_assistant_message(self, text: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_trim</code></td><td><code class='inline'>def _trim(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.voice_pipeline import VoiceSessionState
+
+obj = VoiceSessionState(...)</pre></div>
+<div class='card' id='cls-VoiceSession'><h3><code class='inline'>VoiceSession</code></h3><p>Legacy session wrapper kept for tests and older imports.</p><p class='small'><b>Attributes:</b> MAX_MESSAGE_HISTORY</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, ws)</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>mode</code></td><td><code class='inline'>def mode(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>mode</code></td><td><code class='inline'>def mode(self, value: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>messages</code></td><td><code class='inline'>def messages(self) -&gt; List[Dict[str, str]]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>turn_count</code></td><td><code class='inline'>def turn_count(self) -&gt; int</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>turn_count</code></td><td><code class='inline'>def turn_count(self, value: int) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>add_user_message</code></td><td><code class='inline'>def add_user_message(self, text: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>add_assistant_message</code></td><td><code class='inline'>def add_assistant_message(self, text: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+v
+o
+i
+c
+e
+_
+p
+i
+p
+e
+l
+i
+n
+e
+ 
+i
+m
+p
+o
+r
+t
+ 
+V
+o
+i
+c
+e
+S
+e
+s
+s
+i
+o
+n
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+V
+o
+i
+c
+e
+S
+e
+s
+s
+i
+o
+n
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-STTAdapter'><h3><code class='inline'>STTAdapter</code></h3><p>Speech-to-text adapter — wraps faster-whisper.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>transcribe</code></td><td><code class='inline'>def transcribe(self, audio_bytes: bytes, filename: str = &#x27;audio.webm&#x27;) -&gt; dict</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.voice_pipeline import STTAdapter
+
+obj = STTAdapter(...)</pre></div>
+<div class='card' id='cls-TTSAdapter'><h3><code class='inline'>TTSAdapter</code></h3><p>Text-to-speech adapter — wraps edge-tts.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>synthesize</code></td><td><code class='inline'>async def synthesize(self, text: str, voice: str = &#x27;kitty&#x27;, speed: float = 1.0) -&gt; bytes</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.voice_pipeline import TTSAdapter
+
+obj = TTSAdapter(...)</pre></div>
+<div class='card' id='cls-VoiceGateAdapter'><h3><code class='inline'>VoiceGateAdapter</code></h3><p>Voice gate adapter — SOUL.md compliance filtering.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>filter</code></td><td><code class='inline'>def filter(self, text: str) -&gt; tuple[str, List[str]]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.voice_pipeline import VoiceGateAdapter
+
+obj = VoiceGateAdapter(...)</pre></div>
+<div class='card' id='cls-VoicePipeline'><h3><code class='inline'>VoicePipeline</code></h3><p>Deep voice pipeline module.
+
+High-leverage entry point for all voice operations.
+Internal adapters (STT, TTS, gate) are implementation details.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, stt_adapter: Optional[STTAdapter] = None, tts_adapter: Optional[TTSAdapter] = None, gate_adapter: Opt</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>process_turn</code></td><td><code class='inline'>async def process_turn(self, audio_bytes: bytes, session: Optional[VoiceSessionState] = None, domain: Optional[str] = No</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>handle_websocket</code></td><td><code class='inline'>async def handle_websocket(self, ws: WebSocket) -&gt; None</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>_handle_text_message</code></td><td><code class='inline'>async def _handle_text_message(self, session: VoiceSessionState, ws: WebSocket, text: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_handle_audio_bytes</code></td><td><code class='inline'>async def _handle_audio_bytes(self, session: VoiceSessionState, ws: WebSocket, audio: bytes) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+v
+o
+i
+c
+e
+_
+p
+i
+p
+e
+l
+i
+n
+e
+ 
+i
+m
+p
+o
+r
+t
+ 
+V
+o
+i
+c
+e
+P
+i
+p
+e
+l
+i
+n
+e
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+V
+o
+i
+c
+e
+P
+i
+p
+e
+l
+i
+n
+e
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

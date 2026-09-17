@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/lib/chromadb-hybrid — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/lib/chromadb-hybrid</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/lib/chromadb-hybrid</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/lib/chromadb-hybrid.ts</code> &middot; TypeScript &middot; 2 exports</p>
+<div class='card'><h2>Overview</h2><p>**
+ChromaDB Hybrid Search — keyword + vector search in a single query.
+The truth: ChromaDB does NOT natively support hybrid (BM25 + vector) search.
+It&#x27;s a pure vector database. Every blog post claiming &quot;hybrid search in
+ChromaDB&quot; is either:
+  (a) Running TWO queries and merging results client-side, or
+  (b) Using the now-deprecated &quot;default_ef&quot; param which was an HNSW efSearch
+      parameter, NOT a hybrid search parameter.
+What &quot;hnsw:ef_search&quot; actually does: controls the HNSW graph search width
+(trade recall for speed). Higher values = better recall, slower queries.
+TRUE hybrid search requires:
+  1. A separate keyword index (e.g., Tantivy, Whoosh, SQLite FTS5)
+  2. Run both searches independently
+  3. Merge &amp; rerank results (RRF or weighted fusion)
+Below: the correct pattern for hybrid search with ChromaDB + SQLite FTS5.
+This is the pattern used by LangChain&#x27;s SelfQueryRetriever and Qdrant&#x27;s
+hybrid search — adapted for Kitty&#x27;s existing ChromaDB setup.
+Stolen from: LangChain (MIT), Qdrant hybrid search docs (Apache 2),
+SQLite FTS5 docs (public domain).</p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-HybridSearchResult'><code class='inline'>HybridSearchResult</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-HybridSearchOptions'><code class='inline'>HybridSearchOptions</code></a></td><td>type</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-HybridSearchResult'><h3><code class='inline'>HybridSearchResult</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface HybridSearchResult</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { HybridSearchResult } from &#x27;@/gateway/kitty-chat/src/lib/chromadb-hybrid&#x27;;
+
+// TODO: wire real props; see component signature
+const result = HybridSearchResult;</pre></div>
+<div class='card' id='ex-HybridSearchOptions'><h3><code class='inline'>HybridSearchOptions</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface HybridSearchOptions</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { HybridSearchOptions } from &#x27;@/gateway/kitty-chat/src/lib/chromadb-hybrid&#x27;;
+
+// TODO: wire real props; see component signature
+const result = HybridSearchOptions;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

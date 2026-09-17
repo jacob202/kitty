@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.buddy — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.buddy</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.buddy</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/buddy.py</code> &middot; Python &middot; 11 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Buddy state — Kitty&#x27;s persistent mood, energy, and session counters.
+
+The UI polls GET /mood to get the current state instead of guessing from
+message text. State survives across requests in memory and is snapshotted
+to data/kitty/buddy_state.json on every write so it survives restarts.
+
+Mood transitions:
+  idle       — base state, no recent activity
+  thinking   — set when a request starts
+  success    — set when a response completes cleanly
+  confused   — set when an error or drift violation occurs
+  searching  — set when context retrieval is in progress</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.buddy_store</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_load'><code class='inline'>_load</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_save'><code class='inline'>_save</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_state'><code class='inline'>get_state</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-set_mood'><code class='inline'>set_mood</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-on_request_start'><code class='inline'>on_request_start</code></a></td><td>Call when a chat/ask request begins.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-on_request_success'><code class='inline'>on_request_success</code></a></td><td>Call when a response is delivered cleanly.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-on_request_error'><code class='inline'>on_request_error</code></a></td><td>Call on any error or drift violation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-on_context_fetch'><code class='inline'>on_context_fetch</code></a></td><td>Call while memory/knowledge retrieval is running.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-record_drift'><code class='inline'>record_drift</code></a></td><td>Record a drift violation. Increments both lifetime and session counters.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_drift_nudge'><code class='inline'>get_drift_nudge</code></a></td><td>Return a correction nudge if drift threshold exceeded this session.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-reset_drift_counter'><code class='inline'>reset_drift_counter</code></a></td><td>Reset session drift counter.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_load'><h3><code class='inline'>_load</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _load() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import _load
+
+result = _load()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_save'><h3><code class='inline'>_save</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _save() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import _save
+
+result = _save()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_state'><h3><code class='inline'>get_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_state() -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import get_state
+
+result = get_state()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_mood'><h3><code class='inline'>set_mood</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def set_mood(mood: KittyMood) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import set_mood
+
+result = set_mood(mood=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-on_request_start'><h3><code class='inline'>on_request_start</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def on_request_start() -&gt; None</code></div><p>Call when a chat/ask request begins.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import on_request_start
+
+result = on_request_start()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-on_request_success'><h3><code class='inline'>on_request_success</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def on_request_success() -&gt; None</code></div><p>Call when a response is delivered cleanly.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import on_request_success
+
+result = on_request_success()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-on_request_error'><h3><code class='inline'>on_request_error</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def on_request_error() -&gt; None</code></div><p>Call on any error or drift violation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import on_request_error
+
+result = on_request_error()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-on_context_fetch'><h3><code class='inline'>on_context_fetch</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def on_context_fetch() -&gt; None</code></div><p>Call while memory/knowledge retrieval is running.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import on_context_fetch
+
+result = on_context_fetch()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_drift'><h3><code class='inline'>record_drift</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def record_drift() -&gt; None</code></div><p>Record a drift violation. Increments both lifetime and session counters.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import record_drift
+
+result = record_drift()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_drift_nudge'><h3><code class='inline'>get_drift_nudge</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_drift_nudge() -&gt; Optional[str]</code></div><p>Return a correction nudge if drift threshold exceeded this session.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import get_drift_nudge
+
+result = get_drift_nudge()
+# result: Optional[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reset_drift_counter'><h3><code class='inline'>reset_drift_counter</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def reset_drift_counter() -&gt; None</code></div><p>Reset session drift counter.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy import reset_drift_counter
+
+result = reset_drift_counter()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_SESSION_IDLE_SECONDS</code></td><td><code class='inline'>1800</code></td></tr><tr><td><code class='inline'>_DRIFT_THRESHOLD</code></td><td><code class='inline'>int</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

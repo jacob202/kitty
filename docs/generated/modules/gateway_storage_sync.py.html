@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.storage_sync — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.storage_sync</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.storage_sync</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/storage_sync.py</code> &middot; Python &middot; 24 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>JSON import/export for the migrated SQLite stores.
+
+Phase 1 deepening: this module merges the previous ``storage_io`` and ``sync``
+modules. The shape wins from ``storage_io`` (versioned, ``format_version`` +
+``stores`` dict), the additional stores (``memories``, ``journal_entries``,
+``preferences``) come from ``sync``. ``gateway/sync.py`` has been deleted.
+
+Use this module for:
+  - Manual backup before a destructive operation
+  - Restore from a known-good snapshot
+  - Migrating a legacy single-file store into the new SQLite seam
+  - Exporting user data on demand
+
+This is NOT a second active runtime source of truth — nothing should be
+reading or writing these JSON files at request time. SQLite is canonical.
+
+The contract: every store is representable as a JSON object with a top-level
+``&quot;stores&quot;`` dict, one entry per store, each entry is a JSON value
+appropriate to that store. Bump ``FORMAT_VERSION`` when the shape changes.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.memory</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_iso_now'><code class='inline'>_iso_now</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-export_memories'><code class='inline'>export_memories</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-export_journal_entries'><code class='inline'>export_journal_entries</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-export_todos'><code class='inline'>export_todos</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-export_projects'><code class='inline'>export_projects</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-export_projects_and_todos'><code class='inline'>export_projects_and_todos</code></a></td><td>Read Projects and Todos as one coherent snapshot.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-export_plugin_settings'><code class='inline'>export_plugin_settings</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-export_preferences'><code class='inline'>export_preferences</code></a></td><td>Preferences store. Currently a placeholder; reserved for future use.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-export_all'><code class='inline'>export_all</code></a></td><td>Return a JSON-serializable snapshot of every migrated store.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-export_to_file'><code class='inline'>export_to_file</code></a></td><td>Write the current snapshot to a JSON file. Returns the path.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-import_memories'><code class='inline'>import_memories</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-import_journal_entries'><code class='inline'>import_journal_entries</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-import_projects'><code class='inline'>import_projects</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-import_todos'><code class='inline'>import_todos</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-import_plugin_settings'><code class='inline'>import_plugin_settings</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-import_preferences'><code class='inline'>import_preferences</code></a></td><td>Preferences store. Currently a no-op (reserved).</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_validate_snapshot_payloads'><code class='inline'>_validate_snapshot_payloads</code></a></td><td>Reject a wrongly-shaped store payload before any store is written.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_validate_snapshot_references'><code class='inline'>_validate_snapshot_references</code></a></td><td>Reject an un-restorable snapshot before any store is written.</td><td><span class='pill'>complex</span><span class='muted small'>(23)</span></td></tr><tr><td><a href='#fn-_validate_todo_owners_against_destination'><code class='inline'>_validate_todo_owners_against_destination</code></a></td><td>Reject snapshot todos whose owner does not exist in this database.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_validate_memories'><code class='inline'>_validate_memories</code></a></td><td>Reject memory records the importer cannot accept.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_validate_real_writes'><code class='inline'>_validate_real_writes</code></a></td><td>Dry-run every store that writes before a later one could fail.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_reject_if_unrestorable'><code class='inline'>_reject_if_unrestorable</code></a></td><td>Turn any dry-run failure into the snapshot rejection the caller expects.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-import_all'><code class='inline'>import_all</code></a></td><td>Replace every migrated store with the contents of ``snapshot``.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-import_from_file'><code class='inline'>import_from_file</code></a></td><td>Read a JSON file, validate, and import. Returns per-store counts.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_iso_now'><h3><code class='inline'>_iso_now</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _iso_now() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import _iso_now
+
+result = _iso_now()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-export_memories'><h3><code class='inline'>export_memories</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def export_memories() -&gt; list[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import export_memories
+
+result = export_memories()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-export_journal_entries'><h3><code class='inline'>export_journal_entries</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def export_journal_entries() -&gt; list[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import export_journal_entries
+
+result = export_journal_entries()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-export_todos'><h3><code class='inline'>export_todos</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def export_todos() -&gt; list[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import export_todos
+
+result = export_todos()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-export_projects'><h3><code class='inline'>export_projects</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def export_projects() -&gt; list[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import export_projects
+
+result = export_projects()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-export_projects_and_todos'><h3><code class='inline'>export_projects_and_todos</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def export_projects_and_todos() -&gt; tuple[list[dict], list[dict]]</code></div><p>Read Projects and Todos as one coherent snapshot.
+
+A project&#x27;s ``selected_todo_id`` and a todo&#x27;s owning ``project_id`` are one
+cross-table state. Reading them through separate connections can capture a
+selection or reassignment that landed between the two reads, exporting a
+state that never existed — and importing it would silently restore without
+the user&#x27;s chosen action. One deferred read transaction sees a single WAL
+snapshot of both tables and does not block writers.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import export_projects_and_todos
+
+result = export_projects_and_todos()
+# result: tuple[list[dict], list[dict]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-export_plugin_settings'><h3><code class='inline'>export_plugin_settings</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def export_plugin_settings() -&gt; dict[str, bool]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import export_plugin_settings
+
+result = export_plugin_settings()
+# result: dict[str, bool]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-export_preferences'><h3><code class='inline'>export_preferences</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def export_preferences() -&gt; dict</code></div><p>Preferences store. Currently a placeholder; reserved for future use.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import export_preferences
+
+result = export_preferences()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-export_all'><h3><code class='inline'>export_all</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def export_all() -&gt; dict[str, Any]</code></div><p>Return a JSON-serializable snapshot of every migrated store.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import export_all
+
+result = export_all()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-export_to_file'><h3><code class='inline'>export_to_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def export_to_file(path: Path | None = None) -&gt; Path</code></div><p>Write the current snapshot to a JSON file. Returns the path.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import export_to_file
+
+result = export_to_file(path=&quot;path_example&quot;  # default: None)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-import_memories'><h3><code class='inline'>import_memories</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def import_memories(payload: list[dict]) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import import_memories
+
+result = import_memories(payload=[])
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-import_journal_entries'><h3><code class='inline'>import_journal_entries</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def import_journal_entries(payload: list[dict]) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import import_journal_entries
+
+result = import_journal_entries(payload=[])
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-import_projects'><h3><code class='inline'>import_projects</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def import_projects(payload: list[dict]) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import import_projects
+
+result = import_projects(payload=[])
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-import_todos'><h3><code class='inline'>import_todos</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def import_todos(payload: list[dict]) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import import_todos
+
+result = import_todos(payload=[])
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-import_plugin_settings'><h3><code class='inline'>import_plugin_settings</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def import_plugin_settings(payload: dict[str, bool]) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import import_plugin_settings
+
+result = import_plugin_settings(payload=&quot;payload_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-import_preferences'><h3><code class='inline'>import_preferences</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def import_preferences(payload: dict) -&gt; int</code></div><p>Preferences store. Currently a no-op (reserved).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import import_preferences
+
+result = import_preferences(payload={})
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_snapshot_payloads'><h3><code class='inline'>_validate_snapshot_payloads</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _validate_snapshot_payloads(stores: dict[str, Any]) -&gt; None</code></div><p>Reject a wrongly-shaped store payload before any store is written.
+
+``_IMPORTERS`` writes in declaration order, so a payload shape error raised
+by a later importer would otherwise follow successful writes by earlier
+ones. Every importer&#x27;s top-level shape check is therefore applied up front.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import _validate_snapshot_payloads
+
+result = _validate_snapshot_payloads(stores=&quot;stores_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_snapshot_references'><h3><code class='inline'>_validate_snapshot_references</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (23)</span></h3><div class='sig'><code>def _validate_snapshot_references(stores: dict[str, Any]) -&gt; None</code></div><p>Reject an un-restorable snapshot before any store is written.
+
+``_IMPORTERS`` restores memories, journal entries, and projects ahead of
+todos, so a todo payload that only fails inside ``todo_store.restore`` would
+leave those earlier stores committed against a rejected snapshot. Every
+precondition restore enforces is therefore checked here first.
+
+The cross-store reference check needs a ``projects`` store. A v1 snapshot
+has none, so its todos are validated only for internal shape here and are
+checked against the destination by ``todo_store.restore`` instead.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import _validate_snapshot_references
+
+result = _validate_snapshot_references(stores=&quot;stores_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_todo_owners_against_destination'><h3><code class='inline'>_validate_todo_owners_against_destination</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _validate_todo_owners_against_destination(todos: list[Any]) -&gt; None</code></div><p>Reject snapshot todos whose owner does not exist in this database.
+
+A v1 snapshot carries no ``projects`` store, so the cross-store check above
+cannot see its owners and ``todo_store.restore`` would be the first to
+notice — after Memories and Journal are already committed. Checking the
+destination here fails the whole snapshot before any write.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import _validate_todo_owners_against_destination
+
+result = _validate_todo_owners_against_destination(todos=[])
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_memories'><h3><code class='inline'>_validate_memories</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _validate_memories(payload: list[Any]) -&gt; None</code></div><p>Reject memory records the importer cannot accept.
+
+Memories live in an external backend that cannot share one transaction with
+the SQLite stores, so a record that fails mid-import cannot be rolled back.
+The importer&#x27;s only shape failure is a non-dict record; the text is read
+defensively, so anything else is the backend&#x27;s own outage, not the
+snapshot&#x27;s.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import _validate_memories
+
+result = _validate_memories(payload=[])
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_real_writes'><h3><code class='inline'>_validate_real_writes</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _validate_real_writes(stores: dict[str, Any]) -&gt; None</code></div><p>Dry-run every store that writes before a later one could fail.
+
+``_IMPORTERS`` runs Memories, Journal, Projects, Todos, then plugin
+settings. Hand-written type checks cannot stay in step with what the real
+statements accept, so each owning store is asked to execute its own write
+path in a transaction that is always rolled back. Any failure rejects the
+whole snapshot before a single row is committed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import _validate_real_writes
+
+result = _validate_real_writes(stores=&quot;stores_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reject_if_unrestorable'><h3><code class='inline'>_reject_if_unrestorable</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _reject_if_unrestorable(name: str, validate: Callable[[], None]) -&gt; None</code></div><p>Turn any dry-run failure into the snapshot rejection the caller expects.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import _reject_if_unrestorable
+
+result = _reject_if_unrestorable(name=&quot;name_example&quot;, validate=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-import_all'><h3><code class='inline'>import_all</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def import_all(snapshot: dict[str, Any]) -&gt; dict[str, int]</code></div><p>Replace every migrated store with the contents of ``snapshot``.
+
+Validates the format version. Returns a count of records imported
+per store. Raises ``ValueError`` on a missing or unknown store key
+or a bad format version.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import import_all
+
+result = import_all(snapshot=&quot;snapshot_example&quot;)
+# result: dict[str, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-import_from_file'><h3><code class='inline'>import_from_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def import_from_file(path: Path) -&gt; dict[str, int]</code></div><p>Read a JSON file, validate, and import. Returns per-store counts.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_sync import import_from_file
+
+result = import_from_file(path=&quot;path_example&quot;)
+# result: dict[str, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>FORMAT_VERSION</code></td><td><code class='inline'>2</code></td></tr><tr><td><code class='inline'>_ACCEPTED_FORMAT_VERSIONS</code></td><td><code class='inline'>frozenset(range(1, FORMAT_VERSION + 1))</code></td></tr><tr><td><code class='inline'>EXPORT_FILENAME</code></td><td><code class='inline'>&#x27;kitty-storage-export.json&#x27;</code></td></tr><tr><td><code class='inline'>_IMPORTERS</code></td><td><code class='inline'>dict[str, Callable[..., int]]</code></td></tr><tr><td><code class='inline'>_REQUIRED_PAYLOAD_TYPES</code></td><td><code class='inline'>dict[str, type]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

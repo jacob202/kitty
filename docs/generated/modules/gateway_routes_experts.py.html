@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.experts — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.experts</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.experts</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/experts.py</code> &middot; Python &middot; 7 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>REST endpoints for proactive expert feedback and state management.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.sse</code>, <code class='inline'>pydantic</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_unprocessed_expert_signals'><code class='inline'>get_unprocessed_expert_signals</code></a></td><td>Fetch all unprocessed signals emitted by proactive experts.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-snooze_expert'><code class='inline'>snooze_expert</code></a></td><td>Temporarily pause an expert&#x27;s proactive evaluation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-unsnooze_expert'><code class='inline'>unsnooze_expert</code></a></td><td>Resume an expert&#x27;s proactive evaluation immediately.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-pause_all_experts'><code class='inline'>pause_all_experts</code></a></td><td>Globally pause all proactive experts.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-resume_all_experts'><code class='inline'>resume_all_experts</code></a></td><td>Globally resume all proactive experts.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-dismiss_expert_signal'><code class='inline'>dismiss_expert_signal</code></a></td><td>Dismiss a signal, suppressing similar future insights from this expert.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-delete_signal'><code class='inline'>delete_signal</code></a></td><td>Delete a signal entirely (for tests/cleanup).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-get_unprocessed_expert_signals'><h3><code class='inline'>get_unprocessed_expert_signals</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def get_unprocessed_expert_signals()</code></div><p>Fetch all unprocessed signals emitted by proactive experts.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.experts import get_unprocessed_expert_signals
+
+    result = await get_unprocessed_expert_signals()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-snooze_expert'><h3><code class='inline'>snooze_expert</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def snooze_expert(expert_id: str, payload: SnoozeRequest)</code></div><p>Temporarily pause an expert&#x27;s proactive evaluation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.experts import snooze_expert
+
+    result = await snooze_expert()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-unsnooze_expert'><h3><code class='inline'>unsnooze_expert</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def unsnooze_expert(expert_id: str)</code></div><p>Resume an expert&#x27;s proactive evaluation immediately.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.experts import unsnooze_expert
+
+    result = await unsnooze_expert()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-pause_all_experts'><h3><code class='inline'>pause_all_experts</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def pause_all_experts()</code></div><p>Globally pause all proactive experts.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.experts import pause_all_experts
+
+    result = await pause_all_experts()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resume_all_experts'><h3><code class='inline'>resume_all_experts</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def resume_all_experts()</code></div><p>Globally resume all proactive experts.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.experts import resume_all_experts
+
+    result = await resume_all_experts()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-dismiss_expert_signal'><h3><code class='inline'>dismiss_expert_signal</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def dismiss_expert_signal(signal_id: int)</code></div><p>Dismiss a signal, suppressing similar future insights from this expert.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.experts import dismiss_expert_signal
+
+    result = await dismiss_expert_signal()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_signal'><h3><code class='inline'>delete_signal</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def delete_signal(signal_id: int)</code></div><p>Delete a signal entirely (for tests/cleanup).</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.experts import delete_signal
+
+    result = await delete_signal()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-SnoozeRequest'><code class='inline'>SnoozeRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-SnoozeRequest'><h3><code class='inline'>SnoozeRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> duration_hours: float</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.experts import SnoozeRequest
+
+obj = SnoozeRequest(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

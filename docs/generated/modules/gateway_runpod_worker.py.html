@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.runpod_worker — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.runpod_worker</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.runpod_worker</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/runpod_worker.py</code> &middot; Python &middot; 6 functions &middot; 8 classes</p>
+<div class='card'><h2>Overview</h2><p>Client for the authenticated Kitty Comfy worker exposed by RunPod.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.runpod_control</code>, <code class='inline'>httpx</code>, <code class='inline'>os</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_as_int'><code class='inline'>_as_int</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-worker_is_configured'><code class='inline'>worker_is_configured</code></a></td><td>Whether both worker settings are present, without revealing either.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-client_from_env'><code class='inline'>client_from_env</code></a></td><td>Build a worker client from the operator&#x27;s environment.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_health_error_message'><code class='inline'>_health_error_message</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_parse_image'><code class='inline'>_parse_image</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_parse_job'><code class='inline'>_parse_job</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_as_int'><h3><code class='inline'>_as_int</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _as_int(value: object, default: int = 0) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runpod_worker import _as_int
+
+result = _as_int(value=..., default=0  # default: 0)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-worker_is_configured'><h3><code class='inline'>worker_is_configured</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def worker_is_configured() -&gt; bool</code></div><p>Whether both worker settings are present, without revealing either.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runpod_worker import worker_is_configured
+
+result = worker_is_configured()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-client_from_env'><h3><code class='inline'>client_from_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def client_from_env(timeout_seconds: float = 30.0, client: httpx.AsyncClient | None = None) -&gt; RunPodWorkerClient</code></div><p>Build a worker client from the operator&#x27;s environment.
+
+Raises ``RunPodWorkerConfigurationError`` naming the missing variable rather
+than falling back to an unauthenticated or default endpoint — a silent
+fallback here would send Jacob&#x27;s images somewhere he did not configure.
+The token&#x27;s value never appears in the message.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runpod_worker import client_from_env
+
+result = client_from_env(timeout_seconds=0.0  # default: 30.0, client=...  # default: None)
+# result: RunPodWorkerClient</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_health_error_message'><h3><code class='inline'>_health_error_message</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _health_error_message(response: httpx.Response) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runpod_worker import _health_error_message
+
+result = _health_error_message(response=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_image'><h3><code class='inline'>_parse_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _parse_image(payload: object) -&gt; WorkerImage</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runpod_worker import _parse_image
+
+result = _parse_image(payload=...)
+# result: WorkerImage</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_job'><h3><code class='inline'>_parse_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _parse_job(payload: object) -&gt; WorkerJob</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runpod_worker import _parse_job
+
+result = _parse_job(payload=...)
+# result: WorkerJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RunPodWorkerError'><code class='inline'>RunPodWorkerError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunPodWorkerNotListeningError'><code class='inline'>RunPodWorkerNotListeningError</code></a></td><td>(RunPodWorkerError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunPodWorkerConfigurationError'><code class='inline'>RunPodWorkerConfigurationError</code></a></td><td>(RunPodConfigurationError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunPodWorkerAmbiguousSubmissionError'><code class='inline'>RunPodWorkerAmbiguousSubmissionError</code></a></td><td>(RunPodWorkerError)</td><td>0 methods</td></tr><tr><td><a href='#cls-WorkerOutput'><code class='inline'>WorkerOutput</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-WorkerImage'><code class='inline'>WorkerImage</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-WorkerJob'><code class='inline'>WorkerJob</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-RunPodWorkerClient'><code class='inline'>RunPodWorkerClient</code></a></td><td></td><td>13 methods</td></tr></table></div>
+<div class='card' id='cls-RunPodWorkerError'><h3><code class='inline'>RunPodWorkerError</code></h3><p>The Kitty worker returned an error or malformed response.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_worker import RunPodWorkerError
+
+obj = RunPodWorkerError(...)</pre></div>
+<div class='card' id='cls-RunPodWorkerNotListeningError'><h3><code class='inline'>RunPodWorkerNotListeningError</code></h3><p>Nothing is bound to the worker port.
+
+RunPod&#x27;s proxy answers 404 when no process holds the port. The worker
+itself never returns 404 on ``/health`` — it answers 200, 424 when the
+workflow bundle is missing, or 503 while ComfyUI is still coming up, and
+``bootstrap.sh`` binds a stage server that answers 503 before the real
+worker takes over. So a 404 means the container start command never ran or
+died before binding, which no amount of waiting repairs.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_worker import RunPodWorkerNotListeningError
+
+obj = RunPodWorkerNotListeningError(...)</pre></div>
+<div class='card' id='cls-RunPodWorkerConfigurationError'><h3><code class='inline'>RunPodWorkerConfigurationError</code></h3><p>The worker is reachable but cannot run the installed workflow.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_worker import RunPodWorkerConfigurationError
+
+obj = RunPodWorkerConfigurationError(...)</pre></div>
+<div class='card' id='cls-RunPodWorkerAmbiguousSubmissionError'><h3><code class='inline'>RunPodWorkerAmbiguousSubmissionError</code></h3><p>The worker may have accepted the job; callers must not retry blindly.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_worker import RunPodWorkerAmbiguousSubmissionError
+
+obj = RunPodWorkerAmbiguousSubmissionError(...)</pre></div>
+<div class='card' id='cls-WorkerOutput'><h3><code class='inline'>WorkerOutput</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> asset_id: str, filename: str, media_type: str, size_bytes: int, sha256: str, download_url: str, width: int, height: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>from_payload</code></td><td><code class='inline'>def from_payload(cls, payload: Mapping[str, object]) -&gt; &#x27;WorkerOutput&#x27;</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.runpod_worker import WorkerOutput
+
+obj = WorkerOutput(...)</pre></div>
+<div class='card' id='cls-WorkerImage'><h3><code class='inline'>WorkerImage</code></h3><p>A source image stored on the worker, addressable by a job request.</p><p class='small'><b>Attributes:</b> image_id: str, sha256: str, media_type: str, size_bytes: int, width: int, height: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>from_payload</code></td><td><code class='inline'>def from_payload(cls, payload: Mapping[str, object]) -&gt; &#x27;WorkerImage&#x27;</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.runpod_worker import WorkerImage
+
+obj = WorkerImage(...)</pre></div>
+<div class='card' id='cls-WorkerJob'><h3><code class='inline'>WorkerJob</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> job_id: str, status: str, workflow_sha256: str, prompt_id: str | None, submission_state: str, error: str | None, outputs: tuple[WorkerOutput, ...]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>from_payload</code></td><td><code class='inline'>def from_payload(cls, payload: Mapping[str, object]) -&gt; &#x27;WorkerJob&#x27;</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>from gateway.runpod_worker import WorkerJob
+
+obj = WorkerJob(...)</pre></div>
+<div class='card' id='cls-RunPodWorkerClient'><h3><code class='inline'>RunPodWorkerClient</code></h3><p>Narrow asynchronous client for one Kitty worker instance.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, base_url: str, bearer_token: str, timeout_seconds: float = 30.0, client: httpx.AsyncClient | None = N</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__aenter__</code></td><td><code class='inline'>async def __aenter__(self) -&gt; &#x27;RunPodWorkerClient&#x27;</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__aexit__</code></td><td><code class='inline'>async def __aexit__(self, *_args) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>aclose</code></td><td><code class='inline'>async def aclose(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_headers</code></td><td><code class='inline'>def _headers(self) -&gt; dict[str, str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>read_health</code></td><td><code class='inline'>async def read_health(self) -&gt; tuple[int, dict[str, Any] | None]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>assert_ready</code></td><td><code class='inline'>async def assert_ready(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>upload_source_image</code></td><td><code class='inline'>async def upload_source_image(self, image_bytes: bytes, media_type: str = &#x27;application/octet-stream&#x27;) -&gt; WorkerImage</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>submit</code></td><td><code class='inline'>async def submit(self, workflow_id: str, prompt: str, negative_prompt: str, checkpoint: str | None, width: int, height: </code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get_job</code></td><td><code class='inline'>async def get_job(self, job_id: str) -&gt; WorkerJob</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>wait</code></td><td><code class='inline'>async def wait(self, job_id: str, timeout_seconds: int, poll_interval_seconds: float) -&gt; WorkerJob</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>cancel</code></td><td><code class='inline'>async def cancel(self, job_id: str) -&gt; WorkerJob</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>download</code></td><td><code class='inline'>async def download(self, output: WorkerOutput) -&gt; bytes</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+r
+u
+n
+p
+o
+d
+_
+w
+o
+r
+k
+e
+r
+ 
+i
+m
+p
+o
+r
+t
+ 
+R
+u
+n
+P
+o
+d
+W
+o
+r
+k
+e
+r
+C
+l
+i
+e
+n
+t
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+R
+u
+n
+P
+o
+d
+W
+o
+r
+k
+e
+r
+C
+l
+i
+e
+n
+t
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>WORKER_URL_ENV</code></td><td><code class='inline'>&#x27;KITTY_WORKER_URL&#x27;</code></td></tr><tr><td><code class='inline'>WORKER_TOKEN_ENV</code></td><td><code class='inline'>&#x27;KITTY_WORKER_BEARER_TOKEN&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

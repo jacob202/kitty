@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.agent_room.server — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.agent_room.server</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.agent_room.server</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/agent_room/server.py</code> &middot; Python &middot; 12 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>FastMCP entry point for Kitty&#x27;s canonical global agent room.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>mcp.server.fastmcp</code>, <code class='inline'>os</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_client_identity'><code class='inline'>_client_identity</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_server_host'><code class='inline'>_server_host</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_server_port'><code class='inline'>_server_port</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_status'><code class='inline'>_status</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-room_status'><code class='inline'>room_status</code></a></td><td>Return canonical room identity plus the shared scoped orientation briefing.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-room_recent'><code class='inline'>room_recent</code></a></td><td>Read recent durable room messages, optionally for one evidence scope.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-room_inbox'><code class='inline'>room_inbox</code></a></td><td>Read this identity&#x27;s inbox.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-room_thread'><code class='inline'>room_thread</code></a></td><td>Read one message thread from its root through descendants.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-room_post'><code class='inline'>room_post</code></a></td><td>Post as this configured client identity; sender identity is not overridable.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-room_reply'><code class='inline'>room_reply</code></a></td><td>Reply in-thread as this configured client identity.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-room_ack'><code class='inline'>room_ack</code></a></td><td>Acknowledge receipt for this configured client identity.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-_client_identity'><h3><code class='inline'>_client_identity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _client_identity() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import _client_identity
+
+result = _client_identity()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_server_host'><h3><code class='inline'>_server_host</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _server_host() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import _server_host
+
+result = _server_host()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_server_port'><h3><code class='inline'>_server_port</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _server_port() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import _server_port
+
+result = _server_port()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_status'><h3><code class='inline'>_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _status() -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import _status
+
+result = _status()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-room_status'><h3><code class='inline'>room_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def room_status(session_id: str | None = None, scope: str | None = None, github: bool = False) -&gt; dict</code></div><p>Return canonical room identity plus the shared scoped orientation briefing.
+
+The briefing is a view of the one shared orientation result owned by
+``gateway.context_receipt``; no aggregation happens in this server.
+
+``github`` is opt-in and defaults off: orientation performs no network call
+of its own, so a caller must ask explicitly before anything is fetched.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import room_status
+
+result = room_status(session_id=&quot;session_id_example&quot;  # default: None, scope=&quot;scope_example&quot;  # default: None, github=True  # default: False)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-room_recent'><h3><code class='inline'>room_recent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def room_recent(limit: int = 100, scope_key: str | None = None) -&gt; list[dict]</code></div><p>Read recent durable room messages, optionally for one evidence scope.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import room_recent
+
+result = room_recent(limit=0  # default: 100, scope_key=&quot;scope_key_example&quot;  # default: None)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-room_inbox'><h3><code class='inline'>room_inbox</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def room_inbox(unread_only: bool = False, direct_only: bool = False, attention_only: bool = False, limit: int = 100, scope_key: str | None = None) -&gt; list[dict]</code></div><p>Read this identity&#x27;s inbox.
+
+Prefer ``attention_only=True`` for assignment discovery: it keeps everything
+addressed to this identity plus broadcast prompts, handoffs and reviews, and
+drops ambient status/result broadcast. ``direct_only=True`` is narrower and
+lossy — it also hides broadcast handoffs, which are the room&#x27;s whole point.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import room_inbox
+
+result = room_inbox(unread_only=True  # default: False, direct_only=True  # default: False, attention_only=True  # default: False, limit=0  # default: 100, scope_key=&quot;scope_key_example&quot;  # default: None)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-room_thread'><h3><code class='inline'>room_thread</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def room_thread(message_id: str, limit: int = 100) -&gt; list[dict]</code></div><p>Read one message thread from its root through descendants.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import room_thread
+
+result = room_thread(message_id=&quot;message_id_example&quot;, limit=0  # default: 100)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-room_post'><h3><code class='inline'>room_post</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def room_post(content: str, recipient_id: str | None = None, message_kind: str = &#x27;status&#x27;, scope_key: str | None = None) -&gt; dict</code></div><p>Post as this configured client identity; sender identity is not overridable.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import room_post
+
+result = room_post(content=&quot;content_example&quot;, recipient_id=&quot;recipient_id_example&quot;  # default: None, message_kind=&quot;message_kind_example&quot;  # default: &#x27;status&#x27;, scope_key=&quot;scope_key_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-room_reply'><h3><code class='inline'>room_reply</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def room_reply(message_id: str, content: str, recipient_id: str | None = None, message_kind: str = &#x27;status&#x27;, scope_key: str | None = None) -&gt; dict</code></div><p>Reply in-thread as this configured client identity.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import room_reply
+
+result = room_reply(message_id=&quot;message_id_example&quot;, content=&quot;content_example&quot;, recipient_id=&quot;recipient_id_example&quot;  # default: None, message_kind=&quot;message_kind_example&quot;  # default: &#x27;status&#x27;, scope_key=&quot;scope_key_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-room_ack'><h3><code class='inline'>room_ack</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def room_ack(message_id: str) -&gt; dict</code></div><p>Acknowledge receipt for this configured client identity.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import room_ack
+
+result = room_ack(message_id=&quot;message_id_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def main() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.agent_room.server import main
+
+result = main()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>CLIENT_IDENTITY</code></td><td><code class='inline'>_client_identity()</code></td></tr><tr><td><code class='inline'>_HOST</code></td><td><code class='inline'>_server_host()</code></td></tr><tr><td><code class='inline'>_PORT</code></td><td><code class='inline'>_server_port()</code></td></tr></table></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

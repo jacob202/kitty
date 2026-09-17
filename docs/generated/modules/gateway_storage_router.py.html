@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.storage_router — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.storage_router</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.storage_router</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/storage_router.py</code> &middot; Python &middot; 12 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Write-side StorageRouter.
+
+Phase B B4: route handlers must not import write functions from concrete
+store modules. This module is the single seam for state writes.
+
+Why: the storage substrate is migrating from JSON files to SQLite. If
+routes call ``todo_store.add()`` directly, every future migration means
+editing every route. If routes call ``storage_router.add_todo()``, the
+substrate can change without touching routes.
+
+Phase 1 deepening (per
+``docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md``):
+each entry point now also (1) validates its inputs and (2) emits a
+``kind=storage_write`` record to ``data/kitty_token_log.jsonl`` so
+operators can see writes happening without enabling a debug log. The
+write itself still happens through the underlying store — the router
+adds the seam behavior, it does not replace the store.
+
+Reads are intentionally not routed through here. Reads are cheap,
+cache-friendly, and used in hot paths; routing them adds an indirection
+without buying anything. Reads still go to the store modules directly.
+
+When to add a method: a route handler needs to mutate state owned by
+a store module. Add a thin wrapper here that validates, forwards, and
+emits telemetry.
+
+When NOT to add a method: read-only access, derived computation, or
+anything that doesn&#x27;t mutate persistent state. Those go through the
+store module directly.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_iso_now'><code class='inline'>_iso_now</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_ms_since'><code class='inline'>_ms_since</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_emit_telemetry'><code class='inline'>_emit_telemetry</code></a></td><td>Append one record to the shared token log. Best-effort; never raise.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-replace_todos'><code class='inline'>replace_todos</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-add_todo'><code class='inline'>add_todo</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-complete_todo'><code class='inline'>complete_todo</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-set_todo_progress'><code class='inline'>set_todo_progress</code></a></td><td>Record where the user stopped on one todo, without completing it.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-set_todo_project'><code class='inline'>set_todo_project</code></a></td><td>Associate one todo with the project it belongs to.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-delete_todo'><code class='inline'>delete_todo</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-clear_todos'><code class='inline'>clear_todos</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-enable_plugin'><code class='inline'>enable_plugin</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-disable_plugin'><code class='inline'>disable_plugin</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_iso_now'><h3><code class='inline'>_iso_now</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _iso_now() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import _iso_now
+
+result = _iso_now()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ms_since'><h3><code class='inline'>_ms_since</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _ms_since(start: float) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import _ms_since
+
+result = _ms_since(start=0.0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_emit_telemetry'><h3><code class='inline'>_emit_telemetry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _emit_telemetry(store: str, op: str, key: Any = None, ms: float) -&gt; None</code></div><p>Append one record to the shared token log. Best-effort; never raise.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import _emit_telemetry
+
+result = _emit_telemetry()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-replace_todos'><h3><code class='inline'>replace_todos</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def replace_todos(items: list[dict]) -&gt; list[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import replace_todos
+
+result = replace_todos(items=[])
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-add_todo'><h3><code class='inline'>add_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def add_todo(content: str, status: str = &#x27;pending&#x27;, active_form: str = &#x27;&#x27;) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import add_todo
+
+result = add_todo(content=&quot;content_example&quot;, status=&quot;status_example&quot;  # default: &#x27;pending&#x27;, active_form=&quot;active_form_example&quot;  # default: &#x27;&#x27;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-complete_todo'><h3><code class='inline'>complete_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def complete_todo(todo_id: int) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import complete_todo
+
+result = complete_todo(todo_id=0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_todo_progress'><h3><code class='inline'>set_todo_progress</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def set_todo_progress(todo_id: int, note: str) -&gt; dict | None</code></div><p>Record where the user stopped on one todo, without completing it.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import set_todo_progress
+
+result = set_todo_progress(todo_id=0, note=&quot;note_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_todo_project'><h3><code class='inline'>set_todo_project</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def set_todo_project(todo_id: int, project_id: int | None) -&gt; dict | None</code></div><p>Associate one todo with the project it belongs to.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import set_todo_project
+
+result = set_todo_project(todo_id=0, project_id=0)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_todo'><h3><code class='inline'>delete_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def delete_todo(todo_id: int) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import delete_todo
+
+result = delete_todo(todo_id=0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-clear_todos'><h3><code class='inline'>clear_todos</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def clear_todos() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import clear_todos
+
+result = clear_todos()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-enable_plugin'><h3><code class='inline'>enable_plugin</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def enable_plugin(name: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import enable_plugin
+
+result = enable_plugin(name=&quot;name_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-disable_plugin'><h3><code class='inline'>disable_plugin</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def disable_plugin(name: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.storage_router import disable_plugin
+
+result = disable_plugin(name=&quot;name_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_TELEMETRY_KIND</code></td><td><code class='inline'>&#x27;storage_write&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

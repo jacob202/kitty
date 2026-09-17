@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_scope — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_scope</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_scope</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_scope.py</code> &middot; Python &middot; 4 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Shared fail-closed scope primitives for KittyBuilder packet execution.
+
+The queue runner also supports generic tasks whose allowlist may be absent.
+Packet identity verification is stricter: initiative packets always carry a
+non-empty, repo-relative allowlist, and corrupt durable scope data must stop
+execution instead of widening it.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>posixpath</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-normalize_allowed_path'><code class='inline'>normalize_allowed_path</code></a></td><td>Return a bounded repo-relative path or raise ``ValueError``.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-normalize_allowed_paths'><code class='inline'>normalize_allowed_paths</code></a></td><td>Validate a packet allowlist without permitting an empty scope.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-is_expected_residue'><code class='inline'>is_expected_residue</code></a></td><td>True for paths every attempt may legitimately touch outside its</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-find_changed_path_violations'><code class='inline'>find_changed_path_violations</code></a></td><td>Return changed repo paths outside a strict packet allowlist.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr></table></div>
+<div class='card' id='fn-normalize_allowed_path'><h3><code class='inline'>normalize_allowed_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def normalize_allowed_path(raw: str) -&gt; str</code></div><p>Return a bounded repo-relative path or raise ``ValueError``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_scope import normalize_allowed_path
+
+result = normalize_allowed_path(raw=&quot;raw_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-normalize_allowed_paths'><h3><code class='inline'>normalize_allowed_paths</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def normalize_allowed_paths(allowed_paths: Any) -&gt; list[str]</code></div><p>Validate a packet allowlist without permitting an empty scope.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_scope import normalize_allowed_paths
+
+result = normalize_allowed_paths(allowed_paths=...)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_expected_residue'><h3><code class='inline'>is_expected_residue</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def is_expected_residue(path: str) -&gt; bool</code></div><p>True for paths every attempt may legitimately touch outside its
+allowlist — repo session-state convention or the runner&#x27;s own staging
+files — never for anything the model actually implemented.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_scope import is_expected_residue
+
+result = is_expected_residue(path=&quot;path_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-find_changed_path_violations'><h3><code class='inline'>find_changed_path_violations</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def find_changed_path_violations(changed_paths: list[str], allowed_paths: Any) -&gt; list[str]</code></div><p>Return changed repo paths outside a strict packet allowlist.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_scope import find_changed_path_violations
+
+result = find_changed_path_violations(changed_paths=&quot;changed_paths_example&quot;, allowed_paths=...)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ScopeFinding'><code class='inline'>ScopeFinding</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-EscalationError'><code class='inline'>EscalationError</code></a></td><td>(RuntimeError)</td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-ScopeFinding'><h3><code class='inline'>ScopeFinding</code></h3><p>One structured reason execution must stop or return control.</p><p class='small'><b>Attributes:</b> category: str, field: str, message: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_scope import ScopeFinding
+
+obj = ScopeFinding(...)</pre></div>
+<div class='card' id='cls-EscalationError'><h3><code class='inline'>EscalationError</code></h3><p>Return control with structured findings instead of guessing scope.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, findings: list[ScopeFinding], evidence: dict[str, Any] | None = None, artifact: dict[str, Any] | None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+b
+u
+i
+l
+d
+e
+r
+_
+s
+c
+o
+p
+e
+ 
+i
+m
+p
+o
+r
+t
+ 
+E
+s
+c
+a
+l
+a
+t
+i
+o
+n
+E
+r
+r
+o
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+E
+s
+c
+a
+l
+a
+t
+i
+o
+n
+E
+r
+r
+o
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SESSION_STATE_RESIDUE</code></td><td><code class='inline'>frozenset({&#x27;.claude/STATE.md&#x27;, &#x27;.claude/HANDOFF.md&#x27;})</code></td></tr><tr><td><code class='inline'>WORKER_STAGING_PREFIXES</code></td><td><code class='inline'>(&#x27;.kittybuilder-bundle-&#x27;, &#x27;.kittybuilder-context-&#x27;, &#x27;.kittybuilder-result-&#x27;, &#x27;.kittybuilder-prompt-&#x27;)</code></td></tr><tr><td><code class='inline'>OPENCODE_CONTINUATION_RESIDUE_PREFIX</code></td><td><code class='inline'>&#x27;.omo/run-continuation/&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

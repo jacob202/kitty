@@ -202,14 +202,14 @@ resources:
     - tests/test_agent_room_lifecycle_review_regressions.py
     - tests/test_app_lifespan_hermetic.py
     - tests/test_builder_doctor.py
+    - tests/test_builder_scope_registration.py
     - tests/test_doctor.py
     - tests/test_doctor_freshness.py
     - tests/test_env_loader.py
     - tests/test_gate_lock.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py
-    - tests/test_health_surface.py
-    - tests/test_health_surface_parallel.py
+    - tests/test_health_surface*.py
     - tests/test_kb_effectiveness.py
     - tests/test_kitty_backup.py
     - tests/test_kitty_launcher.py
@@ -250,6 +250,7 @@ resources:
     - gateway/kitty-chat/tests/BuilderProposalCard.test.tsx
     - gateway/kitty-chat/tests/ChatMessage.test.tsx
     - gateway/kitty-chat/tests/HomeState.test.tsx
+    - gateway/kitty-chat/tests/KittyContextAttachmentChatScoping.test.tsx
     - gateway/kitty-chat/tests/LibraryView.test.tsx
     - gateway/kitty-chat/tests/WorkViewActions.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx
@@ -257,6 +258,7 @@ resources:
     - gateway/kitty-chat/tests/actionsContract.test.ts
     - gateway/kitty-chat/tests/chatClient.test.ts
     - gateway/kitty-chat/tests/smoke/**
+    - gateway/kitty-chat/tests/support/hermetic_gateway.py
     - gateway/routes/agents.py
     - gateway/routes/chats.py
     - gateway/routes/completions.py

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_jobs — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_jobs</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_jobs</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_jobs.py</code> &middot; Python &middot; 28 functions &middot; 5 classes</p>
+<div class='card'><h2>Overview</h2><p>Durable provider-neutral image-job metadata store (IMG-01).
+
+Kitty&#x27;s legacy Image Lab (gateway/image_gen.py) kept only an in-memory list of
+recent jobs, so seeds and outputs were lost on restart. This store persists
+every job in Kitty&#x27;s SQLite database with a normalized, provider-neutral schema
+so later packets (cancellation, atomic persistence, lineage, convergence) can
+build on it.
+
+Design boundaries:
+- API-only to ComfyUI (GPL-3.0): we never store the executable workflow graph,
+  only a template name/hash for reproducibility.
+- provider_params is a bounded JSON blob for backend-specific extras.
+- All status transitions are validated and applied in a single transaction.
+
+Ported from PR #210&#x27;s richer design: TEXT job_id (UUID), 6-state lifecycle,
+updated_at/finished_at timestamps, workflow_hash, normalization functions,
+and bounded error/text fields.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>enum</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>mimetypes</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_now_iso'><code class='inline'>_now_iso</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_new_job_id'><code class='inline'>_new_job_id</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_ensure_queue_columns'><code class='inline'>_ensure_queue_columns</code></a></td><td>Add queue columns if they don&#x27;t exist (deferred migration).</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_ensure_compiler_columns'><code class='inline'>_ensure_compiler_columns</code></a></td><td>Add FLUX.2 compiler provenance columns if missing (deferred migration).</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_ensure_plan_provenance_columns'><code class='inline'>_ensure_plan_provenance_columns</code></a></td><td>Add approved plan + ImageIntent provenance to image jobs.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_ensure_canonical_artifact_column'><code class='inline'>_ensure_canonical_artifact_column</code></a></td><td>Add the canonical Kitty Artifact link without changing legacy asset ids.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_ensure_db'><code class='inline'>_ensure_db</code></a></td><td>Apply only our migration so the store works on a fresh DB.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_check_json_bounded'><code class='inline'>_check_json_bounded</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_check_text_bounded'><code class='inline'>_check_text_bounded</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_check_error_bounded'><code class='inline'>_check_error_bounded</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_row_to_job'><code class='inline'>_row_to_job</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-create_job'><code class='inline'>create_job</code></a></td><td>Create a new image-job record. Returns the job. Raises on validation failure.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-get_job'><code class='inline'>get_job</code></a></td><td>Retrieve a job by its Kitty-owned job_id.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-find_by_provider'><code class='inline'>find_by_provider</code></a></td><td>Look up a job by provider + provider_job_id.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_recent'><code class='inline'>list_recent</code></a></td><td>Return the most recent jobs, optionally prefiltered by status.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-list_children'><code class='inline'>list_children</code></a></td><td>Return variation/derivative jobs linked to ``parent_id``.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-transition'><code class='inline'>transition</code></a></td><td>Transition a job&#x27;s lifecycle state. Raises on illegal transition.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-update_job'><code class='inline'>update_job</code></a></td><td>Update mutable fields on an existing job. Fails loud on bad input.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr><tr><td><a href='#fn-set_parent'><code class='inline'>set_parent</code></a></td><td>Record lineage on an already-created job without touching its operation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-register_canonical_artifact'><code class='inline'>register_canonical_artifact</code></a></td><td>Register a persisted image output in Kitty&#x27;s canonical Artifact spine.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-normalize_drawthings_request'><code class='inline'>normalize_drawthings_request</code></a></td><td>Normalize a Draw Things / A1111-format generation request into core fields.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-normalize_comfyui_request'><code class='inline'>normalize_comfyui_request</code></a></td><td>Normalize a ComfyUI-format generation request into core fields.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-reconcile_stale'><code class='inline'>reconcile_stale</code></a></td><td>Reconcile image jobs orphaned by a gateway restart truthfully.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-list_queue'><code class='inline'>list_queue</code></a></td><td>Return active dispatch jobs, excluding unresolved provider outcomes.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-list_unknown'><code class='inline'>list_unknown</code></a></td><td>Return unresolved provider outcomes for recovery, oldest first.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-requeue'><code class='inline'>requeue</code></a></td><td>Re-queue a failed job for retry. Increments retry_count and resets state.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-retry_job'><code class='inline'>retry_job</code></a></td><td>Retry a failed job by minting a NEW child job with the same intent.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-cancel_queued'><code class='inline'>cancel_queued</code></a></td><td>Cancel locally active jobs without erasing unknown provider outcomes.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-_now_iso'><h3><code class='inline'>_now_iso</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _now_iso() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _now_iso
+
+result = _now_iso()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_new_job_id'><h3><code class='inline'>_new_job_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _new_job_id() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _new_job_id
+
+result = _new_job_id()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_queue_columns'><h3><code class='inline'>_ensure_queue_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _ensure_queue_columns(conn: Any) -&gt; None</code></div><p>Add queue columns if they don&#x27;t exist (deferred migration).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _ensure_queue_columns
+
+result = _ensure_queue_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_compiler_columns'><h3><code class='inline'>_ensure_compiler_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _ensure_compiler_columns(conn: Any) -&gt; None</code></div><p>Add FLUX.2 compiler provenance columns if missing (deferred migration).
+
+IL-03/IL-04: every dispatched FLUX.2 job durably records its compiler
+version and the compiled request. Legacy jobs keep compiler_version NULL.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _ensure_compiler_columns
+
+result = _ensure_compiler_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_plan_provenance_columns'><h3><code class='inline'>_ensure_plan_provenance_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _ensure_plan_provenance_columns(conn: Any) -&gt; None</code></div><p>Add approved plan + ImageIntent provenance to image jobs.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _ensure_plan_provenance_columns
+
+result = _ensure_plan_provenance_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_canonical_artifact_column'><h3><code class='inline'>_ensure_canonical_artifact_column</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _ensure_canonical_artifact_column(conn: Any) -&gt; None</code></div><p>Add the canonical Kitty Artifact link without changing legacy asset ids.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _ensure_canonical_artifact_column
+
+result = _ensure_canonical_artifact_column(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_db'><h3><code class='inline'>_ensure_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _ensure_db(conn: Any = None) -&gt; None</code></div><p>Apply only our migration so the store works on a fresh DB.
+
+If the table exists but has the old schema (id INTEGER, engine, kind,
+provider_status), drop and recreate it. This only fires during the
+IMG-01 transition period.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _ensure_db
+
+result = _ensure_db(conn=...  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_json_bounded'><h3><code class='inline'>_check_json_bounded</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _check_json_bounded(value: str | None, field_name: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _check_json_bounded
+
+result = _check_json_bounded(value=&quot;value_example&quot;, field_name=&quot;field_name_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_text_bounded'><h3><code class='inline'>_check_text_bounded</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_text_bounded(value: str | None, field_name: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _check_text_bounded
+
+result = _check_text_bounded(value=&quot;value_example&quot;, field_name=&quot;field_name_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_error_bounded'><h3><code class='inline'>_check_error_bounded</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_error_bounded(value: str | None) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _check_error_bounded
+
+result = _check_error_bounded(value=&quot;value_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_job'><h3><code class='inline'>_row_to_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _row_to_job(row: Any) -&gt; ImageJob</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import _row_to_job
+
+result = _row_to_job(row=...)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_job'><h3><code class='inline'>create_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def create_job(provider: str, operation: str, prompt: str | None = None, negative_prompt: str | None = None, seed: int | None = None, model_id: str | None = None, preset_id: str | None = None, width: int | None = None, height: int | None = None, steps: int | None = None, guidance: float | None = None, sampler: str | None = None, scheduler: str | None = None, provider_params_json: str | None = None, workflow_template_id: str | None = None, workflow_hash: str | None = None, provider_job_id: str | None = None, parent_id: str | None = None, priority: int = 0, max_retries: int = 0, compiler_version: str | None = None, compiler_params_json: str | None = None, plan_id: str | None = None, intent_json: str | None = None) -&gt; ImageJob</code></div><p>Create a new image-job record. Returns the job. Raises on validation failure.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import create_job
+
+result = create_job(provider=&quot;provider_example&quot;, operation=&quot;operation_example&quot;, prompt=&quot;prompt_example&quot;  # default: None, negative_prompt=&quot;negative_prompt_example&quot;  # default: None, seed=0  # default: None, model_id=&quot;model_id_example&quot;  # default: None, preset_id=&quot;preset_id_example&quot;  # default: None, width=0  # default: None, height=0  # default: None, steps=0  # default: None, guidance=0.0  # default: None, sampler=&quot;sampler_example&quot;  # default: None, scheduler=&quot;scheduler_example&quot;  # default: None, provider_params_json=&quot;provider_params_json_example&quot;  # default: None, workflow_template_id=&quot;workflow_template_id_example&quot;  # default: None, workflow_hash=&quot;workflow_hash_example&quot;  # default: None, provider_job_id=&quot;provider_job_id_example&quot;  # default: None, parent_id=&quot;parent_id_example&quot;  # default: None, priority=0  # default: 0, max_retries=0  # default: 0, compiler_version=&quot;compiler_version_example&quot;  # default: None, compiler_params_json=&quot;compiler_params_json_example&quot;  # default: None, plan_id=&quot;plan_id_example&quot;  # default: None, intent_json=&quot;intent_json_example&quot;  # default: None)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_job'><h3><code class='inline'>get_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_job(job_id: str) -&gt; ImageJob | None</code></div><p>Retrieve a job by its Kitty-owned job_id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import get_job
+
+result = get_job(job_id=&quot;job_id_example&quot;)
+# result: ImageJob | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-find_by_provider'><h3><code class='inline'>find_by_provider</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def find_by_provider(provider: str, provider_job_id: str) -&gt; ImageJob | None</code></div><p>Look up a job by provider + provider_job_id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import find_by_provider
+
+result = find_by_provider(provider=&quot;provider_example&quot;, provider_job_id=&quot;provider_job_id_example&quot;)
+# result: ImageJob | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_recent'><h3><code class='inline'>list_recent</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def list_recent(limit: int = 50, statuses: set[ImageJobStatus] | frozenset[ImageJobStatus] | None = None) -&gt; list[ImageJob]</code></div><p>Return the most recent jobs, optionally prefiltered by status.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import list_recent
+
+result = list_recent(limit=0  # default: 50, statuses=...  # default: None)
+# result: list[ImageJob]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_children'><h3><code class='inline'>list_children</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def list_children(parent_id: str, limit: int = 200) -&gt; list[ImageJob]</code></div><p>Return variation/derivative jobs linked to ``parent_id``.
+
+Creation order is stable across restarts by ordering on the durable
+timestamp and UUID.  Rejecting an empty parent id avoids accidentally
+turning a lineage query into an unbounded gallery query.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import list_children
+
+result = list_children(parent_id=&quot;parent_id_example&quot;, limit=0  # default: 200)
+# result: list[ImageJob]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-transition'><h3><code class='inline'>transition</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def transition(job_id: str, new_status: ImageJobStatus) -&gt; ImageJob</code></div><p>Transition a job&#x27;s lifecycle state. Raises on illegal transition.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import transition
+
+result = transition(job_id=&quot;job_id_example&quot;, new_status=...)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update_job'><h3><code class='inline'>update_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>def update_job(job_id: str, provider_job_id: str | None = None, output_path: str | None = None, artifact_id: str | None = None, canonical_artifact_id: str | None = None, normalized_error: str | None = None, provider_diagnostics_json: str | None = None, started_at: str | None = None, workflow_hash: str | None = None, width: int | None = None, height: int | None = None) -&gt; ImageJob</code></div><p>Update mutable fields on an existing job. Fails loud on bad input.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import update_job
+
+result = update_job(job_id=&quot;job_id_example&quot;, provider_job_id=&quot;provider_job_id_example&quot;  # default: None, output_path=&quot;output_path_example&quot;  # default: None, artifact_id=&quot;artifact_id_example&quot;  # default: None, canonical_artifact_id=&quot;canonical_artifact_id_example&quot;  # default: None, normalized_error=&quot;normalized_error_example&quot;  # default: None, provider_diagnostics_json=&quot;provider_diagnostics_json_example&quot;  # default: None, started_at=&quot;started_at_example&quot;  # default: None, workflow_hash=&quot;workflow_hash_example&quot;  # default: None, width=0  # default: None, height=0  # default: None)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_parent'><h3><code class='inline'>set_parent</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def set_parent(job_id: str, parent_id: str) -&gt; ImageJob</code></div><p>Record lineage on an already-created job without touching its operation.
+
+Iteration re-runs an approved plan, which recreates the job with the same
+operation (txt2img/img2img). Lineage is bookkeeping, not a render input, so
+it is attached after the fact here rather than overloading ``parent_id`` on
+the creation path (where it doubles as the img2img/variation anchor).
+Unlike ``update_job`` this is allowed on terminal jobs, because a child&#x27;s
+lineage is recorded after it has already succeeded.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import set_parent
+
+result = set_parent(job_id=&quot;job_id_example&quot;, parent_id=&quot;parent_id_example&quot;)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-register_canonical_artifact'><h3><code class='inline'>register_canonical_artifact</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def register_canonical_artifact(job_id: str, project_id: int | None = None) -&gt; dict[str, Any]</code></div><p>Register a persisted image output in Kitty&#x27;s canonical Artifact spine.
+
+The legacy ``artifact_id`` field may contain a provider/worker asset id and
+is intentionally left untouched. Registration is deterministic by job id so
+restart/retry repair cannot create duplicate Library entries. Artifact row
+creation and the image-job link share one SQLite transaction.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import register_canonical_artifact
+
+result = register_canonical_artifact(job_id=&quot;job_id_example&quot;, project_id=0  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-normalize_drawthings_request'><h3><code class='inline'>normalize_drawthings_request</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def normalize_drawthings_request(prompt: str, negative_prompt: str | None = None, seed: int | None = None, width: int | None = None, height: int | None = None, steps: int | None = None, cfg_scale: float | None = None, sampler: str | None = None, denoising_strength: float | None = None, init_image: str | None = None, **extra) -&gt; dict[str, Any]</code></div><p>Normalize a Draw Things / A1111-format generation request into core fields.
+
+Returns a dict with keys matching ``create_job()`` kwargs, plus
+``provider_params_json`` for anything not in the core schema.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import normalize_drawthings_request
+
+result = normalize_drawthings_request(prompt=&quot;prompt_example&quot;, negative_prompt=&quot;negative_prompt_example&quot;  # default: None, seed=0  # default: None, width=0  # default: None, height=0  # default: None, steps=0  # default: None, cfg_scale=0.0  # default: None, sampler=&quot;sampler_example&quot;  # default: None, denoising_strength=0.0  # default: None, init_image=&quot;init_image_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-normalize_comfyui_request'><h3><code class='inline'>normalize_comfyui_request</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def normalize_comfyui_request(prompt: str, negative_prompt: str | None = None, seed: int | None = None, width: int | None = None, height: int | None = None, steps: int | None = None, cfg: float | None = None, sampler_name: str | None = None, scheduler: str | None = None, model_ckpt: str | None = None, workflow_template_id: str | None = None, workflow_hash: str | None = None, **extra) -&gt; dict[str, Any]</code></div><p>Normalize a ComfyUI-format generation request into core fields.
+
+Returns a dict with keys matching ``create_job()`` kwargs. The
+ComfyUI-specific ``model_ckpt`` is placed into ``model_id``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import normalize_comfyui_request
+
+result = normalize_comfyui_request(prompt=&quot;prompt_example&quot;, negative_prompt=&quot;negative_prompt_example&quot;  # default: None, seed=0  # default: None, width=0  # default: None, height=0  # default: None, steps=0  # default: None, cfg=0.0  # default: None, sampler_name=&quot;sampler_name_example&quot;  # default: None, scheduler=&quot;scheduler_example&quot;  # default: None, model_ckpt=&quot;model_ckpt_example&quot;  # default: None, workflow_template_id=&quot;workflow_template_id_example&quot;  # default: None, workflow_hash=&quot;workflow_hash_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reconcile_stale'><h3><code class='inline'>reconcile_stale</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def reconcile_stale() -&gt; int</code></div><p>Reconcile image jobs orphaned by a gateway restart truthfully.
+
+A job that never left ``created`` is canceled because Kitty can prove no
+provider dispatch began. Once a job reached ``submitted`` or ``running``,
+the provider outcome is conservatively ``unknown`` regardless of whether
+Kitty managed to persist a provider receipt before the restart. This keeps
+accepted-but-response-lost submissions from being treated as safe retries.
+
+Returns the number of rows reconciled.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import reconcile_stale
+
+result = reconcile_stale()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_queue'><h3><code class='inline'>list_queue</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def list_queue(limit: int = 50) -&gt; list[ImageJob]</code></div><p>Return active dispatch jobs, excluding unresolved provider outcomes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import list_queue
+
+result = list_queue(limit=0  # default: 50)
+# result: list[ImageJob]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_unknown'><h3><code class='inline'>list_unknown</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def list_unknown(limit: int = 50) -&gt; list[ImageJob]</code></div><p>Return unresolved provider outcomes for recovery, oldest first.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import list_unknown
+
+result = list_unknown(limit=0  # default: 50)
+# result: list[ImageJob]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-requeue'><h3><code class='inline'>requeue</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def requeue(job_id: str) -&gt; ImageJob</code></div><p>Re-queue a failed job for retry. Increments retry_count and resets state.
+
+Raises:
+    JobNotFoundError: job does not exist.
+    ImageJobError: job is not in FAILED state, or retries exhausted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import requeue
+
+result = requeue(job_id=&quot;job_id_example&quot;)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-retry_job'><h3><code class='inline'>retry_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def retry_job(job_id: str) -&gt; ImageJob</code></div><p>Retry a failed job by minting a NEW child job with the same intent.
+
+Unlike ``requeue`` (which reuses the same row), a retry preserves lineage:
+the child records ``parent_id`` pointing at the original, and copies every
+generation parameter, provider/model metadata, compiler provenance, and the
+immutable plan + intent JSON verbatim. The new job gets a fresh job_id and
+attempt lifecycle. Privacy/content lane and character are preserved through
+the copied plan and intent, never re-derived from the request body.
+
+Only a FAILED job can be retried. A terminal job in any other state has no
+failed attempt to recover; duplicating a success is a separate operation.
+
+Raises:
+    JobNotFoundError: job does not exist.
+    ImageJobError: job is not in terminal FAILED state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import retry_job
+
+result = retry_job(job_id=&quot;job_id_example&quot;)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-cancel_queued'><h3><code class='inline'>cancel_queued</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def cancel_queued(character_id: str | None = None, provider: str | None = None) -&gt; int</code></div><p>Cancel locally active jobs without erasing unknown provider outcomes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_jobs import cancel_queued
+
+result = cancel_queued(character_id=&quot;character_id_example&quot;  # default: None, provider=&quot;provider_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ImageJobStatus'><code class='inline'>ImageJobStatus</code></a></td><td>(str, Enum)</td><td>1 methods</td></tr><tr><td><a href='#cls-ImageJobError'><code class='inline'>ImageJobError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-JobNotFoundError'><code class='inline'>JobNotFoundError</code></a></td><td>(ImageJobError)</td><td>0 methods</td></tr><tr><td><a href='#cls-IllegalTransitionError'><code class='inline'>IllegalTransitionError</code></a></td><td>(ImageJobError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ImageJob'><code class='inline'>ImageJob</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-ImageJobStatus'><h3><code class='inline'>ImageJobStatus</code></h3><p>Explicit lifecycle states for an image-generation job.</p><p class='small'><b>Attributes:</b> CREATED, SUBMITTED, RUNNING, UNKNOWN, SUCCEEDED, FAILED, CANCELED</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>is_terminal</code></td><td><code class='inline'>def is_terminal(self) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_jobs import ImageJobStatus
+
+obj = ImageJobStatus(...)</pre></div>
+<div class='card' id='cls-ImageJobError'><h3><code class='inline'>ImageJobError</code></h3><p>Raised when a job-store operation cannot complete safely.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_jobs import ImageJobError
+
+obj = ImageJobError(...)</pre></div>
+<div class='card' id='cls-JobNotFoundError'><h3><code class='inline'>JobNotFoundError</code></h3><p>Raised when a job id does not exist.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_jobs import JobNotFoundError
+
+obj = JobNotFoundError(...)</pre></div>
+<div class='card' id='cls-IllegalTransitionError'><h3><code class='inline'>IllegalTransitionError</code></h3><p>Raised when a status transition is not permitted.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_jobs import IllegalTransitionError
+
+obj = IllegalTransitionError(...)</pre></div>
+<div class='card' id='cls-ImageJob'><h3><code class='inline'>ImageJob</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> job_id: str, provider: str, provider_job_id: str | None, operation: str, status: ImageJobStatus, prompt: str | None, negative_prompt: str | None, seed: int | None, model_id: str | None, preset_id: str | None, width: int | None, height: int | None, steps: int | None, guidance: float | None, sampler: str | None, scheduler: str | None, provider_params_json: str | None, workflow_template_id: str | None, workflow_hash: str | None, artifact_id: str | None, canonical_artifact_id: str | None, output_path: str | None, normalized_error: str | None, provider_diagnostics_json: str | None, parent_id: str | None, created_at: str, updated_at: str, started_at: str | None, finished_at: str | None, priority: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_jobs import ImageJob
+
+obj = ImageJob(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_MIGRATION_FILE</code></td><td><code class='inline'>DB_MIGRATIONS_DIR / &#x27;023_image_jobs.sql&#x27;</code></td></tr><tr><td><code class='inline'>_ENSURED_DBS</code></td><td><code class='inline'>set[str]</code></td></tr><tr><td><code class='inline'>_MIGRATION_SQL</code></td><td><code class='inline'>str | None</code></td></tr><tr><td><code class='inline'>_MAX_PROVIDER_JSON_BYTES</code></td><td><code class='inline'>65536</code></td></tr><tr><td><code class='inline'>_MAX_ERROR_BYTES</code></td><td><code class='inline'>2048</code></td></tr><tr><td><code class='inline'>_MAX_TEXT_BYTES</code></td><td><code class='inline'>10240</code></td></tr><tr><td><code class='inline'>_ALLOWED_TRANSITIONS</code></td><td><code class='inline'>dict[ImageJobStatus, set[ImageJobStatus]]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_doctor — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_doctor</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_doctor</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_doctor.py</code> &middot; Python &middot; 12 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>KittyBuilder preflight doctor — read-only safety checks.
+
+``run_doctor`` answers one question: is it safe to run KittyBuilder right
+now? It never claims, transitions, recovers, or otherwise mutates queue or
+initiative state — every check either opens a read-only connection (the same
+``builder_queue.connect()`` every read command uses, which idempotently
+applies connection pragmas the way ``queue list``/``queue status`` already
+do) or shells out to read-only commands (``git rev-parse``, ``ps``,
+``shutil.which``). It intentionally never calls ``recover_expired_leases``
+or ``recover_interrupted_runs`` — those mutate — and instead re-derives
+their liveness decisions by inspection only.
+
+Each check reports PASS (fine), WARN (advisory, does not block), or FAIL
+(blocking — the CLI exits 1). See ``gateway/doctor.py`` for the sibling
+health-check for the rest of the Kitty stack; this module is KittyBuilder&#x27;s
+own preflight, scoped to the builder queue/initiative/runner subsystem.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_runner</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>shutil</code>, <code class='inline'>subprocess</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_git'><code class='inline'>_git</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_repo_toplevel'><code class='inline'>_repo_toplevel</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_check_kill_switch'><code class='inline'>_check_kill_switch</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_check_database'><code class='inline'>_check_database</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_check_initiative_pause_state'><code class='inline'>_check_initiative_pause_state</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_check_repo_identity'><code class='inline'>_check_repo_identity</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_check_worker_commands'><code class='inline'>_check_worker_commands</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_check_worktree_root'><code class='inline'>_check_worktree_root</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_check_runs'><code class='inline'>_check_runs</code></a></td><td>Inspect leases and active runs the way recovery would, without mutating.</td><td><span class='pill'>complex</span><span class='muted small'>(20)</span></td></tr><tr><td><a href='#fn-_check_github_boundary'><code class='inline'>_check_github_boundary</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_check_credential_isolation'><code class='inline'>_check_credential_isolation</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-run_doctor'><code class='inline'>run_doctor</code></a></td><td>Run every preflight check and return a structured, read-only report.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_git'><h3><code class='inline'>_git</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _git(args: list[str], cwd: Path) -&gt; subprocess.CompletedProcess[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _git
+
+result = _git(args=&quot;args_example&quot;, cwd=&quot;cwd_example&quot;)
+# result: subprocess.CompletedProcess[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_repo_toplevel'><h3><code class='inline'>_repo_toplevel</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _repo_toplevel(repo_root: Path | None) -&gt; subprocess.CompletedProcess[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _repo_toplevel
+
+result = _repo_toplevel(repo_root=&quot;repo_root_example&quot;)
+# result: subprocess.CompletedProcess[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_kill_switch'><h3><code class='inline'>_check_kill_switch</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _check_kill_switch() -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _check_kill_switch
+
+result = _check_kill_switch()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_database'><h3><code class='inline'>_check_database</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _check_database(db_path: Path | None) -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _check_database
+
+result = _check_database(db_path=&quot;db_path_example&quot;)
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_initiative_pause_state'><h3><code class='inline'>_check_initiative_pause_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _check_initiative_pause_state(db_path: Path | None) -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _check_initiative_pause_state
+
+result = _check_initiative_pause_state(db_path=&quot;db_path_example&quot;)
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_repo_identity'><h3><code class='inline'>_check_repo_identity</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _check_repo_identity(repo_root: Path | None) -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _check_repo_identity
+
+result = _check_repo_identity(repo_root=&quot;repo_root_example&quot;)
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_worker_commands'><h3><code class='inline'>_check_worker_commands</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_worker_commands() -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _check_worker_commands
+
+result = _check_worker_commands()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_worktree_root'><h3><code class='inline'>_check_worktree_root</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _check_worktree_root(repo_root: Path | None) -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _check_worktree_root
+
+result = _check_worktree_root(repo_root=&quot;repo_root_example&quot;)
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_runs'><h3><code class='inline'>_check_runs</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (20)</span></h3><div class='sig'><code>def _check_runs(db_path: Path | None) -&gt; list[Check]</code></div><p>Inspect leases and active runs the way recovery would, without mutating.
+
+Re-derives the same SELECTs ``recover_expired_leases`` uses for stale
+leases, and the same liveness decision ``recover_interrupted_runs`` uses
+for active runs (dead pid / mismatched process identity / stale
+claim_version) — but only ever reads. No UPDATE ever runs here.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _check_runs
+
+result = _check_runs(db_path=&quot;db_path_example&quot;)
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_github_boundary'><h3><code class='inline'>_check_github_boundary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_github_boundary() -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _check_github_boundary
+
+result = _check_github_boundary()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_credential_isolation'><h3><code class='inline'>_check_credential_isolation</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _check_credential_isolation() -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import _check_credential_isolation
+
+result = _check_credential_isolation()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_doctor'><h3><code class='inline'>run_doctor</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def run_doctor(db_path: Path | None = None, repo_root: Path | None = None) -&gt; dict[str, Any]</code></div><p>Run every preflight check and return a structured, read-only report.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_doctor import run_doctor
+
+result = run_doctor(db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Check'><code class='inline'>Check</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-Check'><h3><code class='inline'>Check</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> level: str, name: str, detail: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_doctor import Check
+
+obj = Check(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>EXPECTED_REPO_NAME</code></td><td><code class='inline'>os.environ.get(&#x27;KITTY_BUILDER_REPO_NAME&#x27;, &#x27;kitty&#x27;)</code></td></tr><tr><td><code class='inline'>EXPECTED_DEFAULT_BRANCH</code></td><td><code class='inline'>os.environ.get(&#x27;KITTY_BUILDER_DEFAULT_BRANCH&#x27;, &#x27;main&#x27;)</code></td></tr><tr><td><code class='inline'>REQUIRED_WORKER_COMMANDS</code></td><td><code class='inline'>(&#x27;bash&#x27;, &#x27;git&#x27;, &#x27;false&#x27;)</code></td></tr><tr><td><code class='inline'>_REMOTE_REPO_RE</code></td><td><code class='inline'>re.compile(&#x27;(?:[:/]([^/:]+?))(?:\\.git)?$&#x27;)</code></td></tr><tr><td><code class='inline'>_EXPECTED_BLOCKED_CREDENTIALS</code></td><td><code class='inline'>frozenset({&#x27;GITHUB_TOKEN&#x27;, &#x27;GH_TOKEN&#x27;, &#x27;SSH_AUTH_SOCK&#x27;})</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

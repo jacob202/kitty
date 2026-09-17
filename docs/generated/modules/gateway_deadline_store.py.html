@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.deadline_store — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.deadline_store</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.deadline_store</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/deadline_store.py</code> &middot; Python &middot; 17 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Deadline store — watched deadlines and escalation log (P7, docs/packets/017).
+
+Public API:
+  upsert(deadline: dict) -&gt; dict
+  get(deadline_id: int) -&gt; dict | None
+  list_open(status: str | None = None) -&gt; list[dict]
+  list_needs_jacob() -&gt; list[dict]
+  close(deadline_id: int) -&gt; dict
+  mark_pushed(deadline_id: int) -&gt; None
+  checkpoint_due(deadline: dict, now: date) -&gt; str | None
+  record_escalation(deadline_id: int, checkpoint: str) -&gt; None
+  escalation_already_sent(deadline_id: int, checkpoint: str) -&gt; bool</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>hashlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_now_ts'><code class='inline'>_now_ts</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_make_dedupe_key'><code class='inline'>_make_dedupe_key</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-upsert'><code class='inline'>upsert</code></a></td><td>Insert or update a deadline by dedupe_key.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-get'><code class='inline'>get</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_open'><code class='inline'>list_open</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-list_for_project'><code class='inline'>list_for_project</code></a></td><td>Return current actionable deadlines scoped to one Project.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-list_needs_jacob'><code class='inline'>list_needs_jacob</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-close'><code class='inline'>close</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-mark_pushed'><code class='inline'>mark_pushed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-checkpoint_due'><code class='inline'>checkpoint_due</code></a></td><td>Return the escalation checkpoint that should fire for `deadline` today.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-record_escalation'><code class='inline'>record_escalation</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-escalation_already_sent'><code class='inline'>escalation_already_sent</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-claim_escalation'><code class='inline'>claim_escalation</code></a></td><td>Atomically claim an escalation checkpoint for delivery.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-release_escalation_claim'><code class='inline'>release_escalation_claim</code></a></td><td>Release a failed escalation claim so it can be retried.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_require'><code class='inline'>_require</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_row_to_deadline'><code class='inline'>_row_to_deadline</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_now_ts'><h3><code class='inline'>_now_ts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _now_ts() -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import _now_ts
+
+result = _now_ts()
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_make_dedupe_key'><h3><code class='inline'>_make_dedupe_key</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _make_dedupe_key(source: str, due_date: str, obligation: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import _make_dedupe_key
+
+result = _make_dedupe_key(source=&quot;source_example&quot;, due_date=&quot;due_date_example&quot;, obligation=&quot;obligation_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-upsert'><h3><code class='inline'>upsert</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def upsert(deadline: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Insert or update a deadline by dedupe_key.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import upsert
+
+result = upsert(deadline=&quot;deadline_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get'><h3><code class='inline'>get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get(deadline_id: int) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import get
+
+result = get(deadline_id=0)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_open'><h3><code class='inline'>list_open</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def list_open(status: str | None = None) -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import list_open
+
+result = list_open(status=&quot;status_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_for_project'><h3><code class='inline'>list_for_project</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def list_for_project(project_id: int, limit: int = 10) -&gt; list[dict[str, Any]]</code></div><p>Return current actionable deadlines scoped to one Project.
+
+Closed rows stay in the canonical deadline store but are intentionally not
+projected into Project Resume&#x27;s current-context section.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import list_for_project
+
+result = list_for_project(project_id=0, limit=0  # default: 10)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_needs_jacob'><h3><code class='inline'>list_needs_jacob</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def list_needs_jacob() -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import list_needs_jacob
+
+result = list_needs_jacob()
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-close'><h3><code class='inline'>close</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def close(deadline_id: int) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import close
+
+result = close(deadline_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-mark_pushed'><h3><code class='inline'>mark_pushed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def mark_pushed(deadline_id: int) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import mark_pushed
+
+result = mark_pushed(deadline_id=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-checkpoint_due'><h3><code class='inline'>checkpoint_due</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def checkpoint_due(deadline: dict[str, Any], now: date | None = None) -&gt; str | None</code></div><p>Return the escalation checkpoint that should fire for `deadline` today.
+
+Returns one of T-7d, T-3d, T-1d, day-of, or None.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import checkpoint_due
+
+result = checkpoint_due(deadline=&quot;deadline_example&quot;, now=...  # default: None)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_escalation'><h3><code class='inline'>record_escalation</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def record_escalation(deadline_id: int, checkpoint: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import record_escalation
+
+result = record_escalation(deadline_id=0, checkpoint=&quot;checkpoint_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-escalation_already_sent'><h3><code class='inline'>escalation_already_sent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def escalation_already_sent(deadline_id: int, checkpoint: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import escalation_already_sent
+
+result = escalation_already_sent(deadline_id=0, checkpoint=&quot;checkpoint_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-claim_escalation'><h3><code class='inline'>claim_escalation</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def claim_escalation(deadline_id: int, checkpoint: str) -&gt; bool</code></div><p>Atomically claim an escalation checkpoint for delivery.
+
+Returns True if this caller won the claim, False if already claimed/completed.
+Uses a unique constraint on (deadline_id, checkpoint, claimed=1) to ensure
+only one concurrent caller can hold the claim.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import claim_escalation
+
+result = claim_escalation(deadline_id=0, checkpoint=&quot;checkpoint_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-release_escalation_claim'><h3><code class='inline'>release_escalation_claim</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def release_escalation_claim(deadline_id: int, checkpoint: str) -&gt; None</code></div><p>Release a failed escalation claim so it can be retried.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import release_escalation_claim
+
+result = release_escalation_claim(deadline_id=0, checkpoint=&quot;checkpoint_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require'><h3><code class='inline'>_require</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _require(deadline_id: int) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import _require
+
+result = _require(deadline_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_deadline'><h3><code class='inline'>_row_to_deadline</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _row_to_deadline(row: sqlite3.Row) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_store import _row_to_deadline
+
+result = _row_to_deadline(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-DeadlineError'><code class='inline'>DeadlineError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-DeadlineNotFound'><code class='inline'>DeadlineNotFound</code></a></td><td>(DeadlineError)</td><td>0 methods</td></tr><tr><td><a href='#cls-DuplicateDeadline'><code class='inline'>DuplicateDeadline</code></a></td><td>(DeadlineError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-DeadlineError'><h3><code class='inline'>DeadlineError</code></h3><p>Base for deadline-store errors.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.deadline_store import DeadlineError
+
+obj = DeadlineError(...)</pre></div>
+<div class='card' id='cls-DeadlineNotFound'><h3><code class='inline'>DeadlineNotFound</code></h3><p>No deadline row with that id.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.deadline_store import DeadlineNotFound
+
+obj = DeadlineNotFound(...)</pre></div>
+<div class='card' id='cls-DuplicateDeadline'><h3><code class='inline'>DuplicateDeadline</code></h3><p>Dedupe key collision.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.deadline_store import DuplicateDeadline
+
+obj = DuplicateDeadline(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DEADLINES_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>_DEADLINE_COLUMNS</code></td><td><code class='inline'>&#x27;id, project_id, source, source_id, due_date, obligation, amount, currency, confidence, status, dedupe_key, created_at, </code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.kitty_backup_proof — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.kitty_backup_proof</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.kitty_backup_proof</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/kitty_backup_proof.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Non-destructive backup/restore proof drill (Roadmap 2.2).
+
+Proves that a backup archive restores to byte-identical app-owned data and
+that every restored SQLite file passes integrity_check. Runs entirely against a
+scratch replica under a temp directory, so it never touches the live data/
+directory and never interferes with a running Builder.
+
+Usage:
+  python scripts/kitty_backup_proof.py
+  python scripts/kitty_backup_proof.py --seed-dir /tmp/kitty-drill-seed
+
+Exit code 0 when the restored replica matches the pre-backup replica and all
+SQLite databases pass integrity_check; 1 otherwise. Every mismatch is printed.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>scripts</code>, <code class='inline'>shutil</code>, <code class='inline'>sqlite3</code>, <code class='inline'>tempfile</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-seed_replica'><code class='inline'>seed_replica</code></a></td><td>Build a scratch replica of data/kitty with realistic content.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-snapshot'><code class='inline'>snapshot</code></a></td><td>Capture every file&#x27;s relative path, size, and sha256, plus a logical</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_sha256'><code class='inline'>_sha256</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_sqlite_logical_digest'><code class='inline'>_sqlite_logical_digest</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-compare'><code class='inline'>compare</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-run_drill'><code class='inline'>run_drill</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-seed_replica'><h3><code class='inline'>seed_replica</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def seed_replica(root: Path) -&gt; Path</code></div><p>Build a scratch replica of data/kitty with realistic content.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_backup_proof import seed_replica
+
+result = seed_replica(root=&quot;root_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-snapshot'><h3><code class='inline'>snapshot</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def snapshot(root: Path) -&gt; dict[str, object]</code></div><p>Capture every file&#x27;s relative path, size, and sha256, plus a logical
+digest of each SQLite file (schema + full row contents).
+
+SQLite files are compared logically rather than byte-for-byte: the
+``sqlite3`` backup API rebuilds a fresh, logically identical database, so
+identical bytes are neither required nor guaranteed.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_backup_proof import snapshot
+
+result = snapshot(root=&quot;root_example&quot;)
+# result: dict[str, object]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_sha256'><h3><code class='inline'>_sha256</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _sha256(path: Path) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_backup_proof import _sha256
+
+result = _sha256(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_sqlite_logical_digest'><h3><code class='inline'>_sqlite_logical_digest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _sqlite_logical_digest(path: Path) -&gt; dict[str, object]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_backup_proof import _sqlite_logical_digest
+
+result = _sqlite_logical_digest(path=&quot;path_example&quot;)
+# result: dict[str, object]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compare'><h3><code class='inline'>compare</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def compare(a: dict[str, object], b: dict[str, object]) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_backup_proof import compare
+
+result = compare(a=&quot;a_example&quot;, b=&quot;b_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_drill'><h3><code class='inline'>run_drill</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def run_drill(seed_dir: Path | None = None, keep: bool = False) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_backup_proof import run_drill
+
+result = run_drill(seed_dir=&quot;seed_dir_example&quot;  # default: None, keep=True  # default: False)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def main(argv: list[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_backup_proof import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

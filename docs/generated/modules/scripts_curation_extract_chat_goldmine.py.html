@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.curation.extract_chat_goldmine — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.curation.extract_chat_goldmine</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.curation.extract_chat_goldmine</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/curation/extract_chat_goldmine.py</code> &middot; Python &middot; 12 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Packet 024 phase 1 — offline chat-log idea mine extractor.
+
+Reads transcript files (ChatGPT `conversations.json` export, or plain
+markdown / text of a single conversation) and produces a JSONL of
+structured extraction candidates for later human review.
+
+Nothing here writes to mem0, memory_graph, or the SQLite spine. The
+output is a review file. Approval into always-on memory is out of scope
+for phase 1 (packet 024 phases 2–3).
+
+Privacy: **this sends transcript text to a cloud model.** ADR 0022 retired
+the D10 local-only boundary, so the refuse-cloud guard this module used to
+carry is gone. Recovery, mental-health and grief material in a source
+transcript WILL reach the configured provider. Choose sources accordingly —
+nothing here filters them.
+
+Usage:
+    python3 -m scripts.curation.extract_chat_goldmine \
+        --source path/to/conversations.json \
+        --out data/imports/chat_goldmine/2026-07-07/items.jsonl
+
+    python3 -m scripts.curation.extract_chat_goldmine \
+        --source path/to/thread.md --dry-run</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>sys</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-load_source'><code class='inline'>load_source</code></a></td><td>Dispatch by suffix. Only handles what the packet actually needs.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_load_chatgpt_export'><code class='inline'>_load_chatgpt_export</code></a></td><td>Yield one Chunk per ChatGPT conversation from a `conversations.json`.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_load_flat_text'><code class='inline'>_load_flat_text</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_flatten_chatgpt_messages'><code class='inline'>_flatten_chatgpt_messages</code></a></td><td>Walk ChatGPT&#x27;s node graph in create_time order into &quot;role: text&quot; lines.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_epoch_to_iso'><code class='inline'>_epoch_to_iso</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-extract_from_chunk'><code class='inline'>extract_from_chunk</code></a></td><td>Ask the LLM for structured items, tag each with evidence + source.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_parse_items'><code class='inline'>_parse_items</code></a></td><td>Accept plain JSON or JSON inside a ```json fence.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_valid'><code class='inline'>_valid</code></a></td><td>Drop items with a bad object_type or a review state we didn&#x27;t ask for.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_tag'><code class='inline'>_tag</code></a></td><td>Fill non-model fields; auto-bump sensitivity if hints slipped through.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_gateway_llm'><code class='inline'>_gateway_llm</code></a></td><td>Return a callable that hits the gateway&#x27;s LLM hub with strict-JSON format.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_default_out_path'><code class='inline'>_default_out_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr></table></div>
+<div class='card' id='fn-load_source'><h3><code class='inline'>load_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def load_source(path: Path) -&gt; list[Chunk]</code></div><p>Dispatch by suffix. Only handles what the packet actually needs.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import load_source
+
+result = load_source(path=&quot;path_example&quot;)
+# result: list[Chunk]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_chatgpt_export'><h3><code class='inline'>_load_chatgpt_export</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _load_chatgpt_export(path: Path) -&gt; Iterable[Chunk]</code></div><p>Yield one Chunk per ChatGPT conversation from a `conversations.json`.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import _load_chatgpt_export
+
+result = _load_chatgpt_export(path=&quot;path_example&quot;)
+# result: Iterable[Chunk]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_flat_text'><h3><code class='inline'>_load_flat_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _load_flat_text(path: Path) -&gt; Chunk</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import _load_flat_text
+
+result = _load_flat_text(path=&quot;path_example&quot;)
+# result: Chunk</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_flatten_chatgpt_messages'><h3><code class='inline'>_flatten_chatgpt_messages</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _flatten_chatgpt_messages(mapping: dict) -&gt; str</code></div><p>Walk ChatGPT&#x27;s node graph in create_time order into &quot;role: text&quot; lines.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import _flatten_chatgpt_messages
+
+result = _flatten_chatgpt_messages(mapping={})
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_epoch_to_iso'><h3><code class='inline'>_epoch_to_iso</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _epoch_to_iso(epoch: float | int | None) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import _epoch_to_iso
+
+result = _epoch_to_iso(epoch=0)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-extract_from_chunk'><h3><code class='inline'>extract_from_chunk</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def extract_from_chunk(chunk: Chunk, llm: Callable[[list[dict], str], str], model: str | None = None) -&gt; list[dict]</code></div><p>Ask the LLM for structured items, tag each with evidence + source.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import extract_from_chunk
+
+result = extract_from_chunk(chunk=..., llm=&quot;llm_example&quot;, model=&quot;model_example&quot;  # default: None)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_items'><h3><code class='inline'>_parse_items</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _parse_items(raw: str) -&gt; list[dict]</code></div><p>Accept plain JSON or JSON inside a ```json fence.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import _parse_items
+
+result = _parse_items(raw=&quot;raw_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_valid'><h3><code class='inline'>_valid</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _valid(item: object) -&gt; bool</code></div><p>Drop items with a bad object_type or a review state we didn&#x27;t ask for.
+
+Sensitivity default lands as &#x27;normal&#x27; if the model omitted it.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import _valid
+
+result = _valid(item=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_tag'><h3><code class='inline'>_tag</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _tag(item: dict, chunk: Chunk) -&gt; dict</code></div><p>Fill non-model fields; auto-bump sensitivity if hints slipped through.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import _tag
+
+result = _tag(item={}, chunk=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_gateway_llm'><h3><code class='inline'>_gateway_llm</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _gateway_llm() -&gt; Callable[[list[dict], str], str]</code></div><p>Return a callable that hits the gateway&#x27;s LLM hub with strict-JSON format.
+
+ADR 0022 retired the D10 local-only tier, so this reaches a cloud provider.
+Transcripts can hold sensitive personal material — that is now an accepted
+property of running the mine, not something this function prevents.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import _gateway_llm
+
+result = _gateway_llm()
+# result: Callable[[list[dict], str], str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_default_out_path'><h3><code class='inline'>_default_out_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _default_out_path() -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import _default_out_path
+
+result = _default_out_path()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def main(argv: list[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.extract_chat_goldmine import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Chunk'><code class='inline'>Chunk</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-ExtractionParseError'><code class='inline'>ExtractionParseError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-Chunk'><h3><code class='inline'>Chunk</code></h3><p>One conversation-shaped unit ready for extraction.</p><p class='small'><b>Attributes:</b> source: str, title: str | None, started_at: str | None, text: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from scripts.curation.extract_chat_goldmine import Chunk
+
+obj = Chunk(...)</pre></div>
+<div class='card' id='cls-ExtractionParseError'><h3><code class='inline'>ExtractionParseError</code></h3><p>Undocumented class.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from scripts.curation.extract_chat_goldmine import ExtractionParseError
+
+obj = ExtractionParseError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>OBJECT_TYPES</code></td><td><code class='inline'>{&#x27;project_thread&#x27;, &#x27;idea_seed&#x27;, &#x27;decision_recovered&#x27;, &#x27;preference_or_taste&#x27;, &#x27;prompt_or_workflow&#x27;}</code></td></tr><tr><td><code class='inline'>SENSITIVITIES</code></td><td><code class='inline'>{&#x27;normal&#x27;, &#x27;personal&#x27;, &#x27;sensitive&#x27;, &#x27;quiet&#x27;}</code></td></tr><tr><td><code class='inline'>REVIEW_STATES</code></td><td><code class='inline'>{&#x27;unreviewed&#x27;, &#x27;approved&#x27;, &#x27;edited&#x27;, &#x27;rejected&#x27;, &#x27;keep_quiet&#x27;}</code></td></tr><tr><td><code class='inline'>MAX_CHUNK_CHARS</code></td><td><code class='inline'>60000</code></td></tr><tr><td><code class='inline'>_SENSITIVE_HINTS</code></td><td><code class='inline'>(&#x27;sober&#x27;, &#x27;sobriety&#x27;, &#x27;recovery&#x27;, &#x27;relapse&#x27;, &#x27;detox&#x27;, &#x27;grief&#x27;, &#x27;grieving&#x27;, &#x27;self-harm&#x27;, &#x27;suicide&#x27;, &#x27;trauma&#x27;, &#x27;psych&#x27;, &#x27;t</code></td></tr><tr><td><code class='inline'>EXTRACTION_INSTRUCTIONS</code></td><td><code class='inline'>&#x27;You are mining one chat transcript for useful continuity threads for Jacob.\n\nReturn STRICT JSON: {&quot;items&quot;: [ ... ]}. </code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_curation_analyze_db.py.html'><code class='inline'>scripts.curation.analyze_db</code></a></li><li><a href='scripts_curation_analyze_duplicates.py.html'><code class='inline'>scripts.curation.analyze_duplicates</code></a></li><li><a href='scripts_curation_assign_kb_files.py.html'><code class='inline'>scripts.curation.assign_kb_files</code></a></li><li><a href='scripts_curation_complete_orca_tasks.py.html'><code class='inline'>scripts.curation.complete_orca_tasks</code></a></li><li><a href='scripts_curation_configure_kb_prompts.py.html'><code class='inline'>scripts.curation.configure_kb_prompts</code></a></li><li><a href='scripts_curation_core_curation_engine.py.html'><code class='inline'>scripts.curation.core_curation_engine</code></a></li><li><a href='scripts_curation_curate_books.py.html'><code class='inline'>scripts.curation.curate_books</code></a></li><li><a href='scripts_curation_curation_worker.py.html'><code class='inline'>scripts.curation.curation_worker</code></a></li><li><a href='scripts_curation_deduplicate_by_size.py.html'><code class='inline'>scripts.curation.deduplicate_by_size</code></a></li><li><a href='scripts_curation_deep_curate.py.html'><code class='inline'>scripts.curation.deep_curate</code></a></li><li><a href='scripts_curation_dispatch_pilot.py.html'><code class='inline'>scripts.curation.dispatch_pilot</code></a></li><li><a href='scripts_curation_generate_synthetic_indexes.py.html'><code class='inline'>scripts.curation.generate_synthetic_indexes</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

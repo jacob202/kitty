@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_initiative — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_initiative</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_initiative</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_initiative.py</code> &middot; Python &middot; 49 functions &middot; 5 classes</p>
+<div class='card'><h2>Overview</h2><p>KittyBuilder KB-S1A — initiative manifests: validation, persistence, apply.
+
+An *initiative* is a versioned JSON manifest describing an ordered set of work
+*packets* (objective, acceptance criteria, allowed paths, dependencies). This
+module validates manifests, persists them durably, and materializes exactly
+one queue task per packet — atomically and idempotently.
+
+Scope boundaries (KB-S1A):
+
+- No worker, worktree, branch, PR, or GitHub mutation happens here. Apply
+  only writes rows to the Builder queue DB.
+- The queue task state machine in gateway/builder_queue.py is used unchanged.
+  Orchestration state (dependency eligibility, initiative status) is modeled
+  in separate tables, added by later packets — never by widening task states.
+- Idempotency is belt-and-braces: the ``initiative_packets`` mapping table is
+  authoritative, and each materialized task also carries
+  ``bridge_external_id = &quot;&lt;initiative_id&gt;/&lt;packet_id&gt;&quot;`` so the existing
+  unique bridge index in the tasks table independently rejects duplicates.
+
+Storage lives in the same SQLite DB as the queue (BUILDER_QUEUE_DB) so that
+initiative + packet mappings + queue tasks commit in one transaction.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>graphlib</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>sqlite3</code>, <code class='inline'>subprocess</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_ensure_packet_columns'><code class='inline'>_ensure_packet_columns</code></a></td><td>Add columns to initiative_packets tables created before them.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_ensure_initiative_columns'><code class='inline'>_ensure_initiative_columns</code></a></td><td>Add durable operator-pause metadata to pre-KB-S5 databases.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Ensure the queue schema plus initiative tables exist. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-resolve_base_sha'><code class='inline'>resolve_base_sha</code></a></td><td>Resolve the immutable base SHA for a newly applied packet.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-canonicalize_manifest'><code class='inline'>canonicalize_manifest</code></a></td><td>Return the canonical JSON form: sorted keys, no whitespace, UTF-8.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-manifest_sha256'><code class='inline'>manifest_sha256</code></a></td><td>SHA-256 hex digest of the canonical manifest JSON.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-load_manifest'><code class='inline'>load_manifest</code></a></td><td>Read and JSON-parse a manifest file. Raises ManifestError on bad JSON.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_is_int'><code class='inline'>_is_int</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_check_str_list'><code class='inline'>_check_str_list</code></a></td><td>Validate a non-empty list of non-empty strings. Returns the list or [].</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_validate_allowed_path'><code class='inline'>_validate_allowed_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_validate_policy'><code class='inline'>_validate_policy</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-validate_manifest'><code class='inline'>validate_manifest</code></a></td><td>Semantic validation. Returns the full list of problems (empty = valid).</td><td><span class='pill'>complex</span><span class='muted small'>(36)</span></td></tr><tr><td><a href='#fn-_transitive_deps'><code class='inline'>_transitive_deps</code></a></td><td>All packet ids reachable from ``packet_id`` via depends_on, any depth.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_path_parts'><code class='inline'>_path_parts</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_paths_collide'><code class='inline'>_paths_collide</code></a></td><td>True when one path&#x27;s directory components are a prefix of the other&#x27;s.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_count_subsystems'><code class='inline'>_count_subsystems</code></a></td><td>Cluster paths that collide (directory-prefix) and count the clusters.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_tracked_dir_is_empty'><code class='inline'>_tracked_dir_is_empty</code></a></td><td>True when ``git ls-files`` finds nothing under ``path``&#x27;s directory.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_command_path_tokens'><code class='inline'>_command_path_tokens</code></a></td><td>Repo-relative path arguments inside a validation command.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_path_or_glob_exists'><code class='inline'>_path_or_glob_exists</code></a></td><td>True when ``path`` exists, or — when it is a glob — matches anything.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-warn_manifest'><code class='inline'>warn_manifest</code></a></td><td>Structural lint warnings. Never rejections — see module docstring.</td><td><span class='pill'>complex</span><span class='muted small'>(42)</span></td></tr><tr><td><a href='#fn-resolve_packet_routing'><code class='inline'>resolve_packet_routing</code></a></td><td>Resolve model/provider from durable packet policy without overrides.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-apply_manifest'><code class='inline'>apply_manifest</code></a></td><td>Validate and apply a manifest. Atomic and idempotent.</td><td><span class='pill'>complex</span><span class='muted small'>(31)</span></td></tr><tr><td><a href='#fn-_row_to_packet'><code class='inline'>_row_to_packet</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-list_initiatives'><code class='inline'>list_initiatives</code></a></td><td>List initiatives with packet counts and health_summary, newest last.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_initiative_gates'><code class='inline'>list_initiative_gates</code></a></td><td>Return the small durable execution-gate view used by the supervisor.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_initiative'><code class='inline'>get_initiative</code></a></td><td>Return the initiative dict with its packets (ordered), or None.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_read_packets_with_states'><code class='inline'>_read_packets_with_states</code></a></td><td>Return each packet with its current task state, ordered by ``seq``.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_compute_unreachable'><code class='inline'>_compute_unreachable</code></a></td><td>Packets that can never become eligible (transitive blocking closure).</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-_packet_max_attempts'><code class='inline'>_packet_max_attempts</code></a></td><td>Return the packet&#x27;s attempt budget, defaulting when unspecified.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_attempts_exhausted'><code class='inline'>_attempts_exhausted</code></a></td><td>True when the retry budget is spent on genuine failures.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-derive_packet_eligibility'><code class='inline'>derive_packet_eligibility</code></a></td><td>Classify one packet without creating a second scheduling state machine.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-derive_initiative_state'><code class='inline'>derive_initiative_state</code></a></td><td>Return the canonical initiative rollup from already-read facts.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_packet_is_exhausted'><code class='inline'>_packet_is_exhausted</code></a></td><td>Return whether attempt exhaustion is still a live packet blocker.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_exhausted_packet_ids'><code class='inline'>_exhausted_packet_ids</code></a></td><td>Read attempts once per packet and return live exhausted packet ids.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-eligible_packets'><code class='inline'>eligible_packets</code></a></td><td>Packets ready to run now: own task ``queued`` and every dependency done.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-blocked_packets'><code class='inline'>blocked_packets</code></a></td><td>Packets unreachable because of a blocking dependency task.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_reconciled_interruption_pending_release'><code class='inline'>_reconciled_interruption_pending_release</code></a></td><td>True when crash reconciliation finished but task release did not.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_recovery_packets'><code class='inline'>_recovery_packets</code></a></td><td>Return blocked packets that ``run_packet`` may safely reconcile.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-next_packet'><code class='inline'>next_packet</code></a></td><td>Deterministically select normal work or a fenced recovery candidate.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-initiative_status'><code class='inline'>initiative_status</code></a></td><td>Read-only rollup of an initiative&#x27;s progress from task state.</td><td><span class='pill'>complex</span><span class='muted small'>(19)</span></td></tr><tr><td><a href='#fn-_initiative_health'><code class='inline'>_initiative_health</code></a></td><td>Derive-only health metrics (CP-04) — no new writes, no new table.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-_seconds_between'><code class='inline'>_seconds_between</code></a></td><td>Parse two sqlite TIMESTAMP values (str or datetime) into elapsed seconds.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_latest_stop_class_decision'><code class='inline'>_latest_stop_class_decision</code></a></td><td>Return the most recent ``initiative_decision`` event carrying a</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_initiative_evidence'><code class='inline'>_initiative_evidence</code></a></td><td>Roll up durable attempt/events evidence without inferring hidden work.</td><td><span class='pill'>complex</span><span class='muted small'>(52)</span></td></tr><tr><td><a href='#fn-get_initiative_state'><code class='inline'>get_initiative_state</code></a></td><td>Return the stored initiative ``state`` (the operator-set value).</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-set_initiative_state'><code class='inline'>set_initiative_state</code></a></td><td>Persist an operator-set initiative ``state``. Validates the value.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-supersede_initiative'><code class='inline'>supersede_initiative</code></a></td><td>Mark preserved work as historical without rewriting its outcome.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-pause_initiative'><code class='inline'>pause_initiative</code></a></td><td>Halt the run loop for an initiative. Idempotent and fail-loud.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-resume_initiative'><code class='inline'>resume_initiative</code></a></td><td>Clear a pause so the run loop may proceed. Fail-loud if unknown.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_ensure_packet_columns'><h3><code class='inline'>_ensure_packet_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _ensure_packet_columns(conn: sqlite3.Connection) -&gt; None</code></div><p>Add columns to initiative_packets tables created before them.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _ensure_packet_columns
+
+result = _ensure_packet_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_initiative_columns'><h3><code class='inline'>_ensure_initiative_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def _ensure_initiative_columns(conn: sqlite3.Connection) -&gt; None</code></div><p>Add durable operator-pause metadata to pre-KB-S5 databases.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _ensure_initiative_columns
+
+result = _ensure_initiative_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db(db_path: Path | None = None) -&gt; None</code></div><p>Ensure the queue schema plus initiative tables exist. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import init_db
+
+result = init_db(db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resolve_base_sha'><h3><code class='inline'>resolve_base_sha</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def resolve_base_sha(repo_root: Path | None = None) -&gt; str</code></div><p>Resolve the immutable base SHA for a newly applied packet.
+
+A configured ``origin`` is authoritative for Builder-created work: refresh
+``origin/main`` before binding the packet, then use that exact remote SHA.
+This prevents local-only integration commits in a canonical checkout from
+contaminating Builder branches and later pull requests. Repositories with
+no configured ``origin`` (for example hermetic tests) may fall back to a
+valid local ``origin/main`` ref or finally local ``main``. The selected full
+SHA is captured once in ``initiative_packets.base_sha`` and remains
+immutable for retries and recovery.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import resolve_base_sha
+
+result = resolve_base_sha(repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-canonicalize_manifest'><h3><code class='inline'>canonicalize_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def canonicalize_manifest(manifest: dict[str, Any]) -&gt; str</code></div><p>Return the canonical JSON form: sorted keys, no whitespace, UTF-8.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import canonicalize_manifest
+
+result = canonicalize_manifest(manifest=&quot;manifest_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-manifest_sha256'><h3><code class='inline'>manifest_sha256</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def manifest_sha256(manifest: dict[str, Any]) -&gt; str</code></div><p>SHA-256 hex digest of the canonical manifest JSON.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import manifest_sha256
+
+result = manifest_sha256(manifest=&quot;manifest_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-load_manifest'><h3><code class='inline'>load_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def load_manifest(path: Path) -&gt; dict[str, Any]</code></div><p>Read and JSON-parse a manifest file. Raises ManifestError on bad JSON.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import load_manifest
+
+result = load_manifest(path=&quot;path_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_int'><h3><code class='inline'>_is_int</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _is_int(value: Any) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _is_int
+
+result = _is_int(value=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_str_list'><h3><code class='inline'>_check_str_list</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _check_str_list(value: Any, label: str, errors: list[str], required: bool) -&gt; list[str]</code></div><p>Validate a non-empty list of non-empty strings. Returns the list or [].</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _check_str_list
+
+result = _check_str_list(value=..., label=&quot;label_example&quot;, errors=&quot;errors_example&quot;, required=True)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_allowed_path'><h3><code class='inline'>_validate_allowed_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _validate_allowed_path(path: str, label: str, errors: list[str]) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _validate_allowed_path
+
+result = _validate_allowed_path(path=&quot;path_example&quot;, label=&quot;label_example&quot;, errors=&quot;errors_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_policy'><h3><code class='inline'>_validate_policy</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def _validate_policy(policy: Any, label: str, errors: list[str]) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _validate_policy
+
+result = _validate_policy(policy=..., label=&quot;label_example&quot;, errors=&quot;errors_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_manifest'><h3><code class='inline'>validate_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (36)</span></h3><div class='sig'><code>def validate_manifest(manifest: Any) -&gt; list[str]</code></div><p>Semantic validation. Returns the full list of problems (empty = valid).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import validate_manifest
+
+result = validate_manifest(manifest=...)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_transitive_deps'><h3><code class='inline'>_transitive_deps</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _transitive_deps(packet_id: str, deps_by_id: dict[str, list[str]]) -&gt; set[str]</code></div><p>All packet ids reachable from ``packet_id`` via depends_on, any depth.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _transitive_deps
+
+result = _transitive_deps(packet_id=&quot;packet_id_example&quot;, deps_by_id=&quot;deps_by_id_example&quot;)
+# result: set[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_path_parts'><h3><code class='inline'>_path_parts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _path_parts(path: str) -&gt; tuple[str, ...]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _path_parts
+
+result = _path_parts(path=&quot;path_example&quot;)
+# result: tuple[str, ...]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_paths_collide'><h3><code class='inline'>_paths_collide</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _paths_collide(path_a: str, path_b: str) -&gt; bool</code></div><p>True when one path&#x27;s directory components are a prefix of the other&#x27;s.
+
+Directory-prefix comparison, not exact-path equality: &quot;gateway/&quot; collides
+with &quot;gateway/foo.py&quot; (containment), and &quot;gateway/foo.py&quot; collides with
+itself, but &quot;gateway/foo.py&quot; does not collide with &quot;gateway/bar.py&quot;.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _paths_collide
+
+result = _paths_collide(path_a=&quot;path_a_example&quot;, path_b=&quot;path_b_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_count_subsystems'><h3><code class='inline'>_count_subsystems</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _count_subsystems(paths: list[str]) -&gt; int</code></div><p>Cluster paths that collide (directory-prefix) and count the clusters.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _count_subsystems
+
+result = _count_subsystems(paths=&quot;paths_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_tracked_dir_is_empty'><h3><code class='inline'>_tracked_dir_is_empty</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _tracked_dir_is_empty(path: str, repo_root: Path) -&gt; bool</code></div><p>True when ``git ls-files`` finds nothing under ``path``&#x27;s directory.
+
+A path that looks like a file (has a suffix) is checked at its parent
+directory; a bare directory path is checked as-is. Any git failure is
+treated as &quot;cannot determine&quot; (False) so a broken git call never turns
+into a false-positive warning.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _tracked_dir_is_empty
+
+result = _tracked_dir_is_empty(path=&quot;path_example&quot;, repo_root=&quot;repo_root_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_command_path_tokens'><h3><code class='inline'>_command_path_tokens</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _command_path_tokens(command: str) -&gt; list[str]</code></div><p>Repo-relative path arguments inside a validation command.
+
+A leading ``cd &lt;dir&gt; &amp;&amp;`` is honoured, so tokens resolve where the shell
+will actually look rather than against the repo root. A token counts as a
+path when it contains &quot;/&quot; or ends in &quot;.py&quot; — enough to catch pytest and
+vitest targets without mistaking flags, interpreters, shell operators or
+subcommands for files.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _command_path_tokens
+
+result = _command_path_tokens(command=&quot;command_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_path_or_glob_exists'><h3><code class='inline'>_path_or_glob_exists</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _path_or_glob_exists(path: str, repo_root: Path) -&gt; bool</code></div><p>True when ``path`` exists, or — when it is a glob — matches anything.
+
+``pytest tests/test_kitty*.py`` is a real gate whenever the pattern matches
+at least one file, so treating it as a literal path would be a false alarm.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _path_or_glob_exists
+
+result = _path_or_glob_exists(path=&quot;path_example&quot;, repo_root=&quot;repo_root_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-warn_manifest'><h3><code class='inline'>warn_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (42)</span></h3><div class='sig'><code>def warn_manifest(manifest: dict[str, Any], repo_root: Path | None = None) -&gt; list[str]</code></div><p>Structural lint warnings. Never rejections — see module docstring.
+
+Precondition: ``manifest`` already passed ``validate_manifest`` with an
+empty error list.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import warn_manifest
+
+result = warn_manifest(manifest=&quot;manifest_example&quot;, repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resolve_packet_routing'><h3><code class='inline'>resolve_packet_routing</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def resolve_packet_routing(initiative_id: str, packet_id: str, model: str | None, provider: str | None, db_path: Path | None = None) -&gt; tuple[str | None, str | None]</code></div><p>Resolve model/provider from durable packet policy without overrides.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import resolve_packet_routing
+
+result = resolve_packet_routing(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, model=&quot;model_example&quot;, provider=&quot;provider_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: tuple[str | None, str | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-apply_manifest'><h3><code class='inline'>apply_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (31)</span></h3><div class='sig'><code>def apply_manifest(manifest: dict[str, Any], dry_run: bool = False, db_path: Path | None = None, repo_root: Path | None = None, base_sha: str | None = None, project_id: int = 1, approval_binding: dict[str, str] | None = None) -&gt; dict[str, Any]</code></div><p>Validate and apply a manifest. Atomic and idempotent.
+
+``project_id`` defaults to 1 (kitty) because Builder has no per-initiative
+repo selection today — every packet&#x27;s ``allowed_paths`` is resolved against
+whatever repo Builder is running in, which is always the kitty checkout.
+Pass an explicit ``project_id`` once Builder can target another project.
+
+- First apply: creates the initiative row, one queue task per packet, and
+  the packet→task mapping rows, all in one transaction.
+- Identical re-apply (same initiative_id, same canonical SHA-256):
+  returns ``status=&quot;unchanged&quot;`` and mutates nothing.
+- Changed contents under an existing initiative_id: raises
+  InitiativeConflictError without any mutation.
+- ``dry_run=True`` performs every check and reports what would happen,
+  guaranteed mutation-free.
+
+Returns ``{&quot;status&quot;, &quot;initiative_id&quot;, &quot;manifest_sha256&quot;, &quot;packets&quot;}``
+where packets is ``[{&quot;packet_id&quot;, &quot;task_id&quot;}, ...]`` (task_id is None in
+a would-create dry run).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import apply_manifest
+
+result = apply_manifest(manifest=&quot;manifest_example&quot;, dry_run=True  # default: False, db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None, base_sha=&quot;base_sha_example&quot;  # default: None, project_id=0  # default: 1, approval_binding=&quot;approval_binding_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_packet'><h3><code class='inline'>_row_to_packet</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _row_to_packet(row: sqlite3.Row) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _row_to_packet
+
+result = _row_to_packet(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_initiatives'><h3><code class='inline'>list_initiatives</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_initiatives(db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>List initiatives with packet counts and health_summary, newest last.
+
+Each entry includes a ``health_summary`` dict with the derived
+``state``, ``stop_class``, and ``stop_class_reason`` per
+``initiative_status()`` — no new health computation, just a rollup call
+per initiative (CP-03/CP-04 machinery).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import list_initiatives
+
+result = list_initiatives(db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_initiative_gates'><h3><code class='inline'>list_initiative_gates</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def list_initiative_gates(db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Return the small durable execution-gate view used by the supervisor.
+
+Unlike :func:`list_initiatives`, this deliberately does not compute packet
+health per initiative. Polling and scheduling need operator state and
+supersession only; packet eligibility remains owned by ``next_packet``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import list_initiative_gates
+
+result = list_initiative_gates(db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_initiative'><h3><code class='inline'>get_initiative</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_initiative(initiative_id: str, db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Return the initiative dict with its packets (ordered), or None.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import get_initiative
+
+result = get_initiative(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_packets_with_states'><h3><code class='inline'>_read_packets_with_states</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _read_packets_with_states(initiative_id: str, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Return each packet with its current task state, ordered by ``seq``.
+
+Raises InitiativeNotFoundError if the initiative row is absent. A packet
+whose task row is missing (should not happen post-apply) reports
+``state=None`` rather than fabricating one.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _read_packets_with_states
+
+result = _read_packets_with_states(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_compute_unreachable'><h3><code class='inline'>_compute_unreachable</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def _compute_unreachable(packets: list[dict[str, Any]], extra_blocking: set[str] | None = None) -&gt; set[str]</code></div><p>Packets that can never become eligible (transitive blocking closure).
+
+A packet is directly unreachable when a dependency&#x27;s task is in a blocking
+state (``failed``/``cancelled``) or when a dependency is in the optional
+``extra_blocking`` set (e.g., attempt-exhausted packets that remain
+``queued``). That unreachability propagates to any packet depending on an
+already-unreachable packet, so a single blocked dependency surfaces every
+downstream packet that will never run instead of silently leaving them
+perpetually non-eligible.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _compute_unreachable
+
+result = _compute_unreachable(packets=&quot;packets_example&quot;, extra_blocking=&quot;extra_blocking_example&quot;  # default: None)
+# result: set[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_packet_max_attempts'><h3><code class='inline'>_packet_max_attempts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _packet_max_attempts(packet: dict[str, Any]) -&gt; int</code></div><p>Return the packet&#x27;s attempt budget, defaulting when unspecified.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _packet_max_attempts
+
+result = _packet_max_attempts(packet=&quot;packet_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_attempts_exhausted'><h3><code class='inline'>_attempts_exhausted</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _attempts_exhausted(packet: dict[str, Any], attempts: list[dict[str, Any]]) -&gt; bool</code></div><p>True when the retry budget is spent on genuine failures.
+
+Only real terminal failures (``failed``/``aborted``) consume the budget;
+``crashed`` is budget-neutral and ``succeeded`` completes the packet. Uses
+``ba._BUDGET_CONSUMING_OUTCOMES`` so this agrees with
+``builder_attempt.start_attempt``&#x27;s retry-budget check.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _attempts_exhausted
+
+result = _attempts_exhausted(packet=&quot;packet_example&quot;, attempts=&quot;attempts_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-derive_packet_eligibility'><h3><code class='inline'>derive_packet_eligibility</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def derive_packet_eligibility(packet_id: str, task_state: str | None, depends_on: list[str], task_states: dict[str, str | None], exhausted_packet_ids: set[str], data_available: bool = True) -&gt; dict[str, Any]</code></div><p>Classify one packet without creating a second scheduling state machine.
+
+This pure helper is shared by read projections. Execution still uses
+:func:`eligible_packets`; the helper only expresses the same durable task,
+dependency, and retry-budget rules for status consumers.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import derive_packet_eligibility
+
+result = derive_packet_eligibility(packet_id=&quot;packet_id_example&quot;, task_state=&quot;task_state_example&quot;, depends_on=&quot;depends_on_example&quot;, task_states=&quot;task_states_example&quot;, exhausted_packet_ids=&quot;exhausted_packet_ids_example&quot;, data_available=True  # default: True)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-derive_initiative_state'><h3><code class='inline'>derive_initiative_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def derive_initiative_state(stored_state: str, total_packets: int, done_count: int, has_blocked: bool, has_failed: bool, has_exhausted: bool, has_eligible: bool) -&gt; str</code></div><p>Return the canonical initiative rollup from already-read facts.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import derive_initiative_state
+
+result = derive_initiative_state(stored_state=&quot;stored_state_example&quot;, total_packets=0, done_count=0, has_blocked=True, has_failed=True, has_exhausted=True, has_eligible=True)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_packet_is_exhausted'><h3><code class='inline'>_packet_is_exhausted</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _packet_is_exhausted(packet: dict[str, Any], attempts: list[dict[str, Any]]) -&gt; bool</code></div><p>Return whether attempt exhaustion is still a live packet blocker.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _packet_is_exhausted
+
+result = _packet_is_exhausted(packet=&quot;packet_example&quot;, attempts=&quot;attempts_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_exhausted_packet_ids'><h3><code class='inline'>_exhausted_packet_ids</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _exhausted_packet_ids(initiative_id: str, packets: list[dict[str, Any]], db_path: Path | None = None) -&gt; set[str]</code></div><p>Read attempts once per packet and return live exhausted packet ids.
+
+Exhaustion blocks unfinished work whose attempt budget or same-signature
+limit is spent. A task already reconciled to ``done`` keeps its historical
+attempts, but that history must not keep blocking downstream packets.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _exhausted_packet_ids
+
+result = _exhausted_packet_ids(initiative_id=&quot;initiative_id_example&quot;, packets=&quot;packets_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: set[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-eligible_packets'><h3><code class='inline'>eligible_packets</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def eligible_packets(initiative_id: str, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Packets ready to run now: own task ``queued`` and every dependency done.
+
+Unreachable packets (a blocking dependency) are excluded, as are packets
+still waiting on in-flight dependencies. Attempt-exhausted packets are also
+excluded so the rollup does not present a blocked packet as runnable.
+Returned in ``seq`` order so selection is deterministic.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import eligible_packets
+
+result = eligible_packets(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-blocked_packets'><h3><code class='inline'>blocked_packets</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def blocked_packets(initiative_id: str, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Packets unreachable because of a blocking dependency task.
+
+Each entry carries the direct blocking dependencies (the failed/cancelled
+tasks responsible) so operators see exactly which dependency must be
+resolved. Transitively blocked packets are included but list only their
+nearest blocking causes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import blocked_packets
+
+result = blocked_packets(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconciled_interruption_pending_release'><h3><code class='inline'>_reconciled_interruption_pending_release</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _reconciled_interruption_pending_release(initiative_id: str, packet: dict[str, Any], db_path: Path | None) -&gt; bool</code></div><p>True when crash reconciliation finished but task release did not.
+
+The durable ``infrastructure_failed`` event is written only after the
+stale attempt is closed and its branch lease is released. If the process
+dies before the subsequent task release, that event makes the remaining
+blocked task safely reclaimable without pretending an open attempt exists.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _reconciled_interruption_pending_release
+
+result = _reconciled_interruption_pending_release(initiative_id=&quot;initiative_id_example&quot;, packet=&quot;packet_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_recovery_packets'><h3><code class='inline'>_recovery_packets</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _recovery_packets(initiative_id: str, packets: list[dict[str, Any]], exhausted: set[str], unreachable: set[str], db_path: Path | None) -&gt; list[dict[str, Any]]</code></div><p>Return blocked packets that ``run_packet`` may safely reconcile.
+
+This is deliberately separate from ordinary eligibility: a blocked packet
+cannot run just because its dependencies are complete. It needs a
+liveness-certified interrupted attempt, which ``run_packet`` then closes
+and releases through its existing fenced recovery path.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _recovery_packets
+
+result = _recovery_packets(initiative_id=&quot;initiative_id_example&quot;, packets=&quot;packets_example&quot;, exhausted=&quot;exhausted_example&quot;, unreachable=&quot;unreachable_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-next_packet'><h3><code class='inline'>next_packet</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def next_packet(initiative_id: str, db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Deterministically select normal work or a fenced recovery candidate.
+
+Normal candidates are queued and eligible. A blocked candidate is included
+only when its own interrupted attempt has durable liveness evidence; it is
+handed to ``run_packet`` for reconciliation, not treated as generally
+eligible. Priority is advisory metadata only; ``seq`` decides ordering.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import next_packet
+
+result = next_packet(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-initiative_status'><h3><code class='inline'>initiative_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (19)</span></h3><div class='sig'><code>def initiative_status(initiative_id: str, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Read-only rollup of an initiative&#x27;s progress from task state.
+
+Returns the derived ``state`` (``active | completed | failed | paused``)
+plus per-bucket packet ids and the current ``next_packet``.
+
+State derivation (deterministic, over current task states):
+
+- ``completed``: every packet task is ``done``.
+- ``failed``: any packet task is ``failed``/``cancelled``, or any packet is
+  unreachable due to a blocking dependency.
+- ``paused``: not completed and not failed, but no packet is eligible now
+  (everything remaining waits on in-flight dependencies).
+- ``active``: at least one packet is eligible and ready to run.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import initiative_status
+
+result = initiative_status(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_initiative_health'><h3><code class='inline'>_initiative_health</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def _initiative_health(packets: list[dict[str, Any]], evidence: dict[str, dict[str, Any]], db_path: Path | None) -&gt; dict[str, Any]</code></div><p>Derive-only health metrics (CP-04) — no new writes, no new table.
+
+Everything here is computed at read time from the same attempts/events
+rows ``_initiative_evidence`` and ``_latest_stop_class_decision`` already
+read. Per the plan&#x27;s own sunset clause: a control that never fires
+across the first ~10 campaigns should be deleted, not accumulated on.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _initiative_health
+
+result = _initiative_health(packets=&quot;packets_example&quot;, evidence=&quot;evidence_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_seconds_between'><h3><code class='inline'>_seconds_between</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _seconds_between(start: Any, end: Any) -&gt; float | None</code></div><p>Parse two sqlite TIMESTAMP values (str or datetime) into elapsed seconds.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _seconds_between
+
+result = _seconds_between(start=..., end=...)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_latest_stop_class_decision'><h3><code class='inline'>_latest_stop_class_decision</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _latest_stop_class_decision(packets: list[dict[str, Any]], db_path: Path | None) -&gt; dict[str, Any] | None</code></div><p>Return the most recent ``initiative_decision`` event carrying a
+``stop_class`` (CP-03), across all of this initiative&#x27;s packet tasks.
+
+Read-only: ``stop_class`` has no durable column of its own — it rides
+the existing EVENT_DECISION payload written by
+``gateway.builder_run.run_initiative``. Event ``id`` is a single
+autoincrement sequence across tasks, so comparing it across packets
+still yields correct chronological order.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _latest_stop_class_decision
+
+result = _latest_stop_class_decision(packets=&quot;packets_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_initiative_evidence'><h3><code class='inline'>_initiative_evidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (52)</span></h3><div class='sig'><code>def _initiative_evidence(packets: list[dict[str, Any]], db_path: Path | None) -&gt; dict[str, dict[str, Any]]</code></div><p>Roll up durable attempt/events evidence without inferring hidden work.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import _initiative_evidence
+
+result = _initiative_evidence(packets=&quot;packets_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: dict[str, dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_initiative_state'><h3><code class='inline'>get_initiative_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_initiative_state(initiative_id: str, db_path: Path | None = None) -&gt; str</code></div><p>Return the stored initiative ``state`` (the operator-set value).
+
+Distinct from ``initiative_status``&#x27;s *derived* state: this is the value an
+operator writes via pause/resume and that the run loop consults as a gate.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import get_initiative_state
+
+result = get_initiative_state(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_initiative_state'><h3><code class='inline'>set_initiative_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def set_initiative_state(initiative_id: str, state: str, db_path: Path | None = None) -&gt; None</code></div><p>Persist an operator-set initiative ``state``. Validates the value.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import set_initiative_state
+
+result = set_initiative_state(initiative_id=&quot;initiative_id_example&quot;, state=&quot;state_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-supersede_initiative'><h3><code class='inline'>supersede_initiative</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def supersede_initiative(initiative_id: str, successor: str, db_path: Path | None = None) -&gt; None</code></div><p>Mark preserved work as historical without rewriting its outcome.
+
+Active work is paused so it cannot launch. Existing paused, completed, and
+failed states — and any prior pause reason — remain intact. Explicitly
+resuming an initiative clears the supersession marker.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import supersede_initiative
+
+result = supersede_initiative(initiative_id=&quot;initiative_id_example&quot;, successor=&quot;successor_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-pause_initiative'><h3><code class='inline'>pause_initiative</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def pause_initiative(initiative_id: str, reason: str | None = None, db_path: Path | None = None) -&gt; None</code></div><p>Halt the run loop for an initiative. Idempotent and fail-loud.
+
+Sets the stored state to ``paused``; the next ``run_initiative`` call sees
+this and returns without driving any packet. The reason is durable.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import pause_initiative
+
+result = pause_initiative(initiative_id=&quot;initiative_id_example&quot;, reason=&quot;reason_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resume_initiative'><h3><code class='inline'>resume_initiative</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def resume_initiative(initiative_id: str, db_path: Path | None = None) -&gt; None</code></div><p>Clear a pause so the run loop may proceed. Fail-loud if unknown.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_initiative import resume_initiative
+
+result = resume_initiative(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ManifestError'><code class='inline'>ManifestError</code></a></td><td>(ValueError)</td><td>1 methods</td></tr><tr><td><a href='#cls-InitiativeConflictError'><code class='inline'>InitiativeConflictError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-InitiativeNotFoundError'><code class='inline'>InitiativeNotFoundError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RoutingPolicyError'><code class='inline'>RoutingPolicyError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-BaseSHAResolutionError'><code class='inline'>BaseSHAResolutionError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ManifestError'><h3><code class='inline'>ManifestError</code></h3><p>Raised when a manifest fails semantic validation.
+
+``errors`` carries the full list so the CLI can print every problem in
+one pass instead of one-error-per-run whack-a-mole.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, errors: list[str])</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+b
+u
+i
+l
+d
+e
+r
+_
+i
+n
+i
+t
+i
+a
+t
+i
+v
+e
+ 
+i
+m
+p
+o
+r
+t
+ 
+M
+a
+n
+i
+f
+e
+s
+t
+E
+r
+r
+o
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+M
+a
+n
+i
+f
+e
+s
+t
+E
+r
+r
+o
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-InitiativeConflictError'><h3><code class='inline'>InitiativeConflictError</code></h3><p>Raised when an initiative ID exists with different manifest contents.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_initiative import InitiativeConflictError
+
+obj = InitiativeConflictError(...)</pre></div>
+<div class='card' id='cls-InitiativeNotFoundError'><h3><code class='inline'>InitiativeNotFoundError</code></h3><p>Raised when an initiative ID does not exist.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_initiative import InitiativeNotFoundError
+
+obj = InitiativeNotFoundError(...)</pre></div>
+<div class='card' id='cls-RoutingPolicyError'><h3><code class='inline'>RoutingPolicyError</code></h3><p>Raised when a caller attempts to override durable packet routing.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_initiative import RoutingPolicyError
+
+obj = RoutingPolicyError(...)</pre></div>
+<div class='card' id='cls-BaseSHAResolutionError'><h3><code class='inline'>BaseSHAResolutionError</code></h3><p>Raised when a base SHA cannot be resolved from any branch ref.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_initiative import BaseSHAResolutionError
+
+obj = BaseSHAResolutionError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>MANIFEST_VERSION</code></td><td><code class='inline'>1</code></td></tr><tr><td><code class='inline'>INITIATIVE_ACTIVE</code></td><td><code class='inline'>&#x27;active&#x27;</code></td></tr><tr><td><code class='inline'>INITIATIVE_COMPLETED</code></td><td><code class='inline'>&#x27;completed&#x27;</code></td></tr><tr><td><code class='inline'>INITIATIVE_FAILED</code></td><td><code class='inline'>&#x27;failed&#x27;</code></td></tr><tr><td><code class='inline'>INITIATIVE_PAUSED</code></td><td><code class='inline'>&#x27;paused&#x27;</code></td></tr><tr><td><code class='inline'>_BLOCKING_STATES</code></td><td><code class='inline'>frozenset({bq.FAILED, bq.CANCELLED})</code></td></tr><tr><td><code class='inline'>_ID_RE</code></td><td><code class='inline'>re.compile(&#x27;^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\\Z&#x27;)</code></td></tr><tr><td><code class='inline'>_TOP_LEVEL_KEYS</code></td><td><code class='inline'>frozenset({&#x27;manifest_version&#x27;, &#x27;initiative_id&#x27;, &#x27;title&#x27;, &#x27;description&#x27;, &#x27;packets&#x27;})</code></td></tr><tr><td><code class='inline'>_PACKET_KEYS</code></td><td><code class='inline'>frozenset({&#x27;id&#x27;, &#x27;title&#x27;, &#x27;objective&#x27;, &#x27;depends_on&#x27;, &#x27;acceptance_criteria&#x27;, &#x27;allowed_paths&#x27;, &#x27;forbidden_symbols&#x27;, &#x27;requi</code></td></tr><tr><td><code class='inline'>_MAX_VALIDATION_COMMANDS</code></td><td><code class='inline'>20</code></td></tr><tr><td><code class='inline'>_POLICY_KEYS</code></td><td><code class='inline'>frozenset({&#x27;max_attempts&#x27;, &#x27;priority&#x27;, &#x27;routing&#x27;})</code></td></tr><tr><td><code class='inline'>_ROUTING_POLICY_KEYS</code></td><td><code class='inline'>frozenset({&#x27;model&#x27;, &#x27;provider&#x27;})</code></td></tr><tr><td><code class='inline'>BRIDGE_SOURCE</code></td><td><code class='inline'>&#x27;initiative&#x27;</code></td></tr><tr><td><code class='inline'>_SCHEMA_SQL</code></td><td><code class='inline'>&quot;\nCREATE TABLE IF NOT EXISTS initiatives (\n    id TEXT PRIMARY KEY,\n    title TEXT NOT NULL,\n    manifest_version IN</code></td></tr><tr><td><code class='inline'>_CD_PREFIX_RE</code></td><td><code class='inline'>re.compile(&#x27;\\s*cd\\s+([^\\s&amp;|;]+)\\s*&amp;&amp;\\s*(.*)&#x27;, re.DOTALL)</code></td></tr><tr><td><code class='inline'>_GLOB_CHARS</code></td><td><code class='inline'>(&#x27;*&#x27;, &#x27;?&#x27;, &#x27;[&#x27;)</code></td></tr><tr><td><code class='inline'>_VALID_STATES</code></td><td><code class='inline'>frozenset({INITIATIVE_ACTIVE, INITIATIVE_COMPLETED, INITIATIVE_FAILED, INITIATIVE_PAUSED})</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

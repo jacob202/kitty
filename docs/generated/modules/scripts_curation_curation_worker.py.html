@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.curation.curation_worker — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.curation.curation_worker</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.curation.curation_worker</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/curation/curation_worker.py</code> &middot; Python &middot; 5 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>asyncio</code>, <code class='inline'>contracts.smart_file_schema</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.config</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>requests</code>, <code class='inline'>sqlite3</code>, <code class='inline'>sys</code>, <code class='inline'>yaml</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-owui_login'><code class='inline'>owui_login</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-owui_get_kbs'><code class='inline'>owui_get_kbs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-generate_soul_analysis'><code class='inline'>generate_soul_analysis</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-update_db_status'><code class='inline'>update_db_status</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-process_and_upload'><code class='inline'>process_and_upload</code></a></td><td>The One-Pass Curation Engine: Extract -&gt; Synthesize -&gt; Assemble -&gt; Upload.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr></table></div>
+<div class='card' id='fn-owui_login'><h3><code class='inline'>owui_login</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def owui_login()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.curation_worker import owui_login
+
+result = owui_login()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-owui_get_kbs'><h3><code class='inline'>owui_get_kbs</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def owui_get_kbs(token)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.curation_worker import owui_get_kbs
+
+result = owui_get_kbs(token=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_soul_analysis'><h3><code class='inline'>generate_soul_analysis</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def generate_soul_analysis(filename: str, text_sample: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.curation.curation_worker import generate_soul_analysis
+
+    result = await generate_soul_analysis()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update_db_status'><h3><code class='inline'>update_db_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def update_db_status(book_id, status, error = None, **kwargs)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.curation.curation_worker import update_db_status
+
+result = update_db_status(book_id=..., status=..., error=...  # default: None)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-process_and_upload'><h3><code class='inline'>process_and_upload</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>async def process_and_upload(book_id: str, source_path: Path)</code></div><p>The One-Pass Curation Engine: Extract -&gt; Synthesize -&gt; Assemble -&gt; Upload.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.curation.curation_worker import process_and_upload
+
+    result = await process_and_upload()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_curation_analyze_db.py.html'><code class='inline'>scripts.curation.analyze_db</code></a></li><li><a href='scripts_curation_analyze_duplicates.py.html'><code class='inline'>scripts.curation.analyze_duplicates</code></a></li><li><a href='scripts_curation_assign_kb_files.py.html'><code class='inline'>scripts.curation.assign_kb_files</code></a></li><li><a href='scripts_curation_complete_orca_tasks.py.html'><code class='inline'>scripts.curation.complete_orca_tasks</code></a></li><li><a href='scripts_curation_configure_kb_prompts.py.html'><code class='inline'>scripts.curation.configure_kb_prompts</code></a></li><li><a href='scripts_curation_core_curation_engine.py.html'><code class='inline'>scripts.curation.core_curation_engine</code></a></li><li><a href='scripts_curation_curate_books.py.html'><code class='inline'>scripts.curation.curate_books</code></a></li><li><a href='scripts_curation_deduplicate_by_size.py.html'><code class='inline'>scripts.curation.deduplicate_by_size</code></a></li><li><a href='scripts_curation_deep_curate.py.html'><code class='inline'>scripts.curation.deep_curate</code></a></li><li><a href='scripts_curation_dispatch_pilot.py.html'><code class='inline'>scripts.curation.dispatch_pilot</code></a></li><li><a href='scripts_curation_extract_chat_goldmine.py.html'><code class='inline'>scripts.curation.extract_chat_goldmine</code></a></li><li><a href='scripts_curation_generate_synthetic_indexes.py.html'><code class='inline'>scripts.curation.generate_synthetic_indexes</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

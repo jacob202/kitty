@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.migrate_mem0_to_mempalace — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.migrate_mem0_to_mempalace</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.migrate_mem0_to_mempalace</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/migrate_mem0_to_mempalace.py</code> &middot; Python &middot; 8 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Migrate Kitty&#x27;s mem0 memories into MemPalace — safely and idempotently.
+
+Design guarantees (so re-running or aborting is never scary):
+  * DRY-RUN BY DEFAULT. Nothing is written until you pass --execute.
+  * NON-DESTRUCTIVE. mem0 data is never modified or deleted; MemPalace is
+    additive and off-by-default, so rollback is just `unset KITTY_MEMPALACE_ENABLED`.
+  * BACKS UP first (copies data/mem0) before --execute, unless --no-backup.
+  * IDEMPOTENT. A manifest (data/mempalace_migration_state.json) records which
+    memory ids were migrated; re-runs skip them, so an interrupted run resumes.
+  * The ONE unverified call (how MemPalace ingests text) is isolated in one
+    function and overridable with --ingest-cmd, so you never edit code blind.
+
+Read the runbook first: docs/phases/MEMPALACE_MIGRATION_RUNBOOK.md
+
+Typical use:
+    python scripts/mempalace_preflight.py            # 1. verify the package
+    python scripts/migrate_mem0_to_mempalace.py      # 2. dry-run (writes nothing)
+    python scripts/migrate_mem0_to_mempalace.py --execute --ingest-cmd &quot;mempalace add&quot;</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>shutil</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-normalize_memory'><code class='inline'>normalize_memory</code></a></td><td>mem0 record -&gt; {id, text, namespace, metadata}, or None if it has no text.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-load_manifest'><code class='inline'>load_manifest</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-save_manifest'><code class='inline'>save_manifest</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-migrate'><code class='inline'>migrate</code></a></td><td>Core loop. Pure logic + injected ingest_fn — fully unit-testable.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-make_cli_ingest'><code class='inline'>make_cli_ingest</code></a></td><td>Build the ingest function from a CLI command string (e.g. &#x27;mempalace add&#x27;).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-backup_mem0'><code class='inline'>backup_mem0</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-load_source_memories'><code class='inline'>load_source_memories</code></a></td><td>Read every stored mem0 memory through the clean public interface.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr></table></div>
+<div class='card' id='fn-normalize_memory'><h3><code class='inline'>normalize_memory</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def normalize_memory(raw: Any) -&gt; Optional[dict[str, Any]]</code></div><p>mem0 record -&gt; {id, text, namespace, metadata}, or None if it has no text.
+
+A stable id (mem0&#x27;s own id, else a content hash) drives idempotency.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.migrate_mem0_to_mempalace import normalize_memory
+
+result = normalize_memory(raw=...)
+# result: Optional[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-load_manifest'><h3><code class='inline'>load_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def load_manifest(path: Path) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.migrate_mem0_to_mempalace import load_manifest
+
+result = load_manifest(path=&quot;path_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-save_manifest'><h3><code class='inline'>save_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def save_manifest(path: Path, manifest: dict[str, Any]) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.migrate_mem0_to_mempalace import save_manifest
+
+result = save_manifest(path=&quot;path_example&quot;, manifest=&quot;manifest_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-migrate'><h3><code class='inline'>migrate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def migrate(memories: Iterable[Any], ingest_fn: Callable[[str, dict[str, Any]], None], manifest: dict[str, Any], dry_run: bool = True, log: Callable[[str], None] = print) -&gt; dict[str, int]</code></div><p>Core loop. Pure logic + injected ingest_fn — fully unit-testable.
+
+Mutates ``manifest[&#x27;migrated_ids&#x27;]`` only for items actually ingested.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.migrate_mem0_to_mempalace import migrate
+
+result = migrate(memories=..., ingest_fn=&quot;ingest_fn_example&quot;, manifest=&quot;manifest_example&quot;, dry_run=True  # default: True, log=&quot;log_example&quot;  # default: print)
+# result: dict[str, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-make_cli_ingest'><h3><code class='inline'>make_cli_ingest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def make_cli_ingest(ingest_cmd: str) -&gt; Callable[[str, dict[str, Any]], None]</code></div><p>Build the ingest function from a CLI command string (e.g. &#x27;mempalace add&#x27;).
+
+This is the ONE call that depends on MemPalace&#x27;s real API. If your version
+uses a different subcommand, just pass --ingest-cmd; no code change needed.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.migrate_mem0_to_mempalace import make_cli_ingest
+
+result = make_cli_ingest(ingest_cmd=&quot;ingest_cmd_example&quot;)
+# result: Callable[[str, dict[str, Any]], None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-backup_mem0'><h3><code class='inline'>backup_mem0</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def backup_mem0(data_dir: Path) -&gt; Optional[Path]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.migrate_mem0_to_mempalace import backup_mem0
+
+result = backup_mem0(data_dir=&quot;data_dir_example&quot;)
+# result: Optional[Path]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-load_source_memories'><h3><code class='inline'>load_source_memories</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def load_source_memories(limit: int) -&gt; list[dict[str, Any]]</code></div><p>Read every stored mem0 memory through the clean public interface.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.migrate_mem0_to_mempalace import load_source_memories
+
+result = load_source_memories(limit=0)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def main(argv: Optional[list[str]] = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.migrate_mem0_to_mempalace import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ROOT</code></td><td><code class='inline'>os.path.dirname(os.path.dirname(os.path.abspath(__file__)))</code></td></tr><tr><td><code class='inline'>DEFAULT_INGEST_CMD</code></td><td><code class='inline'>&#x27;mempalace add&#x27;</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

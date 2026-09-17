@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.plugin_registry — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.plugin_registry</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.plugin_registry</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/plugin_registry.py</code> &middot; Python &middot; 17 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Plugin Registry — extensible capability system for Kitty.
+
+Plugins bundle skills, hooks, and MCP servers into toggleable units.
+Users enable/disable plugins via API, persisted to Kitty&#x27;s Phase B SQLite DB.
+
+Pattern ported from free-code&#x27;s plugins/builtinPlugins.ts.
+
+Public API:
+  register(definition) -&gt; bool        Register a plugin
+  list(enabled_only) -&gt; list[dict]    List all plugins
+  enable(name) -&gt; bool                Enable a plugin
+  disable(name) -&gt; bool               Disable a plugin
+  is_enabled(name) -&gt; bool            Check if plugin is enabled</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-register'><code class='inline'>register</code></a></td><td>Register a plugin. Returns True if newly registered.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-list_plugins'><code class='inline'>list_plugins</code></a></td><td>List all registered plugins with their enabled state.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-enable'><code class='inline'>enable</code></a></td><td>Enable a plugin by name.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-disable'><code class='inline'>disable</code></a></td><td>Disable a plugin by name.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-is_enabled'><code class='inline'>is_enabled</code></a></td><td>Check if a plugin is currently enabled.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_plugin'><code class='inline'>get_plugin</code></a></td><td>Get full plugin definition.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_enabled_skills'><code class='inline'>get_enabled_skills</code></a></td><td>Get skills from all enabled plugins.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_enabled_mcp_servers'><code class='inline'>get_enabled_mcp_servers</code></a></td><td>Get MCP servers from all enabled plugins.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_enabled_hooks'><code class='inline'>get_enabled_hooks</code></a></td><td>Get merged hooks from all enabled plugins.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-reset'><code class='inline'>reset</code></a></td><td>Clear registry and settings (for testing).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_load_settings'><code class='inline'>_load_settings</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_save_settings'><code class='inline'>_save_settings</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_load_db_settings'><code class='inline'>_load_db_settings</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_save_db_settings'><code class='inline'>_save_db_settings</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_migrate_legacy_settings_once'><code class='inline'>_migrate_legacy_settings_once</code></a></td><td>Import the legacy JSON file once, on first access.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_mark_legacy_migrated'><code class='inline'>_mark_legacy_migrated</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_load_legacy_settings'><code class='inline'>_load_legacy_settings</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-register'><h3><code class='inline'>register</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def register(name: str, description: str = &#x27;&#x27;, version: str = &#x27;1.0.0&#x27;, skills: Optional[list[dict]] = None, hooks: Optional[dict] = None, mcp_servers: Optional[list[dict]] = None, default_enabled: bool = True, is_available: Optional[Callable[[], bool]] = None) -&gt; bool</code></div><p>Register a plugin. Returns True if newly registered.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import register
+
+result = register(name=&quot;name_example&quot;, description=&quot;description_example&quot;  # default: &#x27;&#x27;, version=&quot;version_example&quot;  # default: &#x27;1.0.0&#x27;, skills=[]  # default: None, hooks={}  # default: None, mcp_servers=[]  # default: None, default_enabled=True  # default: True, is_available=True  # default: None)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_plugins'><h3><code class='inline'>list_plugins</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def list_plugins(enabled_only: bool = False) -&gt; list[dict]</code></div><p>List all registered plugins with their enabled state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import list_plugins
+
+result = list_plugins(enabled_only=True  # default: False)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-enable'><h3><code class='inline'>enable</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def enable(name: str) -&gt; bool</code></div><p>Enable a plugin by name.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import enable
+
+result = enable(name=&quot;name_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-disable'><h3><code class='inline'>disable</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def disable(name: str) -&gt; bool</code></div><p>Disable a plugin by name.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import disable
+
+result = disable(name=&quot;name_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_enabled'><h3><code class='inline'>is_enabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def is_enabled(name: str) -&gt; bool</code></div><p>Check if a plugin is currently enabled.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import is_enabled
+
+result = is_enabled(name=&quot;name_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_plugin'><h3><code class='inline'>get_plugin</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_plugin(name: str) -&gt; dict | None</code></div><p>Get full plugin definition.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import get_plugin
+
+result = get_plugin(name=&quot;name_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_enabled_skills'><h3><code class='inline'>get_enabled_skills</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def get_enabled_skills() -&gt; list[dict]</code></div><p>Get skills from all enabled plugins.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import get_enabled_skills
+
+result = get_enabled_skills()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_enabled_mcp_servers'><h3><code class='inline'>get_enabled_mcp_servers</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def get_enabled_mcp_servers() -&gt; list[dict]</code></div><p>Get MCP servers from all enabled plugins.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import get_enabled_mcp_servers
+
+result = get_enabled_mcp_servers()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_enabled_hooks'><h3><code class='inline'>get_enabled_hooks</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def get_enabled_hooks() -&gt; dict</code></div><p>Get merged hooks from all enabled plugins.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import get_enabled_hooks
+
+result = get_enabled_hooks()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reset'><h3><code class='inline'>reset</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def reset() -&gt; None</code></div><p>Clear registry and settings (for testing).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import reset
+
+result = reset()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_settings'><h3><code class='inline'>_load_settings</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _load_settings() -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import _load_settings
+
+result = _load_settings()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_save_settings'><h3><code class='inline'>_save_settings</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _save_settings(settings: dict) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import _save_settings
+
+result = _save_settings(settings={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_db_settings'><h3><code class='inline'>_load_db_settings</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_db_settings() -&gt; dict[str, bool]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import _load_db_settings
+
+result = _load_db_settings()
+# result: dict[str, bool]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_save_db_settings'><h3><code class='inline'>_save_db_settings</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _save_db_settings(settings: dict) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import _save_db_settings
+
+result = _save_db_settings(settings={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_migrate_legacy_settings_once'><h3><code class='inline'>_migrate_legacy_settings_once</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _migrate_legacy_settings_once() -&gt; None</code></div><p>Import the legacy JSON file once, on first access.
+
+Sets an ``app_settings`` flag (``plugin_legacy_imported``) so the
+migration never re-runs. The JSON file is left in place read-only;
+operators can delete it manually after verifying the import.
+
+The mirror-on-write behavior was removed in Phase 1 of the gateway
+deepening program — see
+``docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import _migrate_legacy_settings_once
+
+result = _migrate_legacy_settings_once()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_legacy_migrated'><h3><code class='inline'>_mark_legacy_migrated</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _mark_legacy_migrated(conn, value: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import _mark_legacy_migrated
+
+result = _mark_legacy_migrated(conn=..., value=&quot;value_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_legacy_settings'><h3><code class='inline'>_load_legacy_settings</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _load_legacy_settings() -&gt; dict[str, bool]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.plugin_registry import _load_legacy_settings
+
+result = _load_legacy_settings()
+# result: dict[str, bool]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>PLUGIN_SETTINGS</code></td><td><code class='inline'>DATA_DIR / &#x27;plugin_settings.json&#x27;</code></td></tr><tr><td><code class='inline'>PLUGIN_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>_MIGRATION_FLAG</code></td><td><code class='inline'>&#x27;plugin_legacy_imported&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

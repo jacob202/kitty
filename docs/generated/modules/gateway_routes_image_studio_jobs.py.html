@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.image_studio_jobs — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.image_studio_jobs</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.image_studio_jobs</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/image_studio_jobs.py</code> &middot; Python &middot; 17 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Durable Image Lab estimate and batch queue HTTP contract.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.flux2_targets</code>, <code class='inline'>gateway.image_gen</code>, <code class='inline'>gateway.image_jobs</code>, <code class='inline'>gateway.image_plan_store</code>, <code class='inline'>gateway.image_quality</code>, <code class='inline'>gateway.image_runner</code>, <code class='inline'>gateway.image_sessions</code>, <code class='inline'>gateway.routes.image_generation</code>, <code class='inline'>gateway.routes.image_studio</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>mcp.imagen.engines</code>, <code class='inline'>pydantic</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_exact_model_id'><code class='inline'>_exact_model_id</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_iteration_model_id'><code class='inline'>_iteration_model_id</code></a></td><td>Resolve the exact model the current recipe would dispatch without doing I/O.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_validate_iteration_route'><code class='inline'>_validate_iteration_route</code></a></td><td>Fail before dispatch when a retry/duplicate can no longer reproduce its source route.</td><td><span class='pill'>complex</span><span class='muted small'>(15)</span></td></tr><tr><td><a href='#fn-_runtime_available_providers'><code class='inline'>_runtime_available_providers</code></a></td><td>Return provider ids whose actual execution transports are ready now.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-studio_estimate'><code class='inline'>studio_estimate</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-studio_estimate_route'><code class='inline'>studio_estimate_route</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-studio_import_source_image'><code class='inline'>studio_import_source_image</code></a></td><td>Import a user-owned image as the durable edit source for a Studio session.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-studio_create_batch'><code class='inline'>studio_create_batch</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-studio_list_batches'><code class='inline'>studio_list_batches</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_get_batch'><code class='inline'>studio_get_batch</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_cancel_batch'><code class='inline'>studio_cancel_batch</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_clear_anchor'><code class='inline'>studio_clear_anchor</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_iteration_error'><code class='inline'>_iteration_error</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_duplicate_job'><code class='inline'>studio_duplicate_job</code></a></td><td>Enqueue an independent re-run of a succeeded job&#x27;s approved plan.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_retry_job'><code class='inline'>studio_retry_job</code></a></td><td>Enqueue a fresh attempt of a succeeded job&#x27;s generation intent.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_modify_job'><code class='inline'>studio_modify_job</code></a></td><td>Enqueue a re-run and report the changed-vs-unchanged diff.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-execute_studio_batch_request'><code class='inline'>execute_studio_batch_request</code></a></td><td>Execute one queued child through the existing Studio generation path.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr></table></div>
+<div class='card' id='fn-_exact_model_id'><h3><code class='inline'>_exact_model_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _exact_model_id(provider: str) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.image_studio_jobs import _exact_model_id
+
+result = _exact_model_id(provider=&quot;provider_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_iteration_model_id'><h3><code class='inline'>_iteration_model_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _iteration_model_id(recipe: object, operation: str) -&gt; str | None</code></div><p>Resolve the exact model the current recipe would dispatch without doing I/O.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.image_studio_jobs import _iteration_model_id
+
+result = _iteration_model_id(recipe=..., operation=&quot;operation_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_iteration_route'><h3><code class='inline'>_validate_iteration_route</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (15)</span></h3><div class='sig'><code>def _validate_iteration_route(request: dict) -&gt; None</code></div><p>Fail before dispatch when a retry/duplicate can no longer reproduce its source route.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.image_studio_jobs import _validate_iteration_route
+
+result = _validate_iteration_route(request={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_runtime_available_providers'><h3><code class='inline'>_runtime_available_providers</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _runtime_available_providers() -&gt; set[str]</code></div><p>Return provider ids whose actual execution transports are ready now.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import _runtime_available_providers
+
+    result = await _runtime_available_providers()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_estimate'><h3><code class='inline'>studio_estimate</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def studio_estimate(req: StudioEstimateRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_estimate
+
+    result = await studio_estimate()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_estimate_route'><h3><code class='inline'>studio_estimate_route</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def studio_estimate_route(req: StudioEstimateRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_estimate_route
+
+    result = await studio_estimate_route()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_import_source_image'><h3><code class='inline'>studio_import_source_image</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>async def studio_import_source_image(session_id: str, file: UploadFile) -&gt; dict</code></div><p>Import a user-owned image as the durable edit source for a Studio session.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_import_source_image
+
+    result = await studio_import_source_image()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_create_batch'><h3><code class='inline'>studio_create_batch</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def studio_create_batch(req: StudioBatchRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_create_batch
+
+    result = await studio_create_batch()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_list_batches'><h3><code class='inline'>studio_list_batches</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_list_batches(session_id: str | None = None, limit: int = 20) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_list_batches
+
+    result = await studio_list_batches()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_get_batch'><h3><code class='inline'>studio_get_batch</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_get_batch(batch_id: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_get_batch
+
+    result = await studio_get_batch()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_cancel_batch'><h3><code class='inline'>studio_cancel_batch</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_cancel_batch(batch_id: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_cancel_batch
+
+    result = await studio_cancel_batch()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_clear_anchor'><h3><code class='inline'>studio_clear_anchor</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def studio_clear_anchor(session_id: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_clear_anchor
+
+    result = await studio_clear_anchor()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_iteration_error'><h3><code class='inline'>_iteration_error</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _iteration_error(exc: Exception) -&gt; HTTPException</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.image_studio_jobs import _iteration_error
+
+result = _iteration_error(exc=...)
+# result: HTTPException</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_duplicate_job'><h3><code class='inline'>studio_duplicate_job</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_duplicate_job(job_id: str) -&gt; dict</code></div><p>Enqueue an independent re-run of a succeeded job&#x27;s approved plan.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_duplicate_job
+
+    result = await studio_duplicate_job()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_retry_job'><h3><code class='inline'>studio_retry_job</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_retry_job(job_id: str) -&gt; dict</code></div><p>Enqueue a fresh attempt of a succeeded job&#x27;s generation intent.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_retry_job
+
+    result = await studio_retry_job()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_modify_job'><h3><code class='inline'>studio_modify_job</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_modify_job(job_id: str, req: JobModifyRequest) -&gt; dict</code></div><p>Enqueue a re-run and report the changed-vs-unchanged diff.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import studio_modify_job
+
+    result = await studio_modify_job()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-execute_studio_batch_request'><h3><code class='inline'>execute_studio_batch_request</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def execute_studio_batch_request(request: dict) -&gt; dict</code></div><p>Execute one queued child through the existing Studio generation path.
+
+The queue stores the estimate-time provider/model for audit, but actual job
+metadata after routing remains the source of truth for observations.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio_jobs import execute_studio_batch_request
+
+    result = await execute_studio_batch_request()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-StudioEstimateRequest'><code class='inline'>StudioEstimateRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-StudioBatchRequest'><code class='inline'>StudioBatchRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-JobModifyRequest'><code class='inline'>JobModifyRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-StudioEstimateRequest'><h3><code class='inline'>StudioEstimateRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> quality: QualityTier, operation: ImageOperation, identity: IdentityMode, character_id: str | None, recipe_id: str | None, count: OutputCount</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio_jobs import StudioEstimateRequest
+
+obj = StudioEstimateRequest(...)</pre></div>
+<div class='card' id='cls-StudioBatchRequest'><h3><code class='inline'>StudioBatchRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> prompt: str, quality: QualityTier, identity: IdentityMode, character_id: str | None, recipe_id: str | None, negative_prompt: str | None, plan_id: str | None, session_id: str | None, count: OutputCount</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio_jobs import StudioBatchRequest
+
+obj = StudioBatchRequest(...)</pre></div>
+<div class='card' id='cls-JobModifyRequest'><h3><code class='inline'>JobModifyRequest</code></h3><p>One-or-more render-parameter changes for iterating on an image.
+
+Only fields present in the request body are changed; everything else is
+carried forward from the source job. Provider, operation, plan, and intent
+are intentionally absent so a modify can never re-route or re-approve.</p><p class='small'><b>Attributes:</b> prompt: str | None, negative_prompt: str | None, seed: int | None, width: int | None, height: int | None, steps: int | None, guidance: float | None, sampler: str | None, scheduler: str | None, model_id: str | None, preset_id: str | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio_jobs import JobModifyRequest
+
+obj = JobModifyRequest(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_SOURCE_IMAGE_ROOT</code></td><td><code class='inline'>_paths.DATA_DIR / &#x27;images&#x27; / &#x27;imports&#x27;</code></td></tr><tr><td><code class='inline'>_SOURCE_IMAGE_MAX_BYTES</code></td><td><code class='inline'>20 * 1024 * 1024</code></td></tr><tr><td><code class='inline'>_SOURCE_IMAGE_TYPES</code></td><td><code class='inline'>{&#x27;image/png&#x27;, &#x27;image/jpeg&#x27;, &#x27;image/webp&#x27;}</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.researcher — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.researcher</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.researcher</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/researcher.py</code> &middot; Python &middot; 1 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>gateway.context_assembler</code>, <code class='inline'>gateway.knowledge</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>httpx</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>tempfile</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-deep_dive'><code class='inline'>deep_dive</code></a></td><td>Convenience function for Gateway calling; persistence is opt-in.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-deep_dive'><h3><code class='inline'>deep_dive</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def deep_dive(topic: str, ingest: bool = False) -&gt; str</code></div><p>Convenience function for Gateway calling; persistence is opt-in.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.researcher import deep_dive
+
+    result = await deep_dive()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ResearcherError'><code class='inline'>ResearcherError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ResearchSearchUnavailable'><code class='inline'>ResearchSearchUnavailable</code></a></td><td>(ResearcherError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ResearchSynthesisError'><code class='inline'>ResearchSynthesisError</code></a></td><td>(ResearcherError)</td><td>0 methods</td></tr><tr><td><a href='#cls-DeepResearcher'><code class='inline'>DeepResearcher</code></a></td><td></td><td>8 methods</td></tr></table></div>
+<div class='card' id='cls-ResearcherError'><h3><code class='inline'>ResearcherError</code></h3><p>Undocumented class.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.researcher import ResearcherError
+
+obj = ResearcherError(...)</pre></div>
+<div class='card' id='cls-ResearchSearchUnavailable'><h3><code class='inline'>ResearchSearchUnavailable</code></h3><p>Undocumented class.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.researcher import ResearchSearchUnavailable
+
+obj = ResearchSearchUnavailable(...)</pre></div>
+<div class='card' id='cls-ResearchSynthesisError'><h3><code class='inline'>ResearchSynthesisError</code></h3><p>Undocumented class.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.researcher import ResearchSynthesisError
+
+obj = ResearchSynthesisError(...)</pre></div>
+<div class='card' id='cls-DeepResearcher'><h3><code class='inline'>DeepResearcher</code></h3><p>Legacy technical research wrapper.
+Combines web search, scraping, synthesis, and optional knowledge promotion.
+
+General Research is being replaced by the engine-backed contract tracked in
+issue #547. Until then this module must remain honest about persistence:
+research results are not permanent knowledge unless promotion is explicitly
+requested and actually succeeds.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self)</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_get_client</code></td><td><code class='inline'>async def _get_client(self) -&gt; httpx.AsyncClient</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>technical_deep_dive_report</code></td><td><code class='inline'>async def technical_deep_dive_report(self, topic: str, progress = None) -&gt; dict</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>technical_deep_dive</code></td><td><code class='inline'>async def technical_deep_dive(self, topic: str, ingest: bool = False) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_find_sources</code></td><td><code class='inline'>async def _find_sources(self, topic: str) -&gt; List[str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_scrape_sources</code></td><td><code class='inline'>async def _scrape_sources(self, urls: List[str]) -&gt; str</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>_synthesize_findings</code></td><td><code class='inline'>def _synthesize_findings(self, topic: str, findings: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_ingest_findings</code></td><td><code class='inline'>async def _ingest_findings(self, topic: str, findings: str, summary: str) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+r
+e
+s
+e
+a
+r
+c
+h
+e
+r
+ 
+i
+m
+p
+o
+r
+t
+ 
+D
+e
+e
+p
+R
+e
+s
+e
+a
+r
+c
+h
+e
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+D
+e
+e
+p
+R
+e
+s
+e
+a
+r
+c
+h
+e
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>
