@@ -148,3 +148,43 @@ async def test_proactive_polling(
     assert emits[1].kwargs["source"] == "expert.health"
     assert emits[1].kwargs["payload"]["headline"] == "Hydration Check"
     assert emits[1].kwargs["payload"]["action"] == "Drink water"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_and_emit_does_not_block_event_loop(monkeypatch):
+    """Finding #12: the sync LLM client must run off the event loop.
+
+    A blocking provider call (rate-limit backoff sleeps up to ~90s) must not
+    freeze every other request on the server. Ticks recorded while the
+    LLM call is in flight prove the loop stayed responsive.
+    """
+    import asyncio
+    import time
+
+    from gateway import llm_client
+
+    def slow_call_llm(messages, **kwargs):
+        time.sleep(1.0)  # stands in for the real sync client under backoff
+        return "NO"
+
+    monkeypatch.setattr(llm_client, "call_llm", slow_call_llm)
+    monkeypatch.setattr(expert_proactive.expert_state, "check_cooldown", lambda *a, **k: False)
+    monkeypatch.setattr(expert_proactive.expert_state, "get_dismissed_count", lambda *a, **k: 0)
+    monkeypatch.setattr(expert_proactive, "_mark_evaluating", lambda *a, **k: True)
+
+    loop = asyncio.get_running_loop()
+    tick_times = []
+    done_at = []
+
+    async def heartbeat():
+        for _ in range(40):
+            await asyncio.sleep(0.05)
+            tick_times.append(loop.time())
+
+    async def run_eval():
+        await expert_proactive._evaluate_and_emit("auto", "prompt", "some data", False, "key-red")
+        done_at.append(loop.time())
+
+    await asyncio.gather(run_eval(), heartbeat())
+    in_flight = [t for t in tick_times if t < done_at[0] - 0.3]
+    assert in_flight, "no event-loop ticks while the LLM call was in flight: loop was blocked"
