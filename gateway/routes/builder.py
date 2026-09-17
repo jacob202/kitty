@@ -78,7 +78,8 @@ async def builder_operator_command(body: OperatorCommandRequest):
         return command_result_payload(result)
     except Exception as exc:
         logger.exception("operator command %s failed", body.action)
-        return {"ok": False, "action": body.action, "error": str(exc)}
+        # Raw internals (paths, DB errors) stay in the log, not the response.
+        return {"ok": False, "action": body.action, "error": _translate_supervisor_error(str(exc))}
 
 
 @router.get("/builder/supervisor")
@@ -100,7 +101,7 @@ async def builder_supervisor_status():
     except Exception as exc:
         logger.exception("builder supervisor status read failed")
         raise HTTPException(
-            status_code=503, detail=f"supervisor status read failed: {exc}"
+            status_code=503, detail=_translate_supervisor_error(str(exc))
         ) from exc
 
     return {
@@ -134,7 +135,7 @@ def _translate_supervisor_error(raw: str) -> str:
     for fragment, plain in _SUPERVISOR_ERROR_TRANSLATIONS.items():
         if fragment in raw:
             return plain
-    return "Builder encountered an unexpected error. Check the logs for details."
+    return "Builder encountered an unexpected error. Try the action again."
 
 
 @router.post("/builder/supervisor/tick")
@@ -188,7 +189,7 @@ async def builder_preflight(initiative_id: str, packet_id: str):
     except Exception as exc:
         logger.exception("preflight %s/%s failed", initiative_id, packet_id)
         raise HTTPException(
-            status_code=500, detail=f"preflight failed: {exc}"
+            status_code=500, detail=_translate_supervisor_error(str(exc))
         ) from exc
 
     return result

@@ -32,18 +32,23 @@ resources:
     - gateway/builder_commands.py
     - gateway/builder_loop.py
     - gateway/builder_queue.py
+    - gateway/builder_queue_db.py
+    - gateway/builder_queue_runs.py
     - gateway/builder_status.py
     - gateway/builder_supervisor.py
     - gateway/compute_governor.py
+    - gateway/routes/builder.py
     - tests/test_builder_commands.py
     - tests/test_builder_interrupted_projection_regression.py
     - tests/test_builder_loop.py
     - tests/test_builder_publication_infrastructure.py
     - tests/test_builder_queue.py
     - tests/test_builder_report.py
+    - tests/test_builder_routes.py
     - tests/test_builder_run.py
     - tests/test_builder_status.py
     - tests/test_builder_supervisor.py
+    - tests/test_builder_supervisor_api.py
     - tests/test_compute_governor.py
   docs:roadmap:
     paths:
@@ -76,6 +81,7 @@ resources:
     - gateway/routes/image_studio_jobs.py
     - mcp/imagen/requirements.txt
     - scripts/image_lab_acceptance_scene.py
+    - tests/test_comfy_worker.py
     - tests/test_comfy_worker_stuck_running_on_oserror.py
     - tests/test_flux2_transport.py
     - tests/test_image_*.py
@@ -117,6 +123,7 @@ resources:
     - gateway/storage_router.py
     - gateway/storage_sync.py
     - gateway/todo_store.py
+    - gateway/undo_journal.py
     - mcp/agent_room/**
     - tests/test_agent_room_global.py
     - tests/test_agent_room_presence.py
@@ -222,6 +229,7 @@ resources:
     - gateway/_work_projection_item.py
     - gateway/completion_prep.py
     - gateway/conversation_handoff.py
+    - gateway/kitty-chat/src/app/page.tsx
     - gateway/kitty-chat/src/components/ChatMessage.tsx
     - gateway/kitty-chat/src/components/HomeState.tsx
     - gateway/kitty-chat/src/components/LibraryView.tsx
@@ -241,6 +249,7 @@ resources:
     - gateway/kitty-chat/tests/ChatMessage.test.tsx
     - gateway/kitty-chat/tests/HomeState.test.tsx
     - gateway/kitty-chat/tests/KittyContextAttachmentChatScoping.test.tsx
+    - gateway/kitty-chat/tests/KittyContextViewRecovery.test.tsx
     - gateway/kitty-chat/tests/LibraryView.test.tsx
     - gateway/kitty-chat/tests/WorkViewActions.test.tsx
     - gateway/kitty-chat/tests/WorkViewCockpit.test.tsx

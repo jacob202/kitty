@@ -188,7 +188,10 @@ class TestSupervisorStatusEndpoint:
         response = client.get("/builder/supervisor")
 
         assert response.status_code == 503
-        assert "queue unreadable" in response.json()["detail"]
+        assert "queue unreadable" not in response.json()["detail"]
+        assert "unexpected error" in response.json()["detail"]
+        assert "Try the action again" in response.json()["detail"]
+        assert "logs" not in response.json()["detail"].lower()
 
     def test_running_true_when_active_runs_present(self, client, monkeypatch):
         active_runs = [
@@ -226,7 +229,8 @@ class TestSupervisorStatusEndpoint:
         response = client.get("/builder/supervisor")
 
         assert response.status_code == 503
-        assert "queue db is locked" in response.json()["detail"]
+        assert "queue db is locked" not in response.json()["detail"]
+        assert "unexpected error" in response.json()["detail"]
 
 
 class TestSupervisorTickEndpoint:
@@ -353,4 +357,5 @@ class TestPreflightEndpoint:
         monkeypatch.setattr("gateway.builder_supervisor.preflight_packet", boom)
         response = client.get("/builder/preflight/init-a/p1")
         assert response.status_code == 500
-        assert "preflight unavailable" in response.json()["detail"]
+        assert "preflight unavailable" not in response.json()["detail"]
+        assert "unexpected error" in response.json()["detail"]

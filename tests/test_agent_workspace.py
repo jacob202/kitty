@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
@@ -166,7 +167,8 @@ def test_failed_agent_turn_keeps_partial_messages_and_a_durable_failure_record(w
     assert result["turn"]["status"] == "failed"
     assert result["turn"]["active_agent_id"] is None
     assert result["turn"]["error_type"] == "RuntimeError"
-    assert "provider rejected" in result["turn"]["error_message"]
+    assert "provider rejected" not in result["turn"]["error_message"]
+    assert "Try again" in result["turn"]["error_message"]
     assert [message["sender_id"] for message in result["messages"]] == [
         "jacob",
         "planner",
@@ -198,7 +200,8 @@ def test_timed_out_agent_turn_records_an_incomplete_durable_failure(workspace_db
 
     assert result["status"] == "failed"
     assert result["turn"]["error_type"] == "TimeoutError"
-    assert "60 second room timeout" in result["turn"]["error_message"]
+    assert "60 second room timeout" not in result["turn"]["error_message"]
+    assert "Try again" in result["turn"]["error_message"]
     assert result["messages"][-1]["message_kind"] == "status"
     assert result["messages"][-1]["content"].startswith("Incomplete: planner")
     assert result["events"][-1]["type"] == "turn_failed"
@@ -464,7 +467,7 @@ def test_dead_provider_chain_reaches_the_room_as_plain_language(workspace_db):
         assert leak.lower() not in status_message.lower(), leak
 
 
-def test_dead_provider_chain_keeps_raw_diagnostics_in_the_event_log(workspace_db):
+def test_dead_provider_chain_keeps_raw_diagnostics_out_of_public_events(workspace_db):
     room = agent_workspace.create_workspace(name="Kitty room", objective="Ship a proof")
 
     result = agent_workspace.run_turn(
@@ -475,7 +478,8 @@ def test_dead_provider_chain_keeps_raw_diagnostics_in_the_event_log(workspace_db
 
     failed = [event for event in result["events"] if event["type"] == "agent_failed"][-1]
     assert failed["metadata"]["error_type"] == "ProviderChainExhausted"
-    assert "openrouter: no api key configured" in failed["metadata"]["error_message"]
+    assert "openrouter: no api key configured" not in failed["metadata"]["error_message"]
+    assert "Try again" in failed["metadata"]["error_message"]
 
 
 def test_direct_assignment_inbox_excludes_routine_broadcasts_without_marking_receipts(workspace_db):
@@ -2857,3 +2861,44 @@ def test_awareness_vocabularies_match_their_owners():
             builder_attempt.ATTEMPT_CRASHED,
         }
     )
+
+
+class LeakyWorkspaceBackend:
+    def complete(self, agent_id, prompt, context):
+        raise RuntimeError("db blew up at /vault/secret-path/key")
+
+
+def test_failed_turn_hides_raw_error_from_room_message(workspace_db):
+    """Finding: the room message Jacob reads must not carry raw internals."""
+    room = agent_workspace.create_workspace(name="Kitty room", objective="x")
+    result = agent_workspace.run_turn(room["id"], "Do it.", backend=LeakyWorkspaceBackend())
+    assert result["status"] == "failed"
+    room_text = result["messages"][-1]["content"]
+    assert "/vault/secret-path" not in room_text
+    assert "Try again" in room_text
+    assert result["turn"]["error_message"] and "/vault/secret-path" not in result["turn"]["error_message"]
+    assert "Try again" in result["turn"]["error_message"]
+    for event in result["events"]:
+        assert "/vault/secret-path" not in json.dumps(event)
+
+    # Read projections must also scrub legacy rows written before this fix.
+    with agent_workspace.kitty_db.connect(workspace_db) as conn:
+        conn.execute(
+            "UPDATE agent_workspace_turns SET error_message = ? WHERE id = ?",
+            ("legacy raw /vault/secret-path/key", result["turn"]["id"]),
+        )
+        for row in conn.execute(
+            "SELECT rowid, metadata_json FROM agent_workspace_events "
+            "WHERE workspace_id = ? AND type IN ('agent_failed', 'turn_failed')",
+            (room["id"],),
+        ).fetchall():
+            metadata = json.loads(row["metadata_json"])
+            metadata["error_message"] = "legacy raw /vault/secret-path/key"
+            conn.execute(
+                "UPDATE agent_workspace_events SET metadata_json = ? WHERE rowid = ?",
+                (json.dumps(metadata), row["rowid"]),
+            )
+        conn.commit()
+
+    reopened = agent_workspace.get_workspace(room["id"])
+    assert "/vault/secret-path" not in json.dumps(reopened)

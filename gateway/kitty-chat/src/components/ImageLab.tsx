@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { AlertTriangle, CheckCircle2, Image as ImageIcon, Plus, RefreshCw, Square, Upload, User, X } from 'lucide-react'
+import { describeFailure } from '@/lib/failure-copy'
 import { useImageStatus } from '@/lib/queries'
 import { useDialogFocus } from '@/hooks/useDialogFocus'
 
@@ -119,12 +120,8 @@ function turnId(): string {
 }
 
 function humanError(error: unknown): string {
-  if (error instanceof Error) {
-    const text = error.message
-    if (/<!doctype|<html/i.test(text)) return 'Image Lab hit an internal error. Technical details are available in the service logs.'
-    return text.replace(/^\s*\{"detail":\s*"?/, '').replace(/"?\}\s*$/, '')
-  }
-  return 'Image Lab could not complete that request.'
+  // One sanctioned translator: raw backend bodies must never reach the screen.
+  return describeFailure(error)
 }
 
 function anchorArtifactFromSession(session: any): string | null {

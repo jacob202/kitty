@@ -182,3 +182,39 @@ class TestEventStreamRoute:
             params={"cursor": 0, "session_id": "test-session"},
         )
         assert response.status_code == 200
+
+
+class TestErrorSanitization:
+    """Findings: raw exception text must not reach API callers."""
+
+    def test_operator_command_hides_raw_error(self, client, monkeypatch):
+        from gateway import builder_commands
+        def boom(*, actor=None, **kwargs):
+            raise RuntimeError("blew up at /vault/route-marker")
+        monkeypatch.setitem(builder_route._COMMAND_HANDLERS, "boom", boom)
+        monkeypatch.setitem(builder_commands._COMMAND_ARGUMENTS, "boom", frozenset({"actor"}))
+        response = client.post("/builder/command", json={"action": "boom"})
+        assert response.status_code == 200
+        body = response.json()
+        assert body["ok"] is False
+        assert "/vault/route-marker" not in body["error"]
+        assert "Try the action again" in body["error"]
+        assert "logs" not in body["error"].lower()
+
+    def test_supervisor_status_hides_raw_error(self, client, monkeypatch):
+        from gateway import builder_supervisor as bs
+        def boom():
+            raise RuntimeError("status read blew up at /vault/route-marker")
+        monkeypatch.setattr(bs, "control_plane_summary", boom)
+        response = client.get("/builder/supervisor")
+        assert response.status_code == 503
+        assert "/vault/route-marker" not in response.json()["detail"]
+
+    def test_preflight_hides_raw_error(self, client, monkeypatch):
+        from gateway import builder_supervisor as bs
+        def boom(*args, **kwargs):
+            raise RuntimeError("preflight blew up at /vault/route-marker")
+        monkeypatch.setattr(bs, "preflight_packet", boom)
+        response = client.get("/builder/preflight/init-1/pkt-1")
+        assert response.status_code == 500
+        assert "/vault/route-marker" not in response.json()["detail"]
