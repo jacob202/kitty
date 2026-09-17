@@ -551,6 +551,41 @@ class WorkerRuntime:
         record.updated_at = _utc_now()
         self._persist(record)
 
+    def start_job(
+        self,
+        record: JobRecord,
+        request: JobRequest,
+        bundle: WorkflowBundle,
+        checkpoint: str,
+    ) -> asyncio.Task[None]:
+        """Start a job's coroutine and guard it against an unstuck terminal state.
+
+        ``execute`` is deliberately fire-and-forget: the HTTP route returns
+        immediately while the job runs in the background. If that coroutine
+        ever escapes with an exception ``execute`` did not retire itself, the
+        done callback below still moves the record to ``FAILED`` so it can
+        never be left at ``RUNNING`` forever.
+        """
+        task = asyncio.create_task(self.execute(record, request, bundle, checkpoint))
+        self.tasks[record.job_id] = task
+        task.add_done_callback(
+            lambda completed: self.retire_after_unhandled_failure(record, completed)
+        )
+        return task
+
+    def retire_after_unhandled_failure(
+        self, record: JobRecord, task: asyncio.Task[None]
+    ) -> None:
+        """Retire a job whose fire-and-forget task escaped without a terminal state."""
+        if task.cancelled() or record.status in TERMINAL_STATUSES:
+            return
+        exc = task.exception()
+        self.update(
+            record,
+            job_status=JobStatus.FAILED,
+            error=str(exc) if exc else "worker task ended without a terminal job state",
+        )
+
     async def assert_comfy_ready(self, bundle: WorkflowBundle, checkpoint: str) -> None:
         response = await self.client.get(f"{self.config.comfy_url}/object_info")
         response.raise_for_status()
@@ -650,6 +685,21 @@ class WorkerRuntime:
                         job_status=JobStatus.FAILED,
                         error=str(exc),
                     )
+            except Exception as exc:
+                # Failures outside the network/config/value-error family (for
+                # example an OSError from a full disk while writing output
+                # files) still have to retire the job: a record left at
+                # RUNNING never resolves. Mark it FAILED here, then re-raise so
+                # the caller's task guard also observes the failure.
+                if record.status is JobStatus.CANCEL_REQUESTED:
+                    self.update(record, job_status=JobStatus.CANCELLED)
+                else:
+                    self.update(
+                        record,
+                        job_status=JobStatus.FAILED,
+                        error=str(exc),
+                    )
+                raise
 
     async def _wait_and_collect(
         self,
@@ -924,10 +974,7 @@ def create_app(
             updated_at=now,
         )
         runtime.register(record)
-        task = asyncio.create_task(
-            runtime.execute(record, request, bundle, checkpoint)
-        )
-        runtime.tasks[job_id] = task
+        runtime.start_job(record, request, bundle, checkpoint)
         return record.public_dict()
 
     @app.get(
