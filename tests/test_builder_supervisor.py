@@ -314,13 +314,12 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
 
     argv = popen.call_args.args[0]
     # Unattended dispatch runs the governed cheap route (DeepSeek V4 Flash) by
-    # default; the free route was too slow to be worth waiting for. It also
-    # publishes each succeeded packet as its own branch and pull request, parked
-    # at awaiting_review — authorized 2026-09-16 and scoped in
-    # docs/ACTIVE_MISSION.md to opening a PR, never merging one.
+    # default; the free route was too slow to be worth waiting for. It runs in
+    # shadow mode: publication is parked until the run path can actually
+    # publish (gateway/builder_supervisor.py records why).
     assert argv == [
         str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1",
-        "--paid", "--tier", "cheap", "--publish", "--gate", "manual", "--json",
+        "--paid", "--tier", "cheap", "--json",
     ]
     # The merge decision stays human. The auto gate is a real capability under
     # ADRs 0018/0021 and is deliberately not what unattended dispatch uses.
@@ -331,6 +330,26 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     assert result["status"] == "dispatched"
     assert result["launcher_pid"] == 4321
     assert result["task_id"] == task_id
+
+
+def test_dispatch_argv_is_accepted_by_the_real_cli_parser() -> None:
+    """Every flag unattended dispatch sends must exist on run-packet.
+
+    PR #889 dispatched `--publish --gate manual` before `initiative run-packet`
+    accepted either flag, so every unattended launch died at argument parsing
+    before its first packet attempt. Parsing the exact argv the supervisor
+    composes through the real CLI parser fails here instead of at an unattended
+    tick on Jacob's machine.
+    """
+    from gateway.builder_cli import build_parser
+
+    argv = [
+        "initiative", "run-packet", "test-init-1", "p1",
+        *bs._supervisor_route_argv(), "--json",
+    ]
+    parsed = build_parser().parse_args(argv)
+    assert parsed.id == "test-init-1"
+    assert parsed.packet == "p1"
 
 
 def test_launch_run_refuses_when_task_already_claimed(repo: Path, db_path: Path) -> None:

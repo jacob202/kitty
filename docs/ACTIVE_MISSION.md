@@ -149,7 +149,11 @@ cancelled tasks were cancelled on 2026-09-01 as a deliberate curation, and
   Builder may not merge, provision paid infrastructure, or alter credentials,
   and the ADR 0018 / ADR 0021 evidence-gated auto-merge capability remains
   unused by unattended dispatch. Opening a pull request is how the work becomes
-  visible; merging it stays a human decision.
+  visible; merging it stays a human decision. As of 2026-09-17 the per-packet
+  publish path is **not implemented end-to-end**: `initiative run-packet` does
+  not accept `--publish`, the run path does not attach the task final report
+  `publish_task` requires, and unattended dispatch therefore runs shadow-mode
+  until that wiring lands.
 - User-facing copy carries no packet IDs, ports, env vars, raw HTTP status,
   stack traces, or internal service names.
 - Pending, skipped, stale, or self-authored review evidence is unverified.
