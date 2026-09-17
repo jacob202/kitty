@@ -218,6 +218,38 @@ def pull_request_files(
         page += 1
 
 
+def pull_request_file_changes(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    token: str,
+    *,
+    fetch: Callable[[str, str], Any] | None = None,
+) -> list[tuple[str, str | None]]:
+    """``(path, previous_path)`` for every file a PR changes.
+
+    ``previous_path`` is set for renames so callers can resolve the base-side
+    content under the name it had before the rename."""
+    fetch = fetch or _github_json
+    changes: list[tuple[str, str | None]] = []
+    page = 1
+    while True:
+        url = (
+            f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+            f"/files?per_page=100&page={page}"
+        )
+        payload = fetch(url, token)
+        if not isinstance(payload, list):
+            raise RuntimeError("GitHub list-files response was not a list")
+        for item in payload:
+            if isinstance(item, dict) and item.get("filename"):
+                previous = item.get("previous_filename")
+                changes.append((str(item["filename"]), str(previous) if previous else None))
+        if len(payload) < 100:
+            return changes
+        page += 1
+
+
 def push_scope(owner: str, repo: str, before: str, after: str, token: str) -> Scope:
     """Classify a push by comparing it with the commit it replaced.
 
