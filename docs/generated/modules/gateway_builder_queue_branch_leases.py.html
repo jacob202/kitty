@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_queue_branch_leases — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_queue_branch_leases</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_queue_branch_leases</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_queue_branch_leases.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Builder queue branch leases — packet/worker/branch/worktree exclusive leases.
+
+Extracted from :mod:`gateway.builder_queue` as the fourth cut of audit
+§2.2 (the order has been DB §1, lease lifecycle §2, run lifecycle §3,
+branch leases §4, events/PRs §5 — split earlier in builder_queue.py so
+each cut owns a coherent lifecycle).
+
+Owns the ``KB-S2 atomic claim_and_start_attempt`` support: an exclusive
+lease keyed by ``(initiative_id, packet_id, worker_id, branch, worktree_path)``
+with initiative_id scoping so v1/v2 retries of the same packet from different
+initiatives can coexist. ``claim_branch_lease`` inserts with a unique-index
+guarantee; ``verify_branch_lease`` reads back; ``release_branch_lease`` does
+an owner-fenced delete. The two ``on_conn`` variants let sibling code
+(``gateway.builder_attempt`` and ``gateway.builder_identity``) participate in
+the caller&#x27;s transaction for atomic packet-launch plumbing.
+
+Public symbols are re-exported from :mod:`gateway.builder_queue` via the
+façade so callers (``gateway.builder_attempt``, ``gateway.builder_identity``,
+``gateway.builder_loop``, CLI, tests) work unchanged.
+
+Active-mission note (:file:`.claude/STATE.md`): the chat-recovery work
+``CR-02-thread-goals-ui`` is independent of this module.
+
+Dependency resolution: this module imports from ``gateway.builder_queue_db``
+only (no parent↔child cycle with ``gateway.builder_queue``). The branch-lease
+lifecycle never calls ``append_event`` or ``_apply_transition`` — every
+operation here is purely SQL on the ``branch_leases`` table — so the
+simple top-level import of :mod:`gateway.builder_queue_db` is safe.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.builder_queue_db</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_validate_branch_lease_fields'><code class='inline'>_validate_branch_lease_fields</code></a></td><td>Validate and canonicalize values shared by every lease claim path.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_claim_branch_lease_on_conn'><code class='inline'>_claim_branch_lease_on_conn</code></a></td><td>Insert a branch lease inside the caller&#x27;s active transaction.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-claim_branch_lease'><code class='inline'>claim_branch_lease</code></a></td><td>Atomically claim an exclusive initiative/packet/worker/branch/worktree lease.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-verify_branch_lease'><code class='inline'>verify_branch_lease</code></a></td><td>Return the active lease for ``initiative_id/packet_id``, or ``None`` when absent.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_branch_lease'><code class='inline'>get_branch_lease</code></a></td><td>Return one active lease by ID, or ``None`` when absent.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_release_branch_lease_on_conn'><code class='inline'>_release_branch_lease_on_conn</code></a></td><td>Delete exactly one owner-matched lease in the caller&#x27;s transaction.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-release_branch_lease'><code class='inline'>release_branch_lease</code></a></td><td>Release one lease using an atomic owner-fenced delete.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_validate_branch_lease_fields'><h3><code class='inline'>_validate_branch_lease_fields</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _validate_branch_lease_fields(initiative_id: str, packet_id: str, worker_id: str, branch: str, worktree_path: str, base_sha: str) -&gt; str</code></div><p>Validate and canonicalize values shared by every lease claim path.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_branch_leases import _validate_branch_lease_fields
+
+result = _validate_branch_lease_fields(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, worker_id=&quot;worker_id_example&quot;, branch=&quot;branch_example&quot;, worktree_path=&quot;worktree_path_example&quot;, base_sha=&quot;base_sha_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_claim_branch_lease_on_conn'><h3><code class='inline'>_claim_branch_lease_on_conn</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _claim_branch_lease_on_conn(conn: sqlite3.Connection, initiative_id: str, packet_id: str, worker_id: str, branch: str, worktree_path: str, base_sha: str) -&gt; sqlite3.Row</code></div><p>Insert a branch lease inside the caller&#x27;s active transaction.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_branch_leases import _claim_branch_lease_on_conn
+
+result = _claim_branch_lease_on_conn(conn=..., initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, worker_id=&quot;worker_id_example&quot;, branch=&quot;branch_example&quot;, worktree_path=&quot;worktree_path_example&quot;, base_sha=&quot;base_sha_example&quot;)
+# result: sqlite3.Row</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-claim_branch_lease'><h3><code class='inline'>claim_branch_lease</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def claim_branch_lease(initiative_id: str, packet_id: str, worker_id: str, branch: str, worktree_path: str, base_sha: str, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Atomically claim an exclusive initiative/packet/worker/branch/worktree lease.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_branch_leases import claim_branch_lease
+
+result = claim_branch_lease(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, worker_id=&quot;worker_id_example&quot;, branch=&quot;branch_example&quot;, worktree_path=&quot;worktree_path_example&quot;, base_sha=&quot;base_sha_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-verify_branch_lease'><h3><code class='inline'>verify_branch_lease</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def verify_branch_lease(initiative_id: str, packet_id: str, db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Return the active lease for ``initiative_id/packet_id``, or ``None`` when absent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_branch_leases import verify_branch_lease
+
+result = verify_branch_lease(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_branch_lease'><h3><code class='inline'>get_branch_lease</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_branch_lease(lease_id: int, db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Return one active lease by ID, or ``None`` when absent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_branch_leases import get_branch_lease
+
+result = get_branch_lease(lease_id=0, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_release_branch_lease_on_conn'><h3><code class='inline'>_release_branch_lease_on_conn</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _release_branch_lease_on_conn(conn: sqlite3.Connection, lease_id: int, packet_id: str, worker_id: str) -&gt; None</code></div><p>Delete exactly one owner-matched lease in the caller&#x27;s transaction.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_branch_leases import _release_branch_lease_on_conn
+
+result = _release_branch_lease_on_conn(conn=..., lease_id=0, packet_id=&quot;packet_id_example&quot;, worker_id=&quot;worker_id_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-release_branch_lease'><h3><code class='inline'>release_branch_lease</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def release_branch_lease(lease_id: int, packet_id: str, worker_id: str, db_path: Path | None = None) -&gt; None</code></div><p>Release one lease using an atomic owner-fenced delete.
+
+Missing leases and mismatched packet/worker identities are conflicts, not
+idempotent success: a caller must never silently release stale ownership.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_branch_leases import release_branch_lease
+
+result = release_branch_lease(lease_id=0, packet_id=&quot;packet_id_example&quot;, worker_id=&quot;worker_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

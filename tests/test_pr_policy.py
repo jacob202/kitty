@@ -561,6 +561,34 @@ def test_waiver_true_for_a_rename_because_base_resolves_the_previous_name() -> N
     assert waived, reason
 
 
+def test_waiver_true_for_flattened_old_and_new_rename_paths() -> None:
+    """Scope classification may flatten both rename names; proof must not double-count them."""
+    old_path = "gateway/routes/chats.py"
+    new_path = "gateway/routes/projects.py"
+    pr = _pr()
+    pr["number"] = 898
+    pr["base"] = {"sha": BASE_SHA}
+    files = {
+        (old_path, BASE_SHA): _CHATS_HEAD,
+        (new_path, SHA): _CHATS_HEAD,
+    }
+    fetch = _proof_fetch(
+        files,
+        [{"filename": new_path, "previous_filename": old_path}],
+    )
+
+    waived, reason = pr_policy.refactor_signature_waived(
+        pr,
+        [new_path, old_path],
+        fetch=fetch,
+        owner="o",
+        repo="r",
+        token="t",
+    )
+
+    assert waived, reason
+
+
 def test_waiver_false_when_a_route_is_added_removed_or_rebound() -> None:
     added = _CHATS_HEAD + '\n@router.get("/chats/{chat_id}/lifecycle")\ndef lifecycle():\n    return {}\n'
     waived, reason = _waiver(

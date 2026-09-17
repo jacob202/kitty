@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.errors — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.errors</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.errors</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/errors.py</code> &middot; Python &middot; 0 functions &middot; 10 classes</p>
+<div class='card'><h2>Overview</h2><p>Typed error hierarchy for the gateway.
+
+Lane D: instead of every route raising ad-hoc ``HTTPException`` or
+string ``RuntimeError`` messages, surface failures through named
+classes that the route layer can translate to a consistent
+HTTP shape. The contract is:
+
+- Every error that should be shown to the caller (or logged in a
+  structured way) is a ``KittyError`` subclass.
+- The ``status_code`` is the HTTP status the gateway should return.
+- The ``code`` is a short machine-readable token the frontend can
+  switch on (e.g. ``storage.not_found``).
+- The ``message`` is human-readable.
+
+Anything that is genuinely unexpected (a programming bug, a
+third-party library failure) should still raise the underlying
+exception. ``KittyError`` is for the cases where the gateway knows
+what went wrong and can describe it cleanly.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-KittyError'><code class='inline'>KittyError</code></a></td><td>(Exception)</td><td>2 methods</td></tr><tr><td><a href='#cls-ConfigError'><code class='inline'>ConfigError</code></a></td><td>(KittyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-StorageNotFound'><code class='inline'>StorageNotFound</code></a></td><td>(KittyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-StorageConflict'><code class='inline'>StorageConflict</code></a></td><td>(KittyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-StorageUnavailable'><code class='inline'>StorageUnavailable</code></a></td><td>(KittyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ProviderError'><code class='inline'>ProviderError</code></a></td><td>(KittyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ProviderTimeout'><code class='inline'>ProviderTimeout</code></a></td><td>(KittyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AuthError'><code class='inline'>AuthError</code></a></td><td>(KittyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AuthForbidden'><code class='inline'>AuthForbidden</code></a></td><td>(KittyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ValidationError'><code class='inline'>ValidationError</code></a></td><td>(KittyError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-KittyError'><h3><code class='inline'>KittyError</code></h3><p>Base class for every error the gateway describes on purpose.</p><p class='small'><b>Attributes:</b> status_code: int, code: str</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, message: str, details: dict[str, Any] | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+e
+r
+r
+o
+r
+s
+ 
+i
+m
+p
+o
+r
+t
+ 
+K
+i
+t
+t
+y
+E
+r
+r
+o
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+K
+i
+t
+t
+y
+E
+r
+r
+o
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-ConfigError'><h3><code class='inline'>ConfigError</code></h3><p>A required config value is missing or invalid at request time.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.errors import ConfigError
+
+obj = ConfigError(...)</pre></div>
+<div class='card' id='cls-StorageNotFound'><h3><code class='inline'>StorageNotFound</code></h3><p>A storage lookup returned no record.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.errors import StorageNotFound
+
+obj = StorageNotFound(...)</pre></div>
+<div class='card' id='cls-StorageConflict'><h3><code class='inline'>StorageConflict</code></h3><p>A storage write would violate a uniqueness or state constraint.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.errors import StorageConflict
+
+obj = StorageConflict(...)</pre></div>
+<div class='card' id='cls-StorageUnavailable'><h3><code class='inline'>StorageUnavailable</code></h3><p>A storage backend is unreachable, locked, or returned an error.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.errors import StorageUnavailable
+
+obj = StorageUnavailable(...)</pre></div>
+<div class='card' id='cls-ProviderError'><h3><code class='inline'>ProviderError</code></h3><p>An LLM provider returned an error or unreachable response.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.errors import ProviderError
+
+obj = ProviderError(...)</pre></div>
+<div class='card' id='cls-ProviderTimeout'><h3><code class='inline'>ProviderTimeout</code></h3><p>An LLM provider timed out.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.errors import ProviderTimeout
+
+obj = ProviderTimeout(...)</pre></div>
+<div class='card' id='cls-AuthError'><h3><code class='inline'>AuthError</code></h3><p>Authentication or authorization failed.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.errors import AuthError
+
+obj = AuthError(...)</pre></div>
+<div class='card' id='cls-AuthForbidden'><h3><code class='inline'>AuthForbidden</code></h3><p>The caller is authenticated but lacks permission.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.errors import AuthForbidden
+
+obj = AuthForbidden(...)</pre></div>
+<div class='card' id='cls-ValidationError'><h3><code class='inline'>ValidationError</code></h3><p>A request failed the gateway&#x27;s input validation.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.errors import ValidationError
+
+obj = ValidationError(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

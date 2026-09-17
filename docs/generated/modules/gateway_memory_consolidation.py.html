@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.memory_consolidation — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.memory_consolidation</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.memory_consolidation</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/memory_consolidation.py</code> &middot; Python &middot; 9 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Memory consolidation — periodic compression of traces into durable long-term memory.
+
+Called by:
+  - cron action  &quot;memory.consolidate&quot;  (registered at gateway startup, calls nightly_dream)
+  - cron action  &quot;traces.compact&quot;  (registered at gateway startup, calls prune_trace_log directly)
+  - POST /session/end  (per-session lightweight consolidation)
+
+Main entry point: nightly_dream()</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>collections</code>, <code class='inline'>gateway.honcho</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>gateway.memory</code>, <code class='inline'>gateway.memory_policy</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-nightly_dream'><code class='inline'>nightly_dream</code></a></td><td>Full consolidation pass: summarize recent clusters, prune log, update mirror.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-consolidate_recent'><code class='inline'>consolidate_recent</code></a></td><td>Read traces from the last N days, group by domain, call LLM to summarize</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-prune_trace_log'><code class='inline'>prune_trace_log</code></a></td><td>Remove lines older than keep_days from the trace log. Returns pruned count.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-get_last_run_info'><code class='inline'>get_last_run_info</code></a></td><td>Return metadata about the last consolidation run.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_cluster_by_domain'><code class='inline'>_cluster_by_domain</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_summarize_cluster'><code class='inline'>_summarize_cluster</code></a></td><td>Use LLM to summarize a cluster of traces into a durable continuity fact.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_store_memory'><code class='inline'>_store_memory</code></a></td><td>Write summary into long-term memory store.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_load_last_consolidation_ts'><code class='inline'>_load_last_consolidation_ts</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_save_timestamp'><code class='inline'>_save_timestamp</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-nightly_dream'><h3><code class='inline'>nightly_dream</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def nightly_dream() -&gt; str</code></div><p>Full consolidation pass: summarize recent clusters, prune log, update mirror.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_consolidation import nightly_dream
+
+result = nightly_dream()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-consolidate_recent'><h3><code class='inline'>consolidate_recent</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def consolidate_recent(days: int = 3) -&gt; int</code></div><p>Read traces from the last N days, group by domain, call LLM to summarize
+each cluster, store result as a memory fact. Returns cluster count processed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_consolidation import consolidate_recent
+
+result = consolidate_recent(days=0  # default: 3)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-prune_trace_log'><h3><code class='inline'>prune_trace_log</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def prune_trace_log(keep_days: int = PRUNE_KEEP_DAYS) -&gt; int</code></div><p>Remove lines older than keep_days from the trace log. Returns pruned count.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_consolidation import prune_trace_log
+
+result = prune_trace_log(keep_days=0  # default: PRUNE_KEEP_DAYS)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_last_run_info'><h3><code class='inline'>get_last_run_info</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_last_run_info() -&gt; dict</code></div><p>Return metadata about the last consolidation run.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_consolidation import get_last_run_info
+
+result = get_last_run_info()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cluster_by_domain'><h3><code class='inline'>_cluster_by_domain</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _cluster_by_domain(traces: list[dict]) -&gt; dict[str, list[dict]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_consolidation import _cluster_by_domain
+
+result = _cluster_by_domain(traces=[])
+# result: dict[str, list[dict]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_summarize_cluster'><h3><code class='inline'>_summarize_cluster</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _summarize_cluster(domain: str, traces: list[dict]) -&gt; Optional[str]</code></div><p>Use LLM to summarize a cluster of traces into a durable continuity fact.
+
+Returns:
+    A summary string, or ``None`` on failure. The string may be
+    ``NO_DURABLE_MEMORY`` if the cluster contains nothing worth remembering
+    (e.g., emotionally repetitive content with no new decisions or
+    preferences) — callers should skip storage in that case.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_consolidation import _summarize_cluster
+
+result = _summarize_cluster(domain=&quot;domain_example&quot;, traces=[])
+# result: Optional[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_store_memory'><h3><code class='inline'>_store_memory</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _store_memory(domain: str, summary: str, traces: list[dict]) -&gt; None</code></div><p>Write summary into long-term memory store.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_consolidation import _store_memory
+
+result = _store_memory(domain=&quot;domain_example&quot;, summary=&quot;summary_example&quot;, traces=[])
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_last_consolidation_ts'><h3><code class='inline'>_load_last_consolidation_ts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _load_last_consolidation_ts() -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_consolidation import _load_last_consolidation_ts
+
+result = _load_last_consolidation_ts()
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_save_timestamp'><h3><code class='inline'>_save_timestamp</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _save_timestamp() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_consolidation import _save_timestamp
+
+result = _save_timestamp()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>CONSOL_CACHE</code></td><td><code class='inline'>DATA_DIR / &#x27;last_consolidation.json&#x27;</code></td></tr><tr><td><code class='inline'>PRUNE_KEEP_DAYS</code></td><td><code class='inline'>30</code></td></tr><tr><td><code class='inline'>MIN_TRACES_FOR_SUMMARY</code></td><td><code class='inline'>3</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

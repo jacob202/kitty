@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.builder.repo_tools — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.builder.repo_tools</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.builder.repo_tools</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/builder/repo_tools.py</code> &middot; Python &middot; 12 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Allowlisted repository reads and planning-artifact writes for MCP clients.
+
+This module intentionally does not expose a shell, arbitrary filesystem access,
+or generic Git mutation. Reads come from committed Git objects. Writes can only
+create design/plan Markdown on a deterministic isolated planning branch.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>hashlib</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>subprocess</code>, <code class='inline'>tempfile</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-repo_root'><code class='inline'>repo_root</code></a></td><td>Return the canonical repository root used by this MCP process.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_run_git'><code class='inline'>_run_git</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_propagate_agent_session'><code class='inline'>_propagate_agent_session</code></a></td><td>Carry the caller&#x27;s active Kitty agent-session claim into an ephemeral worktree.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-repo_head'><code class='inline'>repo_head</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_validate_repo_path'><code class='inline'>_validate_repo_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_validate_ref'><code class='inline'>_validate_ref</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-read_tracked_file'><code class='inline'>read_tracked_file</code></a></td><td>Read one committed tracked file from an explicit Git ref.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_search_pathspecs'><code class='inline'>_search_pathspecs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-search_tracked_repo'><code class='inline'>search_tracked_repo</code></a></td><td>Literal bounded search over committed tracked repository text.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_require_commit'><code class='inline'>_require_commit</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-planning_artifact_path'><code class='inline'>planning_artifact_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-write_planning_artifact'><code class='inline'>write_planning_artifact</code></a></td><td>Create a design/plan commit in an isolated deterministic planning branch.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr></table></div>
+<div class='card' id='fn-repo_root'><h3><code class='inline'>repo_root</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def repo_root() -&gt; Path</code></div><p>Return the canonical repository root used by this MCP process.
+
+``KITTY_REPO_ROOT`` exists for tests and explicit operator deployment only;
+clients cannot supply or mutate it through an MCP tool argument.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import repo_root
+
+result = repo_root()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_git'><h3><code class='inline'>_run_git</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _run_git(args: list[str], root: Path | None = None, check: bool = True, timeout: int = 30) -&gt; subprocess.CompletedProcess[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import _run_git
+
+result = _run_git(args=&quot;args_example&quot;, root=&quot;root_example&quot;  # default: None, check=True  # default: True, timeout=0  # default: 30)
+# result: subprocess.CompletedProcess[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_propagate_agent_session'><h3><code class='inline'>_propagate_agent_session</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _propagate_agent_session(source_root: Path, dest_worktree: Path, session_id: str | None = None) -&gt; None</code></div><p>Carry the caller&#x27;s active Kitty agent-session claim into an ephemeral worktree.
+
+``write_planning_artifact`` commits through a short-lived ``git worktree
+add`` sandbox so the caller&#x27;s own checkout is never touched. Each worktree
+gets its own private git-dir, and the shared pre-commit hook checks for a
+``kitty-agent-session`` file scoped to that git-dir before allowing a
+commit. Without this, the sandbox never has one of its own and every
+planning-artifact commit fails closed -- even when the caller already
+holds a valid claim on ``source_root``. This does not weaken that check:
+it only extends the caller&#x27;s own already-established session to the
+disposable worktree it triggered, so a caller with no session still fails
+the same way it always has.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import _propagate_agent_session
+
+result = _propagate_agent_session(source_root=&quot;source_root_example&quot;, dest_worktree=&quot;dest_worktree_example&quot;, session_id=&quot;session_id_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-repo_head'><h3><code class='inline'>repo_head</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def repo_head() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import repo_head
+
+result = repo_head()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_repo_path'><h3><code class='inline'>_validate_repo_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _validate_repo_path(path: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import _validate_repo_path
+
+result = _validate_repo_path(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_ref'><h3><code class='inline'>_validate_ref</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _validate_ref(ref: str | None) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import _validate_ref
+
+result = _validate_ref(ref=&quot;ref_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-read_tracked_file'><h3><code class='inline'>read_tracked_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def read_tracked_file(path: str, ref: str | None = None, start_line: int | None = None, end_line: int | None = None) -&gt; dict</code></div><p>Read one committed tracked file from an explicit Git ref.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import read_tracked_file
+
+result = read_tracked_file(path=&quot;path_example&quot;, ref=&quot;ref_example&quot;  # default: None, start_line=0  # default: None, end_line=0  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_search_pathspecs'><h3><code class='inline'>_search_pathspecs</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _search_pathspecs(path: str | None) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import _search_pathspecs
+
+result = _search_pathspecs(path=&quot;path_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search_tracked_repo'><h3><code class='inline'>search_tracked_repo</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def search_tracked_repo(query: str, path: str | None = None, ref: str | None = None, limit: int = 20) -&gt; dict</code></div><p>Literal bounded search over committed tracked repository text.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import search_tracked_repo
+
+result = search_tracked_repo(query=&quot;query_example&quot;, path=&quot;path_example&quot;  # default: None, ref=&quot;ref_example&quot;  # default: None, limit=0  # default: 20)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require_commit'><h3><code class='inline'>_require_commit</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _require_commit(sha: str, label: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import _require_commit
+
+result = _require_commit(sha=&quot;sha_example&quot;, label=&quot;label_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-planning_artifact_path'><h3><code class='inline'>planning_artifact_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def planning_artifact_path(kind: Literal[&#x27;design&#x27;, &#x27;plan&#x27;], slug: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import planning_artifact_path
+
+result = planning_artifact_path(kind=..., slug=&quot;slug_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-write_planning_artifact'><h3><code class='inline'>write_planning_artifact</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>def write_planning_artifact(kind: Literal[&#x27;design&#x27;, &#x27;plan&#x27;], slug: str, markdown: str, expected_base_sha: str, expected_dependency_sha: str | None = None, agent_session_id: str | None = None) -&gt; dict</code></div><p>Create a design/plan commit in an isolated deterministic planning branch.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.repo_tools import write_planning_artifact
+
+result = write_planning_artifact(kind=..., slug=&quot;slug_example&quot;, markdown=&quot;markdown_example&quot;, expected_base_sha=&quot;expected_base_sha_example&quot;, expected_dependency_sha=&quot;expected_dependency_sha_example&quot;  # default: None, agent_session_id=&quot;agent_session_id_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RepoAccessError'><code class='inline'>RepoAccessError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-PlanningArtifactError'><code class='inline'>PlanningArtifactError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-StaleRepositoryError'><code class='inline'>StaleRepositoryError</code></a></td><td>(PlanningArtifactError)</td><td>0 methods</td></tr><tr><td><a href='#cls-GitCommandError'><code class='inline'>GitCommandError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-RepoAccessError'><h3><code class='inline'>RepoAccessError</code></h3><p>A requested repository read is outside the MCP read boundary.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.builder.repo_tools import RepoAccessError
+
+obj = RepoAccessError(...)</pre></div>
+<div class='card' id='cls-PlanningArtifactError'><h3><code class='inline'>PlanningArtifactError</code></h3><p>A planning artifact cannot be written safely.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.builder.repo_tools import PlanningArtifactError
+
+obj = PlanningArtifactError(...)</pre></div>
+<div class='card' id='cls-StaleRepositoryError'><h3><code class='inline'>StaleRepositoryError</code></h3><p>The caller&#x27;s expected repository base no longer matches the contract.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.builder.repo_tools import StaleRepositoryError
+
+obj = StaleRepositoryError(...)</pre></div>
+<div class='card' id='cls-GitCommandError'><h3><code class='inline'>GitCommandError</code></h3><p>A bounded internal Git operation failed.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.builder.repo_tools import GitCommandError
+
+obj = GitCommandError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_DEFAULT_ROOT</code></td><td><code class='inline'>Path(__file__).resolve().parents[2]</code></td></tr><tr><td><code class='inline'>_MAX_READ_BYTES</code></td><td><code class='inline'>512000</code></td></tr><tr><td><code class='inline'>_MAX_SEARCH_RESULTS</code></td><td><code class='inline'>50</code></td></tr><tr><td><code class='inline'>_MAX_SEARCH_TEXT</code></td><td><code class='inline'>500</code></td></tr><tr><td><code class='inline'>_MAX_MARKDOWN_BYTES</code></td><td><code class='inline'>1000000</code></td></tr><tr><td><code class='inline'>_SLUG_RE</code></td><td><code class='inline'>re.compile(&#x27;^[a-z0-9][a-z0-9-]{0,63}$&#x27;)</code></td></tr><tr><td><code class='inline'>_SHA_RE</code></td><td><code class='inline'>re.compile(&#x27;^[0-9a-f]{40}$&#x27;)</code></td></tr><tr><td><code class='inline'>_BLOCKED_TOP_LEVEL</code></td><td><code class='inline'>frozenset({&#x27;data&#x27;, &#x27;logs&#x27;, &#x27;.git&#x27;, &#x27;.venv&#x27;, &#x27;node_modules&#x27;})</code></td></tr><tr><td><code class='inline'>_AGENT_SESSION_FILENAME</code></td><td><code class='inline'>&#x27;kitty-agent-session&#x27;</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_builder_commands.py.html'><code class='inline'>mcp.builder.commands</code></a></li><li><a href='mcp_builder_context.py.html'><code class='inline'>mcp.builder.context</code></a></li><li><a href='mcp_builder_schemas.py.html'><code class='inline'>mcp.builder.schemas</code></a></li><li><a href='mcp_builder_server.py.html'><code class='inline'>mcp.builder.server</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

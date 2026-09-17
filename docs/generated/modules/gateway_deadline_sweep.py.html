@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.deadline_sweep — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.deadline_sweep</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.deadline_sweep</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/deadline_sweep.py</code> &middot; Python &middot; 6 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Urgent-thing sweep — discover deadlines across sources and push a report (P7, docs/packets/017).
+
+Public API:
+  sweep(*, push_fn=None, llm_fn=None, now=None) -&gt; dict</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_run_async'><code class='inline'>_run_async</code></a></td><td>Run a coroutine from a sync context. Same seam as gateway/brief.py.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_days_until'><code class='inline'>_days_until</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_score'><code class='inline'>_score</code></a></td><td>Rank by nearness × stakes. Higher is more urgent.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_scan_documents'><code class='inline'>_scan_documents</code></a></td><td>Scan knowledge base for admin/benefits documents and extract deadlines.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_scan_mail_signals'><code class='inline'>_scan_mail_signals</code></a></td><td>Scan recent mail signals and extract deadlines.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-sweep'><code class='inline'>sweep</code></a></td><td>Run deadline discovery only; escalation delivery belongs to deadline_watch.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_run_async'><h3><code class='inline'>_run_async</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _run_async(coro)</code></div><p>Run a coroutine from a sync context. Same seam as gateway/brief.py.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_sweep import _run_async
+
+result = _run_async(coro=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_days_until'><h3><code class='inline'>_days_until</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _days_until(due_date_str: str, today: date) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_sweep import _days_until
+
+result = _days_until(due_date_str=&quot;due_date_str_example&quot;, today=...)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_score'><h3><code class='inline'>_score</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _score(deadline: dict[str, Any], today: date) -&gt; float</code></div><p>Rank by nearness × stakes. Higher is more urgent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_sweep import _score
+
+result = _score(deadline=&quot;deadline_example&quot;, today=...)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_scan_documents'><h3><code class='inline'>_scan_documents</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _scan_documents(llm_fn: LlmFn | None, project_id: int) -&gt; tuple[list[dict[str, Any]], list[str]]</code></div><p>Scan knowledge base for admin/benefits documents and extract deadlines.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_sweep import _scan_documents
+
+result = _scan_documents(llm_fn=..., project_id=0)
+# result: tuple[list[dict[str, Any]], list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_scan_mail_signals'><h3><code class='inline'>_scan_mail_signals</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _scan_mail_signals(llm_fn: LlmFn | None, project_id: int) -&gt; tuple[list[dict[str, Any]], list[str]]</code></div><p>Scan recent mail signals and extract deadlines.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_sweep import _scan_mail_signals
+
+result = _scan_mail_signals(llm_fn=..., project_id=0)
+# result: tuple[list[dict[str, Any]], list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-sweep'><h3><code class='inline'>sweep</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def sweep(push_fn: PushFn | None = None, llm_fn: LlmFn | None = None, now: date | None = None, project_id: int = 2) -&gt; dict[str, Any]</code></div><p>Run deadline discovery only; escalation delivery belongs to deadline_watch.
+
+``push_fn`` is retained temporarily for compatibility with older callers,
+but is intentionally ignored so discovery can never become a second
+notification path.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.deadline_sweep import sweep
+
+result = sweep(push_fn=...  # default: None, llm_fn=...  # default: None, now=...  # default: None, project_id=0  # default: 2)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

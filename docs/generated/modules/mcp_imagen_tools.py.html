@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.tools — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.tools</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.tools</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/tools/__init__.py</code> &middot; Python &middot; 0 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Tool registration — imports all tools so they&#x27;re registered on the MCP server.
+
+PR 3 collapses the 4 legacy generate_image* tools into:
+  - ``generate`` (unified, engine-dispatched, cached)
+  - ``edit_image`` (unified, engine-dispatched)
+  - ``batch_generate`` (parallel N prompts via asyncio.gather)
+
+The non-generation tools (refine, variations, avatar, reference, gallery)
+are unchanged in behavior but now live in their own modules.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>mcp.imagen.tools.batch</code>, <code class='inline'>mcp.imagen.tools.gallery</code>, <code class='inline'>mcp.imagen.tools.generate</code>, <code class='inline'>mcp.imagen.tools.generate_until</code>, <code class='inline'>mcp.imagen.tools.reference</code>, <code class='inline'>mcp.imagen.tools.refine</code>, <code class='inline'>mcp.imagen.tools.variations</code></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_benchmark.py.html'><code class='inline'>mcp.imagen.benchmark</code></a></li><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_character_lock.py.html'><code class='inline'>mcp.imagen.character_lock</code></a></li><li><a href='mcp_imagen_config.py.html'><code class='inline'>mcp.imagen.config</code></a></li><li><a href='mcp_imagen_engines.py.html'><code class='inline'>mcp.imagen.engines</code></a></li><li><a href='mcp_imagen_face_match.py.html'><code class='inline'>mcp.imagen.face_match</code></a></li><li><a href='mcp_imagen_io.py.html'><code class='inline'>mcp.imagen.io</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_retry.py.html'><code class='inline'>mcp.imagen.retry</code></a></li><li><a href='mcp_imagen_server.py.html'><code class='inline'>mcp.imagen.server</code></a></li><li><a href='mcp_imagen_verify.py.html'><code class='inline'>mcp.imagen.verify</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

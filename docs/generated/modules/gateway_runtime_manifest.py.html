@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.runtime_manifest — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.runtime_manifest</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.runtime_manifest</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/runtime_manifest.py</code> &middot; Python &middot; 19 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Authoritative runtime facts exposed to Kitty clients and chat turns.
+
+This is deliberately a read-side composer. Each fact carries its owner,
+observation time, expiry, and an explicit state so a failed probe cannot be
+mistaken for an unavailable feature or a successful operation.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.http_client</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.project_context</code>, <code class='inline'>hashlib</code>, <code class='inline'>httpx</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>sqlite3</code>, <code class='inline'>subprocess</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_timestamp'><code class='inline'>_timestamp</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_fact'><code class='inline'>_fact</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_unknown'><code class='inline'>_unknown</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_git_snapshot'><code class='inline'>_git_snapshot</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_project_fact'><code class='inline'>_project_fact</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_litellm_models'><code class='inline'>_litellm_models</code></a></td><td>Probe LiteLLM once and return model availability plus connection health.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_provider_facts'><code class='inline'>_provider_facts</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_builder_fact'><code class='inline'>_builder_fact</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_grant_posture'><code class='inline'>_grant_posture</code></a></td><td>Standing user grants, summarized for a model turn (issue #554).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_approval_fact'><code class='inline'>_approval_fact</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_tool_fact'><code class='inline'>_tool_fact</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-compose_manifest'><code class='inline'>compose_manifest</code></a></td><td>Compose one authoritative, revisioned runtime snapshot.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_summarize_builder_fact'><code class='inline'>_summarize_builder_fact</code></a></td><td>Drop the initiative bodies from a Builder fact, keeping the counts.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_compact_runtime_fact'><code class='inline'>_compact_runtime_fact</code></a></td><td>Keep fact truth while removing provenance duplicated by the manifest envelope.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_compact_operational_fact'><code class='inline'>_compact_operational_fact</code></a></td><td>Project an operational fact to state/reason without verbose payload detail.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_compact_tools_fact'><code class='inline'>_compact_tools_fact</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_compact_connections'><code class='inline'>_compact_connections</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_compact_approvals_fact'><code class='inline'>_compact_approvals_fact</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-compact_runtime_context'><code class='inline'>compact_runtime_context</code></a></td><td>Render the bounded runtime truth a model turn actually needs.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_timestamp'><h3><code class='inline'>_timestamp</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _timestamp(now: datetime) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _timestamp
+
+result = _timestamp(now=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fact'><h3><code class='inline'>_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _fact(value: Any, source: str, observed_at: str, valid_until: str, state: str = &#x27;available&#x27;, reason: str | None = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _fact
+
+result = _fact(value=..., source=&quot;source_example&quot;, observed_at=&quot;observed_at_example&quot;, valid_until=&quot;valid_until_example&quot;, state=&quot;state_example&quot;  # default: &#x27;available&#x27;, reason=&quot;reason_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_unknown'><h3><code class='inline'>_unknown</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _unknown(source: str, observed_at: str, valid_until: str, reason: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _unknown
+
+result = _unknown(source=&quot;source_example&quot;, observed_at=&quot;observed_at_example&quot;, valid_until=&quot;valid_until_example&quot;, reason=&quot;reason_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_git_snapshot'><h3><code class='inline'>_git_snapshot</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _git_snapshot() -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _git_snapshot
+
+result = _git_snapshot()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_project_fact'><h3><code class='inline'>_project_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _project_fact(project_id: int | None, observed_at: str, valid_until: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _project_fact
+
+result = _project_fact(project_id=0, observed_at=&quot;observed_at_example&quot;, valid_until=&quot;valid_until_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_litellm_models'><h3><code class='inline'>_litellm_models</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def _litellm_models(observed_at: str, valid_until: str) -&gt; tuple[dict[str, Any], dict[str, Any]]</code></div><p>Probe LiteLLM once and return model availability plus connection health.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.runtime_manifest import _litellm_models
+
+    result = await _litellm_models()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_provider_facts'><h3><code class='inline'>_provider_facts</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _provider_facts(observed_at: str, valid_until: str) -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _provider_facts
+
+result = _provider_facts(observed_at=&quot;observed_at_example&quot;, valid_until=&quot;valid_until_example&quot;)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_builder_fact'><h3><code class='inline'>_builder_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _builder_fact(observed_at: str, valid_until: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _builder_fact
+
+result = _builder_fact(observed_at=&quot;observed_at_example&quot;, valid_until=&quot;valid_until_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_grant_posture'><h3><code class='inline'>_grant_posture</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _grant_posture() -&gt; dict[str, Any]</code></div><p>Standing user grants, summarized for a model turn (issue #554).
+
+An unreadable grant store reports itself as unknown. Returning &quot;no grants&quot;
+instead would read to a turn as &quot;nothing is restricted and nothing is
+pre-authorized&quot;, which is the one wrong answer here.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _grant_posture
+
+result = _grant_posture()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_approval_fact'><h3><code class='inline'>_approval_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _approval_fact(observed_at: str, valid_until: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _approval_fact
+
+result = _approval_fact(observed_at=&quot;observed_at_example&quot;, valid_until=&quot;valid_until_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_tool_fact'><h3><code class='inline'>_tool_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _tool_fact(observed_at: str, valid_until: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _tool_fact
+
+result = _tool_fact(observed_at=&quot;observed_at_example&quot;, valid_until=&quot;valid_until_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compose_manifest'><h3><code class='inline'>compose_manifest</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>async def compose_manifest(project_id: int | None = None) -&gt; dict[str, Any]</code></div><p>Compose one authoritative, revisioned runtime snapshot.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.runtime_manifest import compose_manifest
+
+    result = await compose_manifest()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_summarize_builder_fact'><h3><code class='inline'>_summarize_builder_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _summarize_builder_fact(fact: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Drop the initiative bodies from a Builder fact, keeping the counts.
+
+The full snapshot carries every initiative record — 400KB+ on Jacob&#x27;s Mac —
+and inlining it made every chat turn pay ~107k tokens of prompt it never
+reads. A turn only needs to know how much work is queued and whether the
+projection is trustworthy; `./kitty builder ... --json` remains the place to
+read initiative detail.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _summarize_builder_fact
+
+result = _summarize_builder_fact(fact=&quot;fact_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_compact_runtime_fact'><h3><code class='inline'>_compact_runtime_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _compact_runtime_fact(value: Any) -&gt; Any</code></div><p>Keep fact truth while removing provenance duplicated by the manifest envelope.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _compact_runtime_fact
+
+result = _compact_runtime_fact(value=...)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_compact_operational_fact'><h3><code class='inline'>_compact_operational_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _compact_operational_fact(fact: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Project an operational fact to state/reason without verbose payload detail.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _compact_operational_fact
+
+result = _compact_operational_fact(fact=&quot;fact_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_compact_tools_fact'><h3><code class='inline'>_compact_tools_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _compact_tools_fact(fact: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _compact_tools_fact
+
+result = _compact_tools_fact(fact=&quot;fact_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_compact_connections'><h3><code class='inline'>_compact_connections</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _compact_connections(connections: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _compact_connections
+
+result = _compact_connections(connections=&quot;connections_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_compact_approvals_fact'><h3><code class='inline'>_compact_approvals_fact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _compact_approvals_fact(fact: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import _compact_approvals_fact
+
+result = _compact_approvals_fact(fact=&quot;fact_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compact_runtime_context'><h3><code class='inline'>compact_runtime_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def compact_runtime_context(manifest: dict[str, Any]) -&gt; str</code></div><p>Render the bounded runtime truth a model turn actually needs.
+
+The top-level manifest revision/freshness owns provenance for the whole
+snapshot, so repeating source/observed/expiry on every nested fact only
+consumes prompt budget. Tool registry, connection diagnostics, and approval
+provenance is omitted, while context, inference, connections, tools, and
+approvals remain visible per the capability-manifest projection contract.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runtime_manifest import compact_runtime_context
+
+result = compact_runtime_context(manifest=&quot;manifest_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RuntimeManifestError'><code class='inline'>RuntimeManifestError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-RuntimeManifestError'><h3><code class='inline'>RuntimeManifestError</code></h3><p>Raised when a requested runtime fact cannot be represented safely.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runtime_manifest import RuntimeManifestError
+
+obj = RuntimeManifestError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SCHEMA_VERSION</code></td><td><code class='inline'>1</code></td></tr><tr><td><code class='inline'>MANIFEST_TTL_SECONDS</code></td><td><code class='inline'>15</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

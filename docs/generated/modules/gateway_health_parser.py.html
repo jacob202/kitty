@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.health_parser — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.health_parser</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.health_parser</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/health_parser.py</code> &middot; Python &middot; 5 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Apple Health XML parser — extract key metrics from export.xml.
+
+Apple Health exports are single XML files (often 500MB+). This parser
+extracts only the metrics we care about: sleep, resting heart rate, weight,
+steps, HRV, and workouts — aggregated into weekly summaries.
+
+Public API:
+  parse_export(xml_path) -&gt; list[dict]   Parse health export XML
+  get_weekly_summary() -&gt; dict           Latest week summary
+  ingest_to_knowledge(xml_path) -&gt; int   Parse and ingest into ChromaDB</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.knowledge</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>tempfile</code>, <code class='inline'>typing</code>, <code class='inline'>xml.etree.ElementTree</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-parse_export'><code class='inline'>parse_export</code></a></td><td>Parse an Apple Health export.xml file. Returns list of metric records.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-get_weekly_summary'><code class='inline'>get_weekly_summary</code></a></td><td>Aggregate records into a weekly summary.</td><td><span class='pill'>complex</span><span class='muted small'>(20)</span></td></tr><tr><td><a href='#fn-ingest_to_knowledge'><code class='inline'>ingest_to_knowledge</code></a></td><td>Parse health export and ingest the weekly summary into the knowledge base.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_health_text'><code class='inline'>get_health_text</code></a></td><td>Return a brief health summary for context injection. Empty if no data.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_format_summary_for_ingestion'><code class='inline'>_format_summary_for_ingestion</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr></table></div>
+<div class='card' id='fn-parse_export'><h3><code class='inline'>parse_export</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def parse_export(xml_path: str | Path) -&gt; list[dict]</code></div><p>Parse an Apple Health export.xml file. Returns list of metric records.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.health_parser import parse_export
+
+result = parse_export(xml_path=&quot;xml_path_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_weekly_summary'><h3><code class='inline'>get_weekly_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (20)</span></h3><div class='sig'><code>def get_weekly_summary(records: Optional[list[dict]] = None) -&gt; dict</code></div><p>Aggregate records into a weekly summary.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.health_parser import get_weekly_summary
+
+result = get_weekly_summary(records=[]  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-ingest_to_knowledge'><h3><code class='inline'>ingest_to_knowledge</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def ingest_to_knowledge(xml_path: str | Path) -&gt; int</code></div><p>Parse health export and ingest the weekly summary into the knowledge base.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.health_parser import ingest_to_knowledge
+
+result = ingest_to_knowledge(xml_path=&quot;xml_path_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_health_text'><h3><code class='inline'>get_health_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_health_text() -&gt; str</code></div><p>Return a brief health summary for context injection. Empty if no data.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.health_parser import get_health_text
+
+result = get_health_text()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_format_summary_for_ingestion'><h3><code class='inline'>_format_summary_for_ingestion</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _format_summary_for_ingestion(summary: dict) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.health_parser import _format_summary_for_ingestion
+
+result = _format_summary_for_ingestion(summary={})
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>HEALTH_CACHE</code></td><td><code class='inline'>DATA_DIR / &#x27;health_weekly.json&#x27;</code></td></tr><tr><td><code class='inline'>METRICS_OF_INTEREST</code></td><td><code class='inline'>{&#x27;HKCategoryTypeIdentifierSleepAnalysis&#x27;: &#x27;sleep&#x27;, &#x27;HKQuantityTypeIdentifierHeartRate&#x27;: &#x27;heart_rate&#x27;, &#x27;HKQuantityTypeIde</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

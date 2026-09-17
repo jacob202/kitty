@@ -48,6 +48,7 @@ authority; they do not replace the owners above.
   new plan. The 80 plan documents it replaced are in
   [`archive/plans-2026-09-14/`](archive/plans-2026-09-14/README.md) as history, not instruction.
 - [`reference/`](reference/) — reusable technical guidance generally.
+- [`DOCS_GUIDELINES.md`](DOCS_GUIDELINES.md) — code-reference documentation standards; generated API output lives in [`generated/`](generated/index.html).
 
 ## Execution inputs
 

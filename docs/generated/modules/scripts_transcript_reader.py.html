@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.transcript_reader — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.transcript_reader</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.transcript_reader</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/transcript_reader.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Read-only cross-tool transcript reader.
+
+Claude Code: ~/.claude/projects/&lt;project-dir&gt;/*.jsonl
+Codex:       ~/.codex/sessions/**/*.jsonl
+opencode:    ~/.local/share/opencode/opencode.db
+
+Usage:
+    python3 scripts/transcript_reader.py --project kitty --last 20
+    python3 scripts/transcript_reader.py --project /Users/jacobbrizinski/Projects/kitty --last 10</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>argparse</code>, <code class='inline'>datetime</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-project_dir'><code class='inline'>project_dir</code></a></td><td>Map a project path or name to the Claude Code project directory name.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-extract_claude_turns'><code class='inline'>extract_claude_turns</code></a></td><td>Yield (timestamp, role, text) from Claude Code jsonl transcripts.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-extract_codex_turns'><code class='inline'>extract_codex_turns</code></a></td><td>Yield (timestamp, role, text) from Codex jsonl transcripts.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-extract_opencode_turns'><code class='inline'>extract_opencode_turns</code></a></td><td>Yield (timestamp, role, text) from opencode SQLite db.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_flatten_content'><code class='inline'>_flatten_content</code></a></td><td>Extract plain text from Claude/Codex content blobs.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-format_turns'><code class='inline'>format_turns</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-project_dir'><h3><code class='inline'>project_dir</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def project_dir(project: str) -&gt; Path</code></div><p>Map a project path or name to the Claude Code project directory name.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.transcript_reader import project_dir
+
+result = project_dir(project=&quot;project_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-extract_claude_turns'><h3><code class='inline'>extract_claude_turns</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def extract_claude_turns(project_path: str, last_n: int)</code></div><p>Yield (timestamp, role, text) from Claude Code jsonl transcripts.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.transcript_reader import extract_claude_turns
+
+result = extract_claude_turns(project_path=&quot;project_path_example&quot;, last_n=0)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-extract_codex_turns'><h3><code class='inline'>extract_codex_turns</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def extract_codex_turns(project_path: str, last_n: int)</code></div><p>Yield (timestamp, role, text) from Codex jsonl transcripts.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.transcript_reader import extract_codex_turns
+
+result = extract_codex_turns(project_path=&quot;project_path_example&quot;, last_n=0)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-extract_opencode_turns'><h3><code class='inline'>extract_opencode_turns</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def extract_opencode_turns(project_path: str, last_n: int)</code></div><p>Yield (timestamp, role, text) from opencode SQLite db.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.transcript_reader import extract_opencode_turns
+
+result = extract_opencode_turns(project_path=&quot;project_path_example&quot;, last_n=0)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_flatten_content'><h3><code class='inline'>_flatten_content</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _flatten_content(content)</code></div><p>Extract plain text from Claude/Codex content blobs.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.transcript_reader import _flatten_content
+
+result = _flatten_content(content=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-format_turns'><h3><code class='inline'>format_turns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def format_turns(turns, source)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.transcript_reader import format_turns
+
+result = format_turns(turns=..., source=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def main()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.transcript_reader import main
+
+result = main()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>HOME</code></td><td><code class='inline'>Path.home()</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

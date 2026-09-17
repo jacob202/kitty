@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.memories — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.memories</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.memories</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/memories.py</code> &middot; Python &middot; 6 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Long-term memory list and forget lifecycle.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.errors</code>, <code class='inline'>gateway.explicit_memory</code>, <code class='inline'>gateway.memory</code>, <code class='inline'>gateway.memory_explain</code>, <code class='inline'>pydantic</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_explicit_api_row'><code class='inline'>_explicit_api_row</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-list_memories'><code class='inline'>list_memories</code></a></td><td>List explicit memory first; semantic-memory outages are reported, not hidden.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-delete_memory'><code class='inline'>delete_memory</code></a></td><td>Forget governed explicit memory, or delete a legacy semantic memory.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-explain_memory'><code class='inline'>explain_memory</code></a></td><td>Explain why a governed memory is remembered: source, authority, state, supersession.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-correct_memory'><code class='inline'>correct_memory</code></a></td><td>Correct a remembered fact through the governed correction/supersession path.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-pin_memory'><code class='inline'>pin_memory</code></a></td><td>Pin or unpin a governed memory so it stays at the top of future recall.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_explicit_api_row'><h3><code class='inline'>_explicit_api_row</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _explicit_api_row(row: dict) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.memories import _explicit_api_row
+
+result = _explicit_api_row(row={})
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_memories'><h3><code class='inline'>list_memories</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>async def list_memories(namespace: Optional[str] = None, limit: int = 50) -&gt; dict</code></div><p>List explicit memory first; semantic-memory outages are reported, not hidden.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.memories import list_memories
+
+    result = await list_memories()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_memory'><h3><code class='inline'>delete_memory</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def delete_memory(memory_id: str) -&gt; dict</code></div><p>Forget governed explicit memory, or delete a legacy semantic memory.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.memories import delete_memory
+
+    result = await delete_memory()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-explain_memory'><h3><code class='inline'>explain_memory</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def explain_memory(memory_id: str) -&gt; dict</code></div><p>Explain why a governed memory is remembered: source, authority, state, supersession.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.memories import explain_memory
+
+    result = await explain_memory()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-correct_memory'><h3><code class='inline'>correct_memory</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def correct_memory(memory_id: str, body: CorrectMemoryRequest) -&gt; dict</code></div><p>Correct a remembered fact through the governed correction/supersession path.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.memories import correct_memory
+
+    result = await correct_memory()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-pin_memory'><h3><code class='inline'>pin_memory</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def pin_memory(memory_id: str, body: PinMemoryRequest) -&gt; dict</code></div><p>Pin or unpin a governed memory so it stays at the top of future recall.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.memories import pin_memory
+
+    result = await pin_memory()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-CorrectMemoryRequest'><code class='inline'>CorrectMemoryRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-PinMemoryRequest'><code class='inline'>PinMemoryRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-CorrectMemoryRequest'><h3><code class='inline'>CorrectMemoryRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> text: str, memory_key: Optional[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.memories import CorrectMemoryRequest
+
+obj = CorrectMemoryRequest(...)</pre></div>
+<div class='card' id='cls-PinMemoryRequest'><h3><code class='inline'>PinMemoryRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> pinned: bool</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.memories import PinMemoryRequest
+
+obj = PinMemoryRequest(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

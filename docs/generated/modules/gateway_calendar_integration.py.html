@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.calendar_integration — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.calendar_integration</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.calendar_integration</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/calendar_integration.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Calendar integration — read/write macOS Calendar via AppleScript.
+
+Public API:
+  get_today() -&gt; list[dict]      Today&#x27;s events
+  get_upcoming(days) -&gt; list[dict]  Events in next N days
+  create(title, start, end, notes) -&gt; bool</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>logging</code>, <code class='inline'>subprocess</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_run_applescript'><code class='inline'>_run_applescript</code></a></td><td>Run an AppleScript and return (success, output).</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_parse_event_lines'><code class='inline'>_parse_event_lines</code></a></td><td>Parse AppleScript output: each event is 3 lines: title, start, end.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_today'><code class='inline'>get_today</code></a></td><td>Get today&#x27;s calendar events.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_upcoming'><code class='inline'>get_upcoming</code></a></td><td>Get events for the next N days.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-create'><code class='inline'>create</code></a></td><td>Create a new calendar event. Times in ISO format or natural language.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_upcoming_text'><code class='inline'>get_upcoming_text</code></a></td><td>Return a formatted text summary of upcoming events for context injection.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-is_available'><code class='inline'>is_available</code></a></td><td>Check if Calendar integration is available (macOS only).</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_run_applescript'><h3><code class='inline'>_run_applescript</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _run_applescript(script: str) -&gt; tuple[bool, str]</code></div><p>Run an AppleScript and return (success, output).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.calendar_integration import _run_applescript
+
+result = _run_applescript(script=&quot;script_example&quot;)
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_event_lines'><h3><code class='inline'>_parse_event_lines</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _parse_event_lines(output: str) -&gt; list[dict]</code></div><p>Parse AppleScript output: each event is 3 lines: title, start, end.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.calendar_integration import _parse_event_lines
+
+result = _parse_event_lines(output=&quot;output_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_today'><h3><code class='inline'>get_today</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_today() -&gt; list[dict]</code></div><p>Get today&#x27;s calendar events.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.calendar_integration import get_today
+
+result = get_today()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_upcoming'><h3><code class='inline'>get_upcoming</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_upcoming(days: int = 7) -&gt; list[dict]</code></div><p>Get events for the next N days.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.calendar_integration import get_upcoming
+
+result = get_upcoming(days=0  # default: 7)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create'><h3><code class='inline'>create</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def create(title: str, start_time: Optional[str] = None, end_time: Optional[str] = None, notes: str = &#x27;&#x27;, calendar_name: str = &#x27;Calendar&#x27;) -&gt; bool</code></div><p>Create a new calendar event. Times in ISO format or natural language.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.calendar_integration import create
+
+result = create(title=&quot;title_example&quot;, start_time=&quot;start_time_example&quot;  # default: None, end_time=&quot;end_time_example&quot;  # default: None, notes=&quot;notes_example&quot;  # default: &#x27;&#x27;, calendar_name=&quot;calendar_name_example&quot;  # default: &#x27;Calendar&#x27;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_upcoming_text'><h3><code class='inline'>get_upcoming_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_upcoming_text(days: int = 7) -&gt; str</code></div><p>Return a formatted text summary of upcoming events for context injection.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.calendar_integration import get_upcoming_text
+
+result = get_upcoming_text(days=0  # default: 7)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_available'><h3><code class='inline'>is_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def is_available() -&gt; bool</code></div><p>Check if Calendar integration is available (macOS only).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.calendar_integration import is_available
+
+result = is_available()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

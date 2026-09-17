@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.chats_store — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.chats_store</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.chats_store</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/chats_store.py</code> &middot; Python &middot; 13 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Chat session store — keyed by id, stored as JSON blobs in kitty.db.
+
+The /chats route (gateway/routes/chats.py) calls into this module instead
+of reading and writing data/kitty/chats.json directly. The wire shape is
+preserved; the storage substrate changes.
+
+Public API:
+  list_chats() -&gt; list[dict]              All chats, most-recently-updated first
+  upsert_chat(chat: dict) -&gt; None         Create or replace a chat by id
+  delete_chat(chat_id: str) -&gt; bool       Remove a chat by id; True if it existed
+
+Legacy import: on first access, if data/kitty/chats.json exists and the
+chats table is empty, the JSON contents are imported into kitty.db. The
+JSON file is never deleted. The import marker is stored in app_settings
+key &#x27;chats_legacy_imported&#x27; with a value describing the outcome.
+
+Rollback (documented escape hatch): if the SQLite layer needs to be
+abandoned, the JSON file is still the source of truth. To roll back:
+  1. DROP TABLE chats;
+  2. DELETE FROM app_settings WHERE key = &#x27;chats_legacy_imported&#x27;;
+  3. DELETE FROM schema_migrations WHERE name = &#x27;004_chats.sql&#x27;;
+  4. Re-run the gateway; migrate re-applies 004_chats.sql (which is
+     CREATE TABLE IF NOT EXISTS chats ...), then the import rebuilds
+     the table from the JSON file.
+This is verified by TestLegacyImport.test_rollback_re_imports_from_intact_json.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Apply pending migrations and run the one-time legacy import. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-list_chats'><code class='inline'>list_chats</code></a></td><td>Return all chats, most-recently-updated first.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_chat'><code class='inline'>get_chat</code></a></td><td>Return one chat by id, or ``None`` when it does not exist.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-upsert_chat'><code class='inline'>upsert_chat</code></a></td><td>Create or replace a chat by id. Raises ValueError if &#x27;id&#x27; is missing.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-delete_chat'><code class='inline'>delete_chat</code></a></td><td>Remove a chat by id. Returns True if a row was deleted.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_upsert_chat_raw'><code class='inline'>_upsert_chat_raw</code></a></td><td>Insert or replace a chat using an existing connection. No init_db call.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_row_to_chat'><code class='inline'>_row_to_chat</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-patch_objective'><code class='inline'>patch_objective</code></a></td><td>Set or clear a chat&#x27;s objective. Returns the updated chat dict.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_validate_objective'><code class='inline'>_validate_objective</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_import_legacy_chats_once'><code class='inline'>_import_legacy_chats_once</code></a></td><td>Copy chats from the legacy JSON file once. The JSON file is never deleted.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_already_imported'><code class='inline'>_already_imported</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_read_legacy_chats'><code class='inline'>_read_legacy_chats</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_mark_legacy_imported'><code class='inline'>_mark_legacy_imported</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Apply pending migrations and run the one-time legacy import. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_chats'><h3><code class='inline'>list_chats</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_chats() -&gt; list[dict]</code></div><p>Return all chats, most-recently-updated first.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import list_chats
+
+result = list_chats()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_chat'><h3><code class='inline'>get_chat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_chat(chat_id: str) -&gt; dict | None</code></div><p>Return one chat by id, or ``None`` when it does not exist.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import get_chat
+
+result = get_chat(chat_id=&quot;chat_id_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-upsert_chat'><h3><code class='inline'>upsert_chat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def upsert_chat(chat: dict) -&gt; None</code></div><p>Create or replace a chat by id. Raises ValueError if &#x27;id&#x27; is missing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import upsert_chat
+
+result = upsert_chat(chat={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_chat'><h3><code class='inline'>delete_chat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def delete_chat(chat_id: str) -&gt; bool</code></div><p>Remove a chat by id. Returns True if a row was deleted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import delete_chat
+
+result = delete_chat(chat_id=&quot;chat_id_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_upsert_chat_raw'><h3><code class='inline'>_upsert_chat_raw</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _upsert_chat_raw(conn: sqlite3.Connection, chat: dict) -&gt; None</code></div><p>Insert or replace a chat using an existing connection. No init_db call.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import _upsert_chat_raw
+
+result = _upsert_chat_raw(conn=..., chat={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_chat'><h3><code class='inline'>_row_to_chat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _row_to_chat(row: sqlite3.Row) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import _row_to_chat
+
+result = _row_to_chat(row=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-patch_objective'><h3><code class='inline'>patch_objective</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def patch_objective(chat_id: str, objective: str | None) -&gt; dict</code></div><p>Set or clear a chat&#x27;s objective. Returns the updated chat dict.
+
+Args:
+    chat_id: The chat to update.
+    objective: New objective text, or None to clear it.
+
+Raises:
+    ValueError: If the chat does not exist.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import patch_objective
+
+result = patch_objective(chat_id=&quot;chat_id_example&quot;, objective=&quot;objective_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_objective'><h3><code class='inline'>_validate_objective</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _validate_objective(objective: object) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import _validate_objective
+
+result = _validate_objective(objective=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_import_legacy_chats_once'><h3><code class='inline'>_import_legacy_chats_once</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _import_legacy_chats_once() -&gt; None</code></div><p>Copy chats from the legacy JSON file once. The JSON file is never deleted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import _import_legacy_chats_once
+
+result = _import_legacy_chats_once()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_already_imported'><h3><code class='inline'>_already_imported</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _already_imported(conn: sqlite3.Connection) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import _already_imported
+
+result = _already_imported(conn=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_legacy_chats'><h3><code class='inline'>_read_legacy_chats</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _read_legacy_chats() -&gt; list[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import _read_legacy_chats
+
+result = _read_legacy_chats()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_legacy_imported'><h3><code class='inline'>_mark_legacy_imported</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _mark_legacy_imported(conn: sqlite3.Connection, value: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chats_store import _mark_legacy_imported
+
+result = _mark_legacy_imported(conn=..., value=&quot;value_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ChatNotFoundError'><code class='inline'>ChatNotFoundError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ChatNotFoundError'><h3><code class='inline'>ChatNotFoundError</code></h3><p>Raised when a requested chat does not exist.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.chats_store import ChatNotFoundError
+
+obj = ChatNotFoundError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>CHATS_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>LEGACY_CHATS_FILE</code></td><td><code class='inline'>DATA_DIR / &#x27;kitty&#x27; / &#x27;chats.json&#x27;</code></td></tr><tr><td><code class='inline'>LEGACY_IMPORT_SETTING</code></td><td><code class='inline'>&#x27;chats_legacy_imported&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

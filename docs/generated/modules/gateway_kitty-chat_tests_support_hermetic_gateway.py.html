@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.kitty-chat.tests.support.hermetic_gateway — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.kitty-chat.tests.support.hermetic_gateway</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.kitty-chat.tests.support.hermetic_gateway</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/tests/support/hermetic_gateway.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Minimal real Kitty Gateway surface for the browser continuity seam.
+
+Production chat/completion and chat persistence routers stay real. Only ambient
+context/runtime discovery is deterministic so the test cannot consult personal
+state, local Ollama, or unrelated dashboard integrations.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway.auth</code>, <code class='inline'>gateway.context_assembler</code>, <code class='inline'>gateway.doctor</code>, <code class='inline'>gateway.provider_prefs</code>, <code class='inline'>gateway.routes.chats</code>, <code class='inline'>gateway.routes.completions</code>, <code class='inline'>gateway.routes.repairs</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_hermetic_context'><code class='inline'>_hermetic_context</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_hermetic_provider_preferences'><code class='inline'>_hermetic_provider_preferences</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_hermetic_manifest'><code class='inline'>_hermetic_manifest</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-health'><code class='inline'>health</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-runtime_manifest'><code class='inline'>runtime_manifest</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-model_picker'><code class='inline'>model_picker</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-repairs'><code class='inline'>repairs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_hermetic_context'><h3><code class='inline'>_hermetic_context</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def _hermetic_context(*args, **kwargs) -&gt; ContextBundle</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.kitty-chat.tests.support.hermetic_gateway import _hermetic_context
+
+    result = await _hermetic_context()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_hermetic_provider_preferences'><h3><code class='inline'>_hermetic_provider_preferences</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _hermetic_provider_preferences() -&gt; dict[str, object]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.kitty-chat.tests.support.hermetic_gateway import _hermetic_provider_preferences
+
+result = _hermetic_provider_preferences()
+# result: dict[str, object]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_hermetic_manifest'><h3><code class='inline'>_hermetic_manifest</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def _hermetic_manifest(project_id = None) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.kitty-chat.tests.support.hermetic_gateway import _hermetic_manifest
+
+    result = await _hermetic_manifest()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-health'><h3><code class='inline'>health</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def health() -&gt; dict[str, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.kitty-chat.tests.support.hermetic_gateway import health
+
+    result = await health()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-runtime_manifest'><h3><code class='inline'>runtime_manifest</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def runtime_manifest() -&gt; dict[str, object]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.kitty-chat.tests.support.hermetic_gateway import runtime_manifest
+
+    result = await runtime_manifest()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-model_picker'><h3><code class='inline'>model_picker</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def model_picker() -&gt; dict[str, object]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.kitty-chat.tests.support.hermetic_gateway import model_picker
+
+    result = await model_picker()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-repairs'><h3><code class='inline'>repairs</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def repairs() -&gt; dict[str, object]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.kitty-chat.tests.support.hermetic_gateway import repairs
+
+    result = await repairs()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

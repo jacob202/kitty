@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_policy — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_policy</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_policy</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_policy.py</code> &middot; Python &middot; 4 functions &middot; 7 classes</p>
+<div class='card'><h2>Overview</h2><p>Content-lane execution policy for image generation (ADR 0040 decision #8).
+
+Every executable image declaration carries a content lane and, for private
+work, a consent basis. The lane is an authorization boundary, never a prompt
+guess: keyword matching in ``image_gen`` is workflow conditioning only and has
+zero routing authority.
+
+Lane contract (v1):
+- ``safe`` is the default. Work in this lane may run on hosted or private
+  executors; ``consent_basis`` may be null.
+- ``private_adult`` must be explicitly selected, never inferred from prompt
+  text. It requires a non-null ``consent_basis`` in {synthetic, self}, an
+  explicit ``adult_confirmed`` of true, and an execution target that is a
+  Kitty-controlled private executor. Any hosted, absent, or unknown target is
+  a fail-closed refusal — private work must never reach a hosted provider
+  through routing, fallback, retry, or substitution.
+
+Fail-closed: every mismatch raises a typed error; nothing silently coerces a
+request into a weaker lane. ``validate_image_execution_policy`` is the single
+canonical seam. The dispatch route, the runner (``image_runner.run`` /
+``run_edit``), and plan persistence all call it (or its persistence contract)
+so a direct runner invocation cannot bypass the guard.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>enum</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-executor_kind'><code class='inline'>executor_kind</code></a></td><td>Classify an execution target for policy purposes.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-normalize_lane'><code class='inline'>normalize_lane</code></a></td><td>Strict lane normalization, or None when the lane is unrecognized.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_adult_confirmed_true'><code class='inline'>_adult_confirmed_true</code></a></td><td>Strict truthiness for the adult gate.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-validate_image_execution_policy'><code class='inline'>validate_image_execution_policy</code></a></td><td>The single canonical content-lane gate. Raises a typed error or returns.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr></table></div>
+<div class='card' id='fn-executor_kind'><h3><code class='inline'>executor_kind</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def executor_kind(execution_target: str | None) -&gt; ExecutorKind</code></div><p>Classify an execution target for policy purposes.
+
+Only the explicit private executor set counts as private. Everything else —
+including local engines like comfyui/drawthings and unknown names — is not
+private and therefore fails closed for private_adult work.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_policy import executor_kind
+
+result = executor_kind(execution_target=&quot;execution_target_example&quot;)
+# result: ExecutorKind</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-normalize_lane'><h3><code class='inline'>normalize_lane</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def normalize_lane(content_lane: Any) -&gt; ContentLane | None</code></div><p>Strict lane normalization, or None when the lane is unrecognized.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_policy import normalize_lane
+
+result = normalize_lane(content_lane=...)
+# result: ContentLane | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_adult_confirmed_true'><h3><code class='inline'>_adult_confirmed_true</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _adult_confirmed_true(adult_confirmed: Any) -&gt; bool</code></div><p>Strict truthiness for the adult gate.
+
+Accpet only real booleans (or SQLite&#x27;s integer 0/1). A bare truthy string
+is rejected rather than coerced: the caller must pass an explicit boolean.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_policy import _adult_confirmed_true
+
+result = _adult_confirmed_true(adult_confirmed=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_image_execution_policy'><h3><code class='inline'>validate_image_execution_policy</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def validate_image_execution_policy(content_lane: Any, consent_basis: Any, adult_confirmed: Any, execution_target: str | None) -&gt; None</code></div><p>The single canonical content-lane gate. Raises a typed error or returns.
+
+*content_lane* missing/unknown is itself an error for private work but a
+missing lane defaults to ``safe`` when explicitly absent (``None``/empty) —
+pre-IL-02 callers and plans are safe until something says otherwise. An
+unrecognized non-empty lane is a hard policy error.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_policy import validate_image_execution_policy
+
+result = validate_image_execution_policy(content_lane=..., consent_basis=..., adult_confirmed=..., execution_target=&quot;execution_target_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ContentLane'><code class='inline'>ContentLane</code></a></td><td>(str, Enum)</td><td>0 methods</td></tr><tr><td><a href='#cls-ConsentBasis'><code class='inline'>ConsentBasis</code></a></td><td>(str, Enum)</td><td>0 methods</td></tr><tr><td><a href='#cls-ExecutorKind'><code class='inline'>ExecutorKind</code></a></td><td>(str, Enum)</td><td>0 methods</td></tr><tr><td><a href='#cls-ImagePolicyError'><code class='inline'>ImagePolicyError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ConsentRequiredError'><code class='inline'>ConsentRequiredError</code></a></td><td>(ImagePolicyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AdultConfirmationRequiredError'><code class='inline'>AdultConfirmationRequiredError</code></a></td><td>(ImagePolicyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-PrivateExecutionRequiredError'><code class='inline'>PrivateExecutionRequiredError</code></a></td><td>(ImagePolicyError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ContentLane'><h3><code class='inline'>ContentLane</code></h3><p>Authorized content lane of an image declaration.</p><p class='small'><b>Attributes:</b> SAFE, PRIVATE_ADULT</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_policy import ContentLane
+
+obj = ContentLane(...)</pre></div>
+<div class='card' id='cls-ConsentBasis'><h3><code class='inline'>ConsentBasis</code></h3><p>Why private-adult work is permitted at all.
+
+v1 admits no third-party likenesses: the subject is synthetic or the user
+themselves. Anything else is not a valid basis.</p><p class='small'><b>Attributes:</b> SYNTHETIC, SELF</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_policy import ConsentBasis
+
+obj = ConsentBasis(...)</pre></div>
+<div class='card' id='cls-ExecutorKind'><h3><code class='inline'>ExecutorKind</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> PRIVATE, HOSTED, UNKNOWN</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_policy import ExecutorKind
+
+obj = ExecutorKind(...)</pre></div>
+<div class='card' id='cls-ImagePolicyError'><h3><code class='inline'>ImagePolicyError</code></h3><p>Base for every fail-closed content-lane refusal.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_policy import ImagePolicyError
+
+obj = ImagePolicyError(...)</pre></div>
+<div class='card' id='cls-ConsentRequiredError'><h3><code class='inline'>ConsentRequiredError</code></h3><p>private_adult work was declared without a valid consent basis.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_policy import ConsentRequiredError
+
+obj = ConsentRequiredError(...)</pre></div>
+<div class='card' id='cls-AdultConfirmationRequiredError'><h3><code class='inline'>AdultConfirmationRequiredError</code></h3><p>private_adult work was declared without adult confirmation.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_policy import AdultConfirmationRequiredError
+
+obj = AdultConfirmationRequiredError(...)</pre></div>
+<div class='card' id='cls-PrivateExecutionRequiredError'><h3><code class='inline'>PrivateExecutionRequiredError</code></h3><p>private_adult work was routed to a target that is not a private executor.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_policy import PrivateExecutionRequiredError
+
+obj = PrivateExecutionRequiredError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>PRIVATE_EXECUTORS</code></td><td><code class='inline'>frozenset({&#x27;kitty_worker&#x27;})</code></td></tr><tr><td><code class='inline'>HOSTED_EXECUTORS</code></td><td><code class='inline'>frozenset({&#x27;flux&#x27;, &#x27;flux2&#x27;, &#x27;openrouter&#x27;, &#x27;openai&#x27;, &#x27;bfl&#x27;, &#x27;runware&#x27;, &#x27;google&#x27;, &#x27;fal&#x27;, &#x27;airforce&#x27;})</code></td></tr><tr><td><code class='inline'>_VALID_LANES</code></td><td><code class='inline'>frozenset((lane.value for lane in ContentLane))</code></td></tr><tr><td><code class='inline'>_VALID_CONSENT</code></td><td><code class='inline'>frozenset((basis.value for basis in ConsentBasis))</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.tools.generate_until — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.tools.generate_until</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.tools.generate_until</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/tools/generate_until.py</code> &middot; Python &middot; 1 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>``generate_until`` tool — criteria-verified generation loop.
+
+Wraps the verification loop in ``mcp/imagen/verify.py`` as an MCP tool so
+Claude sessions can run: generate → score → keep best → stop early.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>mcp.imagen.logger</code>, <code class='inline'>mcp.imagen.verify</code>, <code class='inline'>mcp.server.fastmcp</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-generate_until'><code class='inline'>generate_until</code></a></td><td>Generate an image, score it against criteria, and iterate until one passes.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-generate_until'><h3><code class='inline'>generate_until</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def generate_until(prompt: str, criteria_name: str = &#x27;default&#x27;, engine: str = &#x27;&#x27;, max_attempts: int = 8, keep: int = 3, private: bool = False, init_image: str | None = None) -&gt; list</code></div><p>Generate an image, score it against criteria, and iterate until one passes.
+
+Each attempt is scored on mechanical checks (resolution, blank detection),
+face-match against a reference set, and a vision-model rubric. When a
+candidate passes all hard criteria the loop stops early. The best ``keep``
+candidates across all attempts are returned.
+
+Every attempt is logged to ``~/Pictures/kitty-gen/runs/&lt;run-id&gt;/`` with
+scores and seeds so good results are reproducible.
+
+Args:
+    prompt: What to generate. Be specific about subject, setting, lighting.
+    criteria_name: Name of a criteria file in ``config/imagen/criteria/``.
+                   Defaults to &quot;default&quot; (soft rubric only).
+    engine: Generation engine. Default from settings (nano_banana).
+            Use &quot;drawthings&quot; for local generation.
+    max_attempts: Maximum generation rounds (1-20). Default 8.
+    keep: Number of best candidates to return (1-5). Default 3.
+    private: When True, refuses cloud engines (nano_banana, imagen4, dalle).
+             Use this for personal creative prompts — forces a local engine.
+
+Returns:
+    Images (inline) plus a summary of scores and paths.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.tools.generate_until import generate_until
+
+result = generate_until(prompt=&quot;prompt_example&quot;, criteria_name=&quot;criteria_name_example&quot;  # default: &#x27;default&#x27;, engine=&quot;engine_example&quot;  # default: &#x27;&#x27;, max_attempts=0  # default: 8, keep=0  # default: 3, private=True  # default: False, init_image=&quot;init_image_example&quot;  # default: None)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_tools_batch.py.html'><code class='inline'>mcp.imagen.tools.batch</code></a></li><li><a href='mcp_imagen_tools_gallery.py.html'><code class='inline'>mcp.imagen.tools.gallery</code></a></li><li><a href='mcp_imagen_tools_generate.py.html'><code class='inline'>mcp.imagen.tools.generate</code></a></li><li><a href='mcp_imagen_tools_reference.py.html'><code class='inline'>mcp.imagen.tools.reference</code></a></li><li><a href='mcp_imagen_tools_refine.py.html'><code class='inline'>mcp.imagen.tools.refine</code></a></li><li><a href='mcp_imagen_tools_variations.py.html'><code class='inline'>mcp.imagen.tools.variations</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

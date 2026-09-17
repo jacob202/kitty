@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.local_review — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.local_review</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.local_review</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/local_review.py</code> &middot; Python &middot; 22 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>fcntl</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>math</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>shutil</code>, <code class='inline'>socket</code>, <code class='inline'>subprocess</code>, <code class='inline'>tempfile</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>urllib.error</code>, <code class='inline'>urllib.request</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-detect_risk_tags'><code class='inline'>detect_risk_tags</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-model_family'><code class='inline'>model_family</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-build_requirement_prompt'><code class='inline'>build_requirement_prompt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-parse_requirement_answer'><code class='inline'>parse_requirement_answer</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_review_precheck'><code class='inline'>_review_precheck</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-review_decision'><code class='inline'>review_decision</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_runtime_inference_flags'><code class='inline'>_runtime_inference_flags</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_runtime_request_timeout'><code class='inline'>_runtime_request_timeout</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-build_llama_server_command'><code class='inline'>build_llama_server_command</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_request_json'><code class='inline'>_request_json</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_ollama_request_json'><code class='inline'>_ollama_request_json</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_embedding_model'><code class='inline'>_embedding_model</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_restore_keep_alive'><code class='inline'>_restore_keep_alive</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_free_port'><code class='inline'>_free_port</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-find_default_model_path'><code class='inline'>find_default_model_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_remaining_wall_seconds'><code class='inline'>_remaining_wall_seconds</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_model_sha256'><code class='inline'>_model_sha256</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_cpu_shadow_artifact_identity'><code class='inline'>_cpu_shadow_artifact_identity</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-reviewer_fingerprint'><code class='inline'>reviewer_fingerprint</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-run_local_review'><code class='inline'>run_local_review</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(28)</span></td></tr><tr><td><a href='#fn-_load_request'><code class='inline'>_load_request</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-detect_risk_tags'><h3><code class='inline'>detect_risk_tags</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def detect_risk_tags(requirements: Sequence[str]) -&gt; set[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import detect_risk_tags
+
+result = detect_risk_tags(requirements=&quot;requirements_example&quot;)
+# result: set[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-model_family'><h3><code class='inline'>model_family</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def model_family(model: str | None) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import model_family
+
+result = model_family(model=&quot;model_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_requirement_prompt'><h3><code class='inline'>build_requirement_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def build_requirement_prompt(requirement: str, candidate: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import build_requirement_prompt
+
+result = build_requirement_prompt(requirement=&quot;requirement_example&quot;, candidate=&quot;candidate_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-parse_requirement_answer'><h3><code class='inline'>parse_requirement_answer</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def parse_requirement_answer(text: str) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import parse_requirement_answer
+
+result = parse_requirement_answer(text=&quot;text_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_review_precheck'><h3><code class='inline'>_review_precheck</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _review_precheck(requirements: Sequence[str], explicit_risk_tags: Iterable[str], implementation_model: str | None, reviewer_model: str) -&gt; tuple[list[str], str | None]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _review_precheck
+
+result = _review_precheck(requirements=&quot;requirements_example&quot;, explicit_risk_tags=&quot;explicit_risk_tags_example&quot;, implementation_model=&quot;implementation_model_example&quot;, reviewer_model=&quot;reviewer_model_example&quot;)
+# result: tuple[list[str], str | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-review_decision'><h3><code class='inline'>review_decision</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def review_decision(requirements: Sequence[str], candidate: str, ask: Callable[[str, str], str], explicit_risk_tags: Iterable[str] = (), implementation_model: str | None = None, reviewer_model: str = DEFAULT_REVIEWER_MODEL, review_kind: str = &#x27;code&#x27;) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import review_decision
+
+result = review_decision(requirements=&quot;requirements_example&quot;, candidate=&quot;candidate_example&quot;, ask=&quot;ask_example&quot;, explicit_risk_tags=&quot;explicit_risk_tags_example&quot;  # default: (), implementation_model=&quot;implementation_model_example&quot;  # default: None, reviewer_model=&quot;reviewer_model_example&quot;  # default: DEFAULT_REVIEWER_MODEL, review_kind=&quot;review_kind_example&quot;  # default: &#x27;code&#x27;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_runtime_inference_flags'><h3><code class='inline'>_runtime_inference_flags</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _runtime_inference_flags(runtime_profile: str) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _runtime_inference_flags
+
+result = _runtime_inference_flags(runtime_profile=&quot;runtime_profile_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_runtime_request_timeout'><h3><code class='inline'>_runtime_request_timeout</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _runtime_request_timeout(runtime_profile: str) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _runtime_request_timeout
+
+result = _runtime_request_timeout(runtime_profile=&quot;runtime_profile_example&quot;)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_llama_server_command'><h3><code class='inline'>build_llama_server_command</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def build_llama_server_command(model_path: Path, port: int, runtime_profile: str = DEFAULT_RUNTIME_PROFILE, executable_path: Path | None = None) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import build_llama_server_command
+
+result = build_llama_server_command(model_path=&quot;model_path_example&quot;, port=0, runtime_profile=&quot;runtime_profile_example&quot;  # default: DEFAULT_RUNTIME_PROFILE, executable_path=&quot;executable_path_example&quot;  # default: None)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_request_json'><h3><code class='inline'>_request_json</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _request_json(method: str, url: str, payload: object = None, timeout: float = 5.0) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _request_json
+
+result = _request_json(method=&quot;method_example&quot;, url=&quot;url_example&quot;, payload=...  # default: None, timeout=0.0  # default: 5.0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ollama_request_json'><h3><code class='inline'>_ollama_request_json</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _ollama_request_json(method: str, url: str, payload: object = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _ollama_request_json
+
+result = _ollama_request_json(method=&quot;method_example&quot;, url=&quot;url_example&quot;, payload=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_embedding_model'><h3><code class='inline'>_embedding_model</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _embedding_model(name: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _embedding_model
+
+result = _embedding_model(name=&quot;name_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_restore_keep_alive'><h3><code class='inline'>_restore_keep_alive</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _restore_keep_alive(expires_at: str | None) -&gt; int | str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _restore_keep_alive
+
+result = _restore_keep_alive(expires_at=&quot;expires_at_example&quot;)
+# result: int | str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_free_port'><h3><code class='inline'>_free_port</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _free_port() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _free_port
+
+result = _free_port()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-find_default_model_path'><h3><code class='inline'>find_default_model_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def find_default_model_path() -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import find_default_model_path
+
+result = find_default_model_path()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_remaining_wall_seconds'><h3><code class='inline'>_remaining_wall_seconds</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _remaining_wall_seconds(deadline_monotonic: float | None) -&gt; float | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _remaining_wall_seconds
+
+result = _remaining_wall_seconds(deadline_monotonic=0.0)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_model_sha256'><h3><code class='inline'>_model_sha256</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _model_sha256(path: Path, deadline_monotonic: float | None = None) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _model_sha256
+
+result = _model_sha256(path=&quot;path_example&quot;, deadline_monotonic=0.0  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cpu_shadow_artifact_identity'><h3><code class='inline'>_cpu_shadow_artifact_identity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _cpu_shadow_artifact_identity(model_path: Path, deadline_monotonic: float | None) -&gt; dict[str, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _cpu_shadow_artifact_identity
+
+result = _cpu_shadow_artifact_identity(model_path=&quot;model_path_example&quot;, deadline_monotonic=0.0)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reviewer_fingerprint'><h3><code class='inline'>reviewer_fingerprint</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def reviewer_fingerprint(model_path: Path, model_id: str, runtime_profile: str = DEFAULT_RUNTIME_PROFILE, request_timeout: float | None = None, model_sha256: str | None = None, runtime_identity: dict[str, str] | None = None) -&gt; dict[str, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import reviewer_fingerprint
+
+result = reviewer_fingerprint(model_path=&quot;model_path_example&quot;, model_id=&quot;model_id_example&quot;, runtime_profile=&quot;runtime_profile_example&quot;  # default: DEFAULT_RUNTIME_PROFILE, request_timeout=0.0  # default: None, model_sha256=&quot;model_sha256_example&quot;  # default: None, runtime_identity=&quot;runtime_identity_example&quot;  # default: None)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_local_review'><h3><code class='inline'>run_local_review</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (28)</span></h3><div class='sig'><code>def run_local_review(request: dict[str, Any], model_path: Path | None = None, use_focus: bool = True, ollama_urls: Sequence[str] = DEFAULT_OLLAMA_URLS, managed_ollama_models: Iterable[str] = (), focus_lock_path: Path = DEFAULT_FOCUS_LOCK, runtime_profile: str = DEFAULT_RUNTIME_PROFILE, max_wall_seconds: float | None = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import run_local_review
+
+result = run_local_review(request=&quot;request_example&quot;, model_path=&quot;model_path_example&quot;  # default: None, use_focus=True  # default: True, ollama_urls=&quot;ollama_urls_example&quot;  # default: DEFAULT_OLLAMA_URLS, managed_ollama_models=&quot;managed_ollama_models_example&quot;  # default: (), focus_lock_path=&quot;focus_lock_path_example&quot;  # default: DEFAULT_FOCUS_LOCK, runtime_profile=&quot;runtime_profile_example&quot;  # default: DEFAULT_RUNTIME_PROFILE, max_wall_seconds=0.0  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_request'><h3><code class='inline'>_load_request</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_request(path: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import _load_request
+
+result = _load_request(path=&quot;path_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def main(argv: Sequence[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.local_review import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-OllamaResidency'><code class='inline'>OllamaResidency</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-ReviewExecutionLock'><code class='inline'>ReviewExecutionLock</code></a></td><td></td><td>3 methods</td></tr><tr><td><a href='#cls-ReviewFocus'><code class='inline'>ReviewFocus</code></a></td><td></td><td>8 methods</td></tr><tr><td><a href='#cls-LocalLlamaServer'><code class='inline'>LocalLlamaServer</code></a></td><td></td><td>10 methods</td></tr></table></div>
+<div class='card' id='cls-OllamaResidency'><h3><code class='inline'>OllamaResidency</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> base_url: str, model: str, keep_alive: int | str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.local_review import OllamaResidency
+
+obj = OllamaResidency(...)</pre></div>
+<div class='card' id='cls-ReviewExecutionLock'><h3><code class='inline'>ReviewExecutionLock</code></h3><p>Exclusive ownership of the local reviewer runtime, independent of focus mode.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, lock_path: Path = DEFAULT_FOCUS_LOCK) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__enter__</code></td><td><code class='inline'>def __enter__(self) -&gt; &#x27;ReviewExecutionLock&#x27;</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__exit__</code></td><td><code class='inline'>def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -&gt; Literal[False]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+l
+o
+c
+a
+l
+_
+r
+e
+v
+i
+e
+w
+ 
+i
+m
+p
+o
+r
+t
+ 
+R
+e
+v
+i
+e
+w
+E
+x
+e
+c
+u
+t
+i
+o
+n
+L
+o
+c
+k
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+R
+e
+v
+i
+e
+w
+E
+x
+e
+c
+u
+t
+i
+o
+n
+L
+o
+c
+k
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-ReviewFocus'><h3><code class='inline'>ReviewFocus</code></h3><p>Undocumented class.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, ollama_urls: Sequence[str] = DEFAULT_OLLAMA_URLS, request_json: Callable[[str, str, object], dict[str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>unloaded_history</code></td><td><code class='inline'>def unloaded_history(self) -&gt; list[OllamaResidency]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>pending_restore</code></td><td><code class='inline'>def pending_restore(self) -&gt; list[OllamaResidency]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_acquire_lock</code></td><td><code class='inline'>def _acquire_lock(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_release_lock</code></td><td><code class='inline'>def _release_lock(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_restore_unloaded</code></td><td><code class='inline'>def _restore_unloaded(self) -&gt; list[str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__enter__</code></td><td><code class='inline'>def __enter__(self) -&gt; &#x27;ReviewFocus&#x27;</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>__exit__</code></td><td><code class='inline'>def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -&gt; Literal[False]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+l
+o
+c
+a
+l
+_
+r
+e
+v
+i
+e
+w
+ 
+i
+m
+p
+o
+r
+t
+ 
+R
+e
+v
+i
+e
+w
+F
+o
+c
+u
+s
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+R
+e
+v
+i
+e
+w
+F
+o
+c
+u
+s
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-LocalLlamaServer'><h3><code class='inline'>LocalLlamaServer</code></h3><p>Undocumented class.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, model_path: Path, port: int | None = None, startup_timeout: float = 180.0, request_timeout: float | N</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_bounded_timeout</code></td><td><code class='inline'>def _bounded_timeout(self, cap: float) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>base_url</code></td><td><code class='inline'>def base_url(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__enter__</code></td><td><code class='inline'>def __enter__(self) -&gt; &#x27;LocalLlamaServer&#x27;</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>ask</code></td><td><code class='inline'>def ask(self, requirement: str, candidate: str) -&gt; str</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>fingerprint</code></td><td><code class='inline'>def fingerprint(self) -&gt; dict[str, str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_log_tail</code></td><td><code class='inline'>def _log_tail(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_stop</code></td><td><code class='inline'>def _stop(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_discard_log</code></td><td><code class='inline'>def _discard_log(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__exit__</code></td><td><code class='inline'>def __exit__(self, exc_type: object, exc: BaseException | None, tb: object) -&gt; Literal[False]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+l
+o
+c
+a
+l
+_
+r
+e
+v
+i
+e
+w
+ 
+i
+m
+p
+o
+r
+t
+ 
+L
+o
+c
+a
+l
+L
+l
+a
+m
+a
+S
+e
+r
+v
+e
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+L
+o
+c
+a
+l
+L
+l
+a
+m
+a
+S
+e
+r
+v
+e
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DEFAULT_REVIEWER_MODEL</code></td><td><code class='inline'>&#x27;Qwen3.5-9B-Q3_K_M&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_OLLAMA_URLS</code></td><td><code class='inline'>(&#x27;http://127.0.0.1:11434&#x27;, &#x27;http://127.0.0.1:11435&#x27;)</code></td></tr><tr><td><code class='inline'>METAL_RUNTIME_PROFILE</code></td><td><code class='inline'>&#x27;metal_calibrated_v1&#x27;</code></td></tr><tr><td><code class='inline'>CPU_SHADOW_RUNTIME_PROFILE</code></td><td><code class='inline'>&#x27;cpu_shadow_v1&#x27;</code></td></tr><tr><td><code class='inline'>CPU_SHADOW_MODEL_SHA256</code></td><td><code class='inline'>&#x27;8fed90306e4f019e2bf35f3766470b7bc59ea1a9dae00f5ceb20b43cb5514393&#x27;</code></td></tr><tr><td><code class='inline'>CPU_SHADOW_LLAMA_SERVER_SHA256</code></td><td><code class='inline'>&#x27;8939a1cf8a4e9a5cc18d6cd4d2d55440b48f8a44db00abe459a28d837ea051f7&#x27;</code></td></tr><tr><td><code class='inline'>CPU_SHADOW_LLAMA_SERVER_VERSION</code></td><td><code class='inline'>&#x27;version: 0.4.0 (build 10809, commit 5266f24da)&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_RUNTIME_PROFILE</code></td><td><code class='inline'>METAL_RUNTIME_PROFILE</code></td></tr><tr><td><code class='inline'>_RUNTIME_PROFILE_GPU_LAYERS</code></td><td><code class='inline'>{METAL_RUNTIME_PROFILE: 999, CPU_SHADOW_RUNTIME_PROFILE: 0}</code></td></tr><tr><td><code class='inline'>_RUNTIME_PROFILE_REQUEST_TIMEOUT_S</code></td><td><code class='inline'>{METAL_RUNTIME_PROFILE: 45.0, CPU_SHADOW_RUNTIME_PROFILE: 120.0}</code></td></tr><tr><td><code class='inline'>VALID_ANSWERS</code></td><td><code class='inline'>{&#x27;YES&#x27;, &#x27;NO&#x27;, &#x27;UNSURE&#x27;}</code></td></tr><tr><td><code class='inline'>MAX_PROMPT_TOKENS</code></td><td><code class='inline'>1900</code></td></tr><tr><td><code class='inline'>DEFAULT_FOCUS_LOCK</code></td><td><code class='inline'>Path(tempfile.gettempdir()) / &#x27;kitty-local-review-focus.lock&#x27;</code></td></tr><tr><td><code class='inline'>RISK_PATTERNS</code></td><td><code class='inline'>dict[str, re.Pattern[str]]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_runner — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_runner</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_runner</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_runner.py</code> &middot; Python &middot; 40 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Image generation runner — deep module owning job lifecycle and engine dispatch.
+
+Routes become thin handlers: request model → run() → status-code mapping.
+The runner owns job creation, engine dispatch, lifecycle transitions, artifact
+persistence, error normalization, and character-contract resolution.
+
+Invariant: if run() returns or raises, the job is terminal or explicitly quarantined UNKNOWN.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>PIL</code>, <code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>base64</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.image_character_contracts</code>, <code class='inline'>gateway.image_gen</code>, <code class='inline'>gateway.image_jobs</code>, <code class='inline'>gateway.image_policy</code>, <code class='inline'>gateway.image_sessions</code>, <code class='inline'>gateway.runpod_worker</code>, <code class='inline'>hashlib</code>, <code class='inline'>httpx</code>, <code class='inline'>io</code>, <code class='inline'>json</code>, <code class='inline'>math</code>, <code class='inline'>mcp.imagen.engines</code>, <code class='inline'>mcp.imagen.io</code>, <code class='inline'>openai</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>tempfile</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-fal_pulid_contract_cost_usd_for_dimensions'><code class='inline'>fal_pulid_contract_cost_usd_for_dimensions</code></a></td><td>Return fal PuLID&#x27;s contractual output charge for exact image dimensions.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_fal_pulid_contract_cost_and_dimensions'><code class='inline'>_fal_pulid_contract_cost_and_dimensions</code></a></td><td>Decode provider bytes and return billed amount plus auditable dimensions.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-run'><code class='inline'>run</code></a></td><td>Generate an image through the specified engine.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-run_edit'><code class='inline'>run_edit</code></a></td><td>Edit the anchor job&#x27;s artifact, rather than rerolling from its prompt.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-read_anchor_artifact'><code class='inline'>read_anchor_artifact</code></a></td><td>Public wrapper for transport wiring: bytes + filename of a succeeded</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_read_anchor_artifact'><code class='inline'>_read_anchor_artifact</code></a></td><td>Load the bytes a follow-up edit is supposed to build on.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_persist_artifact'><code class='inline'>_persist_artifact</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_run_registry_hosted'><code class='inline'>_run_registry_hosted</code></a></td><td>Dispatch an existing MCP hosted engine through Kitty&#x27;s durable job spine.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-_run_drawthings'><code class='inline'>_run_drawthings</code></a></td><td>Draw Things engine path — dispatches via mcp.imagen engine registry.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_run_comfyui'><code class='inline'>_run_comfyui</code></a></td><td>Standard ComfyUI generation path (no character).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_run_comfyui_character'><code class='inline'>_run_comfyui_character</code></a></td><td>Generate through the exact stored character contract.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_mark_failed'><code class='inline'>_mark_failed</code></a></td><td>Record a known failure without collapsing an unresolved provider outcome.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_mark_unknown'><code class='inline'>_mark_unknown</code></a></td><td>Preserve an ambiguous post-submission outcome for later reconciliation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_persist_bfl_receipt'><code class='inline'>_persist_bfl_receipt</code></a></td><td>Persist the provider request identity and poll locator before waiting.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_attach_job_to_session_before_dispatch'><code class='inline'>_attach_job_to_session_before_dispatch</code></a></td><td>Persist Studio ownership before any provider call can become billable.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-recover_bfl_job'><code class='inline'>recover_bfl_job</code></a></td><td>Recover one UNKNOWN BFL job from its durable receipt without resubmitting.</td><td><span class='pill'>complex</span><span class='muted small'>(29)</span></td></tr><tr><td><a href='#fn-recover_unknown_bfl_jobs'><code class='inline'>recover_unknown_bfl_jobs</code></a></td><td>Best-effort recovery pass for unresolved BFL jobs; never submits new work.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-estimated_cost_usd'><code class='inline'>estimated_cost_usd</code></a></td><td>Return the conservative per-render cost used for pre-dispatch budgeting.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-paid_engine_available'><code class='inline'>paid_engine_available</code></a></td><td>Preflight a hosted lane before consuming any session budget.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-paid_images_enabled'><code class='inline'>paid_images_enabled</code></a></td><td>Off unless Jacob turns it on.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_hosted_engine_enabled'><code class='inline'>_hosted_engine_enabled</code></a></td><td>Provider-specific opt-in, falling back to the legacy global paid switch.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-hosted_image_configured'><code class='inline'>hosted_image_configured</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_hosted_health_ttl_seconds'><code class='inline'>_hosted_health_ttl_seconds</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_cached_hosted_health'><code class='inline'>_cached_hosted_health</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_probe_airforce_image_health'><code class='inline'>_probe_airforce_image_health</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(23)</span></td></tr><tr><td><a href='#fn-airforce_images_available'><code class='inline'>airforce_images_available</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_probe_fal_image_health'><code class='inline'>_probe_fal_image_health</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-fal_images_available'><code class='inline'>fal_images_available</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-openai_images_available'><code class='inline'>openai_images_available</code></a></td><td>Whether the direct GPT-Image-2 lane is explicitly enabled and configured.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_openai_image_client'><code class='inline'>_openai_image_client</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_openai_image_actual_cost_usd'><code class='inline'>_openai_image_actual_cost_usd</code></a></td><td>Price provider-reported GPT-Image-2 token usage using configurable rates.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_openai_quality'><code class='inline'>_openai_quality</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_openai_image_upload'><code class='inline'>_openai_image_upload</code></a></td><td>Build an OpenAI upload tuple from actual image bytes, never a guessed MIME.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_run_openai'><code class='inline'>_run_openai</code></a></td><td>Direct OpenAI Images lane using GPT-Image-2 for generation and edits.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr><tr><td><a href='#fn-openrouter_images_available'><code class='inline'>openrouter_images_available</code></a></td><td>Whether the hosted lane will run, and why not when it will not.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_run_openrouter'><code class='inline'>_run_openrouter</code></a></td><td>Hosted lane. Same job lifecycle as the local engines — one queue, one</td><td><span class='pill'>complex</span><span class='muted small'>(17)</span></td></tr><tr><td><a href='#fn-flux_images_available'><code class='inline'>flux_images_available</code></a></td><td>Whether the Flux lane will run, and why not when it will not.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-flux2_images_available'><code class='inline'>flux2_images_available</code></a></td><td>Whether the hosted FLUX.2 (BFL Direct) lane will run, and why not.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_run_flux'><code class='inline'>_run_flux</code></a></td><td>Black Forest Labs lane, on the shared job lifecycle.</td><td><span class='pill'>complex</span><span class='muted small'>(22)</span></td></tr><tr><td><a href='#fn-_run_flux2'><code class='inline'>_run_flux2</code></a></td><td>Hosted FLUX.2 (BFL Direct) lane on the shared job lifecycle.</td><td><span class='pill'>complex</span><span class='muted small'>(23)</span></td></tr></table></div>
+<div class='card' id='fn-fal_pulid_contract_cost_usd_for_dimensions'><h3><code class='inline'>fal_pulid_contract_cost_usd_for_dimensions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def fal_pulid_contract_cost_usd_for_dimensions(width: int, height: int) -&gt; float</code></div><p>Return fal PuLID&#x27;s contractual output charge for exact image dimensions.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import fal_pulid_contract_cost_usd_for_dimensions
+
+result = fal_pulid_contract_cost_usd_for_dimensions(width=0, height=0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fal_pulid_contract_cost_and_dimensions'><h3><code class='inline'>_fal_pulid_contract_cost_and_dimensions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _fal_pulid_contract_cost_and_dimensions(image_data: bytes) -&gt; tuple[float, int, int]</code></div><p>Decode provider bytes and return billed amount plus auditable dimensions.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _fal_pulid_contract_cost_and_dimensions
+
+result = _fal_pulid_contract_cost_and_dimensions(image_data=...)
+# result: tuple[float, int, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run'><h3><code class='inline'>run</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>async def run(engine: str, prompt: str, recipe: Any | None = None, character_id: str | None = None, character_ref_path: str | None = None, negative_prompt: str | None = None, parent_id: str | None = None, guidance_tags: list[str] | None = None, source_image: bytes | None = None, quality_tier: str | None = None, content_lane: str = &#x27;safe&#x27;, consent_basis: str | None = None, adult_confirmed: bool = False, flux2_target: Any | None = None, compiled_request: Any | None = None, reference_bytes: tuple[bytes, ...] = (), project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None, session_id: str | None = None, reserved_cost_usd: float | None = None) -&gt; JobResult</code></div><p>Generate an image through the specified engine.
+
+A character ID is not merely a request to pick the first stored photo. It
+requires a valid character contract whose identity method, reference set,
+weights, prompt fragments, and recipe can all be honored by the engine.
+
+*content_lane*/*consent_basis*/*adult_confirmed* carry the approved plan&#x27;s
+execution policy (ADR 0040 #8). They default to the safe lane, and are
+validated against *engine* through the canonical policy seam before any
+network or renderer call — so even a direct runner invocation cannot route
+private work to a hosted provider.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import run
+
+    result = await run()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_edit'><h3><code class='inline'>run_edit</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>async def run_edit(prompt: str, anchor_job_id: str, worker: Any | None = None, denoise: float = DEFAULT_EDIT_DENOISE, recipe: Any | None = None, negative_prompt: str | None = None, checkpoint: str | None = None, seed: int | None = None, content_lane: str = &#x27;safe&#x27;, consent_basis: str | None = None, adult_confirmed: bool = False, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None) -&gt; JobResult</code></div><p>Edit the anchor job&#x27;s artifact, rather than rerolling from its prompt.
+
+The edit lane is the only Kitty-controlled private executor in v1, and the
+content-lane policy is validated before any worker configuration or network
+call: a private plan may only land here, and a direct invocation of this
+function cannot be coerced into a hosted fallback.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import run_edit
+
+    result = await run_edit()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-read_anchor_artifact'><h3><code class='inline'>read_anchor_artifact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def read_anchor_artifact(anchor_job_id: str) -&gt; tuple[bytes, str]</code></div><p>Public wrapper for transport wiring: bytes + filename of a succeeded
+anchor job artifact, for hosted reference conditioned rendering.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import read_anchor_artifact
+
+result = read_anchor_artifact(anchor_job_id=&quot;anchor_job_id_example&quot;)
+# result: tuple[bytes, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_anchor_artifact'><h3><code class='inline'>_read_anchor_artifact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _read_anchor_artifact(anchor_job_id: str) -&gt; tuple[bytes, str]</code></div><p>Load the bytes a follow-up edit is supposed to build on.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _read_anchor_artifact
+
+result = _read_anchor_artifact(anchor_job_id=&quot;anchor_job_id_example&quot;)
+# result: tuple[bytes, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_persist_artifact'><h3><code class='inline'>_persist_artifact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _persist_artifact(job_id: str, filename: str, data: bytes) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _persist_artifact
+
+result = _persist_artifact(job_id=&quot;job_id_example&quot;, filename=&quot;filename_example&quot;, data=...)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_registry_hosted'><h3><code class='inline'>_run_registry_hosted</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>async def _run_registry_hosted(engine_name: str, prompt: str, recipe: Any | None = None, character_id: str | None = None, character_ref_path: str | None = None, negative_prompt: str | None = None, parent_id: str | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None) -&gt; JobResult</code></div><p>Dispatch an existing MCP hosted engine through Kitty&#x27;s durable job spine.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import _run_registry_hosted
+
+    result = await _run_registry_hosted()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_drawthings'><h3><code class='inline'>_run_drawthings</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>async def _run_drawthings(prompt: str, recipe: Any | None = None, parent_id: str | None = None, source_image: bytes | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None) -&gt; JobResult</code></div><p>Draw Things engine path — dispatches via mcp.imagen engine registry.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import _run_drawthings
+
+    result = await _run_drawthings()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_comfyui'><h3><code class='inline'>_run_comfyui</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _run_comfyui(prompt: str, recipe: Any | None = None, parent_id: str | None = None, guidance_tags: list[str] | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None) -&gt; JobResult</code></div><p>Standard ComfyUI generation path (no character).</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import _run_comfyui
+
+    result = await _run_comfyui()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_comfyui_character'><h3><code class='inline'>_run_comfyui_character</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>async def _run_comfyui_character(prompt: str, character_id: str, recipe: Any | None = None, negative_prompt: str | None = None, guidance_tags: list[str] | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None) -&gt; JobResult</code></div><p>Generate through the exact stored character contract.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import _run_comfyui_character
+
+    result = await _run_comfyui_character()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_failed'><h3><code class='inline'>_mark_failed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _mark_failed(job_id: str, message: str) -&gt; None</code></div><p>Record a known failure without collapsing an unresolved provider outcome.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _mark_failed
+
+result = _mark_failed(job_id=&quot;job_id_example&quot;, message=&quot;message_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_unknown'><h3><code class='inline'>_mark_unknown</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _mark_unknown(job_id: str, message: str) -&gt; None</code></div><p>Preserve an ambiguous post-submission outcome for later reconciliation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _mark_unknown
+
+result = _mark_unknown(job_id=&quot;job_id_example&quot;, message=&quot;message_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_persist_bfl_receipt'><h3><code class='inline'>_persist_bfl_receipt</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _persist_bfl_receipt(job_id: str, submit_payload: dict[str, Any], project_id: int | None, session_id: str | None = None, reserved_cost_usd: float | None = None) -&gt; str</code></div><p>Persist the provider request identity and poll locator before waiting.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _persist_bfl_receipt
+
+result = _persist_bfl_receipt(job_id=&quot;job_id_example&quot;, submit_payload=&quot;submit_payload_example&quot;, project_id=0, session_id=&quot;session_id_example&quot;  # default: None, reserved_cost_usd=0.0  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_attach_job_to_session_before_dispatch'><h3><code class='inline'>_attach_job_to_session_before_dispatch</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _attach_job_to_session_before_dispatch(job_id: str, session_id: str | None) -&gt; None</code></div><p>Persist Studio ownership before any provider call can become billable.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _attach_job_to_session_before_dispatch
+
+result = _attach_job_to_session_before_dispatch(job_id=&quot;job_id_example&quot;, session_id=&quot;session_id_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-recover_bfl_job'><h3><code class='inline'>recover_bfl_job</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (29)</span></h3><div class='sig'><code>async def recover_bfl_job(job_id: str) -&gt; JobResult</code></div><p>Recover one UNKNOWN BFL job from its durable receipt without resubmitting.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import recover_bfl_job
+
+    result = await recover_bfl_job()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-recover_unknown_bfl_jobs'><h3><code class='inline'>recover_unknown_bfl_jobs</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def recover_unknown_bfl_jobs(limit: int = 50) -&gt; int</code></div><p>Best-effort recovery pass for unresolved BFL jobs; never submits new work.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import recover_unknown_bfl_jobs
+
+    result = await recover_unknown_bfl_jobs()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-estimated_cost_usd'><h3><code class='inline'>estimated_cost_usd</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def estimated_cost_usd(engine: str) -&gt; float</code></div><p>Return the conservative per-render cost used for pre-dispatch budgeting.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import estimated_cost_usd
+
+result = estimated_cost_usd(engine=&quot;engine_example&quot;)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-paid_engine_available'><h3><code class='inline'>paid_engine_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def paid_engine_available(engine: str) -&gt; tuple[bool, str]</code></div><p>Preflight a hosted lane before consuming any session budget.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import paid_engine_available
+
+result = paid_engine_available(engine=&quot;engine_example&quot;)
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-paid_images_enabled'><h3><code class='inline'>paid_images_enabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def paid_images_enabled() -&gt; bool</code></div><p>Off unless Jacob turns it on.
+
+Measured 2026-08-02: ~$0.067 per image on gemini-3.1-flash-image. Cheap next
+to a rented GPU box, not free, and fal was retired over exactly this — so
+nothing here spends until the switch is thrown. Read per call rather than at
+import so the answer follows the environment.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import paid_images_enabled
+
+result = paid_images_enabled()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_hosted_engine_enabled'><h3><code class='inline'>_hosted_engine_enabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _hosted_engine_enabled(provider: str) -&gt; bool</code></div><p>Provider-specific opt-in, falling back to the legacy global paid switch.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _hosted_engine_enabled
+
+result = _hosted_engine_enabled(provider=&quot;provider_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-hosted_image_configured'><h3><code class='inline'>hosted_image_configured</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def hosted_image_configured(provider: str) -&gt; tuple[bool, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import hosted_image_configured
+
+result = hosted_image_configured(provider=&quot;provider_example&quot;)
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_hosted_health_ttl_seconds'><h3><code class='inline'>_hosted_health_ttl_seconds</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _hosted_health_ttl_seconds() -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _hosted_health_ttl_seconds
+
+result = _hosted_health_ttl_seconds()
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cached_hosted_health'><h3><code class='inline'>_cached_hosted_health</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _cached_hosted_health(provider: str, model: str, api_key: str, probe) -&gt; tuple[bool, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _cached_hosted_health
+
+result = _cached_hosted_health(provider=&quot;provider_example&quot;, model=&quot;model_example&quot;, api_key=&quot;api_key_example&quot;, probe=...)
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_probe_airforce_image_health'><h3><code class='inline'>_probe_airforce_image_health</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (23)</span></h3><div class='sig'><code>def _probe_airforce_image_health(api_key: str, model: str) -&gt; tuple[bool, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _probe_airforce_image_health
+
+result = _probe_airforce_image_health(api_key=&quot;api_key_example&quot;, model=&quot;model_example&quot;)
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-airforce_images_available'><h3><code class='inline'>airforce_images_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def airforce_images_available() -&gt; tuple[bool, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import airforce_images_available
+
+result = airforce_images_available()
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_probe_fal_image_health'><h3><code class='inline'>_probe_fal_image_health</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def _probe_fal_image_health(api_key: str, model: str) -&gt; tuple[bool, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _probe_fal_image_health
+
+result = _probe_fal_image_health(api_key=&quot;api_key_example&quot;, model=&quot;model_example&quot;)
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-fal_images_available'><h3><code class='inline'>fal_images_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def fal_images_available() -&gt; tuple[bool, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import fal_images_available
+
+result = fal_images_available()
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-openai_images_available'><h3><code class='inline'>openai_images_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def openai_images_available() -&gt; tuple[bool, str]</code></div><p>Whether the direct GPT-Image-2 lane is explicitly enabled and configured.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import openai_images_available
+
+result = openai_images_available()
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_openai_image_client'><h3><code class='inline'>_openai_image_client</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _openai_image_client()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _openai_image_client
+
+result = _openai_image_client()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_openai_image_actual_cost_usd'><h3><code class='inline'>_openai_image_actual_cost_usd</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _openai_image_actual_cost_usd(usage: Any | None) -&gt; float | None</code></div><p>Price provider-reported GPT-Image-2 token usage using configurable rates.
+
+Defaults reflect the public GPT-Image-2 rates current on 2026-08-31.
+Environment overrides keep cost truth adjustable without a code deploy.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _openai_image_actual_cost_usd
+
+result = _openai_image_actual_cost_usd(usage=...)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_openai_quality'><h3><code class='inline'>_openai_quality</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _openai_quality(quality_tier: str | None, recipe: Any | None) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _openai_quality
+
+result = _openai_quality(quality_tier=&quot;quality_tier_example&quot;, recipe=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_openai_image_upload'><h3><code class='inline'>_openai_image_upload</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _openai_image_upload(data: bytes, name_hint: str) -&gt; tuple[str, bytes, str]</code></div><p>Build an OpenAI upload tuple from actual image bytes, never a guessed MIME.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import _openai_image_upload
+
+result = _openai_image_upload(data=..., name_hint=&quot;name_hint_example&quot;)
+# result: tuple[str, bytes, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_openai'><h3><code class='inline'>_run_openai</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>async def _run_openai(prompt: str, recipe: Any | None = None, parent_id: str | None = None, source_image: bytes | None = None, character_ref_path: str | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None, session_id: str | None = None, quality_tier: str | None = None) -&gt; JobResult</code></div><p>Direct OpenAI Images lane using GPT-Image-2 for generation and edits.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import _run_openai
+
+    result = await _run_openai()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-openrouter_images_available'><h3><code class='inline'>openrouter_images_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def openrouter_images_available() -&gt; tuple[bool, str]</code></div><p>Whether the hosted lane will run, and why not when it will not.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import openrouter_images_available
+
+result = openrouter_images_available()
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_openrouter'><h3><code class='inline'>_run_openrouter</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (17)</span></h3><div class='sig'><code>async def _run_openrouter(prompt: str, recipe: Any | None = None, parent_id: str | None = None, source_image: bytes | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None) -&gt; JobResult</code></div><p>Hosted lane. Same job lifecycle as the local engines — one queue, one
+history, one gallery, per the image-studio architecture.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import _run_openrouter
+
+    result = await _run_openrouter()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-flux_images_available'><h3><code class='inline'>flux_images_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def flux_images_available() -&gt; tuple[bool, str]</code></div><p>Whether the Flux lane will run, and why not when it will not.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import flux_images_available
+
+result = flux_images_available()
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-flux2_images_available'><h3><code class='inline'>flux2_images_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def flux2_images_available() -&gt; tuple[bool, str]</code></div><p>Whether the hosted FLUX.2 (BFL Direct) lane will run, and why not.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_runner import flux2_images_available
+
+result = flux2_images_available()
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_flux'><h3><code class='inline'>_run_flux</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (22)</span></h3><div class='sig'><code>async def _run_flux(prompt: str, recipe: Any | None = None, parent_id: str | None = None, source_image: bytes | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None, session_id: str | None = None, reserved_cost_usd: float | None = None) -&gt; JobResult</code></div><p>Black Forest Labs lane, on the shared job lifecycle.
+
+BFL is submit-then-poll rather than a single call, and a moderated request
+comes back as a status rather than an error — both are surfaced verbatim so
+a refusal never reads as a crash.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import _run_flux
+
+    result = await _run_flux()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_flux2'><h3><code class='inline'>_run_flux2</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (23)</span></h3><div class='sig'><code>async def _run_flux2(prompt: str, recipe: Any | None = None, parent_id: str | None = None, target: Any | None = None, compiled: Any | None = None, reference_bytes: tuple[bytes, ...] = (), negative_prompt: str | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None, session_id: str | None = None, reserved_cost_usd: float | None = None) -&gt; JobResult</code></div><p>Hosted FLUX.2 (BFL Direct) lane on the shared job lifecycle.
+
+This replaced the FLUX.1-era assumptions of ``_run_flux`` for the modern
+FLUX.2 family: a single semantic compiler output (``compiled``) targeted at
+exactly one Flux2HostedTarget drives the exact model endpoint, the estimate
+contract, and the reference serialization. IL-02 policy is enforced at the
+``run()`` boundary before this lane is reachable, so private_adult work can
+never reach BFL Direct — even in a retry or reroute — and this lane never
+silently falls back to another hosted engine.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_runner import _run_flux2
+
+    result = await _run_flux2()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ImageRunnerError'><code class='inline'>ImageRunnerError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ImageDispatchNotSubmittedError'><code class='inline'>ImageDispatchNotSubmittedError</code></a></td><td>(ImageRunnerError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ImageProviderOutcomeUnknownError'><code class='inline'>ImageProviderOutcomeUnknownError</code></a></td><td>(ImageRunnerError)</td><td>0 methods</td></tr><tr><td><a href='#cls-JobResult'><code class='inline'>JobResult</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ImageRunnerError'><h3><code class='inline'>ImageRunnerError</code></h3><p>Raised when the image runner cannot complete a generation request.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_runner import ImageRunnerError
+
+obj = ImageRunnerError(...)</pre></div>
+<div class='card' id='cls-ImageDispatchNotSubmittedError'><h3><code class='inline'>ImageDispatchNotSubmittedError</code></h3><p>Raised only when Kitty can prove no provider submission occurred.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_runner import ImageDispatchNotSubmittedError
+
+obj = ImageDispatchNotSubmittedError(...)</pre></div>
+<div class='card' id='cls-ImageProviderOutcomeUnknownError'><h3><code class='inline'>ImageProviderOutcomeUnknownError</code></h3><p>Raised when a paid provider may have accepted work but outcome is unknown.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_runner import ImageProviderOutcomeUnknownError
+
+obj = ImageProviderOutcomeUnknownError(...)</pre></div>
+<div class='card' id='cls-JobResult'><h3><code class='inline'>JobResult</code></h3><p>Result of a successful image generation.</p><p class='small'><b>Attributes:</b> job_id: str, filename: str, prompt_id: str | None, engine: str, recipe: str | None, routing_reason: str | None, character_weight: float | None, cost_usd: float | None, cost_source: str | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_runner import JobResult
+
+obj = JobResult(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>FAL_PULID_COST_PER_OUTPUT_MP_USD</code></td><td><code class='inline'>0.0333</code></td></tr><tr><td><code class='inline'>DEFAULT_EDIT_DENOISE</code></td><td><code class='inline'>0.55</code></td></tr><tr><td><code class='inline'>EDIT_WORKFLOW_ID</code></td><td><code class='inline'>&#x27;image_to_image_v1&#x27;</code></td></tr><tr><td><code class='inline'>ENGINES</code></td><td><code class='inline'>frozenset({&#x27;comfyui&#x27;, &#x27;drawthings&#x27;, &#x27;airforce&#x27;, &#x27;fal&#x27;, &#x27;flux&#x27;, &#x27;flux2&#x27;, &#x27;openrouter&#x27;, &#x27;openai&#x27;})</code></td></tr><tr><td><code class='inline'>_ESTIMATED_COST_USD</code></td><td><code class='inline'>{&#x27;comfyui&#x27;: 0.0, &#x27;drawthings&#x27;: 0.0, &#x27;kitty_worker&#x27;: 0.0, &#x27;airforce&#x27;: 0.02, &#x27;fal&#x27;: 0.07, &#x27;flux&#x27;: 0.08, &#x27;openrouter&#x27;: 0.15</code></td></tr><tr><td><code class='inline'>OPENROUTER_IMAGE_MODEL</code></td><td><code class='inline'>os.environ.get(&#x27;KITTY_IMAGE_MODEL&#x27;, &#x27;google/gemini-3.1-flash-image&#x27;)</code></td></tr><tr><td><code class='inline'>_TRUTHY</code></td><td><code class='inline'>{&#x27;1&#x27;, &#x27;true&#x27;, &#x27;yes&#x27;, &#x27;on&#x27;}</code></td></tr><tr><td><code class='inline'>_HOSTED_HEALTH_CACHE</code></td><td><code class='inline'>dict[tuple[str, str, str], tuple[float, tuple[bool, str]]]</code></td></tr><tr><td><code class='inline'>OPENAI_IMAGE_MODEL</code></td><td><code class='inline'>os.environ.get(&#x27;KITTY_OPENAI_IMAGE_MODEL&#x27;, &#x27;gpt-image-2&#x27;)</code></td></tr><tr><td><code class='inline'>FLUX_API</code></td><td><code class='inline'>&#x27;https://api.bfl.ai/v1&#x27;</code></td></tr><tr><td><code class='inline'>FLUX_GENERATE_MODEL</code></td><td><code class='inline'>os.environ.get(&#x27;KITTY_FLUX_MODEL&#x27;, &#x27;flux-dev&#x27;)</code></td></tr><tr><td><code class='inline'>FLUX_EDIT_MODEL</code></td><td><code class='inline'>os.environ.get(&#x27;KITTY_FLUX_EDIT_MODEL&#x27;, &#x27;flux-kontext-pro&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

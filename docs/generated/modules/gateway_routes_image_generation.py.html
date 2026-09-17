@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.image_generation — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.image_generation</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.image_generation</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/image_generation.py</code> &middot; Python &middot; 7 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Image generation routes.
+
+Split from the former routes/extended.py on 2026-09-16 so each route module
+owns one domain (architecture claim: &quot;Routes should remain thin&quot;).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>fastapi</code>, <code class='inline'>fastapi.responses</code>, <code class='inline'>gateway.image_agent</code>, <code class='inline'>gateway.image_gen</code>, <code class='inline'>gateway.image_jobs</code>, <code class='inline'>gateway.image_runner</code>, <code class='inline'>gateway.runpod_control</code>, <code class='inline'>gateway.runpod_worker</code>, <code class='inline'>httpx</code>, <code class='inline'>logging</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines</code>, <code class='inline'>pathlib</code>, <code class='inline'>pydantic</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_kitty_worker_runtime_status'><code class='inline'>_kitty_worker_runtime_status</code></a></td><td>Probe the authenticated edit worker without exposing endpoint/token details.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-image_status'><code class='inline'>image_status</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(19)</span></td></tr><tr><td><a href='#fn-image_generate'><code class='inline'>image_generate</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-image_cancel'><code class='inline'>image_cancel</code></a></td><td>Cancel a ComfyUI image job after verifying prompt ownership.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-image_job_retry'><code class='inline'>image_job_retry</code></a></td><td>Retry a terminal image job as a new lineaged child with the same intent.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-image_view'><code class='inline'>image_view</code></a></td><td>Proxy an output image from ComfyUI (works with both local and Colab tunnel URLs).</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-image_history'><code class='inline'>image_history</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_kitty_worker_runtime_status'><h3><code class='inline'>_kitty_worker_runtime_status</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>async def _kitty_worker_runtime_status() -&gt; tuple[bool, str | None]</code></div><p>Probe the authenticated edit worker without exposing endpoint/token details.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_generation import _kitty_worker_runtime_status
+
+    result = await _kitty_worker_runtime_status()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-image_status'><h3><code class='inline'>image_status</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (19)</span></h3><div class='sig'><code>async def image_status()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_generation import image_status
+
+    result = await image_status()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-image_generate'><h3><code class='inline'>image_generate</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def image_generate(req: ImageGenRequest)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_generation import image_generate
+
+    result = await image_generate()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-image_cancel'><h3><code class='inline'>image_cancel</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>async def image_cancel(job_id: str)</code></div><p>Cancel a ComfyUI image job after verifying prompt ownership.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_generation import image_cancel
+
+    result = await image_cancel()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-image_job_retry'><h3><code class='inline'>image_job_retry</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def image_job_retry(job_id: str)</code></div><p>Retry a terminal image job as a new lineaged child with the same intent.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_generation import image_job_retry
+
+    result = await image_job_retry()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-image_view'><h3><code class='inline'>image_view</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def image_view(filename: str)</code></div><p>Proxy an output image from ComfyUI (works with both local and Colab tunnel URLs).</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_generation import image_view
+
+    result = await image_view()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-image_history'><h3><code class='inline'>image_history</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def image_history(limit: int = 20)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_generation import image_history
+
+    result = await image_history()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ImageGenRequest'><code class='inline'>ImageGenRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ImageGenRequest'><h3><code class='inline'>ImageGenRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> prompt: str, engine: str, parent_id: Optional[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_generation import ImageGenRequest
+
+obj = ImageGenRequest(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>COMFYUI_OFFLINE_REASON</code></td><td><code class='inline'>&#x27;ComfyUI is not running on this Mac. Start ComfyUI, then check again.&#x27;</code></td></tr><tr><td><code class='inline'>DRAWTHINGS_OFFLINE_REASON</code></td><td><code class='inline'>&#x27;Draw Things is not answering. Open the Draw Things app, turn on its API server, then check again.&#x27;</code></td></tr><tr><td><code class='inline'>KITTY_WORKER_UNCONFIGURED_REASON</code></td><td><code class='inline'>&#x27;Kitty image worker is not configured. Set KITTY_WORKER_URL and KITTY_WORKER_BEARER_TOKEN, then restart Kitty.&#x27;</code></td></tr><tr><td><code class='inline'>KITTY_WORKER_WORKFLOW_REASON</code></td><td><code class='inline'>&#x27;Kitty image worker edit workflow is unavailable. Install image_to_image_v1 before using the private edit lane.&#x27;</code></td></tr><tr><td><code class='inline'>KITTY_WORKER_OFFLINE_REASON</code></td><td><code class='inline'>&#x27;Kitty image worker is configured but not ready. Check the worker health endpoint and image_to_image_v1 bundle.&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

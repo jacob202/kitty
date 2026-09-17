@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.second_opinion — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.second_opinion</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.second_opinion</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/second_opinion.py</code> &middot; Python &middot; 6 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Run a question meant for Jacob through a second LLM before he sees it.
+
+Jacob pastes Claude&#x27;s questions into another model anyway — this automates it.
+Given the question (and optional context), a second, independent model returns:
+  1. a plain-English translation of what&#x27;s being asked,
+  2. what each option means in practice,
+  3. one clear recommendation and why.
+
+Usage:
+    python3 scripts/second_opinion.py &quot;Question text with options A/B/C&quot;
+    echo &quot;long question&quot; | python3 scripts/second_opinion.py
+
+Provider order mirrors the gateway fallback chain (cheap first): OpenRouter →
+Gemini → NVIDIA. Keys come from the environment or .env.
+
+Exit codes are a contract the caller relies on (see
+.claude/skills/second-opinion/SKILL.md):
+  0  an opinion was produced
+  2  expected unavailability — no key set, or every provider unreachable:
+     transport failure, 401/403, 408, 429, or 5xx. Retrying later or fixing
+     a key resolves these.
+  3  a defect in this script or its config — a malformed provider payload,
+     or a deterministic 4xx such as a bad model name. These fail identically
+     forever, so they must never be skipped as if a provider were merely
+     down.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>requests</code>, <code class='inline'>sys</code>, <code class='inline'>traceback</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_load_dotenv'><code class='inline'>_load_dotenv</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_is_unavailability'><code class='inline'>_is_unavailability</code></a></td><td>True when the provider is unreachable or temporarily unusable.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_openai_compatible'><code class='inline'>_openai_compatible</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_gemini'><code class='inline'>_gemini</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_second_opinion'><code class='inline'>get_second_opinion</code></a></td><td>Return (provider_label, opinion).</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_load_dotenv'><h3><code class='inline'>_load_dotenv</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _load_dotenv() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.second_opinion import _load_dotenv
+
+result = _load_dotenv()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_unavailability'><h3><code class='inline'>_is_unavailability</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _is_unavailability(exc: &#x27;requests.RequestException&#x27;) -&gt; bool</code></div><p>True when the provider is unreachable or temporarily unusable.
+
+Transport errors (no response at all), auth rejections, rate limits, and
+5xx are unavailability — retrying later or fixing a key resolves them.
+
+A deterministic 4xx (bad model name, malformed request schema) is a defect
+in this script or its config: it will fail identically forever. Skipping
+that silently would hide a permanently broken integration behind the same
+exit code as &quot;no API key&quot;, so it must reach exit 3.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.second_opinion import _is_unavailability
+
+result = _is_unavailability(exc=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_openai_compatible'><h3><code class='inline'>_openai_compatible</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _openai_compatible(base: str, key: str, model: str, question: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.second_opinion import _openai_compatible
+
+result = _openai_compatible(base=&quot;base_example&quot;, key=&quot;key_example&quot;, model=&quot;model_example&quot;, question=&quot;question_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_gemini'><h3><code class='inline'>_gemini</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _gemini(key: str, question: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.second_opinion import _gemini
+
+result = _gemini(key=&quot;key_example&quot;, question=&quot;question_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_second_opinion'><h3><code class='inline'>get_second_opinion</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def get_second_opinion(question: str) -&gt; tuple[str, str]</code></div><p>Return (provider_label, opinion).
+
+Raises ``ProviderUnavailable`` when no provider answers. Any other
+exception is a real defect and is left to propagate.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.second_opinion import get_second_opinion
+
+result = get_second_opinion(question=&quot;question_example&quot;)
+# result: tuple[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.second_opinion import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ProviderUnavailable'><code class='inline'>ProviderUnavailable</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ProviderUnavailable'><h3><code class='inline'>ProviderUnavailable</code></h3><p>No provider could be reached — missing key, network, or HTTP failure.
+
+Deliberately narrow: a malformed response is a defect, not unavailability,
+and must not be squashed into the same exit code.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from scripts.second_opinion import ProviderUnavailable
+
+obj = ProviderUnavailable(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>REPO_ROOT</code></td><td><code class='inline'>Path(__file__).resolve().parent.parent</code></td></tr><tr><td><code class='inline'>SYSTEM_PROMPT</code></td><td><code class='inline'>&#x27;You are a plain-English advisor for Jacob, a curious generalist who is\nnot a software engineer. An AI coding assistant</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

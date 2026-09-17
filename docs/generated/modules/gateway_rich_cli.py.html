@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.rich_cli — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.rich_cli</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.rich_cli</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/rich_cli.py</code> &middot; Python &middot; 15 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Rich terminal output patterns — CLI utilities using the &quot;rich&quot; library.
+
+Stolen from: Textualize/rich (MIT), Rich CLI examples (MIT), pip&#x27;s CLI (MIT).
+
+This module provides ready-to-use patterns for:
+  1. Animated spinners (downloads, processing, LLM calls)
+  2. Progress bars (file ingestion, batch processing)
+  3. Colored tables (review sessions, knowledge stats)
+  4. Panels and rule separators
+  5. Live display updates
+
+Usage:
+    from gateway.rich_cli import spinner, progress, table, panel, console
+
+    # Animated spinner
+    with spinner(&quot;Thinking...&quot;):
+        result = llm_call()
+
+    # Progress bar
+    for chunk in progress(files, &quot;Ingesting&quot;):
+        ingest(chunk)
+
+    # Colored table
+    table(&quot;Terms Due&quot;, [(&quot;term&quot;, &quot;mastery&quot;), (&quot;async&quot;, 0.85)], [&quot;Term&quot;, &quot;Mastery&quot;])</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>contextlib</code>, <code class='inline'>rich.columns</code>, <code class='inline'>rich.console</code>, <code class='inline'>rich.layout</code>, <code class='inline'>rich.live</code>, <code class='inline'>rich.markdown</code>, <code class='inline'>rich.panel</code>, <code class='inline'>rich.progress</code>, <code class='inline'>rich.prompt</code>, <code class='inline'>rich.status</code>, <code class='inline'>rich.syntax</code>, <code class='inline'>rich.table</code>, <code class='inline'>rich.text</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_rich'><code class='inline'>_rich</code></a></td><td>Lazy import: returns (Console, Panel, Table, Progress, SpinnerColumn, ...).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-console'><code class='inline'>console</code></a></td><td>Get or create the shared Rich Console.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-spinner'><code class='inline'>spinner</code></a></td><td>Show an animated spinner while a context manager runs.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-status_spinner'><code class='inline'>status_spinner</code></a></td><td>Get a Rich Status object for manual control (start/stop yourself).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-progress'><code class='inline'>progress</code></a></td><td>Iterate over items with a live progress bar.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-progress_download'><code class='inline'>progress_download</code></a></td><td>Create a download-style progress bar with transfer speed.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-table'><code class='inline'>table</code></a></td><td>Print a colored table to the console.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-panel'><code class='inline'>panel</code></a></td><td>Print content inside a styled panel.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-rule'><code class='inline'>rule</code></a></td><td>Print a horizontal rule with an optional title.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-live_display'><code class='inline'>live_display</code></a></td><td>Context manager for live-updating displays.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-syntax'><code class='inline'>syntax</code></a></td><td>Print syntax-highlighted code.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-markdown'><code class='inline'>markdown</code></a></td><td>Render Markdown to the terminal.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-ask'><code class='inline'>ask</code></a></td><td>Ask the user a question with a prompt.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-confirm'><code class='inline'>confirm</code></a></td><td>Ask the user for a yes/no confirmation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-status_line'><code class='inline'>status_line</code></a></td><td>Print or update a status line.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_rich'><h3><code class='inline'>_rich</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _rich()</code></div><p>Lazy import: returns (Console, Panel, Table, Progress, SpinnerColumn, ...).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import _rich
+
+result = _rich()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-console'><h3><code class='inline'>console</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def console() -&gt; Any</code></div><p>Get or create the shared Rich Console.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import console
+
+result = console()
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-spinner'><h3><code class='inline'>spinner</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def spinner(text: str = &#x27;Working...&#x27;) -&gt; Generator[None, None, None]</code></div><p>Show an animated spinner while a context manager runs.
+
+Example:
+    with spinner(&quot;Searching knowledge base...&quot;):
+        results = knowledge.search(query)</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import spinner
+
+result = spinner(text=&quot;text_example&quot;  # default: &#x27;Working...&#x27;)
+# result: Generator[None, None, None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-status_spinner'><h3><code class='inline'>status_spinner</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def status_spinner(text: str = &#x27;Working...&#x27;) -&gt; Any</code></div><p>Get a Rich Status object for manual control (start/stop yourself).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import status_spinner
+
+result = status_spinner(text=&quot;text_example&quot;  # default: &#x27;Working...&#x27;)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-progress'><h3><code class='inline'>progress</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def progress(items: Sequence[Any], description: str = &#x27;Processing&#x27;, transient: bool = False) -&gt; Generator[Any, None, None]</code></div><p>Iterate over items with a live progress bar.
+
+Example:
+    for chunk in progress(documents, &quot;Ingesting&quot;):
+        store.add(chunk)
+
+Args:
+    items: Sequence of items to iterate over.
+    description: Label shown next to the progress bar.
+    transient: Remove the progress bar after completion.
+
+Yields:
+    Each item, one at a time.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import progress
+
+result = progress(items=..., description=&quot;description_example&quot;  # default: &#x27;Processing&#x27;, transient=True  # default: False)
+# result: Generator[Any, None, None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-progress_download'><h3><code class='inline'>progress_download</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def progress_download(total_bytes: int, description: str = &#x27;Downloading&#x27;) -&gt; Any</code></div><p>Create a download-style progress bar with transfer speed.
+
+Returns a tuple of (progress_bar, task_id). Call
+progress_bar.advance(task_id, bytes_downloaded) as chunks arrive.
+
+Example:
+    pb, tid = progress_download(file_size, &quot;Fetching model&quot;)
+    for chunk in response.iter_bytes():
+        f.write(chunk)
+        pb.advance(tid, len(chunk))</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import progress_download
+
+result = progress_download(total_bytes=0, description=&quot;description_example&quot;  # default: &#x27;Downloading&#x27;)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-table'><h3><code class='inline'>table</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def table(title: str, rows: Sequence[tuple[Any, ...]], columns: Sequence[str] | None = None) -&gt; None</code></div><p>Print a colored table to the console.
+
+Example:
+    table(&quot;Terms Due&quot;, [(&quot;async&quot;, 0.85), (&quot;closure&quot;, 0.92)], [&quot;Term&quot;, &quot;Mastery&quot;])
+
+Args:
+    title: Table caption.
+    rows: Sequence of row tuples.
+    columns: Column headers. Auto-generated from the first row if None.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import table
+
+result = table(title=&quot;title_example&quot;, rows=..., columns=&quot;columns_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-panel'><h3><code class='inline'>panel</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def panel(content: str, title: str = &#x27;&#x27;, border_style: str = &#x27;blue&#x27;) -&gt; None</code></div><p>Print content inside a styled panel.
+
+Example:
+    panel(&quot;Hello, Kitty!&quot;, title=&quot;Greeting&quot;)</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import panel
+
+result = panel(content=&quot;content_example&quot;, title=&quot;title_example&quot;  # default: &#x27;&#x27;, border_style=&quot;border_style_example&quot;  # default: &#x27;blue&#x27;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-rule'><h3><code class='inline'>rule</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def rule(title: str = &#x27;&#x27;) -&gt; None</code></div><p>Print a horizontal rule with an optional title.
+
+Example:
+    rule(&quot;Knowledge Stats&quot;)</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import rule
+
+result = rule(title=&quot;title_example&quot;  # default: &#x27;&#x27;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-live_display'><h3><code class='inline'>live_display</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def live_display() -&gt; Generator[Any, None, None]</code></div><p>Context manager for live-updating displays.
+
+Example:
+    with live_display() as live:
+        for i in range(100):
+            live.update(f&quot;Progress: {i}%&quot;)
+            time.sleep(0.05)</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import live_display
+
+result = live_display()
+# result: Generator[Any, None, None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-syntax'><h3><code class='inline'>syntax</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def syntax(code: str, language: str = &#x27;python&#x27;) -&gt; None</code></div><p>Print syntax-highlighted code.
+
+Example:
+    syntax(&#x27;print(&quot;hello&quot;)&#x27;)</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import syntax
+
+result = syntax(code=&quot;code_example&quot;, language=&quot;language_example&quot;  # default: &#x27;python&#x27;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-markdown'><h3><code class='inline'>markdown</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def markdown(text: str) -&gt; None</code></div><p>Render Markdown to the terminal.
+
+    Example:
+        markdown(&quot;# Hello
+
+This is **bold**&quot;)</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import markdown
+
+result = markdown(text=&quot;text_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-ask'><h3><code class='inline'>ask</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def ask(question: str, default: str = &#x27;&#x27;) -&gt; str</code></div><p>Ask the user a question with a prompt.
+
+Example:
+    name = ask(&quot;What is your name?&quot;, default=&quot;Kitty&quot;)</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import ask
+
+result = ask(question=&quot;question_example&quot;, default=&quot;default_example&quot;  # default: &#x27;&#x27;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-confirm'><h3><code class='inline'>confirm</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def confirm(question: str, default: bool = True) -&gt; bool</code></div><p>Ask the user for a yes/no confirmation.
+
+Example:
+    if confirm(&quot;Delete all data?&quot;):
+        wipe()</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import confirm
+
+result = confirm(question=&quot;question_example&quot;, default=True  # default: True)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-status_line'><h3><code class='inline'>status_line</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def status_line(text: str, done: bool = False) -&gt; None</code></div><p>Print or update a status line.
+
+Example:
+    status_line(&quot;Loading model...&quot;)
+    time.sleep(2)
+    status_line(&quot;Loading model... done!&quot;, done=True)</p><h3>Example Usage (synthetic)</h3><pre>from gateway.rich_cli import status_line
+
+result = status_line(text=&quot;text_example&quot;, done=True  # default: False)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

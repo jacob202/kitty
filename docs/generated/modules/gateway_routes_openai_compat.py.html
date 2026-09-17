@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.openai_compat — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.openai_compat</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.openai_compat</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/openai_compat.py</code> &middot; Python &middot; 5 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Small OpenAI-compatible discovery surface for third-party Kitty clients.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway.model_routing</code>, <code class='inline'>gateway.provider_prefs</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_as_openai_model'><code class='inline'>_as_openai_model</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_selected_provider'><code class='inline'>_selected_provider</code></a></td><td>Read the preference without invoking a provider or requiring its key.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_visible_catalogue'><code class='inline'>_visible_catalogue</code></a></td><td>Return only menu choices the current execution path can honor.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-list_models'><code class='inline'>list_models</code></a></td><td>Return the truthful human-facing model menu in display order.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-retrieve_model'><code class='inline'>retrieve_model</code></a></td><td>Retrieve saved/legacy model ids even when they are hidden from the menu.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_as_openai_model'><h3><code class='inline'>_as_openai_model</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _as_openai_model(entry: dict[str, str]) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.openai_compat import _as_openai_model
+
+result = _as_openai_model(entry=&quot;entry_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_selected_provider'><h3><code class='inline'>_selected_provider</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _selected_provider() -&gt; str | None</code></div><p>Read the preference without invoking a provider or requiring its key.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.openai_compat import _selected_provider
+
+result = _selected_provider()
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_visible_catalogue'><h3><code class='inline'>_visible_catalogue</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _visible_catalogue() -&gt; list[dict]</code></div><p>Return only menu choices the current execution path can honor.
+
+LiteLLM/automatic routing owns Kitty&#x27;s virtual model aliases. OpenRouter&#x27;s
+direct fallback also maps them explicitly. Other exact-provider paths select
+one provider-specific default model and cannot guarantee that choosing
+Think, Code, or Vision will reach the advertised upstream model. Showing
+those rows would make the menu lie, so exact-provider mode collapses to one
+honest row until that provider gains explicit alias mappings.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.openai_compat import _visible_catalogue
+
+result = _visible_catalogue()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_models'><h3><code class='inline'>list_models</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def list_models() -&gt; dict</code></div><p>Return the truthful human-facing model menu in display order.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.openai_compat import list_models
+
+result = list_models()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-retrieve_model'><h3><code class='inline'>retrieve_model</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def retrieve_model(model_id: str) -&gt; dict</code></div><p>Retrieve saved/legacy model ids even when they are hidden from the menu.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.openai_compat import retrieve_model
+
+result = retrieve_model(model_id=&quot;model_id_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_CATALOGUE</code></td><td><code class='inline'>dict[str, dict]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

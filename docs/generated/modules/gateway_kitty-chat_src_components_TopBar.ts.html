@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/components/TopBar — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/components/TopBar</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/components/TopBar</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/components/TopBar.tsx</code> &middot; TypeScript &middot; 4 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>./CrayonCat</code>, <code class='inline'>./ModelSelectorCmdk</code>, <code class='inline'>@/lib/types</code>, <code class='inline'>lucide-react</code>, <code class='inline'>react</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-TopBar'><code class='inline'>TopBar</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-ProjectSelector'><code class='inline'>ProjectSelector</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-RuntimeBadge'><code class='inline'>RuntimeBadge</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-ActivityButton'><code class='inline'>ActivityButton</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-TopBar'><h3><code class='inline'>TopBar</code> <span class='pill'>function</span></h3><div class='sig'><code>export function TopBar({
+  activeModel,
+  models,
+  onSelectModel,
+  isStreaming,
+  modelFromGateway = true,
+  activeView,
+  catState = &#x27;idle&#x27;,
+  onCommandPalette,
+  onActivity,
+  activityAttentionCou</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { TopBar } from &#x27;@/gateway/kitty-chat/src/components/TopBar&#x27;;
+
+// TODO: wire real props; see component signature
+const result = TopBar;</pre></div>
+<div class='card' id='ex-ProjectSelector'><h3><code class='inline'>ProjectSelector</code> <span class='pill'>function</span></h3><div class='sig'><code>function ProjectSelector({
+  activeProject,
+  projects,
+  onSelectProject,
+  loading,
+  busy,
+  compact = false,
+}: {
+  activeProject: { id: number; name: string } | null
+  projects: Array&lt;{ id: numbe</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ProjectSelector } from &#x27;@/gateway/kitty-chat/src/components/TopBar&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ProjectSelector;</pre></div>
+<div class='card' id='ex-RuntimeBadge'><h3><code class='inline'>RuntimeBadge</code> <span class='pill'>function</span></h3><div class='sig'><code>function RuntimeBadge({
+  state,
+  detail,
+  compact = false,
+}: {
+  state: &#x27;available&#x27; | &#x27;unavailable&#x27; | &#x27;degraded&#x27; | &#x27;stale&#x27; | &#x27;unknown&#x27;
+  detail?: string
+  /** Phone layout: the label wraps in the </code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { RuntimeBadge } from &#x27;@/gateway/kitty-chat/src/components/TopBar&#x27;;
+
+// TODO: wire real props; see component signature
+const result = RuntimeBadge;</pre></div>
+<div class='card' id='ex-ActivityButton'><h3><code class='inline'>ActivityButton</code> <span class='pill'>function</span></h3><div class='sig'><code>function ActivityButton({ count, incomplete, onClick, compact = false }: { count: number; incomplete: boolean; onClick: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ActivityButton } from &#x27;@/gateway/kitty-chat/src/components/TopBar&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ActivityButton;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.analyze_claude_usage — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.analyze_claude_usage</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.analyze_claude_usage</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/analyze_claude_usage.py</code> &middot; Python &middot; 10 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Rank Claude Code sessions by token spend, using the local JSONL transcripts.
+
+Claude Code writes one JSONL file per session under ``~/.claude/projects/``.
+Every assistant line carries the provider&#x27;s own ``usage`` object, so these
+files are the ground truth for what a session actually cost — no estimation,
+no API call.
+
+The two leaks this is built to find:
+  1. A session that should have been three sessions (huge cache_read, many turns).
+  2. A file that should never have been read (see the biggest-payload column).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>dataclasses</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>sys</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_payload_label'><code class='inline'>_payload_label</code></a></td><td>Name a tool_result by the tool_use that produced it.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_content_chars'><code class='inline'>_content_chars</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_record_payloads'><code class='inline'>_record_payloads</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-parse_session'><code class='inline'>parse_session</code></a></td><td>Aggregate one transcript. Malformed lines are skipped, not silently zeroed.</td><td><span class='pill'>complex</span><span class='muted small'>(25)</span></td></tr><tr><td><a href='#fn-collect_sessions'><code class='inline'>collect_sessions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_thousands'><code class='inline'>_thousands</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-render_table'><code class='inline'>render_table</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-render_totals'><code class='inline'>render_totals</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_parser'><code class='inline'>_parser</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-_payload_label'><h3><code class='inline'>_payload_label</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _payload_label(block: dict[str, Any], tool_uses: dict[str, ToolUse]) -&gt; str</code></div><p>Name a tool_result by the tool_use that produced it.
+
+A tool_result carries only a tool_use_id — the tool&#x27;s name and arguments live
+on the assistant&#x27;s earlier tool_use block, so the two have to be joined or the
+label degrades to an opaque `toolu_…`.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import _payload_label
+
+result = _payload_label(block=&quot;block_example&quot;, tool_uses=&quot;tool_uses_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_content_chars'><h3><code class='inline'>_content_chars</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _content_chars(content: Any) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import _content_chars
+
+result = _content_chars(content=...)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_record_payloads'><h3><code class='inline'>_record_payloads</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _record_payloads(session: Session, message: dict[str, Any], tool_uses: dict[str, ToolUse]) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import _record_payloads
+
+result = _record_payloads(session=..., message=&quot;message_example&quot;, tool_uses=&quot;tool_uses_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-parse_session'><h3><code class='inline'>parse_session</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (25)</span></h3><div class='sig'><code>def parse_session(path: Path) -&gt; Session</code></div><p>Aggregate one transcript. Malformed lines are skipped, not silently zeroed.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import parse_session
+
+result = parse_session(path=&quot;path_example&quot;)
+# result: Session</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-collect_sessions'><h3><code class='inline'>collect_sessions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def collect_sessions(root: Path) -&gt; list[Session]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import collect_sessions
+
+result = collect_sessions(root=&quot;root_example&quot;)
+# result: list[Session]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_thousands'><h3><code class='inline'>_thousands</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _thousands(value: int) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import _thousands
+
+result = _thousands(value=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-render_table'><h3><code class='inline'>render_table</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def render_table(sessions: list[Session]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import render_table
+
+result = render_table(sessions=[])
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-render_totals'><h3><code class='inline'>render_totals</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def render_totals(sessions: list[Session], shown: list[Session]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import render_totals
+
+result = render_totals(sessions=[], shown=[])
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parser'><h3><code class='inline'>_parser</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _parser() -&gt; argparse.ArgumentParser</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import _parser
+
+result = _parser()
+# result: argparse.ArgumentParser</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def main(argv: list[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.analyze_claude_usage import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ToolUse'><code class='inline'>ToolUse</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-Payload'><code class='inline'>Payload</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-Session'><code class='inline'>Session</code></a></td><td></td><td>6 methods</td></tr></table></div>
+<div class='card' id='cls-ToolUse'><h3><code class='inline'>ToolUse</code></h3><p>An assistant tool_use block, kept so its result can be named later.</p><p class='small'><b>Attributes:</b> name: str, input: dict[str, Any]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from scripts.analyze_claude_usage import ToolUse
+
+obj = ToolUse(...)</pre></div>
+<div class='card' id='cls-Payload'><h3><code class='inline'>Payload</code></h3><p>One oversized tool result — the per-session leak candidate.</p><p class='small'><b>Attributes:</b> label: str, chars: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>estimated_tokens</code></td><td><code class='inline'>def estimated_tokens(self) -&gt; int</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from scripts.analyze_claude_usage import Payload
+
+obj = Payload(...)</pre></div>
+<div class='card' id='cls-Session'><h3><code class='inline'>Session</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> path: Path, project: str, session_id: str, input_tokens: int, output_tokens: int, cache_creation_tokens: int, cache_read_tokens: int, assistant_turns: int, compactions: int, models: set[str], first_ts: str, last_ts: str, payloads: list[Payload], startup_tokens: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>total_tokens</code></td><td><code class='inline'>def total_tokens(self) -&gt; int</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>full_price_tokens</code></td><td><code class='inline'>def full_price_tokens(self) -&gt; int</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>biggest_payload</code></td><td><code class='inline'>def biggest_payload(self) -&gt; Payload | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>avg_context_per_turn</code></td><td><code class='inline'>def avg_context_per_turn(self) -&gt; int</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>startup_share</code></td><td><code class='inline'>def startup_share(self) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>as_dict</code></td><td><code class='inline'>def as_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from scripts.analyze_claude_usage import Session
+
+obj = Session(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DEFAULT_ROOT</code></td><td><code class='inline'>Path(&#x27;~/.claude/projects&#x27;).expanduser()</code></td></tr><tr><td><code class='inline'>CHARS_PER_TOKEN</code></td><td><code class='inline'>4</code></td></tr><tr><td><code class='inline'>SORT_KEYS</code></td><td><code class='inline'>{&#x27;total&#x27;: lambda s: s.total_tokens, &#x27;full_price&#x27;: lambda s: s.full_price_tokens, &#x27;output&#x27;: lambda s: s.output_tokens, &#x27;c</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li><li><a href='scripts_generate_image.py.html'><code class='inline'>scripts.generate_image</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

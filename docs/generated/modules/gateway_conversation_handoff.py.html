@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.conversation_handoff — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.conversation_handoff</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.conversation_handoff</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/conversation_handoff.py</code> &middot; Python &middot; 17 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Conversation -&gt; approved KittyBuilder job handoff for Kitty&#x27;s native chat.
+
+Kitty&#x27;s own chat surface has no tool executor of its own (see
+``gateway/routes/completions.py``): nothing here runs code, and the
+conversation is never the source of execution truth. What a conversation
+*can* do is compile an actionable task into the exact Builder Mission/packet
+representation KittyBuilder already understands, and hand it through the
+same propose -&gt; approve -&gt; resume contract the KittyBuilder MCP bridge
+(``mcp/builder``) already exposes to external clients.
+
+This module owns no queue, no approval state machine, and no execution
+loop. ``propose`` and ``resume`` are thin wrappers around
+``mcp.builder.commands``/``mcp.builder.context``; ``approve`` adds exactly
+one guard -- an explicit ``confirmed`` flag the caller must set only in
+direct response to a human clicking Approve -- before delegating to the
+same ``mission_approve`` an MCP client would call. Durable Builder state
+(initiatives, tasks, attempts, execution, publication) is unchanged and
+remains the single authority.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>contextlib</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_scope</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>mcp.builder</code>, <code class='inline'>mcp.builder.schemas</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>subprocess</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_gateway_mission_id'><code class='inline'>_gateway_mission_id</code></a></td><td>Namespace Gateway Mission identity away from Builder initiative identity.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_resolve_unique_tracked_path_aliases'><code class='inline'>_resolve_unique_tracked_path_aliases</code></a></td><td>Resolve only unambiguous extensionless aliases to tracked repo files.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_scope_maps_to_current_kx'><code class='inline'>_scope_maps_to_current_kx</code></a></td><td>Return whether every proposed mutation scope has current KX ownership.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_proposal_json'><code class='inline'>_proposal_json</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_safe_validation_commands'><code class='inline'>_safe_validation_commands</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_build_task_from_raw'><code class='inline'>_build_task_from_raw</code></a></td><td>Turn one compiler JSON object into a bounded Builder task or raise.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-compile_request'><code class='inline'>compile_request</code></a></td><td>Compile plain language into a bounded Builder task without chat context.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_compile_via_saved_provider'><code class='inline'>_compile_via_saved_provider</code></a></td><td>One request-scoped retry pinned exactly to the saved provider route.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_slugify'><code class='inline'>_slugify</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-compile_manifest'><code class='inline'>compile_manifest</code></a></td><td>Compile a conversation-derived task into a single-packet Builder manifest.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_design_markdown'><code class='inline'>_design_markdown</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_plan_markdown'><code class='inline'>_plan_markdown</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_planning_artifact_claim'><code class='inline'>_planning_artifact_claim</code></a></td><td>Own Builder&#x27;s internal planning writes without widening user code scope.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_resolve_origin'><code class='inline'>_resolve_origin</code></a></td><td>Decide once, server-side, where a proposal came from.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-propose'><code class='inline'>propose</code></a></td><td>Compile a conversation task and prepare it as a bound Mission candidate.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-approve'><code class='inline'>approve</code></a></td><td>Create the durable Builder job -- only after explicit human confirmation.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr><tr><td><a href='#fn-resume'><code class='inline'>resume</code></a></td><td>Recover durable job state for a reloaded conversation, no transcript required.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_gateway_mission_id'><h3><code class='inline'>_gateway_mission_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _gateway_mission_id(builder_initiative_id: str) -&gt; str</code></div><p>Namespace Gateway Mission identity away from Builder initiative identity.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _gateway_mission_id
+
+result = _gateway_mission_id(builder_initiative_id=&quot;builder_initiative_id_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_unique_tracked_path_aliases'><h3><code class='inline'>_resolve_unique_tracked_path_aliases</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _resolve_unique_tracked_path_aliases(allowed_paths: list[str]) -&gt; list[str]</code></div><p>Resolve only unambiguous extensionless aliases to tracked repo files.
+
+Proposal models sometimes describe a familiar file by its stem (for
+example ``README``). Builder execution cannot safely guess later at the
+mutation boundary, so canonicalize only when exactly one tracked file in
+the same directory has that stem. New files and ambiguous aliases remain
+unchanged for normal scope validation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _resolve_unique_tracked_path_aliases
+
+result = _resolve_unique_tracked_path_aliases(allowed_paths=&quot;allowed_paths_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_scope_maps_to_current_kx'><h3><code class='inline'>_scope_maps_to_current_kx</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _scope_maps_to_current_kx(allowed_paths: list[str]) -&gt; bool</code></div><p>Return whether every proposed mutation scope has current KX ownership.
+
+Minimal/legacy test repositories without a registry keep their existing
+behavior. A real Kitty checkout with KX must reject a doomed proposal
+before planning or queue state is created.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _scope_maps_to_current_kx
+
+result = _scope_maps_to_current_kx(allowed_paths=&quot;allowed_paths_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_proposal_json'><h3><code class='inline'>_proposal_json</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _proposal_json(text: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _proposal_json
+
+result = _proposal_json(text=&quot;text_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_safe_validation_commands'><h3><code class='inline'>_safe_validation_commands</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def _safe_validation_commands(raw_commands: Any, allowed_paths: list[str]) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _safe_validation_commands
+
+result = _safe_validation_commands(raw_commands=..., allowed_paths=&quot;allowed_paths_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_task_from_raw'><h3><code class='inline'>_build_task_from_raw</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def _build_task_from_raw(raw: Any, request: str) -&gt; dict[str, Any]</code></div><p>Turn one compiler JSON object into a bounded Builder task or raise.
+
+Model-supplied ``validation_commands`` are allowlist-filtered (see
+:func:`_safe_validation_commands`); an unsafe or missing set falls back to a
+deterministic existence check so Builder preflight always has something to
+run and no injected command can reach Builder&#x27;s shell.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _build_task_from_raw
+
+result = _build_task_from_raw(raw=..., request=&quot;request_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compile_request'><h3><code class='inline'>compile_request</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def compile_request(request: str, allow_provider_fallback: bool = False) -&gt; dict[str, Any]</code></div><p>Compile plain language into a bounded Builder task without chat context.
+
+This intentionally bypasses the personal chat context assembler. It uses the
+existing LLM provider hub only for task shaping; no planning artifact, queue
+row, approval, or worker is created here.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import compile_request
+
+result = compile_request(request=&quot;request_example&quot;, allow_provider_fallback=True  # default: False)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_compile_via_saved_provider'><h3><code class='inline'>_compile_via_saved_provider</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _compile_via_saved_provider(messages: list[dict[str, Any]], request: str) -&gt; dict[str, Any]</code></div><p>One request-scoped retry pinned exactly to the saved provider route.
+
+This never cascades to LiteLLM or any other provider and never changes the
+saved preference. With no saved provider it is a no-op surfaced as an
+actionable message rather than a silent spend elsewhere.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _compile_via_saved_provider
+
+result = _compile_via_saved_provider(messages=&quot;messages_example&quot;, request=&quot;request_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_slugify'><h3><code class='inline'>_slugify</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _slugify(text: str, max_len: int = 40) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _slugify
+
+result = _slugify(text=&quot;text_example&quot;, max_len=0  # default: 40)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compile_manifest'><h3><code class='inline'>compile_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def compile_manifest(objective: str, instructions: str, allowed_paths: list[str], initiative_id: str | None = None, title: str | None = None, acceptance_criteria: list[str] | None = None, validation_commands: list[str] | None = None) -&gt; dict[str, Any]</code></div><p>Compile a conversation-derived task into a single-packet Builder manifest.
+
+Pure and side-effect free: this only shapes data into the manifest schema
+``gateway.builder_initiative.validate_manifest`` already enforces. It does
+not touch the repository or Builder state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import compile_manifest
+
+result = compile_manifest(objective=&quot;objective_example&quot;, instructions=&quot;instructions_example&quot;, allowed_paths=&quot;allowed_paths_example&quot;, initiative_id=&quot;initiative_id_example&quot;  # default: None, title=&quot;title_example&quot;  # default: None, acceptance_criteria=&quot;acceptance_criteria_example&quot;  # default: None, validation_commands=&quot;validation_commands_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_design_markdown'><h3><code class='inline'>_design_markdown</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _design_markdown(manifest: dict[str, Any], objective: str, instructions: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _design_markdown
+
+result = _design_markdown(manifest=&quot;manifest_example&quot;, objective=&quot;objective_example&quot;, instructions=&quot;instructions_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_plan_markdown'><h3><code class='inline'>_plan_markdown</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _plan_markdown(manifest: dict[str, Any], instructions: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _plan_markdown
+
+result = _plan_markdown(manifest=&quot;manifest_example&quot;, instructions=&quot;instructions_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_planning_artifact_claim'><h3><code class='inline'>_planning_artifact_claim</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _planning_artifact_claim(slug: str, base_sha: str, task_id: str) -&gt; Iterator[str | None]</code></div><p>Own Builder&#x27;s internal planning writes without widening user code scope.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _planning_artifact_claim
+
+result = _planning_artifact_claim(slug=&quot;slug_example&quot;, base_sha=&quot;base_sha_example&quot;, task_id=&quot;task_id_example&quot;)
+# result: Iterator[str | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_origin'><h3><code class='inline'>_resolve_origin</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _resolve_origin(conversation_id: str | None, message_id: str | None, project_id: int | None) -&gt; dict[str, Any] | None</code></div><p>Decide once, server-side, where a proposal came from.
+
+A chat origin wins over a bare project id: the conversation already knows
+its project, and resolving it here keeps the two from disagreeing later.
+An unbound proposal stays unbound rather than being guessed at — a wrong
+origin sends results to the wrong place, which is worse than none.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import _resolve_origin
+
+result = _resolve_origin(conversation_id=&quot;conversation_id_example&quot;, message_id=&quot;message_id_example&quot;, project_id=0)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-propose'><h3><code class='inline'>propose</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def propose(objective: str, instructions: str, allowed_paths: list[str], initiative_id: str | None = None, title: str | None = None, acceptance_criteria: list[str] | None = None, validation_commands: list[str] | None = None, conversation_id: str | None = None, message_id: str | None = None, project_id: int | None = None) -&gt; dict[str, Any]</code></div><p>Compile a conversation task and prepare it as a bound Mission candidate.
+
+Creates no Builder queue work. The compiled task is written as an
+isolated SHA-bound design/plan pair -- the same lightweight
+planning-artifact mechanism ``save_design``/``save_plan`` already use --
+then handed to the existing ``mission_prepare``, so the returned receipt
+(including the approval nonce) is byte-for-byte the same contract an MCP
+client would see. There is exactly one approval mechanism system-wide.
+
+``conversation_id``/``message_id`` bind the Mission to the chat that asked
+for it, and ``project_id`` binds a request raised from a Project with no
+conversation. The binding is resolved and stored server-side so the result
+can find its way home from a different browser or device.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import propose
+
+result = propose(objective=&quot;objective_example&quot;, instructions=&quot;instructions_example&quot;, allowed_paths=&quot;allowed_paths_example&quot;, initiative_id=&quot;initiative_id_example&quot;  # default: None, title=&quot;title_example&quot;  # default: None, acceptance_criteria=&quot;acceptance_criteria_example&quot;  # default: None, validation_commands=&quot;validation_commands_example&quot;  # default: None, conversation_id=&quot;conversation_id_example&quot;  # default: None, message_id=&quot;message_id_example&quot;  # default: None, project_id=0  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-approve'><h3><code class='inline'>approve</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>def approve(prepared_manifest: dict[str, Any], expected_manifest_sha: str, expected_base_sha: str, approval_nonce: str, gateway_mission_id: str | None = None, confirmed: bool = False) -&gt; dict[str, Any]</code></div><p>Create the durable Builder job -- only after explicit human confirmation.
+
+``confirmed`` must be set by the caller (Kitty&#x27;s chat UI) only in direct
+response to a human clicking Approve on the exact proposal ``propose()``
+returned. Model-narrated approval text is never proof; this delegates to
+the same nonce-bound, idempotent ``mission_approve`` an MCP client uses,
+so replaying an identical approval creates no duplicate job.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import approve
+
+result = approve(prepared_manifest=&quot;prepared_manifest_example&quot;, expected_manifest_sha=&quot;expected_manifest_sha_example&quot;, expected_base_sha=&quot;expected_base_sha_example&quot;, approval_nonce=&quot;approval_nonce_example&quot;, gateway_mission_id=&quot;gateway_mission_id_example&quot;  # default: None, confirmed=True  # default: False)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resume'><h3><code class='inline'>resume</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def resume(mission_id: str | None = None, task_id: str | None = None) -&gt; dict[str, Any]</code></div><p>Recover durable job state for a reloaded conversation, no transcript required.
+
+A direct pass-through to the existing ``resume_context``: identical
+behavior whether the caller is an MCP client or Kitty&#x27;s own chat UI, and
+Builder facts (including failure/blocker state) are never softened into
+a false chat-side success.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.conversation_handoff import resume
+
+result = resume(mission_id=&quot;mission_id_example&quot;  # default: None, task_id=&quot;task_id_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-_ProposalUnusable'><code class='inline'>_ProposalUnusable</code></a></td><td>(Exception)</td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-_ProposalUnusable'><h3><code class='inline'>_ProposalUnusable</code></h3><p>A model response parsed but is not a usable Builder proposal.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, error_code: str, error: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+c
+o
+n
+v
+e
+r
+s
+a
+t
+i
+o
+n
+_
+h
+a
+n
+d
+o
+f
+f
+ 
+i
+m
+p
+o
+r
+t
+ 
+_
+P
+r
+o
+p
+o
+s
+a
+l
+U
+n
+u
+s
+a
+b
+l
+e
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+_
+P
+r
+o
+p
+o
+s
+a
+l
+U
+n
+u
+s
+a
+b
+l
+e
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_WORD_RE</code></td><td><code class='inline'>re.compile(&#x27;[a-z0-9]+&#x27;)</code></td></tr><tr><td><code class='inline'>_DEFAULT_PACKET_ID</code></td><td><code class='inline'>&#x27;packet-1&#x27;</code></td></tr><tr><td><code class='inline'>_DEFAULT_ACCEPTANCE_CRITERIA</code></td><td><code class='inline'>(&#x27;Implementation matches the approved objective and instructions.&#x27;,)</code></td></tr><tr><td><code class='inline'>_MISSION_SUPERVISOR_ID</code></td><td><code class='inline'>&#x27;kitty&#x27;</code></td></tr><tr><td><code class='inline'>_PROPOSAL_MODEL</code></td><td><code class='inline'>&#x27;kitty-small&#x27;</code></td></tr><tr><td><code class='inline'>_PROPOSAL_SYSTEM_PROMPT</code></td><td><code class='inline'>&#x27;\nYou are a strict JSON compiler for KittyBuilder proposals.\n\nConvert the user\&#x27;s requested code/repository change in</code></td></tr><tr><td><code class='inline'>_SAFE_VALIDATION_LEADERS</code></td><td><code class='inline'>frozenset({&#x27;test&#x27;, &#x27;[&#x27;, &#x27;grep&#x27;, &#x27;egrep&#x27;, &#x27;fgrep&#x27;, &#x27;rg&#x27;, &#x27;cat&#x27;, &#x27;head&#x27;, &#x27;tail&#x27;, &#x27;wc&#x27;, &#x27;cmp&#x27;, &#x27;diff&#x27;, &#x27;file&#x27;, &#x27;stat&#x27;, &#x27;ls&#x27;</code></td></tr><tr><td><code class='inline'>_UNSAFE_VALIDATION_CHARS</code></td><td><code class='inline'>frozenset(&#x27;|;&amp;$`&gt;&lt;\n\r\\!*?(){}&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_evaluation — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_evaluation</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_evaluation</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_evaluation.py</code> &middot; Python &middot; 1 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Fail-closed Image Lab evaluation contract.
+
+Keeps evaluation separate from generation. A missing required scorer is an
+infrastructure failure, never a passing result.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-evaluate_image'><code class='inline'>evaluate_image</code></a></td><td>Run registered scorers and fail closed when unavailable.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr></table></div>
+<div class='card' id='fn-evaluate_image'><h3><code class='inline'>evaluate_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def evaluate_image(image_path: str, required_scorers: list[str], scorers: dict[str, Callable[[str], Any]] | None = None) -&gt; EvaluationResult</code></div><p>Run registered scorers and fail closed when unavailable.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_evaluation import evaluate_image
+
+result = evaluate_image(image_path=&quot;image_path_example&quot;, required_scorers=&quot;required_scorers_example&quot;, scorers=&quot;scorers_example&quot;  # default: None)
+# result: EvaluationResult</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-EvaluationUnavailable'><code class='inline'>EvaluationUnavailable</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ScorerResult'><code class='inline'>ScorerResult</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-EvaluationResult'><code class='inline'>EvaluationResult</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-EvaluationUnavailable'><h3><code class='inline'>EvaluationUnavailable</code></h3><p>Raised when a required evaluator is not available.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_evaluation import EvaluationUnavailable
+
+obj = EvaluationUnavailable(...)</pre></div>
+<div class='card' id='cls-ScorerResult'><h3><code class='inline'>ScorerResult</code></h3><p>Explicit evidence returned by one required image scorer.</p><p class='small'><b>Attributes:</b> passed: bool, score: Any, version: str, labels: list[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_evaluation import ScorerResult
+
+obj = ScorerResult(...)</pre></div>
+<div class='card' id='cls-EvaluationResult'><h3><code class='inline'>EvaluationResult</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> passed: bool, labels: list[str], dimensions: dict[str, Any], scorer_versions: dict[str, str]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_evaluation import EvaluationResult
+
+obj = EvaluationResult(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

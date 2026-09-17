@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.notify — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.notify</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.notify</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/notify.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Push notification — Pushover integration for phone alerts.
+
+Public API:
+  send(message, title, url) -&gt; bool
+  send_brief(summary) -&gt; bool
+  send_alert(message) -&gt; bool
+  is_configured() -&gt; bool
+
+Env vars: PUSHOVER_USER_KEY, PUSHOVER_API_TOKEN</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>requests</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_get_keys'><code class='inline'>_get_keys</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-send'><code class='inline'>send</code></a></td><td>Send a push notification via Pushover. Returns True on success.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-send_brief'><code class='inline'>send_brief</code></a></td><td>Convenience wrapper for morning brief delivery.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-send_alert'><code class='inline'>send_alert</code></a></td><td>High-priority notification that bypasses quiet hours.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-is_configured'><code class='inline'>is_configured</code></a></td><td>Check if Pushover keys are set.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-send_pushover'><code class='inline'>send_pushover</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-format_brief_notification'><code class='inline'>format_brief_notification</code></a></td><td>Format a brief dict into (title, message) for Pushover.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-_get_keys'><h3><code class='inline'>_get_keys</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _get_keys() -&gt; tuple[str, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.notify import _get_keys
+
+result = _get_keys()
+# result: tuple[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-send'><h3><code class='inline'>send</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def send(message: str, title: str = &#x27;Kitty&#x27;, url: Optional[str] = None, url_title: Optional[str] = None, priority: int = 0, sound: str = &#x27;pushover&#x27;) -&gt; bool</code></div><p>Send a push notification via Pushover. Returns True on success.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.notify import send
+
+result = send(message=&quot;message_example&quot;, title=&quot;title_example&quot;  # default: &#x27;Kitty&#x27;, url=&quot;url_example&quot;  # default: None, url_title=&quot;url_title_example&quot;  # default: None, priority=0  # default: 0, sound=&quot;sound_example&quot;  # default: &#x27;pushover&#x27;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-send_brief'><h3><code class='inline'>send_brief</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def send_brief(summary: str, open_url: Optional[str] = None) -&gt; bool</code></div><p>Convenience wrapper for morning brief delivery.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.notify import send_brief
+
+result = send_brief(summary=&quot;summary_example&quot;, open_url=&quot;open_url_example&quot;  # default: None)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-send_alert'><h3><code class='inline'>send_alert</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def send_alert(message: str, title: str = &#x27;Kitty Alert&#x27;) -&gt; bool</code></div><p>High-priority notification that bypasses quiet hours.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.notify import send_alert
+
+result = send_alert(message=&quot;message_example&quot;, title=&quot;title_example&quot;  # default: &#x27;Kitty Alert&#x27;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_configured'><h3><code class='inline'>is_configured</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def is_configured() -&gt; bool</code></div><p>Check if Pushover keys are set.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.notify import is_configured
+
+result = is_configured()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-send_pushover'><h3><code class='inline'>send_pushover</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def send_pushover(message: str, title: str = &#x27;Kitty Brief&#x27;, url: Optional[str] = None) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.notify import send_pushover
+
+result = send_pushover(message=&quot;message_example&quot;, title=&quot;title_example&quot;  # default: &#x27;Kitty Brief&#x27;, url=&quot;url_example&quot;  # default: None)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-format_brief_notification'><h3><code class='inline'>format_brief_notification</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def format_brief_notification(brief: dict) -&gt; tuple[str, str]</code></div><p>Format a brief dict into (title, message) for Pushover.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.notify import format_brief_notification
+
+result = format_brief_notification(brief={})
+# result: tuple[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>PUSHOVER_URL</code></td><td><code class='inline'>&#x27;https://api.pushover.net/1/messages.json&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

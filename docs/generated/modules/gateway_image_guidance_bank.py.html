@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_guidance_bank — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_guidance_bank</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_guidance_bank</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_guidance_bank.py</code> &middot; Python &middot; 3 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Kitty ImageGuidance Bank — curated generation guidance as versioned Markdown.
+
+Adapted from GenEvolve&#x27;s KnowledgeTool / SkillBank pattern
+(``genevolve/knowledge_tool.py:19-113``).  Kitty&#x27;s version is local-first:
+guidance is plain Markdown under a configured directory, loaded once at
+import time, and never fetched from an external source.
+
+Pointers:
+  - this module was renamed from ``image_guidance.py`` to ``image_guidance_bank.py``
+  - ``GuidanceBank`` is the static bank of curated generation-guidance Markdown files;
+    each ``&lt;tag&gt;.md`` file contains expert prompt-writing or composition guidance
+    for one proven failure category (layout, text rendering, count accuracy, etc.).
+  - ``available_guidance_tags()`` and ``get_guidance()`` are the public API;
+    they route through the singleton ``_guidance_bank`` instance.
+  - The guidance directory default was updated from ``image_guidance`` to
+    ``image_guidance_bank`` to match the new module filename.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>pathlib</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_guidance_bank'><code class='inline'>get_guidance_bank</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-available_guidance_tags'><code class='inline'>available_guidance_tags</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_guidance'><code class='inline'>get_guidance</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-get_guidance_bank'><h3><code class='inline'>get_guidance_bank</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_guidance_bank() -&gt; GuidanceBank</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_guidance_bank import get_guidance_bank
+
+result = get_guidance_bank()
+# result: GuidanceBank</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-available_guidance_tags'><h3><code class='inline'>available_guidance_tags</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def available_guidance_tags() -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_guidance_bank import available_guidance_tags
+
+result = available_guidance_tags()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_guidance'><h3><code class='inline'>get_guidance</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_guidance(tag: str) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_guidance_bank import get_guidance
+
+result = get_guidance(tag=&quot;tag_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-GuidanceBank'><code class='inline'>GuidanceBank</code></a></td><td></td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-GuidanceBank'><h3><code class='inline'>GuidanceBank</code></h3><p>Static bank of curated generation-guidance Markdown files.
+
+Each file is named ``&lt;tag&gt;.md`` and contains expert prompt-writing
+or composition guidance for one proven failure category (layout,
+text rendering, count accuracy, etc.).</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, guidance_dir: str | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>root</code></td><td><code class='inline'>def root(self) -&gt; Path</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>available</code></td><td><code class='inline'>def available(self) -&gt; list[str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get</code></td><td><code class='inline'>def get(self, tag: str) -&gt; str | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_load</code></td><td><code class='inline'>def _load(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+i
+m
+a
+g
+e
+_
+g
+u
+i
+d
+a
+n
+c
+e
+_
+b
+a
+n
+k
+ 
+i
+m
+p
+o
+r
+t
+ 
+G
+u
+i
+d
+a
+n
+c
+e
+B
+a
+n
+k
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+G
+u
+i
+d
+a
+n
+c
+e
+B
+a
+n
+k
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_DEFAULT_GUIDANCE_DIR</code></td><td><code class='inline'>Path(__file__).resolve().parent / &#x27;image_guidance_bank&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

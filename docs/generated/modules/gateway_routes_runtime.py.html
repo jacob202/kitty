@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.runtime — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.runtime</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.runtime</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/runtime.py</code> &middot; Python &middot; 3 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Authoritative runtime capability manifest.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.runtime_manifest</code>, <code class='inline'>pydantic</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_runtime_manifest'><code class='inline'>get_runtime_manifest</code></a></td><td>Return a revisioned snapshot of Kitty&#x27;s observed runtime truth.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_active_project'><code class='inline'>get_active_project</code></a></td><td>Return the persisted project scope used when requests omit project_id.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-put_active_project'><code class='inline'>put_active_project</code></a></td><td>Persist the project scope for subsequent Chat and runtime requests.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-get_runtime_manifest'><h3><code class='inline'>get_runtime_manifest</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def get_runtime_manifest(project_id: int | None = None) -&gt; dict</code></div><p>Return a revisioned snapshot of Kitty&#x27;s observed runtime truth.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.runtime import get_runtime_manifest
+
+    result = await get_runtime_manifest()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_active_project'><h3><code class='inline'>get_active_project</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_active_project() -&gt; dict</code></div><p>Return the persisted project scope used when requests omit project_id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.runtime import get_active_project
+
+result = get_active_project()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-put_active_project'><h3><code class='inline'>put_active_project</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def put_active_project(payload: ActiveProjectRequest) -&gt; dict</code></div><p>Persist the project scope for subsequent Chat and runtime requests.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.runtime import put_active_project
+
+result = put_active_project(payload=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ActiveProjectRequest'><code class='inline'>ActiveProjectRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ActiveProjectRequest'><h3><code class='inline'>ActiveProjectRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> project_id: StrictInt</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.runtime import ActiveProjectRequest
+
+obj = ActiveProjectRequest(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

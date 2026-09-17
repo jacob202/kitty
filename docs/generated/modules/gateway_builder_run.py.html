@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_run — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_run</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_run</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_run.py</code> &middot; Python &middot; 11 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>KB-S5 — the ``initiative run`` driver loop.
+
+Composes the existing KB stages into a single continuation loop:
+
+    next eligible packet  -&gt;  run_packet (KB-S3b: implement/validate/review/repair)
+                          -&gt;  publish_task (KB-S4b: operator-gated push + PR)
+                          -&gt;  merge_and_verify (CP-06: evidence-gated auto-merge,
+                              gate=&quot;auto&quot; only; ADR 0018)
+
+The loop runs until no packet is eligible, or a budget (per-initiative attempt
+count or wall-clock runtime) is exhausted, or an operator pause is observed.
+Each packet decision is written durably to the events table so a restart can
+reconcile what already happened.
+
+The loop is deliberately thin: it owns orchestration, budgets, and the
+outcome-level effectiveness stop. All real work (worker execution, validation,
+review, publish, merge) is delegated to the stage modules. It never force-pushes
+and never advances a task past the state its workers (or, for merges, the CP-06
+evidence gate) leave it in.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_failure_signature'><code class='inline'>_failure_signature</code></a></td><td>The crude, mechanical failure signature used for repeat detection.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_classify_exhaustion'><code class='inline'>_classify_exhaustion</code></a></td><td>Classify packet exhaustion as routine or requiring Jacob&#x27;s decision.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_pause_needs_decision'><code class='inline'>_pause_needs_decision</code></a></td><td>Durably pause an initiative on a ``needs_decision`` exhaustion stop.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_paused_gate_summary'><code class='inline'>_paused_gate_summary</code></a></td><td>Summarize an already-paused initiative from durable state.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_cancellation_provenance'><code class='inline'>_cancellation_provenance</code></a></td><td>Keep the worker-run evidence that caused a packet cancellation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_decide'><code class='inline'>_decide</code></a></td><td>Log a durable packet decision. Fail-loud on a missing task log.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_effectiveness_metrics'><code class='inline'>_effectiveness_metrics</code></a></td><td>Measurements the initiative loop owns without guessing.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_effectiveness_pause'><code class='inline'>_effectiveness_pause</code></a></td><td>Pause a campaign that is durable but not economically trustworthy.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_packet_validation_commands'><code class='inline'>_packet_validation_commands</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_attempt_auto_merge'><code class='inline'>_attempt_auto_merge</code></a></td><td>CP-06: merge behind the evidence gate, revalidate, revert on red.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-run_initiative'><code class='inline'>run_initiative</code></a></td><td>Drive an initiative to completion, one eligible packet at a time.</td><td><span class='pill'>complex</span><span class='muted small'>(32)</span></td></tr></table></div>
+<div class='card' id='fn-_failure_signature'><h3><code class='inline'>_failure_signature</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _failure_signature(attempt: dict[str, Any]) -&gt; tuple[Any, Any, Any]</code></div><p>The crude, mechanical failure signature used for repeat detection.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _failure_signature
+
+result = _failure_signature(attempt=&quot;attempt_example&quot;)
+# result: tuple[Any, Any, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_classify_exhaustion'><h3><code class='inline'>_classify_exhaustion</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _classify_exhaustion(loop_result: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Classify packet exhaustion as routine or requiring Jacob&#x27;s decision.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _classify_exhaustion
+
+result = _classify_exhaustion(loop_result=&quot;loop_result_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_pause_needs_decision'><h3><code class='inline'>_pause_needs_decision</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _pause_needs_decision(initiative_id: str, packet_id: str, task_id: str, loop_result: dict[str, Any], classification: dict[str, Any], db_path: Path | None) -&gt; None</code></div><p>Durably pause an initiative on a ``needs_decision`` exhaustion stop.
+
+A packet blocked on scope/identity escalation or an ambiguous
+requirement must not be silently re-selected for another worker run
+without a new operator decision. This writes the decision event and
+pauses the initiative so the run loop stops instead of continuing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _pause_needs_decision
+
+result = _pause_needs_decision(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, task_id=&quot;task_id_example&quot;, loop_result=&quot;loop_result_example&quot;, classification=&quot;classification_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_paused_gate_summary'><h3><code class='inline'>_paused_gate_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _paused_gate_summary(initiative_id: str, db_path: Path | None, processed: list[dict[str, Any]], succeeded: int, exhausted: int) -&gt; dict[str, Any]</code></div><p>Summarize an already-paused initiative from durable state.
+
+The pause may predate this call (a later invocation or a process
+restart), so the gate re-derives the stop_class from the durable
+decision events instead of defaulting to routine. A pause recorded by
+``_pause_needs_decision`` therefore still reports ``stop_class=
+needs_decision`` here, so the CLI can keep treating it as operator
+decision required rather than ordinary completion.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _paused_gate_summary
+
+result = _paused_gate_summary(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;, processed=&quot;processed_example&quot;, succeeded=0, exhausted=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cancellation_provenance'><h3><code class='inline'>_cancellation_provenance</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _cancellation_provenance(loop_result: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Keep the worker-run evidence that caused a packet cancellation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _cancellation_provenance
+
+result = _cancellation_provenance(loop_result=&quot;loop_result_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decide'><h3><code class='inline'>_decide</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _decide(task_id: str, payload: dict[str, Any], db_path: Path | None) -&gt; None</code></div><p>Log a durable packet decision. Fail-loud on a missing task log.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _decide
+
+result = _decide(task_id=&quot;task_id_example&quot;, payload=&quot;payload_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_effectiveness_metrics'><h3><code class='inline'>_effectiveness_metrics</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _effectiveness_metrics(campaign_started: float, packet_started: float, processed_packets: int, accepted_packets: int) -&gt; dict[str, float | int | None]</code></div><p>Measurements the initiative loop owns without guessing.
+
+Builder does not yet have trustworthy cumulative token, metadata-time,
+reset, blocker, projection, or simple-baseline measurements. They remain
+``None``. After the policy observation window that missing telemetry is a
+pause condition, not permission to continue indefinitely.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _effectiveness_metrics
+
+result = _effectiveness_metrics(campaign_started=0.0, packet_started=0.0, processed_packets=0, accepted_packets=0)
+# result: dict[str, float | int | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_effectiveness_pause'><h3><code class='inline'>_effectiveness_pause</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _effectiveness_pause(initiative_id: str, packet_id: str, task_id: str, campaign_started: float, packet_started: float, processed_packets: int, accepted_packets: int, db_path: Path | None) -&gt; dict[str, Any] | None</code></div><p>Pause a campaign that is durable but not economically trustworthy.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _effectiveness_pause
+
+result = _effectiveness_pause(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, task_id=&quot;task_id_example&quot;, campaign_started=0.0, packet_started=0.0, processed_packets=0, accepted_packets=0, db_path=&quot;db_path_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_packet_validation_commands'><h3><code class='inline'>_packet_validation_commands</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _packet_validation_commands(initiative_id: str, packet_id: str, db_path: Path | None) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _packet_validation_commands
+
+result = _packet_validation_commands(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_attempt_auto_merge'><h3><code class='inline'>_attempt_auto_merge</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _attempt_auto_merge(initiative_id: str, packet_id: str, task_id: str, repo_root: Path | None, db_path: Path | None) -&gt; dict[str, Any]</code></div><p>CP-06: merge behind the evidence gate, revalidate, revert on red.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import _attempt_auto_merge
+
+result = _attempt_auto_merge(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, task_id=&quot;task_id_example&quot;, repo_root=&quot;repo_root_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_initiative'><h3><code class='inline'>run_initiative</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (32)</span></h3><div class='sig'><code>def run_initiative(initiative_id: str, worker_command: list[str], review_command: list[str] | None = None, adapter_env: dict[str, str] | None = None, worker: str = &#x27;builder-loop&#x27;, model: str | None = None, provider: str | None = None, timeout_seconds: int = 3600, validation_timeout_seconds: int = 900, review_timeout_seconds: int = 240, publish: bool = False, gate: str = GATE_AUTO, max_initiative_attempts: int | None = None, max_runtime_seconds: int | None = None, effectiveness_guard: bool = True, repo_root: Path | None = None, db_path: Path | None = None, governor_db: Path | None = None, governor_risk_class: str = &#x27;routine&#x27;, governor_projected_cost_cad: float | None = None, governor_requested_route: str | None = None) -&gt; dict[str, Any]</code></div><p>Drive an initiative to completion, one eligible packet at a time.
+
+``effectiveness_guard`` is default-on. It evaluates the campaign after each
+durable packet outcome and pauses on wall-time, packet-time, throughput, or
+missing post-observation telemetry. Disabling it is an explicit operator
+action intended for bounded diagnostics, not normal campaigns.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_run import run_initiative
+
+result = run_initiative(initiative_id=&quot;initiative_id_example&quot;, worker_command=&quot;worker_command_example&quot;, review_command=&quot;review_command_example&quot;  # default: None, adapter_env=&quot;adapter_env_example&quot;  # default: None, worker=&quot;worker_example&quot;  # default: &#x27;builder-loop&#x27;, model=&quot;model_example&quot;  # default: None, provider=&quot;provider_example&quot;  # default: None, timeout_seconds=0  # default: 3600, validation_timeout_seconds=0  # default: 900, review_timeout_seconds=0  # default: 240, publish=True  # default: False, gate=&quot;gate_example&quot;  # default: GATE_AUTO, max_initiative_attempts=0  # default: None, max_runtime_seconds=0  # default: None, effectiveness_guard=True  # default: True, repo_root=&quot;repo_root_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None, governor_db=&quot;governor_db_example&quot;  # default: None, governor_risk_class=&quot;governor_risk_class_example&quot;  # default: &#x27;routine&#x27;, governor_projected_cost_cad=0.0  # default: None, governor_requested_route=&quot;governor_requested_route_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>EVENT_DECISION</code></td><td><code class='inline'>&#x27;initiative_decision&#x27;</code></td></tr><tr><td><code class='inline'>GATE_AUTO</code></td><td><code class='inline'>&#x27;auto&#x27;</code></td></tr><tr><td><code class='inline'>GATE_MANUAL</code></td><td><code class='inline'>&#x27;manual&#x27;</code></td></tr><tr><td><code class='inline'>STOP_ROUTINE</code></td><td><code class='inline'>&#x27;routine&#x27;</code></td></tr><tr><td><code class='inline'>STOP_NEEDS_DECISION</code></td><td><code class='inline'>&#x27;needs_decision&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

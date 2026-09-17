@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.context_receipt — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.context_receipt</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.context_receipt</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/context_receipt.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Context receipt facade and the single shared orientation owner.
+
+The historical checkpoint implementation remains in ``context_receipt_legacy``
+while callers migrate from tracked ``.claude`` checkpoint continuity to the
+Global Agent Room. Strict callers (doctor, CI, legacy session validation) keep
+the exact previous behavior by default. Agent cold starts that have already
+proven ``workspace_global`` available may opt out of legacy checkpoint authority
+with ``--skip-legacy-continuity``.
+
+This module is also the public owner of Kitty&#x27;s one shared orientation
+projection. The bounded implementation lives in ``context_orientation``;
+``build_orientation_receipt`` and ``build_room_briefing`` are re-exported here so
+CLI, MCP, hooks, and future clients consume one deterministic domain result
+instead of reassembling authority state themselves. GAR supplies conversation,
+presence, and event evidence; it does not own the assembled operating picture.
+
+This compatibility seam is temporary and is intentionally small so the legacy
+implementation can be archived cleanly once scoped Agent Room retrieval is the
+sole interactive-continuity path.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>sys</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_is_legacy_continuity_check'><code class='inline'>_is_legacy_continuity_check</code></a></td><td>Return whether a check depends on STATE/HANDOFF compatibility data.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_without_legacy_continuity'><code class='inline'>_without_legacy_continuity</code></a></td><td>Project strict continuity evidence without legacy checkpoint authority.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-inspect_continuity'><code class='inline'>inspect_continuity</code></a></td><td>Inspect repository continuity, optionally demoting legacy checkpoints.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_legacy_unknown'><code class='inline'>_legacy_unknown</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_project_receipt_without_legacy'><code class='inline'>_project_receipt_without_legacy</code></a></td><td>Remove checkpoint authority and recompute receipt truth from remaining checks.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-build_context_receipt'><code class='inline'>build_context_receipt</code></a></td><td>Build a receipt; GAR-first callers can make legacy continuity non-blocking.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_is_legacy_continuity_check'><h3><code class='inline'>_is_legacy_continuity_check</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _is_legacy_continuity_check(check: ContinuityCheck) -&gt; bool</code></div><p>Return whether a check depends on STATE/HANDOFF compatibility data.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_receipt import _is_legacy_continuity_check
+
+result = _is_legacy_continuity_check(check=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_without_legacy_continuity'><h3><code class='inline'>_without_legacy_continuity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _without_legacy_continuity(inspection: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Project strict continuity evidence without legacy checkpoint authority.
+
+The legacy inspector still runs during this transition so strict tooling is
+not forked into a second implementation. Its checkpoint-derived failures and
+fields are removed from the GAR-first projection, making them non-blocking
+once the caller has independently established Agent Room availability.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_receipt import _without_legacy_continuity
+
+result = _without_legacy_continuity(inspection=&quot;inspection_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-inspect_continuity'><h3><code class='inline'>inspect_continuity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def inspect_continuity(repo_root: Path, expected_canonical: Path | None = None, now: datetime | None = None, max_age: timedelta = DEFAULT_MAX_CHECKPOINT_AGE, github_lookup: GitHubLookup | None = None, include_legacy_continuity: bool = True) -&gt; dict[str, Any]</code></div><p>Inspect repository continuity, optionally demoting legacy checkpoints.
+
+``include_legacy_continuity=True`` is the compatibility default and delegates
+unchanged to the historical implementation. ``False`` is only for a caller
+that has already proven ``workspace_global`` available; checkpoint-derived
+state and failures then become non-authoritative and non-blocking.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_receipt import inspect_continuity
+
+result = inspect_continuity(repo_root=&quot;repo_root_example&quot;, expected_canonical=&quot;expected_canonical_example&quot;  # default: None, now=...  # default: None, max_age=...  # default: DEFAULT_MAX_CHECKPOINT_AGE, github_lookup=...  # default: None, include_legacy_continuity=True  # default: True)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_legacy_unknown'><h3><code class='inline'>_legacy_unknown</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _legacy_unknown(field: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_receipt import _legacy_unknown
+
+result = _legacy_unknown(field=&quot;field_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_project_receipt_without_legacy'><h3><code class='inline'>_project_receipt_without_legacy</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _project_receipt_without_legacy(receipt: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Remove checkpoint authority and recompute receipt truth from remaining checks.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_receipt import _project_receipt_without_legacy
+
+result = _project_receipt_without_legacy(receipt=&quot;receipt_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_context_receipt'><h3><code class='inline'>build_context_receipt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def build_context_receipt(repo_root: Path, expected_canonical: Path | None = None, now: datetime | None = None, max_age: timedelta = DEFAULT_MAX_CHECKPOINT_AGE, github_lookup: GitHubLookup | None = None, recent_commit_limit: int = DEFAULT_RECENT_COMMITS, include_builder: bool = True, include_legacy_continuity: bool = True) -&gt; dict[str, Any]</code></div><p>Build a receipt; GAR-first callers can make legacy continuity non-blocking.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_receipt import build_context_receipt
+
+result = build_context_receipt(repo_root=&quot;repo_root_example&quot;, expected_canonical=&quot;expected_canonical_example&quot;  # default: None, now=...  # default: None, max_age=...  # default: DEFAULT_MAX_CHECKPOINT_AGE, github_lookup=...  # default: None, recent_commit_limit=0  # default: DEFAULT_RECENT_COMMITS, include_builder=True  # default: True, include_legacy_continuity=True  # default: True)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def main(argv: list[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_receipt import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SCHEMA_VERSION</code></td><td><code class='inline'>_legacy.SCHEMA_VERSION</code></td></tr><tr><td><code class='inline'>DEFAULT_RECENT_COMMITS</code></td><td><code class='inline'>_legacy.DEFAULT_RECENT_COMMITS</code></td></tr><tr><td><code class='inline'>DEFAULT_MAX_CHECKPOINT_AGE</code></td><td><code class='inline'>_legacy.DEFAULT_MAX_CHECKPOINT_AGE</code></td></tr><tr><td><code class='inline'>EXPECTED_CANONICAL_CHECKOUT</code></td><td><code class='inline'>_legacy.EXPECTED_CANONICAL_CHECKOUT</code></td></tr><tr><td><code class='inline'>ROOT</code></td><td><code class='inline'>_legacy.ROOT</code></td></tr><tr><td><code class='inline'>STATE_PATH</code></td><td><code class='inline'>_legacy.STATE_PATH</code></td></tr><tr><td><code class='inline'>HANDOFF_PATH</code></td><td><code class='inline'>_legacy.HANDOFF_PATH</code></td></tr><tr><td><code class='inline'>ACTIVE_MISSION_PATH</code></td><td><code class='inline'>_legacy.ACTIVE_MISSION_PATH</code></td></tr><tr><td><code class='inline'>_LEGACY_CHECK_PREFIXES</code></td><td><code class='inline'>(&#x27;state:&#x27;, &#x27;handoff:&#x27;, &#x27;checkpoint:&#x27;)</code></td></tr><tr><td><code class='inline'>_LEGACY_DERIVED_CHECKS</code></td><td><code class='inline'>{&#x27;mission:active_state&#x27;}</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

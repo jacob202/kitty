@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.runpod_worker_smoke_test — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.runpod_worker_smoke_test</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.runpod_worker_smoke_test</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/runpod_worker_smoke_test.py</code> &middot; Python &middot; 13 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Run one guarded RunPod Pod -&gt; Kitty worker -&gt; local image smoke test.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.runpod_control</code>, <code class='inline'>gateway.runpod_worker</code>, <code class='inline'>hashlib</code>, <code class='inline'>httpx</code>, <code class='inline'>json</code>, <code class='inline'>math</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>secrets</code>, <code class='inline'>sys</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_env_int'><code class='inline'>_env_int</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_env_float'><code class='inline'>_env_float</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-estimated_compute_cost'><code class='inline'>estimated_compute_cost</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-reconcile_expired_pods'><code class='inline'>reconcile_expired_pods</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-reconcile_ambiguous_creation'><code class='inline'>reconcile_ambiguous_creation</code></a></td><td>Delete exact-name managed Pods after a lost create response.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-wait_for_running_pod'><code class='inline'>wait_for_running_pod</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-wait_for_worker'><code class='inline'>wait_for_worker</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_validate_acknowledgements'><code class='inline'>_validate_acknowledgements</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_write_provenance'><code class='inline'>_write_provenance</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-run_smoke'><code class='inline'>run_smoke</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(25)</span></td></tr><tr><td><a href='#fn-build_parser'><code class='inline'>build_parser</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-async_main'><code class='inline'>async_main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_env_int'><h3><code class='inline'>_env_int</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _env_int(name: str, default: int) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_worker_smoke_test import _env_int
+
+result = _env_int(name=&quot;name_example&quot;, default=0)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_env_float'><h3><code class='inline'>_env_float</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _env_float(name: str, default: float) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_worker_smoke_test import _env_float
+
+result = _env_float(name=&quot;name_example&quot;, default=0.0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-estimated_compute_cost'><h3><code class='inline'>estimated_compute_cost</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def estimated_compute_cost(hourly_rate: float, elapsed_seconds: float) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_worker_smoke_test import estimated_compute_cost
+
+result = estimated_compute_cost(hourly_rate=0.0, elapsed_seconds=0.0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reconcile_expired_pods'><h3><code class='inline'>reconcile_expired_pods</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def reconcile_expired_pods(client: RunPodControlClient) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.runpod_worker_smoke_test import reconcile_expired_pods
+
+    result = await reconcile_expired_pods()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reconcile_ambiguous_creation'><h3><code class='inline'>reconcile_ambiguous_creation</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def reconcile_ambiguous_creation(client: RunPodControlClient, pod_name: str) -&gt; list[str]</code></div><p>Delete exact-name managed Pods after a lost create response.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.runpod_worker_smoke_test import reconcile_ambiguous_creation
+
+    result = await reconcile_ambiguous_creation()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-wait_for_running_pod'><h3><code class='inline'>wait_for_running_pod</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def wait_for_running_pod(client: RunPodControlClient, pod_id: str, timeout_seconds: int, poll_interval_seconds: float) -&gt; PodInfo</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.runpod_worker_smoke_test import wait_for_running_pod
+
+    result = await wait_for_running_pod()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-wait_for_worker'><h3><code class='inline'>wait_for_worker</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def wait_for_worker(client: RunPodWorkerClient, timeout_seconds: int, poll_interval_seconds: float) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.runpod_worker_smoke_test import wait_for_worker
+
+    result = await wait_for_worker()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_acknowledgements'><h3><code class='inline'>_validate_acknowledgements</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _validate_acknowledgements(args: argparse.Namespace, creating_pod: bool) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_worker_smoke_test import _validate_acknowledgements
+
+result = _validate_acknowledgements(args=..., creating_pod=True)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_write_provenance'><h3><code class='inline'>_write_provenance</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _write_provenance(output_dir: Path, run_id: str, started_at: datetime, elapsed_seconds: float, pod: PodInfo, config: Config, args: argparse.Namespace, worker_job_id: str | None, prompt_id: str | None, workflow_sha256: str | None, seed: int, image_path: Path | None, image_sha256: str | None, actual_cost: float | None, pod_terminated: bool, termination_error: str | None, failure: BaseException | None) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_worker_smoke_test import _write_provenance
+
+result = _write_provenance(output_dir=&quot;output_dir_example&quot;, run_id=&quot;run_id_example&quot;, started_at=..., elapsed_seconds=0.0, pod=..., config=..., args=..., worker_job_id=&quot;worker_job_id_example&quot;, prompt_id=&quot;prompt_id_example&quot;, workflow_sha256=&quot;workflow_sha256_example&quot;, seed=0, image_path=&quot;image_path_example&quot;, image_sha256=&quot;image_sha256_example&quot;, actual_cost=0.0, pod_terminated=True, termination_error=&quot;termination_error_example&quot;, failure=...)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_smoke'><h3><code class='inline'>run_smoke</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (25)</span></h3><div class='sig'><code>async def run_smoke(args: argparse.Namespace) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.runpod_worker_smoke_test import run_smoke
+
+    result = await run_smoke()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_parser'><h3><code class='inline'>build_parser</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def build_parser() -&gt; argparse.ArgumentParser</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_worker_smoke_test import build_parser
+
+result = build_parser()
+# result: argparse.ArgumentParser</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-async_main'><h3><code class='inline'>async_main</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def async_main(argv: Sequence[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.runpod_worker_smoke_test import async_main
+
+    result = await async_main()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_worker_smoke_test import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-WorkerSmokeError'><code class='inline'>WorkerSmokeError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-Config'><code class='inline'>Config</code></a></td><td></td><td>2 methods</td></tr></table></div>
+<div class='card' id='cls-WorkerSmokeError'><h3><code class='inline'>WorkerSmokeError</code></h3><p>The authenticated RunPod worker smoke test failed.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from scripts.runpod_worker_smoke_test import WorkerSmokeError
+
+obj = WorkerSmokeError(...)</pre></div>
+<div class='card' id='cls-Config'><h3><code class='inline'>Config</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> api_key: str, template_id: str | None, worker_token: str, network_volume_id: str | None, checkpoint: str, gpu_type_ids: tuple[str, ...], max_hourly_rate: float, hard_runtime_minutes: int, ready_timeout_seconds: int, generation_timeout_seconds: int, poll_interval_seconds: float, width: int, height: int, steps: int, guidance: float, negative_prompt: str</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>from_env</code></td><td><code class='inline'>def from_env(cls, require_live_secrets: bool, require_template: bool) -&gt; &#x27;Config&#x27;</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>validate</code></td><td><code class='inline'>def validate(self) -&gt; None</code></td><td><span class='pill'>complex</span></td></tr></table><h3>Code Example</h3><pre>from scripts.runpod_worker_smoke_test import Config
+
+obj = Config(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>REPO_ROOT</code></td><td><code class='inline'>Path(__file__).resolve().parents[1]</code></td></tr><tr><td><code class='inline'>WORKER_PORT</code></td><td><code class='inline'>8000</code></td></tr><tr><td><code class='inline'>WORKFLOW_ID</code></td><td><code class='inline'>&#x27;text_to_image_v1&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_GPU_TYPE_IDS</code></td><td><code class='inline'>(&#x27;NVIDIA GeForce RTX 3090&#x27;, &#x27;NVIDIA RTX A5000&#x27;, &#x27;NVIDIA GeForce RTX 4090&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

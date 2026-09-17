@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.image_lab_acceptance_scene — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.image_lab_acceptance_scene</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.image_lab_acceptance_scene</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/image_lab_acceptance_scene.py</code> &middot; Python &middot; 4 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Two-character acceptance-scene builder for the FLUX.2 Image Lab benchmark gate.
+
+ADR 0040 lists &quot;two recurring identities stay correctly assigned in a
+one-pass scene&quot; as an unproven evidence gate, and says to run that benchmark
+&quot;as soon as the compiler, one hosted FLUX.2 adapter, and the minimum
+typed-reference/cast path ... exist.&quot; All three now exist on ``main``
+(flux2_compiler, the BFL Direct transport, and typed cast/reference dispatch
+in ``gateway/routes/extended.py``) — what was missing was a way to actually
+build the two-character ``ImagePlan`` that exercises that path.
+
+This script persists exactly that plan through the real, already-approved
+trust boundary (``gateway.image_plan_store.persist_plan`` -&gt; the same
+``/studio/generate`` dispatch every other approved plan goes through). It
+adds no new architecture, no new engine, and performs no network call
+itself — real generation only happens when ``--dispatch`` is passed, and
+that reaches the existing hosted FLUX.2 transport (gateway/flux2_transport.py),
+which spends real money against ``BFL_API_KEY``.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>asyncio</code>, <code class='inline'>gateway.image_plan_store</code>, <code class='inline'>gateway.image_sessions</code>, <code class='inline'>gateway.routes.image_studio</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>sys</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-build_two_character_plan'><code class='inline'>build_two_character_plan</code></a></td><td>Persist an approved two-character txt2img ``ImagePlan`` and return it.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_dispatch'><code class='inline'>_dispatch</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_build_parser'><code class='inline'>_build_parser</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-build_two_character_plan'><h3><code class='inline'>build_two_character_plan</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def build_two_character_plan(session_id: str, prompt: str, character_a_id: str, character_a_ref: Path | str, character_b_id: str, character_b_ref: Path | str, character_a_name: str | None = None, character_b_name: str | None = None, quality: str = &#x27;fast&#x27;) -&gt; Any</code></div><p>Persist an approved two-character txt2img ``ImagePlan`` and return it.
+
+``character_a``/``character_b`` need no pre-existing ``Character`` row —
+the typed cast/reference dispatch path in ``extended.py`` resolves
+references from the plan&#x27;s own durable provenance, not from
+``gateway.image_characters``. Positions are fixed left/right so the
+identity-assignment scorer (``gateway.image_scorers.make_assignment_scorer``)
+has a stable cast_slot -&gt; position mapping to check the render against.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.image_lab_acceptance_scene import build_two_character_plan
+
+result = build_two_character_plan(session_id=&quot;session_id_example&quot;, prompt=&quot;prompt_example&quot;, character_a_id=&quot;character_a_id_example&quot;, character_a_ref=&quot;character_a_ref_example&quot;, character_b_id=&quot;character_b_id_example&quot;, character_b_ref=&quot;character_b_ref_example&quot;, character_a_name=&quot;character_a_name_example&quot;  # default: None, character_b_name=&quot;character_b_name_example&quot;  # default: None, quality=&quot;quality_example&quot;  # default: &#x27;fast&#x27;)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_dispatch'><h3><code class='inline'>_dispatch</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def _dispatch(plan_id: str, session_id: str, quality: str) -&gt; Any</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.image_lab_acceptance_scene import _dispatch
+
+    result = await _dispatch()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_parser'><h3><code class='inline'>_build_parser</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _build_parser() -&gt; argparse.ArgumentParser</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.image_lab_acceptance_scene import _build_parser
+
+result = _build_parser()
+# result: argparse.ArgumentParser</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def main(argv: list[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.image_lab_acceptance_scene import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>
