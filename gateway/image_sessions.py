@@ -35,7 +35,7 @@ from gateway.paths import DB_MIGRATIONS_DIR
 
 _MIGRATION_FILE = DB_MIGRATIONS_DIR / "029_image_sessions.sql"
 _PROJECTS_MIGRATION_FILE = DB_MIGRATIONS_DIR / "010_projects.sql"
-_RESERVATIONS_MIGRATION_FILE = DB_MIGRATIONS_DIR / "061_image_session_reservations.sql"
+_RESERVATIONS_MIGRATION_FILE = DB_MIGRATIONS_DIR / "063_image_session_reservations.sql"
 
 _MAX_JSON_BYTES = 65_536
 _MAX_TEXT_BYTES = 10_240
