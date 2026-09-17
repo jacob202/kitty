@@ -341,17 +341,23 @@ def evaluate_policy(
         # Human approval is reserved for the irreversible subset. Every other
         # sensitive change clears on the trusted exact-head review alone, so a
         # single operator is never the bottleneck for broad-scope work.
-        if _irreversible_files(changed_files) and not human_signature_waived:
+        irreversible = _irreversible_files(changed_files)
+        if irreversible and not human_signature_waived:
+            irreversible_list = ", ".join(irreversible)
             if RISK_APPROVED_LABEL not in labels:
-                violations.append(f"risky scope requires label `{RISK_APPROVED_LABEL}`")
+                violations.append(
+                    f"risky scope requires label `{RISK_APPROVED_LABEL}` (irreversible: {irreversible_list})"
+                )
             if _exact_head_approval(body, "Risk approval", head_sha) is None:
                 violations.append(
-                    "risky scope requires exact-head risk approval: "
+                    "risky scope requires exact-head risk approval "
+                    f"(irreversible: {irreversible_list}): "
                     "`Risk approval: APPROVE <full-head-SHA> — <reason>`"
                 )
         if not independent_review_approved:
             violations.append(
-                "risky scope requires trusted independent review approval for the exact current head"
+                "risky scope requires trusted independent review approval for the exact current head "
+                f"(risky: {', '.join(risky)})"
             )
 
     return violations

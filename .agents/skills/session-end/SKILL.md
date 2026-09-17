@@ -15,6 +15,31 @@ learning receipt, not a goodbye message.
 **The cross-tool KB is `~/kb` (absolute), a separate repository. Never write to
 a repo-relative `kb/` path.**
 
+## Which steps apply where
+
+This skill is cross-tool; several of its steps are not. Steps 1, 5, 6 and 12
+invoke scripts that exist only in a Kitty checkout — `scripts/session_end_survey.sh`,
+`scripts/kb_effectiveness.py`, `scripts/session_learning.py`,
+`scripts/check_continuity_state.py` and `./kitty`. Outside a Kitty clone/worktree
+they do not exist and the commands fail on "No such file or directory".
+
+So, before running any repo-relative command below, resolve the current repository
+root with `git rev-parse --show-toplevel` and inspect that root rather than matching
+its absolute pathname:
+
+- **In any Kitty clone/worktree** (the repository root contains `./kitty` and the
+  Kitty scripts named above): run every step from that resolved root.
+- **In any other repo**: use that repo's own convention if it has one; otherwise
+  skip the step and say in the handoff which steps were skipped and why. Do not
+  invent structure in a repo that does not have it, and do not copy Kitty's
+  scripts into it.
+- **The KB steps are always portable.** Writing `~/kb` entries, corrections and
+  `NOW.md` updates works from anywhere and is never skipped.
+
+`check_continuity_state.py` in particular pins `ROOT` to its own parent
+directory, so it validates the Kitty checkout no matter where it is invoked
+from. Copying it elsewhere does not make it portable.
+
 ## 0. Verify live state and execution ownership
 
 Never write from memory. Run:
@@ -181,6 +206,18 @@ in the effectiveness receipt.
 If `~/kb` is unavailable, stage the complete payload under
 `docs/session-notes/<DATE>-kb-payload.md` and carry a recommendation with
 `test -d ~/kb`.
+
+**Never write personal or sensitive content into the KB.** The bridge decision
+stands: Kitty memory → KB is human-filtered only. Health, medical, legal,
+financial, benefits, recovery/support, and personal correspondence stay out —
+including as an illustrative example inside an otherwise technical entry. Every
+tool Jacob runs reads this store at cold start, so anything written here is
+handed to every future agent in every project.
+
+If a technical lesson needs the shape of a real query to make sense, abstract
+it: "an unscoped medication-interaction question" carries the routing lesson
+without recording what he asked. This applies to `NOW.md`, `wiki/`,
+`corrections/`, and the `notes` field of an effectiveness receipt alike.
 
 ## 5. Record the KB effectiveness receipt
 

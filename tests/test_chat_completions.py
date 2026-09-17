@@ -139,6 +139,24 @@ class TestMemoryTrailer:
             + DONE_CHUNK
         )
 
+    def test_degraded_context_is_exposed_in_stream_trailer(self):
+        bundle = ContextBundle(
+            system="SYS",
+            warnings=["calendar: TimeoutError: unavailable"],
+            context_health={
+                "mode": "degraded",
+                "degraded_sources": ["calendar"],
+                "budget_clipped": False,
+                "warning_count": 1,
+            },
+        )
+        response, _ = _post_stream([DONE_CHUNK], bundle)
+        assert (
+            b'"context_warnings": ["calendar: TimeoutError: unavailable"]'
+            in response.content
+        )
+        assert b'"context_health": {"mode": "degraded"' in response.content
+
     def test_upstream_error_mid_stream_propagates_without_trailer(self):
         """Errors are not swallowed to force a trailer or [DONE]."""
 
@@ -346,6 +364,22 @@ class TestNonStreamMemoryEvidence:
         )
         assert response.json()["evidence_items"] == [receipt]
         assert mocks["finish"].call_args.kwargs["evidence_items"] == [receipt]
+
+    def test_degraded_context_is_exposed_in_non_stream_runtime(self):
+        bundle = ContextBundle(
+            system="SYS",
+            warnings=["calendar: TimeoutError: unavailable"],
+            context_health={
+                "mode": "degraded",
+                "degraded_sources": ["calendar"],
+                "budget_clipped": False,
+                "warning_count": 1,
+            },
+        )
+        response, _ = self._post_non_stream(bundle)
+        runtime = response.json()["kitty_runtime"]
+        assert runtime["context_warnings"] == ["calendar: TimeoutError: unavailable"]
+        assert runtime["context_health"] == bundle.context_health
 
     def test_ledger_evidence_matches_response_body(self):
         bundle = ContextBundle(
