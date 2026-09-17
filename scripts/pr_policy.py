@@ -26,7 +26,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from scripts import pr_review_gate, pr_scope
+from scripts import pr_review, pr_review_gate, pr_scope
 
 RISK_APPROVED_LABEL = "risk/approved"
 LARGE_CHANGE_LINES = 1500
@@ -437,10 +437,7 @@ def main() -> None:
 
         review_approved = True
         if _risky_files(files):
-            comments_url = f"https://api.github.com/repos/{owner}/{name}/issues/{number}/comments?per_page=100"
-            comments = _github_json(comments_url, token)
-            if not isinstance(comments, list):
-                raise RuntimeError("GitHub PR comments response was not a list")
+            comments = pr_review.issue_comments(owner, name, number, token, fetch=_github_json)
             review_approved, review_reason = pr_review_gate.evaluate_review_gate(
                 pr, comments, repo_owner=owner
             )

@@ -266,3 +266,40 @@ def test_sentinel_with_rubric_fields_is_still_blocking() -> None:
     comment = _comment(body, "github-actions[bot]", user_type="Bot")
     assert not pr_review_gate.agent_review_approved(comment, SHA)
     assert pr_review_gate.agent_review_blocked(comment, SHA)
+
+
+def _builder_verdict_comment(verdict: str, sha: str, login: str = "jacob202") -> dict:
+    body = "\n".join([
+        pr_review_gate.BUILDER_REVIEW_MARKER,
+        "# KittyBuilder review note",
+        f"- Reviewed commit: `{sha}`",
+        f"- Verdict: {verdict}",
+    ])
+    return _comment(body, login)
+
+
+def test_later_exact_head_approve_supersedes_earlier_reject() -> None:
+    """Group E #22: reject-then-approve at the same head must not stay blocked.
+
+    A reviewer who re-reviews the exact head and approves has answered the
+    earlier rejection; the latest verdict wins. Before this regression fix, any
+    exact-head reject blocked forever even when a later approve existed.
+    """
+    pr = {"head": {"sha": SHA}, "body": "", "labels": []}
+    earlier_reject = _builder_verdict_comment("request_changes", SHA)
+    later_approve = _builder_verdict_comment("approve", SHA)
+    ok, _ = pr_review_gate.evaluate_review_gate(
+        pr, [earlier_reject, later_approve], repo_owner="jacob202"
+    )
+    assert ok, "later exact-head approve must supersede the earlier reject"
+
+
+def test_later_exact_head_reject_supersedes_earlier_approve() -> None:
+    """Symmetric guard: approve-then-reject at the same head must stay blocked."""
+    pr = {"head": {"sha": SHA}, "body": "", "labels": []}
+    earlier_approve = _builder_verdict_comment("approve", SHA)
+    later_reject = _builder_verdict_comment("request_changes", SHA)
+    ok, _ = pr_review_gate.evaluate_review_gate(
+        pr, [earlier_approve, later_reject], repo_owner="jacob202"
+    )
+    assert not ok

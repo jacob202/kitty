@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import unquote
 
-from scripts import pr_policy, pr_review, pr_scope
+from scripts import pr_policy, pr_review, pr_review_gate, pr_scope
 
 SHA = "a" * 40
 
@@ -270,7 +270,7 @@ def test_main_resolves_merge_group_event_to_live_pr(tmp_path, monkeypatch) -> No
             return current
         if "/pulls/42/files?" in url:
             return [{"filename": ".github/workflows/tests.yml"}]
-        if url.endswith("/issues/42/comments?per_page=100"):
+        if url.endswith("/issues/42/comments?per_page=100&page=1"):
             return [approved_comment]
         raise AssertionError(url)
 
@@ -309,7 +309,7 @@ def test_main_reads_current_pr_and_review_evidence_from_api(tmp_path, monkeypatc
             return current
         if "/pulls/12/files?" in url:
             return [{"filename": ".github/workflows/tests.yml"}]
-        if url.endswith("/issues/12/comments?per_page=100"):
+        if url.endswith("/issues/12/comments?per_page=100&page=1"):
             return [approved_comment]
         raise AssertionError(url)
 
@@ -670,3 +670,52 @@ def test_refactor_waivable_paths_are_a_subset_of_the_irreversible_tier() -> None
     for path in ("gateway/routes/chats.py", "gateway/routes/projects.py"):
         assert path in pr_scope.irreversible_files([path])
         assert any(pattern.search(path) for pattern in pr_scope.REFACTOR_WAIVABLE_PATTERNS)
+
+
+def test_main_paginates_review_comments_before_using_latest_builder_verdict(tmp_path, monkeypatch) -> None:
+    """The policy gate must see a superseding verdict beyond GitHub's first 100 comments."""
+    current = _pr(head_sha=SHA)
+    current["number"] = 77
+    event = {
+        "action": "synchronize",
+        "pull_request": {"number": 77},
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+    }
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    def builder_comment(verdict: str) -> dict:
+        return {
+            "body": "\n".join(
+                [
+                    pr_review_gate.BUILDER_REVIEW_MARKER,
+                    "# KittyBuilder review note",
+                    f"- Reviewed commit: `{SHA}`",
+                    f"- Verdict: {verdict}",
+                ]
+            ),
+            "user": {"login": "jacob202", "type": "User"},
+        }
+
+    first_page = [{"body": f"old comment {index}"} for index in range(99)]
+    first_page.append(builder_comment("request_changes"))
+    second_page = [builder_comment("approve")]
+    requested: list[str] = []
+
+    def fake_github_json(url: str, _token: str):
+        requested.append(url)
+        if url.endswith("/pulls/77"):
+            return current
+        if "/pulls/77/files?" in url:
+            return [{"filename": "gateway/builder_loop.py"}]
+        if url.endswith("/issues/77/comments?per_page=100&page=1"):
+            return first_page
+        if url.endswith("/issues/77/comments?per_page=100&page=2"):
+            return second_page
+        raise AssertionError(url)
+
+    monkeypatch.setattr(pr_policy, "_github_json", fake_github_json)
+    pr_policy.main()
+    assert any(url.endswith("&page=2") for url in requested)
