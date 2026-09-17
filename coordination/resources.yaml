@@ -86,6 +86,7 @@ resources:
     - tests/test_image_*.py
     - tests/test_imagelab_iteration.py
     - tests/test_runpod_control.py
+    - tests/test_runpod_worker_error_sanitization.py
     - tests/test_runpod_worker_smoke_test.py
     - workers/comfy_worker/app.py
     - workers/comfy_worker/requirements.txt
