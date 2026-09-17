@@ -995,8 +995,24 @@ def clear_recovery_budget(
     text = str(reason or "").strip()
     if not text:
         raise LoopError("clearing the recovery budget requires a reason")
-    if bq.get_task(task_id, db_path=db_path) is None:
+    task = bq.get_task(task_id, db_path=db_path)
+    if task is None:
         raise LoopError(f"task {task_id} is missing")
+    # Only a packet the streak has already stopped may be cleared. Without this
+    # an operator (or automation) could clear a *partial* streak on a queued or
+    # running task, erase it, and walk the packet past the configured cap one
+    # crash at a time. Requiring a fresh exhaustion per clear keeps the cap
+    # meaningful: you cannot gain more than one clear per stop.
+    if (
+        task["state"] != bq.BLOCKED
+        or task.get("blocked_reason") != "recovery_budget_exhausted"
+    ):
+        raise LoopError(
+            f"task {task_id} is not blocked by an exhausted recovery budget "
+            f"(state={task['state']!r}, blocked_reason={task.get('blocked_reason')!r}); "
+            "clearing is only for a packet a consecutive-crash streak has already "
+            "stopped"
+        )
     cleared_count, previous_reason = _consecutive_identical_crashes(
         task_id, db_path=db_path
     )

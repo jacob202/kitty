@@ -1739,6 +1739,31 @@ class TestRecoveryBudget:
         with pytest.raises(bl.LoopError, match="requires a reason"):
             bl.clear_recovery_budget(task_id, reason="   ", db_path=db_path)
 
+    def test_clear_refuses_a_task_the_streak_has_not_stopped(
+        self, repo: Path, db_path: Path
+    ):
+        """Clearing must not become a way to walk past the cap.
+
+        A queued or running task with a *partial* streak must be refused, or an
+        operator could erase two crashes at a time and exceed the configured
+        consecutive-crash limit indefinitely.
+        """
+        task_id = _apply(db_path, repo_root=repo)
+        self._crash(task_id, db_path)
+        self._crash(task_id, db_path)
+
+        task = bq.get_task(task_id, db_path=db_path)
+        assert task["state"] == bq.QUEUED
+
+        with pytest.raises(bl.LoopError, match="not blocked by an exhausted"):
+            bl.clear_recovery_budget(
+                task_id, reason="pre-emptively clearing", db_path=db_path
+            )
+
+        # The partial streak is intact.
+        count, _reason = bl._consecutive_identical_crashes(task_id, db_path=db_path)
+        assert count == 2
+
     def test_stops_with_truthful_blocker_after_identical_crashes(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
