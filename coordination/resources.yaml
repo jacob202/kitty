@@ -206,6 +206,7 @@ resources:
     - tests/test_kitty_launcher.py
     - tests/test_kitty_launcher_runtime.py
     - tests/test_llm_client.py
+    - tests/test_llm_client_event_loop_blocking.py
     - tests/test_local_review.py
     - tests/test_mcp_builder_commands.py
     - tests/test_mcp_builder_context.py
