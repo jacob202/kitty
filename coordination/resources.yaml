@@ -13,6 +13,9 @@ resources:
     - gateway/run_workspace.py
     - integrations/discord_command_center/service.py
     - integrations/discord_command_center/workspace.py
+    - scripts/kittybuilder_dsh.sh
+    - scripts/kittybuilder_dsh_reviewer.sh
+    - scripts/kittybuilder_dsh_worker.sh
     - tests/test_builder_contract_gate.py
     - tests/test_builder_execution_boundary.py
     - tests/test_builder_identity.py

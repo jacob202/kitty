@@ -75,6 +75,34 @@ llm-pi-ai:
       retryPolicy:
         mode: normal
         maxRetries: 0
+      # Declaring `models` REPLACES this route's installed catalog, so every
+      # model either lane can select has to appear here. deepseek-v4.1-flash is
+      # the reason: OpenRouter serves it but no published pi-ai catalog carries
+      # it (checked 0.82.1 and 0.85.1), so every paid cheap dispatch died on
+      # UNKNOWN_MODEL before reaching a provider. Catalog models are restated by
+      # id alone, which inherits their shipped configuration unchanged.
+      models:
+        - id: deepseek/deepseek-v4.1-flash
+          name: 'DeepSeek: DeepSeek V4.1 Flash'
+          contextWindow: 1048576
+          maxTokens: 4096
+          # A hand-declared model reasons only if it says so, and the forge
+          # preset asks for "high". Mirrors the levels its v4-flash sibling
+          # ships; without this the request fails UNSUPPORTED_REASONING_EFFORT.
+          reasoningEfforts:
+            high: high
+            xhigh: xhigh
+          compat:
+            supportsDeveloperRole: false
+            thinkingFormat: openrouter
+            requiresReasoningContentOnAssistantMessages: true
+        - id: deepseek/deepseek-v4-flash
+        - id: deepseek/deepseek-v4-pro
+        - id: minimax/minimax-m3
+        - id: qwen/qwen3.7-plus
+        - id: qwen/qwen3.7-max
+        - id: poolside/laguna-xs-2.1:free
+        - id: nvidia/nemotron-3-ultra-550b-a55b:free
 SETTINGS
 patch="${runtime_root}/cordis.patch.yml"
 cleanup() { rm -rf "$runtime_root"; }
