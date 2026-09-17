@@ -16,7 +16,10 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import httpx
 
 from gateway import image_jobs
 from gateway.image_jobs import ImageJobStatus
@@ -1474,7 +1477,6 @@ async def _run_flux(
     comes back as a status rather than an error — both are surfaced verbatim so
     a refusal never reads as a crash.
     """
-    import asyncio as _asyncio
     import base64
 
     import httpx
@@ -1612,8 +1614,6 @@ async def _run_flux2(
     never reach BFL Direct — even in a retry or reroute — and this lane never
     silently falls back to another hosted engine.
     """
-    import asyncio as _asyncio
-
     import httpx
 
     from gateway import flux2_transport
