@@ -3,6 +3,7 @@ Queries the knowledge base for a specific device and symptom,
 then uses the LLM to format the FIRST diagnostic step in a Socratic way.
 """
 
+import asyncio
 import logging
 
 logger = logging.getLogger("kitty.troubleshooter")
@@ -40,7 +41,8 @@ Keep it under 4 sentences. Speak Canadian."""
     prompt = build_worker_context("troubleshooter", task_desc=task_desc)
 
     try:
-        return chat(
+        return await asyncio.to_thread(
+            chat,
             model="deepseek/deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=200,

@@ -99,6 +99,7 @@ resources:
     - gateway/pdf_pipeline.py
     - gateway/routes/experts.py
     - gateway/routes/knowledge.py
+    - gateway/troubleshooter.py
     - scripts/curation/curation_worker.py
     - scripts/curation/prototype_smart_asset.py
     - tests/test_domain_router.py
@@ -258,6 +259,8 @@ resources:
     - gateway/routes/chats.py
     - gateway/routes/completions.py
     - gateway/routes/conversation_handoff.py
+    - gateway/routes/council.py
+    - gateway/routes/kitty_tools.py
     - gateway/routes/models.py
     - gateway/routes/notifications.py
     - gateway/routes/providers.py

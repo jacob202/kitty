@@ -108,6 +108,12 @@ llm-pi-ai:
         - id: qwen/qwen3.7-max
         - id: poolside/laguna-xs-2.1:free
         - id: nvidia/nemotron-3-ultra-550b-a55b:free
+        # The free worker's second rung. OpenRouter does not actually serve this
+        # id, so it fails either way -- but omitting it moved the failure earlier,
+        # to DSH rejecting it as unknown, which exhausts the free lane instead of
+        # letting it fall through as it did before. Listed to keep this change
+        # behaviour-neutral for the free lane; the dead id is a separate problem.
+        - id: tencent/hy3:free
 SETTINGS
 patch="${runtime_root}/cordis.patch.yml"
 cleanup() { rm -rf "$runtime_root"; }

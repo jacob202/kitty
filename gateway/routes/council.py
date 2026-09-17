@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
 
 from fastapi import APIRouter
@@ -35,7 +36,9 @@ class CouncilResponse(BaseModel):
 @router.post("/council")
 async def council(request: CouncilRequest) -> CouncilResponse:
     """Run a user message through the Council supervisor (route -> verify -> synthesize)."""
-    out: CouncilOutput = council_route(request.message, state=request.state)
+    out: CouncilOutput = await asyncio.to_thread(
+        council_route, request.message, state=request.state
+    )
     return CouncilResponse(
         answer=out.answer,
         results=[CouncilTask(**asdict(r)) for r in out.results],
