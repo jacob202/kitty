@@ -23,6 +23,7 @@ resources:
   builder:initiative-lifecycle:
     paths:
     - gateway/builder_initiative.py
+    - tests/test_builder_attempt.py
     - tests/test_builder_initiative.py
   builder:queue-reconciliation:
     paths:
