@@ -85,7 +85,12 @@ llm-pi-ai:
         - id: deepseek/deepseek-v4.1-flash
           name: 'DeepSeek: DeepSeek V4.1 Flash'
           contextWindow: 1048576
-          maxTokens: 4096
+          # A *configured* maxTokens becomes the per-request default output cap
+          # (a catalog model's is only a capability and never defaults). At the
+          # sibling's catalog value of 4096 a worker turn ended on max-tokens
+          # mid-task. OpenRouter allows 384000 here; this leaves ample headroom
+          # for a reasoning model without defaulting to its ceiling.
+          maxTokens: 65536
           # A hand-declared model reasons only if it says so, and the forge
           # preset asks for "high". Mirrors the levels its v4-flash sibling
           # ships; without this the request fails UNSUPPORTED_REASONING_EFFORT.

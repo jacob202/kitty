@@ -99,6 +99,8 @@ resources:
     - gateway/pdf_pipeline.py
     - gateway/routes/experts.py
     - gateway/routes/knowledge.py
+    - scripts/curation/curation_worker.py
+    - scripts/curation/prototype_smart_asset.py
     - tests/test_domain_router.py
     - tests/test_expert_proactive.py
     - tests/test_knowledge.py
