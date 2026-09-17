@@ -1,9 +1,13 @@
 resources:
   automation:execution:
     paths:
+    - gateway/action_queue.py
     - gateway/automation_actions.py
     - gateway/automation_runs.py
+    - gateway/routes/automations.py
+    - tests/test_action_queue.py
     - tests/test_automation_actions.py
+    - tests/test_automation_routes.py
     - tests/test_automation_runs.py
   agent-runtime:containment:
     paths:
@@ -74,12 +78,16 @@ resources:
     - gateway/routes/image_generation.py
     - gateway/routes/image_studio.py
     - gateway/routes/image_studio_jobs.py
+    - gateway/runpod_worker.py
     - mcp/imagen/requirements.txt
     - scripts/image_lab_acceptance_scene.py
     - tests/test_comfy_worker_stuck_running_on_oserror.py
     - tests/test_flux2_transport.py
     - tests/test_image_*.py
     - tests/test_imagelab_iteration.py
+    - tests/test_runpod_control.py
+    - tests/test_runpod_worker_error_sanitization.py
+    - tests/test_runpod_worker_smoke_test.py
     - workers/comfy_worker/app.py
     - workers/comfy_worker/requirements.txt
   knowledge:retrieval:
@@ -169,6 +177,7 @@ resources:
     - gateway/requirements.litellm.txt
     - gateway/routes/register.py
     - gateway/routes/runtime.py
+    - gateway/routes/session_context.py
     - gateway/runtime_manifest.py
     - gateway/session_end_audit.py
     - gateway/skill_registry.py
@@ -213,6 +222,7 @@ resources:
     - tests/test_paths_builder_canonical.py
     - tests/test_pre_push_gate.py
     - tests/test_runtime_manifest.py
+    - tests/test_session_context_route.py
     - tests/test_session_end_audit.py
     - tests/test_skill_registry.py
     - tests/test_start_ui_script.py

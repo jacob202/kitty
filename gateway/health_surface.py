@@ -75,9 +75,10 @@ async def _database_source() -> HealthDomain:
         with kitty_db.connect(KITTY_DB_FILE) as conn:
             conn.execute("SELECT 1").fetchone()
     except Exception as exc:  # noqa: BLE001
+        logger.warning("sqlite open/query failed: %s: %s", type(exc).__name__, exc)
         return HealthDomain(
             "database", "unavailable",
-            reason=f"sqlite open/query failed: {type(exc).__name__}: {exc}",
+            reason=f"sqlite open/query failed ({type(exc).__name__}); see the gateway log for details",
         )
     return HealthDomain("database", "available", reason="sqlite reachable")
 
@@ -288,9 +289,10 @@ async def _pending_grants_source() -> HealthDomain:
     try:
         grants = action_grants.list_grants(include_inactive=False)
     except Exception as exc:  # noqa: BLE001
+        logger.warning("grant store read failed: %s: %s", type(exc).__name__, exc)
         return HealthDomain(
             "pending_grants", "unavailable",
-            reason=f"grant store read failed: {type(exc).__name__}: {exc}",
+            reason=f"grant store read failed ({type(exc).__name__}); see the gateway log for details",
             detail={"count": 0},
         )
     return HealthDomain(

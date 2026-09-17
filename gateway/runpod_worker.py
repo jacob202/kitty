@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
@@ -10,6 +11,19 @@ from typing import Any, Mapping, Sequence
 import httpx
 
 from gateway.runpod_control import RunPodConfigurationError
+
+logger = logging.getLogger("kitty.runpod_worker")
+
+
+def _worker_error_detail(context: str, response: httpx.Response) -> str:
+    """Sanitized message for a failed worker call; the raw body goes to the log.
+
+    Worker/provider HTTP response bodies can carry internal infrastructure
+    detail, and these errors flow through to image_jobs.normalized_error,
+    which reaches the client verbatim via the job status route.
+    """
+    logger.warning("%s (%s): %s", context, response.status_code, response.text[:2000])
+    return f"{context} ({response.status_code})"
 
 #: Where the authenticated Kitty worker is reachable, and the bearer token it
 #: expects. Both live in the operator's environment; neither is ever read from
@@ -195,14 +209,13 @@ class RunPodWorkerClient:
             )
         if response.status_code == 404:
             raise RunPodWorkerNotListeningError(
-                "worker health returned 404: nothing is bound to the worker "
-                f"port. {response.text[:300]}"
+                _worker_error_detail(
+                    "worker health returned 404: nothing is bound to the worker port",
+                    response,
+                )
             )
         if response.status_code >= 400:
-            raise RunPodWorkerError(
-                f"worker health returned {response.status_code}: "
-                f"{response.text[:500]}"
-            )
+            raise RunPodWorkerError(_worker_error_detail("worker health returned an error", response))
         payload = response.json()
         if not isinstance(payload, Mapping) or payload.get("status") != "ok":
             raise RunPodWorkerError("worker health response was malformed")
@@ -230,10 +243,7 @@ class RunPodWorkerClient:
                 f"connection failed while uploading the source image: {exc}"
             ) from exc
         if response.status_code >= 400:
-            raise RunPodWorkerError(
-                f"worker rejected the source image ({response.status_code}): "
-                f"{response.text[:500]}"
-            )
+            raise RunPodWorkerError(_worker_error_detail("worker rejected the source image", response))
         return _parse_image(response.json())
 
     async def submit(
@@ -293,10 +303,7 @@ class RunPodWorkerClient:
                 "have been accepted, so Kitty will not retry automatically"
             ) from exc
         if response.status_code >= 400:
-            raise RunPodWorkerError(
-                f"worker rejected the job ({response.status_code}): "
-                f"{response.text[:500]}"
-            )
+            raise RunPodWorkerError(_worker_error_detail("worker rejected the job", response))
         return _parse_job(response.json())
 
     async def get_job(self, job_id: str) -> WorkerJob:
@@ -305,10 +312,7 @@ class RunPodWorkerClient:
             headers=self._headers,
         )
         if response.status_code >= 400:
-            raise RunPodWorkerError(
-                f"worker job status returned {response.status_code}: "
-                f"{response.text[:500]}"
-            )
+            raise RunPodWorkerError(_worker_error_detail("worker job status returned an error", response))
         return _parse_job(response.json())
 
     async def wait(
@@ -339,10 +343,7 @@ class RunPodWorkerClient:
             headers=self._headers,
         )
         if response.status_code >= 400:
-            raise RunPodWorkerError(
-                f"worker cancellation returned {response.status_code}: "
-                f"{response.text[:500]}"
-            )
+            raise RunPodWorkerError(_worker_error_detail("worker cancellation returned an error", response))
         return _parse_job(response.json())
 
     async def download(self, output: WorkerOutput) -> bytes:
@@ -353,10 +354,7 @@ class RunPodWorkerClient:
             headers=self._headers,
         )
         if response.status_code >= 400:
-            raise RunPodWorkerError(
-                f"worker output download returned {response.status_code}: "
-                f"{response.text[:500]}"
-            )
+            raise RunPodWorkerError(_worker_error_detail("worker output download returned an error", response))
         if not response.content:
             raise RunPodWorkerError("worker returned an empty output")
         return response.content
@@ -401,13 +399,13 @@ def _health_error_message(response: httpx.Response) -> str:
     try:
         payload = response.json()
     except ValueError:
-        return f"worker configuration failed: {response.text[:500]}"
+        return _worker_error_detail("worker configuration failed", response)
     if not isinstance(payload, Mapping):
         return "worker configuration failed"
     detail = payload.get("detail")
     if isinstance(detail, Mapping) and detail.get("message"):
         return str(detail["message"])
-    return f"worker configuration failed: {response.text[:500]}"
+    return _worker_error_detail("worker configuration failed", response)
 
 
 def _parse_image(payload: object) -> WorkerImage:
