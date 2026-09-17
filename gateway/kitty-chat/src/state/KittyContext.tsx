@@ -313,6 +313,11 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   const abortRef = useRef<AbortController | null>(null)
   const colorIndexRef = useRef(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Bumped whenever the staged set is invalidated. An upload started before a
+  // chat change resolves after it; without this the finished capture would be
+  // appended to whichever chat the user moved to, which is the same
+  // cross-conversation leak by a different path.
+  const stagedAttachmentEpochRef = useRef(0)
 
   // gateway queries
   const queryClient = useQueryClient()
@@ -533,6 +538,9 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   // conversation's message. Context refs were already cleared on every chat
   // change; attachments were not, and leaked across.
   const clearStagedAttachments = useCallback(() => {
+    // Invalidate in-flight uploads as well as completed chips: a capture that
+    // resolves after the chat changed must not be appended to the new chat.
+    stagedAttachmentEpochRef.current += 1
     setAttachments([])
     setAttachmentErrors([])
   }, [])
@@ -814,14 +822,21 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
 
   const handleAddFiles = useCallback(async (files: FileList) => {
     if (!activeChat) return
+    // The upload is bound server-side to this chat. If the user leaves the chat
+    // while it is in flight, the result belongs to a conversation that is no
+    // longer active, so drop it instead of staging it somewhere it was not
+    // attached for.
+    const epoch = stagedAttachmentEpochRef.current
     const { valid, errors } = validateAttachments(files)
     if (errors.length) setAttachmentErrors(errors)
     else setAttachmentErrors([])
     const added: MessageAttachment[] = []
     for (const file of valid) {
       const result = await uploadCaptureFile(file, { conversationId: activeChat.id, projectId: activeProject?.id })
+      if (stagedAttachmentEpochRef.current !== epoch) return
       if (result?.artifact_id) added.push({ id: result.artifact_id, display_name: file.name, media_type: file.type || 'application/octet-stream', size: file.size })
     }
+    if (stagedAttachmentEpochRef.current !== epoch) return
     if (added.length) {
       setAttachments((prev) => [...prev, ...added])
       queryClient.invalidateQueries({ queryKey: ['artifacts'] })
