@@ -4,18 +4,26 @@
 Routine changes are governed by deterministic CI. Sensitive changes additionally
 require a trusted exact-head independent review; only the irreversible subset
 (credentials, spend controls, deletion paths, dependency manifests, and the gate
-and CI themselves) also requires explicit exact-head human approval.
+and CI themselves) also requires explicit exact-head human approval. That human
+requirement is waived only for `pr_scope.REFACTOR_WAIVABLE_PATTERNS` files, and
+only when this gate itself proves from the base/head file contents that no route
+decorator changed and every destructive handler body is byte-identical — proofs
+are computed here, never taken from the PR's prose. Everything else irreversible
+keeps the unconditional human requirement.
 Product acceptance is required only when native UI source changes.
 """
 
 from __future__ import annotations
 
+import ast
+import base64
 import json
 import os
 import re
 import sys
-from typing import Any
+from typing import Any, Callable
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from scripts import pr_review_gate, pr_scope
@@ -28,6 +36,7 @@ LARGE_CHANGE_FILES = 25
 # gate that blocks and the CI that runs can never disagree about what a PR is.
 RISK_PATTERNS = pr_scope.RISK_PATTERNS
 USER_FACING_PATTERNS = pr_scope.USER_FACING_PATTERNS
+REFACTOR_WAIVABLE_PATTERNS = pr_scope.REFACTOR_WAIVABLE_PATTERNS
 
 ACCEPTANCE_CHECKS = (
     "Every visible primary control either completes its task or is disabled with one clear recovery action.",
@@ -97,6 +106,134 @@ def _is_user_facing(changed_files: list[str]) -> bool:
     return pr_scope.is_user_facing(changed_files)
 
 
+_ROUTE_DECORATOR = re.compile(r'^@router\.(get|post|put|patch|delete)\("([^"]+)"\)\s*$', re.M)
+_ROUTER_DECORATOR_LINE = re.compile(r"^@router\.", re.M)
+_DESTRUCTIVE_NAME = re.compile(r"(?:^|_)(?:delete|remove|purge)(?:_|$)", re.I)
+
+
+def route_surface(text: str) -> tuple[tuple[str, str], ...] | None:
+    """Sorted ``(method, path)`` route-decorator set for a module.
+
+    Returns ``None`` when any ``@router.`` line is not a simple single-line
+    decorator: an unrecognized decorator could hide a surface change, so the
+    caller must treat ``None`` as "not proven"."""
+    decorators = tuple(
+        sorted((str(match.group(1)), str(match.group(2))) for match in _ROUTE_DECORATOR.finditer(text))
+    )
+    if len(_ROUTER_DECORATOR_LINE.findall(text)) != len(decorators):
+        return None
+    return decorators
+
+
+def destructive_handlers(text: str) -> dict[str, str] | None:
+    """Map of destructive handler name -> exact source text.
+
+    A handler is destructive when it carries a ``.delete(`` decorator or its
+    name matches delete/remove/purge. Returns ``None`` when the module cannot be
+    parsed, so the caller treats ``None`` as "not proven"."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None
+    handlers: dict[str, str] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        decorators = [ast.unparse(decorator) for decorator in node.decorator_list]
+        destructive = any(".delete(" in decorator for decorator in decorators) or bool(
+            _DESTRUCTIVE_NAME.search(node.name)
+        )
+        if not destructive:
+            continue
+        segment = ast.get_source_segment(text, node)
+        if segment is None:
+            return None
+        handlers[node.name] = segment
+    return handlers
+
+
+def _contents_text(
+    fetch: Callable[[str, str], Any], owner: str, repo: str, path: str, ref: str, token: str
+) -> str:
+    """File contents at ``ref``; an absent file (added/removed in the PR) is ""."""
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{quote(path)}?ref={ref}"
+    try:
+        payload = fetch(url, token)
+    except HTTPError as exc:
+        if exc.code == 404:
+            return ""
+        raise
+    if not isinstance(payload, dict) or payload.get("type") != "file":
+        raise RuntimeError(f"contents payload for {path} was not a file")
+    content = payload.get("content")
+    if isinstance(content, str) and content:
+        return base64.b64decode(content).decode("utf-8", "replace")
+    if payload.get("size"):
+        raise RuntimeError(f"contents for {path}@{ref[:7]} were not returned inline")
+    return ""
+
+
+def refactor_signature_waived(
+    pr: dict[str, Any],
+    changed_files: list[str],
+    *,
+    fetch: Callable[[str, str], Any],
+    owner: str,
+    repo: str,
+    token: str,
+) -> tuple[bool, str]:
+    """Decide whether this PR waives the exact-head human signature.
+
+    Waived only when every irreversible file is in
+    ``REFACTOR_WAIVABLE_PATTERNS`` and the base/head file contents prove that
+    the union of route decorators is identical and every destructive handler
+    body is byte-identical. Any fetch, decode, or parse problem means the
+    signature stays required (fail closed)."""
+    irreversible = _irreversible_files(changed_files)
+    if not irreversible:
+        return False, "no irreversible files"
+    outside = [
+        path
+        for path in irreversible
+        if not any(pattern.search(path) for pattern in REFACTOR_WAIVABLE_PATTERNS)
+    ]
+    if outside:
+        return False, f"irreversible scope outside the refactor-waivable set: {', '.join(outside)}"
+    base_sha = str((pr.get("base") or {}).get("sha") or "")
+    head_sha = str((pr.get("head") or {}).get("sha") or "")
+    if not (
+        re.fullmatch(r"[0-9a-fA-F]{40}", base_sha) and re.fullmatch(r"[0-9a-fA-F]{40}", head_sha)
+    ):
+        return False, "base or head SHA is unresolved"
+    try:
+        before: list[tuple[str, str]] = []
+        after: list[tuple[str, str]] = []
+        for path in changed_files:
+            base_text = _contents_text(fetch, owner, repo, path, base_sha, token)
+            head_text = _contents_text(fetch, owner, repo, path, head_sha, token)
+            base_surface, head_surface = route_surface(base_text), route_surface(head_text)
+            base_handlers, head_handlers = (
+                destructive_handlers(base_text),
+                destructive_handlers(head_text),
+            )
+            if (
+                base_surface is None
+                or head_surface is None
+                or base_handlers is None
+                or head_handlers is None
+            ):
+                return False, f"surface unanalyzable in {path}"
+            before.extend(base_surface)
+            after.extend(head_surface)
+            if base_handlers != head_handlers:
+                return False, f"destructive handler changed in {path}"
+    except (HTTPError, URLError, TimeoutError, ValueError, TypeError, OSError, RuntimeError) as exc:
+        return False, f"surface proof unavailable: {type(exc).__name__}: {exc}"
+    if sorted(before) != sorted(after):
+        return False, "route decorator set changed"
+    return True, "route surface and destructive handlers are unchanged"
+
+
 def policy_warnings(pr: dict[str, Any]) -> list[str]:
     changed_lines = int(pr.get("additions") or 0) + int(pr.get("deletions") or 0)
     changed_count = int(pr.get("changed_files") or 0)
@@ -112,6 +249,7 @@ def evaluate_policy(
     changed_files: list[str],
     *,
     independent_review_approved: bool = False,
+    human_signature_waived: bool = False,
     event_action: str | None = None,
 ) -> list[str]:
     del event_action  # live PR state, not event ordering, is authoritative
@@ -152,7 +290,7 @@ def evaluate_policy(
         # Human approval is reserved for the irreversible subset. Every other
         # sensitive change clears on the trusted exact-head review alone, so a
         # single operator is never the bottleneck for broad-scope work.
-        if _irreversible_files(changed_files):
+        if _irreversible_files(changed_files) and not human_signature_waived:
             if RISK_APPROVED_LABEL not in labels:
                 violations.append(f"risky scope requires label `{RISK_APPROVED_LABEL}`")
             if _exact_head_approval(body, "Risk approval", head_sha) is None:
@@ -235,6 +373,16 @@ def main() -> None:
                 pr, comments, repo_owner=owner
             )
             print(f"Independent review: {review_reason}")
+
+        signature_waived = False
+        if _irreversible_files(files):
+            signature_waived, waiver_reason = refactor_signature_waived(
+                pr, files, fetch=_github_json, owner=owner, repo=name, token=token
+            )
+            print(
+                "Human-signature requirement: "
+                f"{'waived' if signature_waived else 'required'} — {waiver_reason}"
+            )
     except (KeyError, ValueError, TypeError, OSError, HTTPError, URLError, TimeoutError, json.JSONDecodeError, RuntimeError) as exc:
         print(f"PR policy could not inspect current PR state: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
@@ -246,6 +394,7 @@ def main() -> None:
         pr,
         files,
         independent_review_approved=review_approved,
+        human_signature_waived=signature_waived,
         event_action=str(event.get("action") or ""),
     )
     if violations:

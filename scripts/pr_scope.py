@@ -98,6 +98,17 @@ IRREVERSIBLE_PATTERNS = (
 
 USER_FACING_PATTERNS = (re.compile(r"^gateway/kitty-chat/(?:src|public)/"),)
 
+# Files whose irreversible-tier human signature is conditional rather than
+# unconditional: these modules are irreversible because their destructive entry
+# points (DELETE handlers) can destroy data, so when `scripts/pr_policy.py`
+# proves from the base/head file contents that the PR changes no route decorator
+# and leaves every destructive handler byte-identical, the tier's risk is not in
+# play and the trusted exact-head independent review is the sufficient anchor.
+# Every other irreversible pattern keeps the unconditional human requirement.
+REFACTOR_WAIVABLE_PATTERNS = (
+    re.compile(r"^gateway/routes/(?:chats|projects)\.py$"),
+)
+
 # GitHub's compare endpoint returns at most 300 files. A truncated comparison
 # cannot prove a merge was docs-only, so it widens to full scope instead.
 COMPARE_FILE_LIMIT = 300

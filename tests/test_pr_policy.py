@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import base64
 import json
+import re
 from pathlib import Path
+from urllib.error import HTTPError
+from urllib.parse import unquote
 
-from scripts import pr_policy, pr_review
+from scripts import pr_policy, pr_review, pr_scope
 
 SHA = "a" * 40
 
@@ -336,3 +340,185 @@ def test_product_acceptance_works_with_both_heading_formats() -> None:
     )
     assert violations2 == []
 
+
+
+# --- refactor signature exemption (2026-09-17) ---
+
+_CHATS_BASE = """from fastapi import APIRouter
+
+router = APIRouter(tags=["chats"])
+
+
+@router.get("/chats")
+def list_chats():
+    return []
+
+
+@router.delete("/chats/{chat_id}")
+def delete_chat(chat_id: str):
+    return {"deleted": chat_id}
+
+
+@router.post("/sessions/close")
+def close_session():
+    return {"status": "ok"}
+"""
+
+_CHATS_HEAD = """from fastapi import APIRouter
+
+router = APIRouter(tags=["chats"])
+
+
+@router.get("/chats")
+def list_chats():
+    return []
+
+
+@router.delete("/chats/{chat_id}")
+def delete_chat(chat_id: str):
+    return {"deleted": chat_id}
+"""
+
+_SESSION_CLOSE = """from fastapi import APIRouter
+
+router = APIRouter()
+
+
+@router.post("/sessions/close")
+def close_session():
+    return {"status": "ok"}
+"""
+
+BASE_SHA = "b" * 40
+
+
+def _contents_fetch(files: dict[tuple[str, str], str]):
+    def fetch(url: str, token: str) -> dict:
+        match = re.search(r"/contents/([^?]+)\?ref=([0-9a-fA-F]{40})", url)
+        assert match, url
+        path, ref = unquote(match.group(1)), match.group(2)
+        if (path, ref) not in files:
+            raise HTTPError(url, 404, "Not Found", {}, None)  # type: ignore[arg-type]
+        text = files[(path, ref)]
+        return {
+            "type": "file",
+            "size": len(text),
+            "content": base64.b64encode(text.encode()).decode(),
+        }
+
+    return fetch
+
+
+def _waiver(
+    changed: list[str],
+    *,
+    base: dict[str, str],
+    head: dict[str, str],
+    fetch=None,
+) -> tuple[bool, str]:
+    pr = _pr()
+    pr["base"] = {"sha": BASE_SHA}
+    files = {(path, BASE_SHA): text for path, text in base.items()}
+    files.update({(path, SHA): text for path, text in head.items()})
+    return pr_policy.refactor_signature_waived(
+        pr, changed, fetch=fetch or _contents_fetch(files), owner="o", repo="r", token="t"
+    )
+
+
+def test_route_surface_reads_single_line_decorators() -> None:
+    surface = pr_policy.route_surface(_CHATS_HEAD)
+    assert surface is not None
+    assert ("delete", "/chats/{chat_id}") in surface
+    assert ("post", "/sessions/close") not in surface
+
+    multiline = '@router.get(\n    "/chats",\n)\ndef list_chats():\n    return []\n'
+    assert pr_policy.route_surface(multiline) is None
+
+
+def test_destructive_handlers_cover_decorated_and_named_functions() -> None:
+    handlers = pr_policy.destructive_handlers(_CHATS_BASE)
+    assert handlers is not None
+    assert "delete_chat" in handlers
+    assert "close_session" not in handlers
+    assert pr_policy.destructive_handlers("def broken(:\n") is None
+
+
+def test_waiver_true_for_a_route_preserving_move() -> None:
+    waived, reason = _waiver(
+        ["gateway/routes/chats.py", "gateway/routes/session_close.py"],
+        base={"gateway/routes/chats.py": _CHATS_BASE},
+        head={
+            "gateway/routes/chats.py": _CHATS_HEAD,
+            "gateway/routes/session_close.py": _SESSION_CLOSE,
+        },
+    )
+    assert waived, reason
+
+
+def test_waiver_false_when_a_route_is_added_or_removed() -> None:
+    added_route = _CHATS_HEAD + '\n\n@router.get("/chats/{chat_id}/lifecycle")\ndef lifecycle():\n    return {}\n'
+    waived, reason = _waiver(
+        ["gateway/routes/chats.py"],
+        base={"gateway/routes/chats.py": _CHATS_BASE},
+        head={"gateway/routes/chats.py": added_route},
+    )
+    assert not waived and "decorator set changed" in reason
+
+    dropped_route = _CHATS_BASE.replace('@router.delete("/chats/{chat_id}")\n', "")
+    waived, reason = _waiver(
+        ["gateway/routes/projects.py"],
+        base={"gateway/routes/projects.py": _CHATS_BASE},
+        head={"gateway/routes/projects.py": dropped_route},
+    )
+    assert not waived and "decorator set changed" in reason
+
+
+def test_waiver_false_when_a_destructive_handler_body_changes() -> None:
+    edited = _CHATS_BASE.replace('return {"deleted": chat_id}', 'return {"deleted": True}')
+    waived, reason = _waiver(
+        ["gateway/routes/chats.py"],
+        base={"gateway/routes/chats.py": _CHATS_BASE},
+        head={"gateway/routes/chats.py": edited},
+    )
+    assert not waived and "destructive handler changed" in reason
+
+
+def test_waiver_false_outside_the_waivable_set() -> None:
+    waived, reason = _waiver(
+        ["gateway/routes/chats.py", "scripts/pr_policy.py"],
+        base={"gateway/routes/chats.py": _CHATS_BASE, "scripts/pr_policy.py": "# gate\n"},
+        head={"gateway/routes/chats.py": _CHATS_HEAD, "scripts/pr_policy.py": "# gate\n"},
+    )
+    assert not waived and "outside the refactor-waivable set" in reason
+
+
+def test_waiver_fails_closed_when_surface_proof_is_unavailable() -> None:
+    def broken_fetch(url: str, token: str) -> dict:
+        raise TimeoutError("api down")
+
+    waived, reason = _waiver(
+        ["gateway/routes/chats.py"],
+        base={"gateway/routes/chats.py": _CHATS_BASE},
+        head={"gateway/routes/chats.py": _CHATS_HEAD},
+        fetch=broken_fetch,
+    )
+    assert not waived and "surface proof unavailable" in reason
+
+
+def test_evaluate_policy_waives_human_signature_only_when_flag_is_set() -> None:
+    with_flag = pr_policy.evaluate_policy(
+        _pr(), ["gateway/routes/chats.py"], independent_review_approved=True, human_signature_waived=True
+    )
+    assert with_flag == []
+
+    without_flag = pr_policy.evaluate_policy(
+        _pr(), ["gateway/routes/chats.py"], independent_review_approved=True
+    )
+    assert any("risk/approved" in item for item in without_flag)
+    assert any("exact-head risk approval" in item.lower() for item in without_flag)
+
+
+def test_refactor_waivable_paths_are_a_subset_of_the_irreversible_tier() -> None:
+    for path in ("gateway/routes/chats.py", "gateway/routes/projects.py"):
+        assert path in pr_scope.irreversible_files([path])
+        assert any(pattern.search(path) for pattern in pr_scope.REFACTOR_WAIVABLE_PATTERNS)
