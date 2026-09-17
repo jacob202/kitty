@@ -19,7 +19,7 @@ from gateway.builder_cli import build_parser, main
 
 
 @pytest.fixture
-def db_path(tmp_path: Path) -> Path:
+def db_path(tmp_path: Path, hermetic_builder_base) -> Path:
     p = tmp_path / "kittybuilder" / "builder_queue.db"
     bi.init_db(p)
     return p

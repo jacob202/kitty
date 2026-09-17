@@ -22,7 +22,7 @@ from gateway import builder_queue_runs as bqr
 
 
 @pytest.fixture
-def db_path(tmp_path: Path) -> Path:
+def db_path(tmp_path: Path, hermetic_builder_base) -> Path:
     """A fresh DB path on a tmp filesystem. Initializes the schema."""
     p = tmp_path / "kittybuilder" / "builder_queue.db"
     bq.init_db(p)
