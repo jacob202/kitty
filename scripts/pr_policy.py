@@ -440,7 +440,10 @@ def main() -> None:
         # before evaluating scope/approval against `pr`, or a newer commit's
         # file list could be judged against an older head's (already
         # satisfied) approval state -- pr_review.get_pr_diff() guards the
-        # same race for the diff fetch.
+        # same race for the diff fetch. The refreshed object is also the
+        # authoritative one even when the head is unchanged: an approval label
+        # or approval body withdrawn while the changed-files request ran must
+        # not clear the gate off the stale first read.
         pr_after = _github_json(pr_url, token)
         if not isinstance(pr_after, dict):
             raise RuntimeError("GitHub current-PR response was not an object")
@@ -449,6 +452,7 @@ def main() -> None:
             raise RuntimeError(
                 f"PR head changed while policy was evaluated: {head_sha[:12]} -> {after_sha[:12]}"
             )
+        pr = pr_after
 
         review_approved = True
         if _risky_files(files):

@@ -355,6 +355,43 @@ def test_main_fails_loud_when_head_advances_between_the_two_pr_fetches(tmp_path,
     assert calls["pulls"] == 2
 
 
+def test_main_evaluates_the_refreshed_pr_after_a_withdrawn_approval(tmp_path, monkeypatch) -> None:
+    # Reproduces: the second fetch only verified the head SHA and the
+    # refreshed object was discarded, so an exact-head review override
+    # withdrawn while the changed-files request ran (same head, label and
+    # body gone) still cleared the gate off the stale first read.
+    override_body = f"Review override: APPROVE {SHA} — withdrawn before the second fetch"
+    before = _pr(override_body, labels=(pr_review.REVIEW_OVERRIDE_LABEL,), head_sha=SHA)
+    withdrawn = _pr("", labels=(), head_sha=SHA)
+    before["number"] = withdrawn["number"] = 14
+    event = {
+        "action": "unlabeled",
+        "pull_request": {"number": 14},
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+    }
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    calls = {"pulls": 0}
+
+    def fake_github_json(url: str, _token: str):
+        if url.endswith("/pulls/14"):
+            calls["pulls"] += 1
+            return before if calls["pulls"] == 1 else withdrawn
+        if "/pulls/14/files?" in url:
+            return [{"filename": "gateway/builder_loop.py"}]
+        if "/issues/14/comments?" in url:
+            return []
+        raise AssertionError(url)
+
+    monkeypatch.setattr(pr_policy, "_github_json", fake_github_json)
+    with pytest.raises(SystemExit):
+        pr_policy.main()
+    assert calls["pulls"] == 2
+
+
 def test_product_acceptance_works_with_both_heading_formats() -> None:
     """The policy must accept both the PR template heading and the old variant."""
     path = "gateway/kitty-chat/src/components/HomeState.tsx"
