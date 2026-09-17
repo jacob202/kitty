@@ -6,6 +6,9 @@
 # main unnoticed. This hook is the standing local replacement: same commands,
 # same thresholds, no account required.
 #
+# Gates serialize behind a machine-level lock so concurrent worktrees cannot
+# thrash this host (scripts/hooks/gate_lock.py).
+#
 # Install: make hooks
 # Bypass:  git push --no-verify   (deliberate, and it says so in the output)
 set -uo pipefail
@@ -117,6 +120,15 @@ fi
 if [[ "${PREFLIGHT}" == "1" ]]; then
   say "Publication environment preflight passed."
   exit 0
+fi
+
+# One machine, several worktrees: serialize the heavy gates. Concurrent full
+# suites thrash this host (see scripts/hooks/gate_lock.py); waiting your turn is
+# faster than sharing the CPU three ways, and it keeps every verdict true.
+GATE_LOCK="${ROOT_DIR}/scripts/hooks/gate_lock.py"
+if [[ -z "${KITTY_GATE_LOCK_HELD:-}" && -f "${GATE_LOCK}" ]]; then
+  export KITTY_GATE_LOCK_HELD=1
+  exec "${PYTHON_BIN}" "${GATE_LOCK}" -- "$0" "$@"
 fi
 
 # Frontend gates cost several minutes and only matter when the frontend moved.
