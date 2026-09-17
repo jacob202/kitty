@@ -18,14 +18,17 @@ a repo-relative `kb/` path.**
 ## Which steps apply where
 
 This skill is cross-tool; several of its steps are not. Steps 1, 5, 6 and 12
-invoke scripts that exist only in `~/Projects/kitty` — `scripts/session_end_survey.sh`,
+invoke scripts that exist only in a Kitty checkout — `scripts/session_end_survey.sh`,
 `scripts/kb_effectiveness.py`, `scripts/session_learning.py`,
-`scripts/check_continuity_state.py` and `./kitty`. Outside that checkout they do
-not exist and the commands fail on "No such file or directory".
+`scripts/check_continuity_state.py` and `./kitty`. Outside a Kitty clone/worktree
+they do not exist and the commands fail on "No such file or directory".
 
-So, before running any repo-relative command below:
+So, before running any repo-relative command below, resolve the current repository
+root with `git rev-parse --show-toplevel` and inspect that root rather than matching
+its absolute pathname:
 
-- **In Kitty** (`~/Projects/kitty` or one of its worktrees): run every step.
+- **In any Kitty clone/worktree** (the repository root contains `./kitty` and the
+  Kitty scripts named above): run every step from that resolved root.
 - **In any other repo**: use that repo's own convention if it has one; otherwise
   skip the step and say in the handoff which steps were skipped and why. Do not
   invent structure in a repo that does not have it, and do not copy Kitty's
