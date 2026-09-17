@@ -15,7 +15,7 @@ See and manage his todos and his monitors inside Kitty, instead of two finished 
 ## Why this is the next thing
 Both components are complete and unreachable.
 
-- `gateway/kitty-chat/src/components/TodoPanel.tsx` implements add, complete, and delete. The gateway already exposes `/todos/add` at `gateway/routes/extended.py:116`. Tasks routes the user to Work instead of mounting it.
+- `gateway/kitty-chat/src/components/TodoPanel.tsx` implements add, complete, and delete. The gateway already exposes `/todos/add` at `gateway/routes/todos.py:53`. Tasks routes the user to Work instead of mounting it.
 - `gateway/kitty-chat/src/components/MonitorPanel.tsx` owns list, add, and remove, and `gateway/kitty-chat/src/lib/queries.ts:406` already has the monitor polling query.
 
 Grepping the whole of `gateway/kitty-chat/src` for either name finds no importer outside the component files themselves. Verified at the base SHA above: both files exist, neither is mounted.

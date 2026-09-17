@@ -23,6 +23,7 @@ resources:
   builder:initiative-lifecycle:
     paths:
     - gateway/builder_initiative.py
+    - tests/test_builder_attempt.py
     - tests/test_builder_initiative.py
   builder:queue-reconciliation:
     paths:
@@ -84,6 +85,7 @@ resources:
     - contracts/knowledge_pipeline.py
     - gateway/archivist.py
     - gateway/domain_router.py
+    - gateway/expert_proactive.py
     - gateway/hybrid_search.py
     - gateway/ingestion_queue.py
     - gateway/knowledge.py
@@ -91,6 +93,7 @@ resources:
     - gateway/pdf_pipeline.py
     - gateway/routes/knowledge.py
     - tests/test_domain_router.py
+    - tests/test_expert_proactive.py
     - tests/test_knowledge.py
     - tests/test_knowledge_experts.py
     - tests/test_knowledge_routes.py
@@ -188,6 +191,7 @@ resources:
     - tests/test_doctor.py
     - tests/test_doctor_freshness.py
     - tests/test_env_loader.py
+    - tests/test_gate_lock.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py
     - tests/test_kb_effectiveness.py
@@ -209,6 +213,7 @@ resources:
   ui:action-grammar:
     paths:
     - gateway/_work_projection_item.py
+    - gateway/completion_prep.py
     - gateway/conversation_handoff.py
     - gateway/kitty-chat/src/components/ChatMessage.tsx
     - gateway/kitty-chat/src/components/HomeState.tsx
@@ -247,11 +252,14 @@ resources:
     - gateway/voice_middleware.py
     - tests/test_agent_runner.py
     - tests/test_chat_completions.py
+    - tests/test_chat_object_references.py
     - tests/test_chats_route.py
+    - tests/test_completions_context_refs.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
     - tests/test_extended_notify_route.py
     - tests/test_library_chat_001.py
+    - tests/test_pr673_completions_budget.py
     - tests/test_undo_route_wiring.py
     - tests/test_voice_middleware.py
     - tests/test_work_projection.py

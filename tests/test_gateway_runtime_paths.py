@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,6 +85,9 @@ def test_litellm_launcher_avoids_repo_package_shadowing(tmp_path: Path) -> None:
         "LITELLM_CAPTURE": str(capture_path),
         "LITELLM_VENV": str(fake_venv),
         "PYTHONPATH": str(ROOT),
+        # PYTHONPATH is scrubbed here, so load_env_safe.sh must not fall back to
+        # a PATH python3.12 that lacks python-dotenv. Pin the checkout interpreter.
+        "PYTHON_BIN": sys.executable,
     }
     result = subprocess.run(
         ["bash", str(ROOT / "gateway/start_litellm.sh")],

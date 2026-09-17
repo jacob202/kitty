@@ -3,9 +3,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from gateway import chat_lifecycle
+from gateway import chat_lifecycle, completion_prep
 from gateway.context_assembler import ContextBundle
-from gateway.routes import completions as completions_route
 
 
 def test_durable_chat_object_prompt_lists_only_scoped_real_ids(monkeypatch):
@@ -25,9 +24,9 @@ def test_durable_chat_object_prompt_lists_only_scoped_real_ids(monkeypatch):
             "scope_id": "",
         }]
 
-    monkeypatch.setattr(completions_route.action_queue, "list_actions_scoped", scoped_actions)
+    monkeypatch.setattr(completion_prep.action_queue, "list_actions_scoped", scoped_actions)
     monkeypatch.setattr(
-        completions_route.artifact_store,
+        completion_prep.artifact_store,
         "list_artifacts",
         lambda **kwargs: [
             {
@@ -39,7 +38,7 @@ def test_durable_chat_object_prompt_lists_only_scoped_real_ids(monkeypatch):
         ],
     )
 
-    block = completions_route._durable_chat_object_system(
+    block = completion_prep._durable_chat_object_system(
         conversation_id="chat-1",
         user_message_id="message-7",
         project_id=7,
@@ -51,7 +50,7 @@ def test_durable_chat_object_prompt_lists_only_scoped_real_ids(monkeypatch):
     assert "Schedule dentist" in block
     assert scope["source_ids"] == {"chat-1", "message-7"}
     assert scope["project_scope_ids"] == {"7"}
-    assert scope["limit"] == completions_route._DURABLE_CHAT_OBJECT_LIMIT
+    assert scope["limit"] == completion_prep._DURABLE_CHAT_OBJECT_LIMIT
     assert "kitty-artifact" in block
     assert '"artifact_id":"artifact_report"' in block
 
@@ -66,12 +65,12 @@ def test_streaming_chat_wires_scoped_durable_ids_into_model_visible_protocol(mon
         yield b"data: [DONE]\n\n"
 
     monkeypatch.setattr(
-        completions_route.action_queue,
+        completion_prep.action_queue,
         "list_actions_scoped",
         lambda **kwargs: [],
     )
     monkeypatch.setattr(
-        completions_route.artifact_store,
+        completion_prep.artifact_store,
         "list_artifacts",
         lambda **kwargs: [
             {
@@ -125,10 +124,10 @@ def test_durable_chat_object_inventory_failure_is_not_hidden(monkeypatch):
     def fail_inventory(**_kwargs):
         raise RuntimeError("inventory unavailable")
 
-    monkeypatch.setattr(completions_route.action_queue, "list_actions_scoped", fail_inventory)
+    monkeypatch.setattr(completion_prep.action_queue, "list_actions_scoped", fail_inventory)
 
     with pytest.raises(RuntimeError, match="inventory unavailable"):
-        completions_route._durable_chat_object_system(
+        completion_prep._durable_chat_object_system(
             conversation_id="chat-1",
             user_message_id="message-7",
             project_id=None,
@@ -138,7 +137,7 @@ def test_durable_chat_object_inventory_failure_is_not_hidden(monkeypatch):
 
 def test_durable_chat_object_metadata_is_explicitly_untrusted(monkeypatch):
     monkeypatch.setattr(
-        completions_route.action_queue,
+        completion_prep.action_queue,
         "list_actions_scoped",
         lambda **kwargs: [{
             "id": 42,
@@ -147,10 +146,10 @@ def test_durable_chat_object_metadata_is_explicitly_untrusted(monkeypatch):
             "kind": "todo.create",
         }],
     )
-    monkeypatch.setattr(completions_route.action_queue, "effective_risk_tier", lambda _kind: "T0")
-    monkeypatch.setattr(completions_route.artifact_store, "list_artifacts", lambda **kwargs: [])
+    monkeypatch.setattr(completion_prep.action_queue, "effective_risk_tier", lambda _kind: "T0")
+    monkeypatch.setattr(completion_prep.artifact_store, "list_artifacts", lambda **kwargs: [])
 
-    block = completions_route._durable_chat_object_system(
+    block = completion_prep._durable_chat_object_system(
         conversation_id="chat-1",
         user_message_id="message-7",
         project_id=None,
@@ -167,12 +166,12 @@ def test_optional_durable_inventory_drops_before_required_safety_context():
     required = "SAFETY-CONTEXT"
     optional = "OPTIONAL-INVENTORY-" + ("z" * 500)
     minimum = (
-        completions_route._message_budget_units(current)
-        + completions_route._message_budget_units({"role": "system", "content": required})
+        completion_prep._message_budget_units(current)
+        + completion_prep._message_budget_units({"role": "system", "content": required})
         + 20
     )
 
-    messages, warnings = completions_route._fit_final_model_messages(
+    messages, warnings = completion_prep._fit_final_model_messages(
         bundle_system="",
         runtime_system="",
         tool_system=required,

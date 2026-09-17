@@ -3,7 +3,7 @@ import json
 import pytest
 from fastapi import HTTPException
 
-from gateway.routes import completions
+from gateway import completion_prep
 
 
 def test_final_model_visible_payload_is_bounded_and_preserves_current_user() -> None:
@@ -13,7 +13,7 @@ def test_final_model_visible_payload_is_bounded_and_preserves_current_user() -> 
         {"role": "assistant", "content": "old assistant " * 80},
         current,
     ]
-    final, warnings = completions._fit_final_model_messages(
+    final, warnings = completion_prep._fit_final_model_messages(
         bundle_system="bundle " * 100,
         runtime_system="runtime " * 40,
         tool_system="tool guard " * 20,
@@ -32,7 +32,7 @@ def test_final_model_visible_payload_is_bounded_and_preserves_current_user() -> 
 def test_final_budget_never_truncates_required_runtime_truth() -> None:
     current = {"role": "user", "content": "CURRENT question"}
     with pytest.raises(HTTPException) as excinfo:
-        completions._fit_final_model_messages(
+        completion_prep._fit_final_model_messages(
             bundle_system="",
             runtime_system="RUNTIME-TRUTH " * 40,
             tool_system="TOOL-GUARD",
@@ -56,7 +56,7 @@ def test_final_budget_preserves_post_user_tool_continuation() -> None:
         }],
     }
     tool_result = {"role": "tool", "tool_call_id": "call-1", "content": "sunny"}
-    final, _ = completions._fit_final_model_messages(
+    final, _ = completion_prep._fit_final_model_messages(
         bundle_system="",
         runtime_system="",
         tool_system="",
@@ -79,11 +79,11 @@ def test_final_budget_keeps_historical_tool_exchange_atomic_when_trimming() -> N
     tool_result = {"role": "tool", "tool_call_id": "old-call", "content": "ok"}
     current = {"role": "user", "content": "CURRENT"}
     cap = (
-        completions._message_budget_units(current)
-        + completions._message_budget_units(tool_result)
+        completion_prep._message_budget_units(current)
+        + completion_prep._message_budget_units(tool_result)
         + 10
     )
-    final, warnings = completions._fit_final_model_messages(
+    final, warnings = completion_prep._fit_final_model_messages(
         bundle_system="",
         runtime_system="",
         tool_system="",
@@ -145,7 +145,7 @@ def test_current_tool_continuation_is_preserved() -> None:
         }],
     }
     tool_result = {"role": "tool", "tool_call_id": "call-1", "content": "42"}
-    final, _warnings = completions._fit_final_model_messages(
+    final, _warnings = completion_prep._fit_final_model_messages(
         bundle_system="",
         runtime_system="",
         tool_system="",
@@ -167,7 +167,7 @@ def test_historical_tool_exchange_is_dropped_atomically() -> None:
     }
     tool_result = {"role": "tool", "tool_call_id": "call-old", "content": "ok"}
     current = {"role": "user", "content": "new question"}
-    final, warnings = completions._fit_final_model_messages(
+    final, warnings = completion_prep._fit_final_model_messages(
         bundle_system="",
         runtime_system="",
         tool_system="",
