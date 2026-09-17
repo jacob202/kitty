@@ -1,4 +1,4 @@
-from gateway.routes import completions
+from gateway import completion_prep
 
 
 def test_prepare_explicit_context_resolves_only_latest_user_refs(monkeypatch):
@@ -8,7 +8,7 @@ def test_prepare_explicit_context_resolves_only_latest_user_refs(monkeypatch):
         calls.append(refs)
         return "## Explicit context\nProject: current", []
 
-    monkeypatch.setattr(completions.context_references, "resolve_context_references", resolve)
+    monkeypatch.setattr(completion_prep.context_references, "resolve_context_references", resolve)
     messages = [
         {
             "role": "user",
@@ -22,7 +22,7 @@ def test_prepare_explicit_context_resolves_only_latest_user_refs(monkeypatch):
     ]
 
     clean_messages, clean_user_text, raw_user_text, warnings = (
-        completions._prepare_explicit_context(messages)
+        completion_prep._prepare_explicit_context(messages)
     )
 
     assert raw_user_text.endswith("<!-- kitty-context:project:7 -->")
@@ -45,7 +45,7 @@ def test_prepare_explicit_context_keeps_non_user_content_byte_for_byte():
     }
     tool = {"role": "tool", "tool_call_id": "t1", "content": "<!-- kitty-context:artifact:a1 -->"}
 
-    clean_messages, _, _, warnings = completions._prepare_explicit_context(
+    clean_messages, _, _, warnings = completion_prep._prepare_explicit_context(
         [assistant, tool, {"role": "user", "content": "hello"}]
     )
 
@@ -56,7 +56,7 @@ def test_prepare_explicit_context_keeps_non_user_content_byte_for_byte():
 
 def test_prepare_explicit_context_merges_block_into_list_user_content(monkeypatch):
     monkeypatch.setattr(
-        completions.context_references,
+        completion_prep.context_references,
         "resolve_context_references",
         lambda refs: ("## Explicit context\nArtifact: report", []),
     )
@@ -71,7 +71,7 @@ def test_prepare_explicit_context_merges_block_into_list_user_content(monkeypatc
     ]
 
     clean_messages, clean_user_text, raw_user_text, warnings = (
-        completions._prepare_explicit_context(messages)
+        completion_prep._prepare_explicit_context(messages)
     )
 
     content = clean_messages[0]["content"]

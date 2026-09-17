@@ -206,6 +206,7 @@ resources:
   ui:action-grammar:
     paths:
     - gateway/_work_projection_item.py
+    - gateway/completion_prep.py
     - gateway/conversation_handoff.py
     - gateway/kitty-chat/src/components/ChatMessage.tsx
     - gateway/kitty-chat/src/components/HomeState.tsx
@@ -244,11 +245,14 @@ resources:
     - gateway/voice_middleware.py
     - tests/test_agent_runner.py
     - tests/test_chat_completions.py
+    - tests/test_chat_object_references.py
     - tests/test_chats_route.py
+    - tests/test_completions_context_refs.py
     - tests/test_conversation_handoff.py
     - tests/test_conversation_handoff_routes.py
     - tests/test_extended_notify_route.py
     - tests/test_library_chat_001.py
+    - tests/test_pr673_completions_budget.py
     - tests/test_undo_route_wiring.py
     - tests/test_voice_middleware.py
     - tests/test_work_projection.py
