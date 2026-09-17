@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.flux2_compiler — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.flux2_compiler</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.flux2_compiler</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/flux2_compiler.py</code> &middot; Python &middot; 6 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Provider-neutral FLUX.2 semantic compiler, version flux2@1.
+
+Kitty owns the meaning; Black Forest Labs does not own Kitty&#x27;s plan schema.
+This module turns Kitty&#x27;s plan semantics into a single deterministic,
+provider-independent compiled request (ADR 0040 decisions 3/4/5):
+
+    ImageIntent semantics
+        ↓  Flux2Compiler v1 (this module)
+        ↓  CompiledFlux2Request
+        ↓  transport serializer (gateway/flux2_transport.py → BFL wire fields)
+
+Compilation is pure and deterministic: no LLM call, no randomness, no network.
+The user never authors a provider prompt; the compiler assembles one from the
+approved plan&#x27;s meaning.
+
+The compiled object contains MEANING (prompt prose, ordered semantic
+references, protected traits, requested changes), never BFL wire fields such
+as ``input_image`` / ``input_image_2``. Those belong to the transport adapter
+(ADR 0040 decision 4; packet IL-03).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>json</code>, <code class='inline'>re</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_detect_negative'><code class='inline'>_detect_negative</code></a></td><td>Return the positive replacement for a negative clause, if any.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-translate_negative_prompt'><code class='inline'>translate_negative_prompt</code></a></td><td>Translate legacy negative prompt into positive clauses.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_reference_sentence'><code class='inline'>_reference_sentence</code></a></td><td>Deterministic prose sentence referencing images by slot number.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_change_sentence'><code class='inline'>_change_sentence</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_preservation_sentence'><code class='inline'>_preservation_sentence</code></a></td><td>Deterministic preservation language (explicit, not a reroll).</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-compile_flux2_request'><code class='inline'>compile_flux2_request</code></a></td><td>Compile plan semantics into a deterministic flux2@1 request.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr></table></div>
+<div class='card' id='fn-_detect_negative'><h3><code class='inline'>_detect_negative</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _detect_negative(normalized_clause: str) -&gt; str | None</code></div><p>Return the positive replacement for a negative clause, if any.
+
+Matches on longest-key-substring so &quot;no background people&quot; wins over the
+shorter &quot;no people&quot;. Purely deterministic.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_compiler import _detect_negative
+
+result = _detect_negative(normalized_clause=&quot;normalized_clause_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-translate_negative_prompt'><h3><code class='inline'>translate_negative_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def translate_negative_prompt(negative_prompt: str | None) -&gt; tuple[list[str], list[str]]</code></div><p>Translate legacy negative prompt into positive clauses.
+
+Returns ``(positive_clauses, unresolved)``. Every source clause is either
+replaced with a positive description (per the pinned upstream rules) or
+preserved verbatim in ``unresolved`` as compiler evidence — never silently
+discarded (ADR 0040 decision 5).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_compiler import translate_negative_prompt
+
+result = translate_negative_prompt(negative_prompt=&quot;negative_prompt_example&quot;)
+# result: tuple[list[str], list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reference_sentence'><h3><code class='inline'>_reference_sentence</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _reference_sentence(references: Sequence[CompiledReference]) -&gt; str</code></div><p>Deterministic prose sentence referencing images by slot number.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_compiler import _reference_sentence
+
+result = _reference_sentence(references=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_change_sentence'><h3><code class='inline'>_change_sentence</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _change_sentence(requested_changes: Sequence[str]) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_compiler import _change_sentence
+
+result = _change_sentence(requested_changes=&quot;requested_changes_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_preservation_sentence'><h3><code class='inline'>_preservation_sentence</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _preservation_sentence(protected_traits: Sequence[str], is_edit: bool) -&gt; str</code></div><p>Deterministic preservation language (explicit, not a reroll).
+
+For an edit we always keep the subject stable even when the caller supplied
+no protected traits, so an edit compiles into change + preservation rather
+than silently degrading into a reroll (packet IL-03).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_compiler import _preservation_sentence
+
+result = _preservation_sentence(protected_traits=&quot;protected_traits_example&quot;, is_edit=True)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compile_flux2_request'><h3><code class='inline'>compile_flux2_request</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def compile_flux2_request(prompt_text: str, references: Sequence[CompiledReference] = (), operation: str = OPERATION_TXT2IMG, seed: int | None = None, width: int = 1024, height: int = 1024, quality_tier: str = &#x27;quality&#x27;, protected_traits: Sequence[str] = (), requested_changes: Sequence[str] = (), negative_prompt: str | None = None) -&gt; CompiledFlux2Request</code></div><p>Compile plan semantics into a deterministic flux2@1 request.
+
+The user&#x27;s authored prose is preserved verbatim and front-loaded (subject
+first), per the pinned guidance that FLUX prioritizes earlier text. Ordered
+references, requested changes, preservation language, and positive negative
+replacements are appended deterministically. No LLM, no randomness.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_compiler import compile_flux2_request
+
+result = compile_flux2_request(prompt_text=&quot;prompt_text_example&quot;, references=...  # default: (), operation=&quot;operation_example&quot;  # default: OPERATION_TXT2IMG, seed=0  # default: None, width=0  # default: 1024, height=0  # default: 1024, quality_tier=&quot;quality_tier_example&quot;  # default: &#x27;quality&#x27;, protected_traits=&quot;protected_traits_example&quot;  # default: (), requested_changes=&quot;requested_changes_example&quot;  # default: (), negative_prompt=&quot;negative_prompt_example&quot;  # default: None)
+# result: CompiledFlux2Request</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Flux2CompilerError'><code class='inline'>Flux2CompilerError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-CompiledReference'><code class='inline'>CompiledReference</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-CompiledFlux2Request'><code class='inline'>CompiledFlux2Request</code></a></td><td></td><td>2 methods</td></tr></table></div>
+<div class='card' id='cls-Flux2CompilerError'><h3><code class='inline'>Flux2CompilerError</code></h3><p>Raised when a plan cannot be compiled deterministically.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.flux2_compiler import Flux2CompilerError
+
+obj = Flux2CompilerError(...)</pre></div>
+<div class='card' id='cls-CompiledReference'><h3><code class='inline'>CompiledReference</code></h3><p>A semantic, ordered reference binding.
+
+``reference_id`` is the local/reference identity (e.g. the anchor job id or
+a character ref path); ``role`` is the semantic role the image plays in the
+composition; ``order`` is the deterministic slot/order (1-based) used both
+to number references in prose (&quot;subject from image 1&quot;) and, downstream, to
+address the corresponding transport parameter.</p><p class='small'><b>Attributes:</b> reference_id: str, role: str, order: int, name: str | None, cast_slot: str | None, character_id: str | None, position: str | None, depth_order: int | None</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.flux2_compiler import CompiledReference
+
+obj = CompiledReference(...)</pre></div>
+<div class='card' id='cls-CompiledFlux2Request'><h3><code class='inline'>CompiledFlux2Request</code></h3><p>Provider-neutral output of the flux2@1 compiler.</p><p class='small'><b>Attributes:</b> compiler_id: str, prompt: str, references: tuple[CompiledReference, ...], operation: str, seed: int | None, width: int, height: int, quality_tier: str, protected_traits: tuple[str, ...], requested_changes: tuple[str, ...], unresolved_negatives: tuple[str, ...], guidance_ref: str</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>to_json</code></td><td><code class='inline'>def to_json(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.flux2_compiler import CompiledFlux2Request
+
+obj = CompiledFlux2Request(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>FLUX2_COMPILER_VERSION</code></td><td><code class='inline'>&#x27;flux2@1&#x27;</code></td></tr><tr><td><code class='inline'>COMPILER_GUIDANCE_REF</code></td><td><code class='inline'>&#x27;black-forest-labs/skills@a6f74cc70a85179ab74c578ed65dcf3d8dafca9e&#x27;</code></td></tr><tr><td><code class='inline'>COMPILER_GUIDANCE_RETRIEVED_AT</code></td><td><code class='inline'>&#x27;2026-08-19&#x27;</code></td></tr><tr><td><code class='inline'>OPERATION_TXT2IMG</code></td><td><code class='inline'>&#x27;txt2img&#x27;</code></td></tr><tr><td><code class='inline'>OPERATION_IMG2IMG</code></td><td><code class='inline'>&#x27;img2img&#x27;</code></td></tr><tr><td><code class='inline'>VALID_OPERATIONS</code></td><td><code class='inline'>frozenset({OPERATION_TXT2IMG, OPERATION_IMG2IMG})</code></td></tr><tr><td><code class='inline'>_NEGATIVE_KEYWORDS</code></td><td><code class='inline'>dict[str, str]</code></td></tr><tr><td><code class='inline'>_ROLE_FRAGMENTS</code></td><td><code class='inline'>dict[str, str]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

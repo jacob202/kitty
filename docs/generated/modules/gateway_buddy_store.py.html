@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.buddy_store — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.buddy_store</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.buddy_store</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/buddy_store.py</code> &middot; Python &middot; 6 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Buddy state persistence — single-row store in kitty.db.
+
+Public API:
+  get_state() -&gt; dict            Read the current buddy state row.
+  save_state(state: dict) -&gt; None  Write (upsert) the buddy state row.
+  init_db() -&gt; None              Apply pending migrations + one-time legacy import.
+
+Legacy import: on first access, if data/kitty/buddy_state.json exists and the
+buddy_state table is empty, its contents are imported into kitty.db. The JSON
+file is never deleted.
+
+Rollback (documented escape hatch): if the SQLite layer needs to be abandoned,
+the JSON file is still readable. To roll back:
+  1. DROP TABLE buddy_state;
+  2. DELETE FROM app_settings WHERE key = &#x27;buddy_state_legacy_imported&#x27;;
+  3. DELETE FROM schema_migrations WHERE name = &#x27;006_buddy_state.sql&#x27;;
+  4. Re-run the gateway; the migration re-applies 006_buddy_state.sql and
+     the import rebuilds the table from the JSON file.
+This is verified by test_buddy_store.TestLegacyImport.test_rollback_re_imports_from_json.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Apply pending migrations and run the one-time legacy import. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_state'><code class='inline'>get_state</code></a></td><td>Return the buddy state dict. Returns defaults if the table is empty.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-save_state'><code class='inline'>save_state</code></a></td><td>Upsert the buddy state row. Only the known columns are written.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_import_legacy_state_once'><code class='inline'>_import_legacy_state_once</code></a></td><td>Copy buddy_state from the legacy JSON file once. The JSON file is never deleted.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_already_imported'><code class='inline'>_already_imported</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_mark_imported'><code class='inline'>_mark_imported</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Apply pending migrations and run the one-time legacy import. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy_store import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_state'><h3><code class='inline'>get_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_state() -&gt; dict</code></div><p>Return the buddy state dict. Returns defaults if the table is empty.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy_store import get_state
+
+result = get_state()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-save_state'><h3><code class='inline'>save_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def save_state(state: dict) -&gt; None</code></div><p>Upsert the buddy state row. Only the known columns are written.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy_store import save_state
+
+result = save_state(state={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_import_legacy_state_once'><h3><code class='inline'>_import_legacy_state_once</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _import_legacy_state_once() -&gt; None</code></div><p>Copy buddy_state from the legacy JSON file once. The JSON file is never deleted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy_store import _import_legacy_state_once
+
+result = _import_legacy_state_once()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_already_imported'><h3><code class='inline'>_already_imported</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _already_imported(conn) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy_store import _already_imported
+
+result = _already_imported(conn=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_imported'><h3><code class='inline'>_mark_imported</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _mark_imported(conn, value: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.buddy_store import _mark_imported
+
+result = _mark_imported(conn=..., value=&quot;value_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>LEGACY_STATE_FILE</code></td><td><code class='inline'>DATA_DIR / &#x27;kitty&#x27; / &#x27;buddy_state.json&#x27;</code></td></tr><tr><td><code class='inline'>LEGACY_IMPORT_SETTING</code></td><td><code class='inline'>&#x27;buddy_state_legacy_imported&#x27;</code></td></tr><tr><td><code class='inline'>_DEFAULTS</code></td><td><code class='inline'>dict</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

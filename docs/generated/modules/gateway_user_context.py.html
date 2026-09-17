@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.user_context — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.user_context</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.user_context</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/user_context.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>User identity context — loads Jacob&#x27;s TELOS files for prompt injection.
+
+This is the counterpart to ``config/SOUL.md`` (which defines who *Kitty* is):
+``config/USER/*.md`` describes who *Jacob* is — mission, goals, problems, beliefs,
+wisdom, projects, mental models, narratives.
+
+Files ship as templates carrying a ``TEMPLATE:`` marker line. A file is only
+included once that marker is removed (i.e. once Jacob has actually filled it in),
+so an unconfigured checkout injects nothing.
+
+Public API:
+    load_user_context() -&gt; str   Compact &quot;About Jacob (TELOS)&quot; block, or &quot;&quot;.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>functools</code>, <code class='inline'>gateway.paths</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-load_user_context'><code class='inline'>load_user_context</code></a></td><td>Concatenate filled-in TELOS files into one prompt block.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_is_filled'><code class='inline'>_is_filled</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_section_names'><code class='inline'>get_section_names</code></a></td><td>The ordered list of TELOS section filenames (public accessor for `_ORDER`).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-missing_sections'><code class='inline'>missing_sections</code></a></td><td>Filenames of TELOS sections still empty or carrying the template marker.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-is_interview_trigger'><code class='inline'>is_interview_trigger</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-update_section'><code class='inline'>update_section</code></a></td><td>Write a TELOS section file (creates USER_DIR if needed). Returns success.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-build_interview_prompt'><code class='inline'>build_interview_prompt</code></a></td><td>Append TELOS-interview instructions to a base system prompt.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-load_user_context'><h3><code class='inline'>load_user_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def load_user_context() -&gt; str</code></div><p>Concatenate filled-in TELOS files into one prompt block.
+
+Skips files that are missing, empty, or still carry the TEMPLATE marker.
+Returns &quot;&quot; when nothing is configured.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.user_context import load_user_context
+
+result = load_user_context()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_filled'><h3><code class='inline'>_is_filled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _is_filled(path) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.user_context import _is_filled
+
+result = _is_filled(path=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_section_names'><h3><code class='inline'>get_section_names</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_section_names() -&gt; list[str]</code></div><p>The ordered list of TELOS section filenames (public accessor for `_ORDER`).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.user_context import get_section_names
+
+result = get_section_names()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-missing_sections'><h3><code class='inline'>missing_sections</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def missing_sections() -&gt; list[str]</code></div><p>Filenames of TELOS sections still empty or carrying the template marker.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.user_context import missing_sections
+
+result = missing_sections()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_interview_trigger'><h3><code class='inline'>is_interview_trigger</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def is_interview_trigger(message: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.user_context import is_interview_trigger
+
+result = is_interview_trigger(message=&quot;message_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update_section'><h3><code class='inline'>update_section</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def update_section(name: str, content: str) -&gt; bool</code></div><p>Write a TELOS section file (creates USER_DIR if needed). Returns success.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.user_context import update_section
+
+result = update_section(name=&quot;name_example&quot;, content=&quot;content_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_interview_prompt'><h3><code class='inline'>build_interview_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def build_interview_prompt(base: str) -&gt; str</code></div><p>Append TELOS-interview instructions to a base system prompt.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.user_context import build_interview_prompt
+
+result = build_interview_prompt(base=&quot;base_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_ORDER</code></td><td><code class='inline'>[&#x27;MISSION.md&#x27;, &#x27;GOALS.md&#x27;, &#x27;PROBLEMS.md&#x27;, &#x27;PROJECTS.md&#x27;, &#x27;BELIEFS.md&#x27;, &#x27;WISDOM.md&#x27;, &#x27;MODELS.md&#x27;, &#x27;NARRATIVES.md&#x27;]</code></td></tr><tr><td><code class='inline'>_TEMPLATE_MARKER</code></td><td><code class='inline'>&#x27;TEMPLATE:&#x27;</code></td></tr><tr><td><code class='inline'>_LABELS</code></td><td><code class='inline'>{&#x27;MISSION.md&#x27;: &#x27;mission (the single through-line)&#x27;, &#x27;GOALS.md&#x27;: &#x27;goals (short- and long-term)&#x27;, &#x27;PROBLEMS.md&#x27;: &quot;problems</code></td></tr><tr><td><code class='inline'>_TRIGGERS</code></td><td><code class='inline'>(&#x27;set up my telos&#x27;, &#x27;fill in my telos&#x27;, &#x27;fill my telos&#x27;, &#x27;build my telos&#x27;, &#x27;interview me&#x27;, &#x27;telos interview&#x27;, &#x27;tell you </code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.proactive_insights — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.proactive_insights</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.proactive_insights</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/proactive_insights.py</code> &middot; Python &middot; 11 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Proactive Insight Engine — surfaces patterns without being asked.
+
+Stolen from: GitHub&#x27;s &quot;Your daily digest&quot; (proprietary, reimplemented from UX),
+Linear&#x27;s &quot;Insights&quot; panel (reimplemented from UX),
+Apple&#x27;s &quot;Screen Time&quot; weekly report (reimplemented from UX),
+Microsoft&#x27;s &quot;MyAnalytics&quot; (reimplemented from UX).
+
+This enhances Kitty&#x27;s existing insight_loop.py, nudge.py, patterns.py, and
+dream_insights.py with a unified pattern-detection pipeline that runs on a
+schedule and surfaces insights through the existing signal/notification system.
+
+Patterns detected:
+  - Productivity shifts: &quot;You&#x27;ve been more active in the evenings this week&quot;
+  - Topic focus: &quot;You&#x27;ve been working on X a lot lately&quot;
+  - Streaks: &quot;3-day coding streak&quot;
+  - Gaps: &quot;No activity in 2 days — take a break?&quot;
+  - Comparisons: &quot;You completed 2x more tasks than last week&quot;
+  - Correlations: &quot;When you journal in the morning, your coding sessions are longer&quot;
+
+Usage:
+    from gateway.proactive_insights import generate_insights, Insight
+
+    insights = generate_insights()
+    for i in insights:
+        print(i.headline, i.category)
+
+The insight_loop.py module handles storage, return, and lifecycle.
+This module handles detection and generation.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>collections</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.insight_loop</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_load_log_entries'><code class='inline'>_load_log_entries</code></a></td><td>Load and parse log entries from the last N days.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-detect_topic_focus'><code class='inline'>detect_topic_focus</code></a></td><td>Detect topics the user has been focused on.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-detect_streaks'><code class='inline'>detect_streaks</code></a></td><td>Detect daily activity streaks.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-detect_gaps'><code class='inline'>detect_gaps</code></a></td><td>Detect activity gaps.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-detect_comparisons'><code class='inline'>detect_comparisons</code></a></td><td>Compare activity between this week and last week.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-detect_productivity_shifts'><code class='inline'>detect_productivity_shifts</code></a></td><td>Detect shifts in productive hours.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-generate_insights'><code class='inline'>generate_insights</code></a></td><td>Run all detection functions and return generated insights.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-generate_and_send'><code class='inline'>generate_and_send</code></a></td><td>Generate insights and send them to the insight loop.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_load_cache'><code class='inline'>_load_cache</code></a></td><td>Load cached insights to avoid regenerating every check.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_save_cache'><code class='inline'>_save_cache</code></a></td><td>Cache generated insights.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_cached_or_generate'><code class='inline'>get_cached_or_generate</code></a></td><td>Return cached insights if fresh, otherwise regenerate.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_load_log_entries'><h3><code class='inline'>_load_log_entries</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _load_log_entries(days: int = 14) -&gt; list[dict]</code></div><p>Load and parse log entries from the last N days.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import _load_log_entries
+
+result = _load_log_entries(days=0  # default: 14)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detect_topic_focus'><h3><code class='inline'>detect_topic_focus</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def detect_topic_focus(entries: list[dict], min_mentions: int = 5) -&gt; list[Insight]</code></div><p>Detect topics the user has been focused on.
+
+Pattern: &quot;You&#x27;ve mentioned &#x27;async agents&#x27; 8 times in the last 3 days.&quot;</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import detect_topic_focus
+
+result = detect_topic_focus(entries=[], min_mentions=0  # default: 5)
+# result: list[Insight]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detect_streaks'><h3><code class='inline'>detect_streaks</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def detect_streaks(entries: list[dict]) -&gt; list[Insight]</code></div><p>Detect daily activity streaks.
+
+Pattern: &quot;3-day coding streak — keep it going!&quot;</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import detect_streaks
+
+result = detect_streaks(entries=[])
+# result: list[Insight]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detect_gaps'><h3><code class='inline'>detect_gaps</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def detect_gaps(entries: list[dict]) -&gt; list[Insight]</code></div><p>Detect activity gaps.
+
+Pattern: &quot;No activity in the last 2 days — everything okay?&quot;</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import detect_gaps
+
+result = detect_gaps(entries=[])
+# result: list[Insight]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detect_comparisons'><h3><code class='inline'>detect_comparisons</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def detect_comparisons(entries: list[dict]) -&gt; list[Insight]</code></div><p>Compare activity between this week and last week.
+
+Pattern: &quot;You completed 2x more tasks this week than last week.&quot;</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import detect_comparisons
+
+result = detect_comparisons(entries=[])
+# result: list[Insight]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detect_productivity_shifts'><h3><code class='inline'>detect_productivity_shifts</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def detect_productivity_shifts(entries: list[dict]) -&gt; list[Insight]</code></div><p>Detect shifts in productive hours.
+
+Pattern: &quot;You&#x27;ve been most active in the evenings lately.&quot;</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import detect_productivity_shifts
+
+result = detect_productivity_shifts(entries=[])
+# result: list[Insight]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_insights'><h3><code class='inline'>generate_insights</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def generate_insights(days: int = 14) -&gt; list[Insight]</code></div><p>Run all detection functions and return generated insights.
+
+This is called by the insight loop cron (insights.return_due action)
+and by the morning proactive routine.
+
+Args:
+    days: How many days of history to analyze.
+
+Returns:
+    List of generated insights, sorted by confidence descending.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import generate_insights
+
+result = generate_insights(days=0  # default: 14)
+# result: list[Insight]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_and_send'><h3><code class='inline'>generate_and_send</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def generate_and_send() -&gt; int</code></div><p>Generate insights and send them to the insight loop.
+
+Returns the number of insights sent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import generate_and_send
+
+result = generate_and_send()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_cache'><h3><code class='inline'>_load_cache</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_cache() -&gt; dict</code></div><p>Load cached insights to avoid regenerating every check.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import _load_cache
+
+result = _load_cache()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_save_cache'><h3><code class='inline'>_save_cache</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _save_cache(insights: list[dict]) -&gt; None</code></div><p>Cache generated insights.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import _save_cache
+
+result = _save_cache(insights=[])
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_cached_or_generate'><h3><code class='inline'>get_cached_or_generate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def get_cached_or_generate(ttl_seconds: int = 3600) -&gt; list[Insight]</code></div><p>Return cached insights if fresh, otherwise regenerate.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.proactive_insights import get_cached_or_generate
+
+result = get_cached_or_generate(ttl_seconds=0  # default: 3600)
+# result: list[Insight]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-InsightCategory'><code class='inline'>InsightCategory</code></a></td><td>(str)</td><td>0 methods</td></tr><tr><td><a href='#cls-Insight'><code class='inline'>Insight</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-InsightCategory'><h3><code class='inline'>InsightCategory</code></h3><p>Stable categories for proactive insights. Each maps to a detection function.</p><p class='small'><b>Attributes:</b> PRODUCTIVITY_SHIFT, TOPIC_FOCUS, STREAK, GAP, COMPARISON, CORRELATION, HABIT</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.proactive_insights import InsightCategory
+
+obj = InsightCategory(...)</pre></div>
+<div class='card' id='cls-Insight'><h3><code class='inline'>Insight</code></h3><p>One proactive insight, ready for the insight loop.</p><p class='small'><b>Attributes:</b> headline: str, detail: str, category: str, confidence: float, source_data: dict[str, Any]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.proactive_insights import Insight
+
+obj = Insight(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_INSIGHT_CACHE</code></td><td><code class='inline'>DATA_DIR / &#x27;proactive_insights_cache.json&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.memory_graph — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.memory_graph</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.memory_graph</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/memory_graph.py</code> &middot; Python &middot; 10 functions &middot; 16 classes</p>
+<div class='card'><h2>Overview</h2><p>Unified Memory Graph — deep module for cross-store context retrieval.
+
+Phase 2 deepening (per
+``docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md``):
+the read path now exposes one entry point (``gateway.context_assembler``)
+and one item shape (``Item``). The adapters return ``list[Item]``; the
+``format_items`` and ``correlate`` methods are gone from the adapter
+contract — formatting lives in the assembler, not in the stores. This
+module still owns the per-store retrieval and the concurrent fan-in.
+
+Public surface:
+
+- :class:`Item` — the uniform result shape every adapter returns.
+- :class:`Source` — enum of store sources, used in :attr:`Item.source`.
+- :class:`StoreAdapter` — abstract base. Subclasses implement
+  :meth:`name` and :meth:`fetch`. The legacy ``format_items`` and
+  ``correlate`` are removed.
+- :class:`GraphResult` — what :meth:`MemoryGraph.search_all` returns.
+- :func:`unified_context` — convenience wrapper around
+  :class:`MemoryGraph` returning a formatted string.
+- :func:`_format_unified_items` — free function used by the assembler
+  to render a :class:`GraphResult` as the memory section.
+- :func:`_truncate_text` — token-cap aware truncation.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>abc</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>enum</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.chat_search</code>, <code class='inline'>gateway.explicit_memory</code>, <code class='inline'>gateway.journal</code>, <code class='inline'>gateway.knowledge</code>, <code class='inline'>gateway.memory</code>, <code class='inline'>gateway.memory_weave</code>, <code class='inline'>gateway.mempalace_adapter</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.project_context</code>, <code class='inline'>gateway.project_store</code>, <code class='inline'>gateway.signal_store</code>, <code class='inline'>gateway.todo_store</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>re</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_default_adapters'><code class='inline'>_default_adapters</code></a></td><td>The active store adapters. MemPalace is appended only when enabled.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_get_graph'><code class='inline'>_get_graph</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-search_all'><code class='inline'>search_all</code></a></td><td>Public module-level entry point for cross-store search. Returns GraphResult.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-unified_context'><code class='inline'>unified_context</code></a></td><td>Return unified context from all stores as a formatted string.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_truncate_text'><code class='inline'>_truncate_text</code></a></td><td>Truncate ``text`` to a rough token cap. Used by the assembler to keep</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_is_sensitive'><code class='inline'>_is_sensitive</code></a></td><td>Filter out items with sensitive tags unless requested in the query.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_select_unified_items'><code class='inline'>_select_unified_items</code></a></td><td>Apply the render gates (top-5 per store, Privacy Gate, Token-Aware</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-_format_unified_items'><code class='inline'>_format_unified_items</code></a></td><td>Render ``results`` (keyed by adapter name) as the memory section.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_fetch_traces'><code class='inline'>_fetch_traces</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-search_entries'><code class='inline'>search_entries</code></a></td><td>Legacy shim for tests — delegates to journal.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_default_adapters'><h3><code class='inline'>_default_adapters</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _default_adapters(knowledge_profile: str | None = None) -&gt; list[StoreAdapter]</code></div><p>The active store adapters. MemPalace is appended only when enabled.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_graph import _default_adapters
+
+result = _default_adapters(knowledge_profile=&quot;knowledge_profile_example&quot;  # default: None)
+# result: list[StoreAdapter]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_get_graph'><h3><code class='inline'>_get_graph</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _get_graph() -&gt; MemoryGraph</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_graph import _get_graph
+
+result = _get_graph()
+# result: MemoryGraph</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search_all'><h3><code class='inline'>search_all</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def search_all(query: str) -&gt; GraphResult</code></div><p>Public module-level entry point for cross-store search. Returns GraphResult.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.memory_graph import search_all
+
+    result = await search_all()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-unified_context'><h3><code class='inline'>unified_context</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def unified_context(query: str, _record: bool = True) -&gt; str</code></div><p>Return unified context from all stores as a formatted string.
+
+Checks the predictive prefetch cache first; on a miss, computes the context,
+caches it, and (for real asks) records the query so the prefetcher learns.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.memory_graph import unified_context
+
+    result = await unified_context()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_truncate_text'><h3><code class='inline'>_truncate_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _truncate_text(text: str, cap: int) -&gt; str</code></div><p>Truncate ``text`` to a rough token cap. Used by the assembler to keep
+the memory section under budget.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_graph import _truncate_text
+
+result = _truncate_text(text=&quot;text_example&quot;, cap=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_sensitive'><h3><code class='inline'>_is_sensitive</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _is_sensitive(item: Item, query_terms: set[str]) -&gt; bool</code></div><p>Filter out items with sensitive tags unless requested in the query.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_graph import _is_sensitive
+
+result = _is_sensitive(item=..., query_terms=&quot;query_terms_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_select_unified_items'><h3><code class='inline'>_select_unified_items</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def _select_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP, query: str = &#x27;&#x27;) -&gt; tuple[list[str], list[MemoryEvidence]]</code></div><p>Apply the render gates (top-5 per store, Privacy Gate, Token-Aware
+Budgeting) in one walk.
+
+Returns ``(sections, rendered_texts)``: the formatted section strings and
+the exact item texts rendered into them, in prompt order. The selection is
+separate from formatting so the assembler can expose truthful &quot;what
+actually entered the prompt&quot; evidence without re-running the gates — a
+second, independent walk is how evidence and prompt drift apart.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_graph import _select_unified_items
+
+result = _select_unified_items(results=&quot;results_example&quot;, cap=0  # default: CONTEXT_TOKEN_CAP, query=&quot;query_example&quot;  # default: &#x27;&#x27;)
+# result: tuple[list[str], list[MemoryEvidence]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_format_unified_items'><h3><code class='inline'>_format_unified_items</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP, query: str = &#x27;&#x27;) -&gt; str</code></div><p>Render ``results`` (keyed by adapter name) as the memory section.
+
+Uses Token-Aware Budgeting and a Privacy Gate.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_graph import _format_unified_items
+
+result = _format_unified_items(results=&quot;results_example&quot;, cap=0  # default: CONTEXT_TOKEN_CAP, query=&quot;query_example&quot;  # default: &#x27;&#x27;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fetch_traces'><h3><code class='inline'>_fetch_traces</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _fetch_traces(query: str) -&gt; list[Item]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_graph import _fetch_traces
+
+result = _fetch_traces(query=&quot;query_example&quot;)
+# result: list[Item]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search_entries'><h3><code class='inline'>search_entries</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def search_entries(query: str) -&gt; list[dict[str, Any]]</code></div><p>Legacy shim for tests — delegates to journal.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_graph import search_entries
+
+result = search_entries(query=&quot;query_example&quot;)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Source'><code class='inline'>Source</code></a></td><td>(str, Enum)</td><td>1 methods</td></tr><tr><td><a href='#cls-Item'><code class='inline'>Item</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-MemoryEvidence'><code class='inline'>MemoryEvidence</code></a></td><td>(TypedDict)</td><td>0 methods</td></tr><tr><td><a href='#cls-StoreAdapter'><code class='inline'>StoreAdapter</code></a></td><td>(ABC)</td><td>2 methods</td></tr><tr><td><a href='#cls-ProjectAdapter'><code class='inline'>ProjectAdapter</code></a></td><td>(StoreAdapter)</td><td>2 methods</td></tr><tr><td><a href='#cls-ExplicitMemoryAdapter'><code class='inline'>ExplicitMemoryAdapter</code></a></td><td>(StoreAdapter)</td><td>2 methods</td></tr><tr><td><a href='#cls-MemoryAdapter'><code class='inline'>MemoryAdapter</code></a></td><td>(StoreAdapter)</td><td>2 methods</td></tr><tr><td><a href='#cls-KnowledgeAdapter'><code class='inline'>KnowledgeAdapter</code></a></td><td>(StoreAdapter)</td><td>3 methods</td></tr><tr><td><a href='#cls-JournalAdapter'><code class='inline'>JournalAdapter</code></a></td><td>(StoreAdapter)</td><td>2 methods</td></tr><tr><td><a href='#cls-TracesAdapter'><code class='inline'>TracesAdapter</code></a></td><td>(StoreAdapter)</td><td>3 methods</td></tr><tr><td><a href='#cls-TodosAdapter'><code class='inline'>TodosAdapter</code></a></td><td>(StoreAdapter)</td><td>2 methods</td></tr><tr><td><a href='#cls-InboxAdapter'><code class='inline'>InboxAdapter</code></a></td><td>(StoreAdapter)</td><td>3 methods</td></tr><tr><td><a href='#cls-SignalsAdapter'><code class='inline'>SignalsAdapter</code></a></td><td>(StoreAdapter)</td><td>2 methods</td></tr><tr><td><a href='#cls-WeaveAdapter'><code class='inline'>WeaveAdapter</code></a></td><td>(StoreAdapter)</td><td>2 methods</td></tr><tr><td><a href='#cls-GraphResult'><code class='inline'>GraphResult</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-MemoryGraph'><code class='inline'>MemoryGraph</code></a></td><td></td><td>3 methods</td></tr></table></div>
+<div class='card' id='cls-Source'><h3><code class='inline'>Source</code></h3><p>Which store an :class:`Item` came from. Stable identifier; the string
+value is what callers see in :attr:`Item.source`.</p><p class='small'><b>Attributes:</b> PROJECTS, EXPLICIT_MEMORY, MEMORY, KNOWLEDGE, JOURNAL, TRACES, TODOS, INBOX, MEMORY_PALACE, SIGNALS, CHATS, FACTS</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__str__</code></td><td><code class='inline'>def __str__(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import Source
+
+obj = Source(...)</pre></div>
+<div class='card' id='cls-Item'><h3><code class='inline'>Item</code></h3><p>The uniform shape every adapter returns.
+
+Attributes:
+    text: The displayable text. The assembler uses this directly.
+    source: Where the item came from.
+    score: Optional relevance score from the underlying store. ``None``
+        when the store didn&#x27;t compute one.
+    ts: Optional timestamp. ``None`` when the store has no concept
+        of time for the item.
+    metadata: Optional store-specific fields. The assembler doesn&#x27;t
+        read this; it&#x27;s for future debugging and store-specific
+        rendering. Always a dict, never ``None``.</p><p class='small'><b>Attributes:</b> text: str, source: Source, score: float | None, ts: datetime | None, metadata: dict[str, Any]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.memory_graph import Item
+
+obj = Item(...)</pre></div>
+<div class='card' id='cls-MemoryEvidence'><h3><code class='inline'>MemoryEvidence</code></h3><p>One prompt-injected memory, with a delete ID when one exists.</p><p class='small'><b>Attributes:</b> text: str, memory_id: NotRequired[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.memory_graph import MemoryEvidence
+
+obj = MemoryEvidence(...)</pre></div>
+<div class='card' id='cls-StoreAdapter'><h3><code class='inline'>StoreAdapter</code></h3><p>Abstract base for memory graph stores.
+
+After Phase 2 the only contract is :attr:`name` and
+:meth:`fetch`. Formatting and cross-store correlation live in
+:func:`gateway.context_assembler.assemble_context` and its helpers,
+not in the adapters.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import StoreAdapter
+
+obj = StoreAdapter(...)</pre></div>
+<div class='card' id='cls-ProjectAdapter'><h3><code class='inline'>ProjectAdapter</code></h3><p>Read-only projection of canonical Project truth into request context.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>complex</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import ProjectAdapter
+
+obj = ProjectAdapter(...)</pre></div>
+<div class='card' id='cls-ExplicitMemoryAdapter'><h3><code class='inline'>ExplicitMemoryAdapter</code></h3><p>Governed user-confirmed memory that does not require Mem0/Ollama.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import ExplicitMemoryAdapter
+
+obj = ExplicitMemoryAdapter(...)</pre></div>
+<div class='card' id='cls-MemoryAdapter'><h3><code class='inline'>MemoryAdapter</code></h3><p>Adapter for mem0-based memory store.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import MemoryAdapter
+
+obj = MemoryAdapter(...)</pre></div>
+<div class='card' id='cls-KnowledgeAdapter'><h3><code class='inline'>KnowledgeAdapter</code></h3><p>Adapter for knowledge retrieval, optionally scoped to one corpus profile.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, expert_profile: str | None = None)</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+m
+e
+m
+o
+r
+y
+_
+g
+r
+a
+p
+h
+ 
+i
+m
+p
+o
+r
+t
+ 
+K
+n
+o
+w
+l
+e
+d
+g
+e
+A
+d
+a
+p
+t
+e
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+K
+n
+o
+w
+l
+e
+d
+g
+e
+A
+d
+a
+p
+t
+e
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-JournalAdapter'><h3><code class='inline'>JournalAdapter</code></h3><p>Adapter for journal entries (SQLite-backed via journal_store).</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import JournalAdapter
+
+obj = JournalAdapter(...)</pre></div>
+<div class='card' id='cls-TracesAdapter'><h3><code class='inline'>TracesAdapter</code></h3><p>Adapter for gateway activity traces.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_fetch_traces</code></td><td><code class='inline'>def _fetch_traces(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>complex</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import TracesAdapter
+
+obj = TracesAdapter(...)</pre></div>
+<div class='card' id='cls-TodosAdapter'><h3><code class='inline'>TodosAdapter</code></h3><p>Adapter for todo store.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import TodosAdapter
+
+obj = TodosAdapter(...)</pre></div>
+<div class='card' id='cls-InboxAdapter'><h3><code class='inline'>InboxAdapter</code></h3><p>Adapter for mobile-compatible quick captures.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_fetch_inbox</code></td><td><code class='inline'>def _fetch_inbox(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>complex</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import InboxAdapter
+
+obj = InboxAdapter(...)</pre></div>
+<div class='card' id='cls-SignalsAdapter'><h3><code class='inline'>SignalsAdapter</code></h3><p>Adapter for the P1 signal store (connector and system events).</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>complex</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import SignalsAdapter
+
+obj = SignalsAdapter(...)</pre></div>
+<div class='card' id='cls-WeaveAdapter'><h3><code class='inline'>WeaveAdapter</code></h3><p>Adapter for the temporal knowledge graph (MemoryWeave).</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_graph import WeaveAdapter
+
+obj = WeaveAdapter(...)</pre></div>
+<div class='card' id='cls-GraphResult'><h3><code class='inline'>GraphResult</code></h3><p>Result of a unified graph query.
+
+After Phase 2, ``results`` is keyed by adapter name (string) and the
+values are ``list[Item]``. ``errors`` carries per-adapter failure
+messages for the assembler to surface as ``ContextBundle.warnings``.</p><p class='small'><b>Attributes:</b> results: dict[str, list[Item]], errors: list[str], degraded_stores: list[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.memory_graph import GraphResult
+
+obj = GraphResult(...)</pre></div>
+<div class='card' id='cls-MemoryGraph'><h3><code class='inline'>MemoryGraph</code></h3><p>Deep memory graph module.
+
+High-leverage entry point for all context retrieval. The store
+adapters are implementation details; the only thing callers touch is
+:meth:`search_all` (returning a :class:`GraphResult`) and
+:meth:`unified_context` (returning a formatted string).</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, adapters: list[StoreAdapter] | None = None)</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>unified_context</code></td><td><code class='inline'>async def unified_context(self, query: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>search_all</code></td><td><code class='inline'>async def search_all(self, query: str) -&gt; GraphResult</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+m
+e
+m
+o
+r
+y
+_
+g
+r
+a
+p
+h
+ 
+i
+m
+p
+o
+r
+t
+ 
+M
+e
+m
+o
+r
+y
+G
+r
+a
+p
+h
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+M
+e
+m
+o
+r
+y
+G
+r
+a
+p
+h
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>CONTEXT_TOKEN_CAP</code></td><td><code class='inline'>int</code></td></tr><tr><td><code class='inline'>STORE_FETCH_TIMEOUT_SECONDS</code></td><td><code class='inline'>float</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

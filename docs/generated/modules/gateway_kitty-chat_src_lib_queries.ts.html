@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/lib/queries — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/lib/queries</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/lib/queries</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/lib/queries.ts</code> &middot; TypeScript &middot; 80 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>@/lib/gateway</code>, <code class='inline'>@tanstack/react-query</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-useGatewayBrief'><code class='inline'>useGatewayBrief</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useGatewayModels'><code class='inline'>useGatewayModels</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useModelRouting'><code class='inline'>useModelRouting</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useProviders'><code class='inline'>useProviders</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useSaveProviders'><code class='inline'>useSaveProviders</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-usePersonality'><code class='inline'>usePersonality</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useUpdatePersonality'><code class='inline'>useUpdatePersonality</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useSessionContext'><code class='inline'>useSessionContext</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useUsageSummary'><code class='inline'>useUsageSummary</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useGatewayRuntimeManifest'><code class='inline'>useGatewayRuntimeManifest</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-hasActiveBuilderRun'><code class='inline'>hasActiveBuilderRun</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useGatewaySearch'><code class='inline'>useGatewaySearch</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useGatewayWeather'><code class='inline'>useGatewayWeather</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useTodos'><code class='inline'>useTodos</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useAddTodo'><code class='inline'>useAddTodo</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useCompleteTodo'><code class='inline'>useCompleteTodo</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useDeleteTodo'><code class='inline'>useDeleteTodo</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useLoops'><code class='inline'>useLoops</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useToggleLoop'><code class='inline'>useToggleLoop</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useInsights'><code class='inline'>useInsights</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useDismissInsight'><code class='inline'>useDismissInsight</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useInsightLoopDue'><code class='inline'>useInsightLoopDue</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useRespondToLoopInsight'><code class='inline'>useRespondToLoopInsight</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-usePrompts'><code class='inline'>usePrompts</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useMonitors'><code class='inline'>useMonitors</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useAddMonitor'><code class='inline'>useAddMonitor</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useRemoveMonitor'><code class='inline'>useRemoveMonitor</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useAgentSessions'><code class='inline'>useAgentSessions</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useAgentStatus'><code class='inline'>useAgentStatus</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useSpawnAgent'><code class='inline'>useSpawnAgent</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useStopAgent'><code class='inline'>useStopAgent</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useCronSchedules'><code class='inline'>useCronSchedules</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useCronActions'><code class='inline'>useCronActions</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useCreateCronSchedule'><code class='inline'>useCreateCronSchedule</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useUpdateCronSchedule'><code class='inline'>useUpdateCronSchedule</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useDeleteCronSchedule'><code class='inline'>useDeleteCronSchedule</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useToggleCronSchedule'><code class='inline'>useToggleCronSchedule</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useAutomationRun'><code class='inline'>useAutomationRun</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useRetryAutomationRun'><code class='inline'>useRetryAutomationRun</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useScheduleWhy'><code class='inline'>useScheduleWhy</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useImageStatus'><code class='inline'>useImageStatus</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useImageHistory'><code class='inline'>useImageHistory</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useGenerateImage'><code class='inline'>useGenerateImage</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useResearchRuns'><code class='inline'>useResearchRuns</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useStartResearch'><code class='inline'>useStartResearch</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useActivity'><code class='inline'>useActivity</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useIntelligence'><code class='inline'>useIntelligence</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useRefreshIntelligenceConnections'><code class='inline'>useRefreshIntelligenceConnections</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useStateChanges'><code class='inline'>useStateChanges</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useActions'><code class='inline'>useActions</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-actionRefetchInterval'><code class='inline'>actionRefetchInterval</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useAction'><code class='inline'>useAction</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useApproveAction'><code class='inline'>useApproveAction</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useRejectAction'><code class='inline'>useRejectAction</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useExecuteAction'><code class='inline'>useExecuteAction</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useNeedsJacob'><code class='inline'>useNeedsJacob</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useSnapshotState'><code class='inline'>useSnapshotState</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useStateNow'><code class='inline'>useStateNow</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useRunInboxTriage'><code class='inline'>useRunInboxTriage</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useProjects'><code class='inline'>useProjects</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useArtifacts'><code class='inline'>useArtifacts</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useArtifact'><code class='inline'>useArtifact</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useActiveProject'><code class='inline'>useActiveProject</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useSetActiveProject'><code class='inline'>useSetActiveProject</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useProjectNext'><code class='inline'>useProjectNext</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useProjectResume'><code class='inline'>useProjectResume</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useRefreshProject'><code class='inline'>useRefreshProject</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useDeadlines'><code class='inline'>useDeadlines</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useDeadlineSweep'><code class='inline'>useDeadlineSweep</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useKnowledgeSources'><code class='inline'>useKnowledgeSources</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useKnowledgeSearch'><code class='inline'>useKnowledgeSearch</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useIngestKnowledge'><code class='inline'>useIngestKnowledge</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-usePlugins'><code class='inline'>usePlugins</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useTogglePlugin'><code class='inline'>useTogglePlugin</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useMcpServers'><code class='inline'>useMcpServers</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useMcpTools'><code class='inline'>useMcpTools</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useGatewayHealth'><code class='inline'>useGatewayHealth</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useHealthSurface'><code class='inline'>useHealthSurface</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useRepairs'><code class='inline'>useRepairs</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useExecuteRepair'><code class='inline'>useExecuteRepair</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-useGatewayBrief'><h3><code class='inline'>useGatewayBrief</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useGatewayBrief()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useGatewayBrief } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useGatewayBrief;</pre></div>
+<div class='card' id='ex-useGatewayModels'><h3><code class='inline'>useGatewayModels</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useGatewayModels()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useGatewayModels } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useGatewayModels;</pre></div>
+<div class='card' id='ex-useModelRouting'><h3><code class='inline'>useModelRouting</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useModelRouting()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useModelRouting } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useModelRouting;</pre></div>
+<div class='card' id='ex-useProviders'><h3><code class='inline'>useProviders</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useProviders()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useProviders } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useProviders;</pre></div>
+<div class='card' id='ex-useSaveProviders'><h3><code class='inline'>useSaveProviders</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useSaveProviders()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useSaveProviders } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useSaveProviders;</pre></div>
+<div class='card' id='ex-usePersonality'><h3><code class='inline'>usePersonality</code> <span class='pill'>function</span></h3><div class='sig'><code>export function usePersonality()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { usePersonality } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = usePersonality;</pre></div>
+<div class='card' id='ex-useUpdatePersonality'><h3><code class='inline'>useUpdatePersonality</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useUpdatePersonality()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useUpdatePersonality } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useUpdatePersonality;</pre></div>
+<div class='card' id='ex-useSessionContext'><h3><code class='inline'>useSessionContext</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useSessionContext()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useSessionContext } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useSessionContext;</pre></div>
+<div class='card' id='ex-useUsageSummary'><h3><code class='inline'>useUsageSummary</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useUsageSummary()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useUsageSummary } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useUsageSummary;</pre></div>
+<div class='card' id='ex-useGatewayRuntimeManifest'><h3><code class='inline'>useGatewayRuntimeManifest</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useGatewayRuntimeManifest(projectId?: number)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useGatewayRuntimeManifest } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useGatewayRuntimeManifest;</pre></div>
+<div class='card' id='ex-hasActiveBuilderRun'><h3><code class='inline'>hasActiveBuilderRun</code> <span class='pill'>function</span></h3><div class='sig'><code>export function hasActiveBuilderRun(manifest: GatewayRuntimeManifest | undefined)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { hasActiveBuilderRun } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = hasActiveBuilderRun;</pre></div>
+<div class='card' id='ex-useGatewaySearch'><h3><code class='inline'>useGatewaySearch</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useGatewaySearch(query: string, limit = 3)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useGatewaySearch } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useGatewaySearch;</pre></div>
+<div class='card' id='ex-useGatewayWeather'><h3><code class='inline'>useGatewayWeather</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useGatewayWeather()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useGatewayWeather } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useGatewayWeather;</pre></div>
+<div class='card' id='ex-useTodos'><h3><code class='inline'>useTodos</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useTodos()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useTodos } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useTodos;</pre></div>
+<div class='card' id='ex-useAddTodo'><h3><code class='inline'>useAddTodo</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useAddTodo()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useAddTodo } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useAddTodo;</pre></div>
+<div class='card' id='ex-useCompleteTodo'><h3><code class='inline'>useCompleteTodo</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useCompleteTodo()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useCompleteTodo } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useCompleteTodo;</pre></div>
+<div class='card' id='ex-useDeleteTodo'><h3><code class='inline'>useDeleteTodo</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useDeleteTodo()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useDeleteTodo } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useDeleteTodo;</pre></div>
+<div class='card' id='ex-useLoops'><h3><code class='inline'>useLoops</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useLoops()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useLoops } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useLoops;</pre></div>
+<div class='card' id='ex-useToggleLoop'><h3><code class='inline'>useToggleLoop</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useToggleLoop()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useToggleLoop } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useToggleLoop;</pre></div>
+<div class='card' id='ex-useInsights'><h3><code class='inline'>useInsights</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useInsights(limit = 10)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useInsights } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useInsights;</pre></div>
+<div class='card' id='ex-useDismissInsight'><h3><code class='inline'>useDismissInsight</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useDismissInsight()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useDismissInsight } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useDismissInsight;</pre></div>
+<div class='card' id='ex-useInsightLoopDue'><h3><code class='inline'>useInsightLoopDue</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useInsightLoopDue()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useInsightLoopDue } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useInsightLoopDue;</pre></div>
+<div class='card' id='ex-useRespondToLoopInsight'><h3><code class='inline'>useRespondToLoopInsight</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useRespondToLoopInsight()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useRespondToLoopInsight } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useRespondToLoopInsight;</pre></div>
+<div class='card' id='ex-usePrompts'><h3><code class='inline'>usePrompts</code> <span class='pill'>function</span></h3><div class='sig'><code>export function usePrompts()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { usePrompts } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = usePrompts;</pre></div>
+<div class='card' id='ex-useMonitors'><h3><code class='inline'>useMonitors</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useMonitors()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useMonitors } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useMonitors;</pre></div>
+<div class='card' id='ex-useAddMonitor'><h3><code class='inline'>useAddMonitor</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useAddMonitor()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useAddMonitor } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useAddMonitor;</pre></div>
+<div class='card' id='ex-useRemoveMonitor'><h3><code class='inline'>useRemoveMonitor</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useRemoveMonitor()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useRemoveMonitor } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useRemoveMonitor;</pre></div>
+<div class='card' id='ex-useAgentSessions'><h3><code class='inline'>useAgentSessions</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useAgentSessions(limit = 8)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useAgentSessions } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useAgentSessions;</pre></div>
+<div class='card' id='ex-useAgentStatus'><h3><code class='inline'>useAgentStatus</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useAgentStatus(sessionId: number | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useAgentStatus } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useAgentStatus;</pre></div>
+<div class='card' id='ex-useSpawnAgent'><h3><code class='inline'>useSpawnAgent</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useSpawnAgent()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useSpawnAgent } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useSpawnAgent;</pre></div>
+<div class='card' id='ex-useStopAgent'><h3><code class='inline'>useStopAgent</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useStopAgent()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useStopAgent } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useStopAgent;</pre></div>
+<div class='card' id='ex-useCronSchedules'><h3><code class='inline'>useCronSchedules</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useCronSchedules()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useCronSchedules } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useCronSchedules;</pre></div>
+<div class='card' id='ex-useCronActions'><h3><code class='inline'>useCronActions</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useCronActions()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useCronActions } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useCronActions;</pre></div>
+<div class='card' id='ex-useCreateCronSchedule'><h3><code class='inline'>useCreateCronSchedule</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useCreateCronSchedule()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useCreateCronSchedule } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useCreateCronSchedule;</pre></div>
+<div class='card' id='ex-useUpdateCronSchedule'><h3><code class='inline'>useUpdateCronSchedule</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useUpdateCronSchedule()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useUpdateCronSchedule } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useUpdateCronSchedule;</pre></div>
+<div class='card' id='ex-useDeleteCronSchedule'><h3><code class='inline'>useDeleteCronSchedule</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useDeleteCronSchedule()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useDeleteCronSchedule } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useDeleteCronSchedule;</pre></div>
+<div class='card' id='ex-useToggleCronSchedule'><h3><code class='inline'>useToggleCronSchedule</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useToggleCronSchedule()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useToggleCronSchedule } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useToggleCronSchedule;</pre></div>
+<div class='card' id='ex-useAutomationRun'><h3><code class='inline'>useAutomationRun</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useAutomationRun(runId: string | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useAutomationRun } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useAutomationRun;</pre></div>
+<div class='card' id='ex-useRetryAutomationRun'><h3><code class='inline'>useRetryAutomationRun</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useRetryAutomationRun()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useRetryAutomationRun } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useRetryAutomationRun;</pre></div>
+<div class='card' id='ex-useScheduleWhy'><h3><code class='inline'>useScheduleWhy</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useScheduleWhy(scheduleId: string | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useScheduleWhy } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useScheduleWhy;</pre></div>
+<div class='card' id='ex-useImageStatus'><h3><code class='inline'>useImageStatus</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useImageStatus()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useImageStatus } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useImageStatus;</pre></div>
+<div class='card' id='ex-useImageHistory'><h3><code class='inline'>useImageHistory</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useImageHistory()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useImageHistory } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useImageHistory;</pre></div>
+<div class='card' id='ex-useGenerateImage'><h3><code class='inline'>useGenerateImage</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useGenerateImage()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useGenerateImage } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useGenerateImage;</pre></div>
+<div class='card' id='ex-useResearchRuns'><h3><code class='inline'>useResearchRuns</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useResearchRuns()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useResearchRuns } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useResearchRuns;</pre></div>
+<div class='card' id='ex-useStartResearch'><h3><code class='inline'>useStartResearch</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useStartResearch()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useStartResearch } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useStartResearch;</pre></div>
+<div class='card' id='ex-useActivity'><h3><code class='inline'>useActivity</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useActivity()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useActivity } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useActivity;</pre></div>
+<div class='card' id='ex-useIntelligence'><h3><code class='inline'>useIntelligence</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useIntelligence()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useIntelligence } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useIntelligence;</pre></div>
+<div class='card' id='ex-useRefreshIntelligenceConnections'><h3><code class='inline'>useRefreshIntelligenceConnections</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useRefreshIntelligenceConnections()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useRefreshIntelligenceConnections } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useRefreshIntelligenceConnections;</pre></div>
+<div class='card' id='ex-useStateChanges'><h3><code class='inline'>useStateChanges</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useStateChanges()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useStateChanges } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useStateChanges;</pre></div>
+<div class='card' id='ex-useActions'><h3><code class='inline'>useActions</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useActions(status?: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useActions } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useActions;</pre></div>
+<div class='card' id='ex-actionRefetchInterval'><h3><code class='inline'>actionRefetchInterval</code> <span class='pill'>function</span></h3><div class='sig'><code>export function actionRefetchInterval(status: string | undefined)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { actionRefetchInterval } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = actionRefetchInterval;</pre></div>
+<div class='card' id='ex-useAction'><h3><code class='inline'>useAction</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useAction(actionId: number)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useAction } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useAction;</pre></div>
+<div class='card' id='ex-useApproveAction'><h3><code class='inline'>useApproveAction</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useApproveAction()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useApproveAction } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useApproveAction;</pre></div>
+<div class='card' id='ex-useRejectAction'><h3><code class='inline'>useRejectAction</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useRejectAction()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useRejectAction } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useRejectAction;</pre></div>
+<div class='card' id='ex-useExecuteAction'><h3><code class='inline'>useExecuteAction</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useExecuteAction()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useExecuteAction } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useExecuteAction;</pre></div>
+<div class='card' id='ex-useNeedsJacob'><h3><code class='inline'>useNeedsJacob</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useNeedsJacob()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useNeedsJacob } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useNeedsJacob;</pre></div>
+<div class='card' id='ex-useSnapshotState'><h3><code class='inline'>useSnapshotState</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useSnapshotState()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useSnapshotState } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useSnapshotState;</pre></div>
+<div class='card' id='ex-useStateNow'><h3><code class='inline'>useStateNow</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useStateNow()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useStateNow } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useStateNow;</pre></div>
+<div class='card' id='ex-useRunInboxTriage'><h3><code class='inline'>useRunInboxTriage</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useRunInboxTriage()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useRunInboxTriage } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useRunInboxTriage;</pre></div>
+<div class='card' id='ex-useProjects'><h3><code class='inline'>useProjects</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useProjects()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useProjects } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useProjects;</pre></div>
+<div class='card' id='ex-useArtifacts'><h3><code class='inline'>useArtifacts</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useArtifacts(limit = 100)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useArtifacts } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useArtifacts;</pre></div>
+<div class='card' id='ex-useArtifact'><h3><code class='inline'>useArtifact</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useArtifact(artifactId: string, enabled = true)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useArtifact } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useArtifact;</pre></div>
+<div class='card' id='ex-useActiveProject'><h3><code class='inline'>useActiveProject</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useActiveProject()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useActiveProject } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useActiveProject;</pre></div>
+<div class='card' id='ex-useSetActiveProject'><h3><code class='inline'>useSetActiveProject</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useSetActiveProject()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useSetActiveProject } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useSetActiveProject;</pre></div>
+<div class='card' id='ex-useProjectNext'><h3><code class='inline'>useProjectNext</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useProjectNext(projectId: number)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useProjectNext } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useProjectNext;</pre></div>
+<div class='card' id='ex-useProjectResume'><h3><code class='inline'>useProjectResume</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useProjectResume(projectId: number)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useProjectResume } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useProjectResume;</pre></div>
+<div class='card' id='ex-useRefreshProject'><h3><code class='inline'>useRefreshProject</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useRefreshProject()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useRefreshProject } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useRefreshProject;</pre></div>
+<div class='card' id='ex-useDeadlines'><h3><code class='inline'>useDeadlines</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useDeadlines(status = &#x27;open&#x27;)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useDeadlines } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useDeadlines;</pre></div>
+<div class='card' id='ex-useDeadlineSweep'><h3><code class='inline'>useDeadlineSweep</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useDeadlineSweep()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useDeadlineSweep } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useDeadlineSweep;</pre></div>
+<div class='card' id='ex-useKnowledgeSources'><h3><code class='inline'>useKnowledgeSources</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useKnowledgeSources()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useKnowledgeSources } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useKnowledgeSources;</pre></div>
+<div class='card' id='ex-useKnowledgeSearch'><h3><code class='inline'>useKnowledgeSearch</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useKnowledgeSearch(q: string, limit = 8)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useKnowledgeSearch } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useKnowledgeSearch;</pre></div>
+<div class='card' id='ex-useIngestKnowledge'><h3><code class='inline'>useIngestKnowledge</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useIngestKnowledge()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useIngestKnowledge } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useIngestKnowledge;</pre></div>
+<div class='card' id='ex-usePlugins'><h3><code class='inline'>usePlugins</code> <span class='pill'>function</span></h3><div class='sig'><code>export function usePlugins()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { usePlugins } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = usePlugins;</pre></div>
+<div class='card' id='ex-useTogglePlugin'><h3><code class='inline'>useTogglePlugin</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useTogglePlugin()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useTogglePlugin } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useTogglePlugin;</pre></div>
+<div class='card' id='ex-useMcpServers'><h3><code class='inline'>useMcpServers</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useMcpServers()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useMcpServers } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useMcpServers;</pre></div>
+<div class='card' id='ex-useMcpTools'><h3><code class='inline'>useMcpTools</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useMcpTools()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useMcpTools } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useMcpTools;</pre></div>
+<div class='card' id='ex-useGatewayHealth'><h3><code class='inline'>useGatewayHealth</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useGatewayHealth()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useGatewayHealth } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useGatewayHealth;</pre></div>
+<div class='card' id='ex-useHealthSurface'><h3><code class='inline'>useHealthSurface</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useHealthSurface()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useHealthSurface } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useHealthSurface;</pre></div>
+<div class='card' id='ex-useRepairs'><h3><code class='inline'>useRepairs</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useRepairs()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useRepairs } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useRepairs;</pre></div>
+<div class='card' id='ex-useExecuteRepair'><h3><code class='inline'>useExecuteRepair</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useExecuteRepair()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useExecuteRepair } from &#x27;@/gateway/kitty-chat/src/lib/queries&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useExecuteRepair;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

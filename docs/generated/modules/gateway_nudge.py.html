@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.nudge — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.nudge</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.nudge</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/nudge.py</code> &middot; Python &middot; 11 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Proactive Nudge Engine — detect patterns and suggest actions without being asked.
+
+Triggers:
+- Repeated research: same topic 3x without action → nudge
+- Dropped threads: topic mentioned then silence → check-in
+- Milestones: first completed build, health streak → celebrate
+- Time-based: calendar gap → suggest activity
+
+Public API:
+  check() -&gt; list[dict]                Run all nudge checks, return active nudges
+  check_with_status() -&gt; dict          Run checks with per-source failure reporting
+  dismiss(nudge_id) -&gt; bool
+  get_pending() -&gt; list[dict]</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>collections</code>, <code class='inline'>gateway.builder_initiative</code>, <code class='inline'>gateway.memory</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.signal_store</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_run_detector'><code class='inline'>_run_detector</code></a></td><td>Run a single nudge detector and capture its status.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-check_with_status'><code class='inline'>check_with_status</code></a></td><td>Run all nudge checks with per-source status reporting.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-check'><code class='inline'>check</code></a></td><td>Run all nudge checks. Returns list of active nudges.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_emit_nudge_signals'><code class='inline'>_emit_nudge_signals</code></a></td><td>Write each active nudge to the signal store so downstream consumers see it.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-dismiss'><code class='inline'>dismiss</code></a></td><td>Dismiss a nudge so it won&#x27;t show again.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_pending'><code class='inline'>get_pending</code></a></td><td>Get currently pending (non-dismissed) nudges.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_check_repeated_research'><code class='inline'>_check_repeated_research</code></a></td><td>Detect topics researched 3+ times with no action.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_check_dropped_threads'><code class='inline'>_check_dropped_threads</code></a></td><td>Detect topics that were mentioned then dropped.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_check_milestones'><code class='inline'>_check_milestones</code></a></td><td>Detect celebration-worthy milestones.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_load_dismissed'><code class='inline'>_load_dismissed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_save_dismissed'><code class='inline'>_save_dismissed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_run_detector'><h3><code class='inline'>_run_detector</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _run_detector(name: str, detector_fn) -&gt; tuple[list[dict], dict]</code></div><p>Run a single nudge detector and capture its status.
+
+Returns (nudges, status_dict) where status_dict has at minimum a
+``&quot;status&quot;`` key that is one of ``&quot;healthy&quot;``, ``&quot;degraded&quot;``, or
+``&quot;failed&quot;``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import _run_detector
+
+result = _run_detector(name=&quot;name_example&quot;, detector_fn=...)
+# result: tuple[list[dict], dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_with_status'><h3><code class='inline'>check_with_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def check_with_status() -&gt; dict</code></div><p>Run all nudge checks with per-source status reporting.
+
+Returns dict with keys:
+
+* ``nudges`` – list of active nudges (same format as :func:`check`)
+* ``sources`` – dict mapping detector name to status info</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import check_with_status
+
+result = check_with_status()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check'><h3><code class='inline'>check</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def check() -&gt; list[dict]</code></div><p>Run all nudge checks. Returns list of active nudges.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import check
+
+result = check()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_emit_nudge_signals'><h3><code class='inline'>_emit_nudge_signals</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _emit_nudge_signals(nudges: list[dict]) -&gt; None</code></div><p>Write each active nudge to the signal store so downstream consumers see it.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import _emit_nudge_signals
+
+result = _emit_nudge_signals(nudges=[])
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-dismiss'><h3><code class='inline'>dismiss</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def dismiss(nudge_id: str) -&gt; bool</code></div><p>Dismiss a nudge so it won&#x27;t show again.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import dismiss
+
+result = dismiss(nudge_id=&quot;nudge_id_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_pending'><h3><code class='inline'>get_pending</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_pending() -&gt; list[dict]</code></div><p>Get currently pending (non-dismissed) nudges.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import get_pending
+
+result = get_pending()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_repeated_research'><h3><code class='inline'>_check_repeated_research</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _check_repeated_research() -&gt; list[dict]</code></div><p>Detect topics researched 3+ times with no action.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import _check_repeated_research
+
+result = _check_repeated_research()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_dropped_threads'><h3><code class='inline'>_check_dropped_threads</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _check_dropped_threads() -&gt; list[dict]</code></div><p>Detect topics that were mentioned then dropped.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import _check_dropped_threads
+
+result = _check_dropped_threads()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_milestones'><h3><code class='inline'>_check_milestones</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _check_milestones() -&gt; list[dict]</code></div><p>Detect celebration-worthy milestones.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import _check_milestones
+
+result = _check_milestones()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_dismissed'><h3><code class='inline'>_load_dismissed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_dismissed() -&gt; set</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import _load_dismissed
+
+result = _load_dismissed()
+# result: set</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_save_dismissed'><h3><code class='inline'>_save_dismissed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _save_dismissed(dismissed: set) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.nudge import _save_dismissed
+
+result = _save_dismissed(dismissed=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-_PartialFailure'><code class='inline'>_PartialFailure</code></a></td><td>(Exception)</td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-_PartialFailure'><h3><code class='inline'>_PartialFailure</code></h3><p>Raised by a detector when some sub-checks succeed and others fail.
+
+Carries the nudges from successful sub-checks so callers can return
+partial results while reporting degraded status.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, nudges: list[dict], failed_parts: list[str]) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+n
+u
+d
+g
+e
+ 
+i
+m
+p
+o
+r
+t
+ 
+_
+P
+a
+r
+t
+i
+a
+l
+F
+a
+i
+l
+u
+r
+e
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+_
+P
+a
+r
+t
+i
+a
+l
+F
+a
+i
+l
+u
+r
+e
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>NUDGE_STORE</code></td><td><code class='inline'>DATA_DIR / &#x27;nudge_state.json&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

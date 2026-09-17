@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.engines.imagen4 — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.engines.imagen4</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.engines.imagen4</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/engines/imagen4.py</code> &middot; Python &middot; 1 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Imagen 4 engine — Google&#x27;s imagen-4.0-generate-001.
+
+Alternative high-fidelity generation, 1-4 images at once. Allows tasteful
+adult imagery (person_generation=ALLOW_ADULT); explicit content is blocked
+— use ComfyUI for that.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>google</code>, <code class='inline'>google.genai</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.retry</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_gemini_client'><code class='inline'>_gemini_client</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_gemini_client'><h3><code class='inline'>_gemini_client</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _gemini_client()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines.imagen4 import _gemini_client
+
+result = _gemini_client()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Imagen4Engine'><code class='inline'>Imagen4Engine</code></a></td><td></td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-Imagen4Engine'><h3><code class='inline'>Imagen4Engine</code></h3><p>Google Imagen 4 — batch generation of 1-4 images.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>model_name</code></td><td><code class='inline'>def model_name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>generate</code></td><td><code class='inline'>def generate(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = None, count: </code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>generate_async</code></td><td><code class='inline'>async def generate_async(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = N</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>edit</code></td><td><code class='inline'>def edit(self, image_path: Path, edit_prompt: str) -&gt; bytes</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from mcp.imagen.engines.imagen4 import Imagen4Engine
+
+obj = Imagen4Engine(...)</pre></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_engines_adapters.py.html'><code class='inline'>mcp.imagen.engines.adapters</code></a></li><li><a href='mcp_imagen_engines_airforce.py.html'><code class='inline'>mcp.imagen.engines.airforce</code></a></li><li><a href='mcp_imagen_engines_base.py.html'><code class='inline'>mcp.imagen.engines.base</code></a></li><li><a href='mcp_imagen_engines_comfyui.py.html'><code class='inline'>mcp.imagen.engines.comfyui</code></a></li><li><a href='mcp_imagen_engines_dalle.py.html'><code class='inline'>mcp.imagen.engines.dalle</code></a></li><li><a href='mcp_imagen_engines_drawthings.py.html'><code class='inline'>mcp.imagen.engines.drawthings</code></a></li><li><a href='mcp_imagen_engines_fal.py.html'><code class='inline'>mcp.imagen.engines.fal</code></a></li><li><a href='mcp_imagen_engines_nano_banana.py.html'><code class='inline'>mcp.imagen.engines.nano_banana</code></a></li><li><a href='mcp_imagen_engines_runware.py.html'><code class='inline'>mcp.imagen.engines.runware</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

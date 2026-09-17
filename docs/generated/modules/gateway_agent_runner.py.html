@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.agent_runner — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.agent_runner</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.agent_runner</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/agent_runner.py</code> &middot; Python &middot; 11 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Autonomous Sub-Agent Runner — spawn agents that execute goals independently.
+
+Agents are LLM-driven workers with a goal, a preset type, and an iteration budget.
+They run in background asyncio tasks, recording progress to autonomy_state.db.
+By default each agent works its goal through Kitty&#x27;s explicit reasoning loop
+(OBSERVE → ORIENT → DECIDE → ACT → VERIFY → LEARN), and the detected phase
+is tagged onto each recorded step.
+
+Agent presets (inspired by free-code&#x27;s builtInAgents):
+- explorer:   search and discover — wide research, finding sources, exploring topics
+- planner:    break down a complex goal into ordered steps
+- coder:      implement code changes (read-only analysis for now, write later)
+- reviewer:   review code or output for issues, suggest improvements
+- researcher: deep technical research with structured output
+
+Public API:
+  spawn(goal, agent_type, **opts) -&gt; session_id
+  get_status(session_id) -&gt; dict
+  get_output(session_id) -&gt; str
+  list_agents() -&gt; list[dict]
+  stop(session_id) -&gt; bool</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.autonomy_state</code>, <code class='inline'>gateway.db</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>re</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-frame_prompt'><code class='inline'>frame_prompt</code></a></td><td>Append the Algorithm phase guide to a base system prompt.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-detect_phase'><code class='inline'>detect_phase</code></a></td><td>Best-guess the phase from agent output. Last explicit PHASE: marker wins.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-spawn'><code class='inline'>spawn</code></a></td><td>Spawn an autonomous agent. Returns the session_id for tracking.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_run_agent_loop'><code class='inline'>_run_agent_loop</code></a></td><td>Core agent loop — runs in background, records all steps.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_is_finished'><code class='inline'>_is_finished</code></a></td><td>Heuristic: does the response look like a final answer?</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_session_status'><code class='inline'>_session_status</code></a></td><td>Read the persisted status without requiring a history row.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_status'><code class='inline'>get_status</code></a></td><td>Get the current status of an agent by session_id.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-get_output'><code class='inline'>get_output</code></a></td><td>Get the full output from a completed or running agent.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-list_agents'><code class='inline'>list_agents</code></a></td><td>List bounded agent sessions, optionally filtered by durable status.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-stop'><code class='inline'>stop</code></a></td><td>Request an agent to stop. Returns True if it was running.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-await_completion'><code class='inline'>await_completion</code></a></td><td>Poll agent status until terminal state or timeout.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-frame_prompt'><h3><code class='inline'>frame_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def frame_prompt(base: str) -&gt; str</code></div><p>Append the Algorithm phase guide to a base system prompt.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.agent_runner import frame_prompt
+
+result = frame_prompt(base=&quot;base_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detect_phase'><h3><code class='inline'>detect_phase</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def detect_phase(text: str) -&gt; str | None</code></div><p>Best-guess the phase from agent output. Last explicit PHASE: marker wins.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.agent_runner import detect_phase
+
+result = detect_phase(text=&quot;text_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-spawn'><h3><code class='inline'>spawn</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def spawn(goal: str, agent_type: str = &#x27;explorer&#x27;, model: Optional[str] = None, max_iterations: Optional[int] = None, temperature: Optional[float] = None, extra_context: Optional[str] = None, metadata: Optional[dict[str, Any]] = None, algorithm: bool = True) -&gt; int</code></div><p>Spawn an autonomous agent. Returns the session_id for tracking.
+
+The agent runs as a background asyncio task. Use get_status() to check
+progress and get_output() to retrieve results.
+
+When ``algorithm`` is set (the default), the agent works the goal through
+Kitty&#x27;s explicit reasoning loop (OBSERVE → … → LEARN); see ``algorithm.py``.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.agent_runner import spawn
+
+    result = await spawn()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_agent_loop'><h3><code class='inline'>_run_agent_loop</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>async def _run_agent_loop(session_id: int, goal: str, system_prompt: str, model: Optional[str], max_iterations: int, temperature: float, use_algorithm: bool = True) -&gt; None</code></div><p>Core agent loop — runs in background, records all steps.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.agent_runner import _run_agent_loop
+
+    result = await _run_agent_loop()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_finished'><h3><code class='inline'>_is_finished</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _is_finished(response: str) -&gt; bool</code></div><p>Heuristic: does the response look like a final answer?</p><h3>Example Usage (synthetic)</h3><pre>from gateway.agent_runner import _is_finished
+
+result = _is_finished(response=&quot;response_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_session_status'><h3><code class='inline'>_session_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _session_status(session_id: int) -&gt; str | None</code></div><p>Read the persisted status without requiring a history row.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.agent_runner import _session_status
+
+result = _session_status(session_id=0)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_status'><h3><code class='inline'>get_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def get_status(session_id: int) -&gt; dict[str, Any]</code></div><p>Get the current status of an agent by session_id.
+
+Only a missing row is `not_found`. A real session that has not recorded a
+step yet reports its true status with zero counts; treating an empty history
+as a missing agent made a freshly spawned session look like a failed spawn.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.agent_runner import get_status
+
+result = get_status(session_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_output'><h3><code class='inline'>get_output</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def get_output(session_id: int) -&gt; str</code></div><p>Get the full output from a completed or running agent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.agent_runner import get_output
+
+result = get_output(session_id=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_agents'><h3><code class='inline'>list_agents</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def list_agents(limit: int = 20, statuses: set[str] | frozenset[str] | None = None) -&gt; list[dict[str, Any]]</code></div><p>List bounded agent sessions, optionally filtered by durable status.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.agent_runner import list_agents
+
+result = list_agents(limit=0  # default: 20, statuses=&quot;statuses_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-stop'><h3><code class='inline'>stop</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def stop(session_id: int) -&gt; bool</code></div><p>Request an agent to stop. Returns True if it was running.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.agent_runner import stop
+
+result = stop(session_id=0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-await_completion'><h3><code class='inline'>await_completion</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def await_completion(session_id: int, timeout: float = AGENT_TIMEOUT_SECONDS, poll: float = 5.0, on_poll: Optional[Callable[[dict[str, Any]], None]] = None) -&gt; dict[str, Any]</code></div><p>Poll agent status until terminal state or timeout.
+
+Interactive agents use spawn + get_status/get_output. Durable queued tasks
+should call this helper instead of duplicating poll loops.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.agent_runner import await_completion
+
+    result = await await_completion()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Phase'><code class='inline'>Phase</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-Phase'><h3><code class='inline'>Phase</code></h3><p>One step of the Algorithm: a name, the question it answers, what to do.</p><p class='small'><b>Attributes:</b> name: str, intent: str, guidance: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.agent_runner import Phase
+
+obj = Phase(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DEFAULT_MAX_ITERATIONS</code></td><td><code class='inline'>int</code></td></tr><tr><td><code class='inline'>AGENT_TIMEOUT_SECONDS</code></td><td><code class='inline'>int</code></td></tr><tr><td><code class='inline'>_AGENT_TASKS</code></td><td><code class='inline'>dict[int, asyncio.Task[None]]</code></td></tr><tr><td><code class='inline'>PHASES</code></td><td><code class='inline'>tuple[Phase, ...]</code></td></tr><tr><td><code class='inline'>PHASE_NAMES</code></td><td><code class='inline'>tuple[str, ...]</code></td></tr><tr><td><code class='inline'>_PHASE_MARKER</code></td><td><code class='inline'>re.compile(&#x27;PHASE:\\s*([A-Za-z]+)&#x27;, re.IGNORECASE)</code></td></tr><tr><td><code class='inline'>AGENT_PRESETS</code></td><td><code class='inline'>dict[str, dict[str, Any]]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

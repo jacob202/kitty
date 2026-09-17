@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.chat_search — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.chat_search</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.chat_search</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/chat_search.py</code> &middot; Python &middot; 4 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Chat message search — FTS5-powered keyword search across conversations.
+
+Uses SQLite FTS5 (stdlib, no deps) directly on the kitty.db chat_messages
+table via a dedicated FTS virtual table maintained by DB triggers.
+
+Public API:
+  search_chat_messages(query, limit=10) -&gt; list[dict]
+  rebuild_fts_index() -&gt; int</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.memory_graph</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_ensure_fts_exists'><code class='inline'>_ensure_fts_exists</code></a></td><td>Apply the migration that creates the FTS5 virtual table. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-rebuild_fts_index'><code class='inline'>rebuild_fts_index</code></a></td><td>Rebuild the FTS index from the current chat_messages table.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-search_chat_messages'><code class='inline'>search_chat_messages</code></a></td><td>Full-text keyword search across all chat messages via FTS5.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_make_snippet'><code class='inline'>_make_snippet</code></a></td><td>Extract a concise snippet around the first occurrence of query terms.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr></table></div>
+<div class='card' id='fn-_ensure_fts_exists'><h3><code class='inline'>_ensure_fts_exists</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _ensure_fts_exists() -&gt; None</code></div><p>Apply the migration that creates the FTS5 virtual table. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_search import _ensure_fts_exists
+
+result = _ensure_fts_exists()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-rebuild_fts_index'><h3><code class='inline'>rebuild_fts_index</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def rebuild_fts_index() -&gt; int</code></div><p>Rebuild the FTS index from the current chat_messages table.
+
+This is a full rebuild — it deletes and re-inserts every row.
+Returns the number of messages indexed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_search import rebuild_fts_index
+
+result = rebuild_fts_index()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search_chat_messages'><h3><code class='inline'>search_chat_messages</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def search_chat_messages(query: str, limit: int = 10) -&gt; list[dict[str, Any]]</code></div><p>Full-text keyword search across all chat messages via FTS5.
+
+Args:
+    query: The search string (FTS5 query syntax — supports quoted phrases,
+           prefix matching with *, AND/OR/NOT operators).
+    limit: Maximum results to return.
+
+Returns:
+    List of result dicts with keys:
+      message_id, conversation_id, content, role, created_at,
+      chat_title, rank, score</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_search import search_chat_messages
+
+result = search_chat_messages(query=&quot;query_example&quot;, limit=0  # default: 10)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_make_snippet'><h3><code class='inline'>_make_snippet</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _make_snippet(text: str, query: str, max_chars: int = 120) -&gt; str</code></div><p>Extract a concise snippet around the first occurrence of query terms.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_search import _make_snippet
+
+result = _make_snippet(text=&quot;text_example&quot;, query=&quot;query_example&quot;, max_chars=0  # default: 120)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ChatMessagesAdapter'><code class='inline'>ChatMessagesAdapter</code></a></td><td>(StoreAdapter)</td><td>2 methods</td></tr></table></div>
+<div class='card' id='cls-ChatMessagesAdapter'><h3><code class='inline'>ChatMessagesAdapter</code></h3><p>Memory Graph adapter for chat messages.
+
+Searches user + assistant messages across all conversations for
+keyword matches via FTS5.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>async def fetch(self, query: str) -&gt; list[Item]</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>from gateway.chat_search import ChatMessagesAdapter
+
+obj = ChatMessagesAdapter(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_FTS_TABLE</code></td><td><code class='inline'>&#x27;chat_messages_fts&#x27;</code></td></tr><tr><td><code class='inline'>DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

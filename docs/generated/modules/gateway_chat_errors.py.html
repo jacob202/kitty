@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.chat_errors — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.chat_errors</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.chat_errors</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/chat_errors.py</code> &middot; Python &middot; 1 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>User-facing chat turn failures.
+
+The streaming chat path talks to a model provider through LiteLLM. When that
+provider rejects or drops a request, the failure must reach the phone screen as
+plain language and one recovery action — never as raw stream internals (e.g.
+&quot;Stream closed without [DONE]&quot;) or an unreadable stack trace.
+
+``ChatTurnError`` is the typed carrier. The gateway emits it as one SSE error
+event before the stream tears down; the client maps it (plus its own network /
+timeout failures) into the same user-language copy.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>enum</code>, <code class='inline'>json</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-sse_error_event'><code class='inline'>sse_error_event</code></a></td><td>The terminal SSE sequence for a failed turn, readable by both clients.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-sse_error_event'><h3><code class='inline'>sse_error_event</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def sse_error_event(kind: ChatErrorKind | str, message: str) -&gt; bytes</code></div><p>The terminal SSE sequence for a failed turn, readable by both clients.
+
+Frame order is load-bearing:
+
+1. Kitty&#x27;s own ``{&quot;error&quot;: {...}}`` frame. ``chat-client.ts`` throws the
+   moment it parses this and never reads further, so it must come first and
+   it sees exactly what it saw before.
+2. An OpenAI-shaped chunk carrying the same copy as ``delta.content``.
+   Open WebUI (and any other OpenAI-compatible client) cannot read frame 1,
+   so without this the user got a silent empty reply on every failure. The
+   standard ``finish_reason`` remains schema-valid; Kitty&#x27;s richer error kind
+   lives in the extension field.
+3. ``[DONE]``. The stream used to be torn down by the re-raise with no
+   completion boundary, which those clients report as a cut connection
+   rather than the real cause.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_errors import sse_error_event
+
+result = sse_error_event(kind=&quot;kind_example&quot;, message=&quot;message_example&quot;)
+# result: bytes</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ChatErrorKind'><code class='inline'>ChatErrorKind</code></a></td><td>(str, Enum)</td><td>0 methods</td></tr><tr><td><a href='#cls-ChatTurnError'><code class='inline'>ChatTurnError</code></a></td><td>(Exception)</td><td>3 methods</td></tr></table></div>
+<div class='card' id='cls-ChatErrorKind'><h3><code class='inline'>ChatErrorKind</code></h3><p>Machine-readable causes used by the frontend to choose recovery copy.</p><p class='small'><b>Attributes:</b> ROUTING, UPSTREAM, NETWORK, CUT_OFF</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.chat_errors import ChatErrorKind
+
+obj = ChatErrorKind(...)</pre></div>
+<div class='card' id='cls-ChatTurnError'><h3><code class='inline'>ChatTurnError</code></h3><p>Typed failure that carries user-facing copy plus machine detail.</p><p class='small'><b>Attributes:</b> kind: ChatErrorKind, user_message: str | None, detail: str, _carry: list[str]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__post_init__</code></td><td><code class='inline'>def __post_init__(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>message</code></td><td><code class='inline'>def message(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>from_exception</code></td><td><code class='inline'>def from_exception(cls, exc: BaseException, kind: ChatErrorKind, detail: str = &#x27;&#x27;) -&gt; &#x27;ChatTurnError&#x27;</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.chat_errors import ChatTurnError
+
+obj = ChatTurnError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>FRIENDLY_MESSAGES</code></td><td><code class='inline'>dict[ChatErrorKind, str]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

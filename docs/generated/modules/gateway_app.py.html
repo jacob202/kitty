@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.app — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.app</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.app</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/app.py</code> &middot; Python &middot; 15 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Kitty Gateway — thin FastAPI brain between the kitty-chat UI and LiteLLM.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>contextlib</code>, <code class='inline'>datetime</code>, <code class='inline'>fastapi</code>, <code class='inline'>fastapi.middleware.cors</code>, <code class='inline'>fastapi.responses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.action_queue</code>, <code class='inline'>gateway.agent_workspace</code>, <code class='inline'>gateway.auth</code>, <code class='inline'>gateway.automation_supervisor</code>, <code class='inline'>gateway.autonomy_state</code>, <code class='inline'>gateway.brief</code>, <code class='inline'>gateway.brief_scheduler</code>, <code class='inline'>gateway.buddy</code>, <code class='inline'>gateway.capability_report</code>, <code class='inline'>gateway.config</code>, <code class='inline'>gateway.connectors</code>, <code class='inline'>gateway.connectors.mail</code>, <code class='inline'>gateway.constants</code>, <code class='inline'>gateway.cron</code>, <code class='inline'>gateway.deadline_watch</code>, <code class='inline'>gateway.errors</code>, <code class='inline'>gateway.expert_proactive</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_reconcile_image_jobs_on_startup'><code class='inline'>_reconcile_image_jobs_on_startup</code></a></td><td>Close image jobs whose generating gateway coroutine no longer exists.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_recover_unknown_bfl_jobs_on_startup'><code class='inline'>_recover_unknown_bfl_jobs_on_startup</code></a></td><td>Reconcile durable BFL receipts without blocking Gateway startup.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_reconcile_image_batches_on_startup'><code class='inline'>_reconcile_image_batches_on_startup</code></a></td><td>Fail interrupted image renders while preserving queued batch work.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_reconcile_chat_turns_on_startup'><code class='inline'>_reconcile_chat_turns_on_startup</code></a></td><td>Make orphaned Chat turns truthful and discoverable after restart.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_reconcile_agent_workspace_turns_on_startup'><code class='inline'>_reconcile_agent_workspace_turns_on_startup</code></a></td><td>Make room work truthful after the in-process executor has restarted.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_reconcile_autonomy_sessions_on_startup'><code class='inline'>_reconcile_autonomy_sessions_on_startup</code></a></td><td>Make spawned-agent work truthful after the in-process executor has restarted.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_reconcile_research_runs_on_startup'><code class='inline'>_reconcile_research_runs_on_startup</code></a></td><td>Mark research jobs orphaned by a Gateway restart as interrupted.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_reconcile_actions_on_startup'><code class='inline'>_reconcile_actions_on_startup</code></a></td><td>Make ActionQueue rows truthful after a crash mid-execution (REL-002).</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-lifespan'><code class='inline'>lifespan</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(21)</span></td></tr><tr><td><a href='#fn-body_size_guard'><code class='inline'>body_size_guard</code></a></td><td>Reject requests with content-length exceeding MAX_BODY_BYTES.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-kitty_error_handler'><code class='inline'>kitty_error_handler</code></a></td><td>Translate ``KittyError`` subclasses to a consistent JSON error shape.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-health'><code class='inline'>health</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_mood'><code class='inline'>get_mood</code></a></td><td>Return Kitty&#x27;s current mood and session stats for the UI.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-sse_stream'><code class='inline'>sse_stream</code></a></td><td>Server-Sent Events endpoint for pushing state changes to the UI.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-home'><code class='inline'>home</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_reconcile_image_jobs_on_startup'><h3><code class='inline'>_reconcile_image_jobs_on_startup</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _reconcile_image_jobs_on_startup() -&gt; None</code></div><p>Close image jobs whose generating gateway coroutine no longer exists.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.app import _reconcile_image_jobs_on_startup
+
+result = _reconcile_image_jobs_on_startup()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_recover_unknown_bfl_jobs_on_startup'><h3><code class='inline'>_recover_unknown_bfl_jobs_on_startup</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _recover_unknown_bfl_jobs_on_startup() -&gt; None</code></div><p>Reconcile durable BFL receipts without blocking Gateway startup.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.app import _recover_unknown_bfl_jobs_on_startup
+
+    result = await _recover_unknown_bfl_jobs_on_startup()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_image_batches_on_startup'><h3><code class='inline'>_reconcile_image_batches_on_startup</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _reconcile_image_batches_on_startup() -&gt; None</code></div><p>Fail interrupted image renders while preserving queued batch work.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.app import _reconcile_image_batches_on_startup
+
+result = _reconcile_image_batches_on_startup()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_chat_turns_on_startup'><h3><code class='inline'>_reconcile_chat_turns_on_startup</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _reconcile_chat_turns_on_startup() -&gt; None</code></div><p>Make orphaned Chat turns truthful and discoverable after restart.
+
+Shells are materialized for every still-running conversation *before*
+``reconcile_interrupted_turns`` marks those turns terminal. A crash
+between the two steps would otherwise be unrecoverable: the next startup&#x27;s
+``list_running_conversations`` only finds turns still marked ``running``,
+so a shell skipped this pass could never be created on a later one.
+Writing the shell first means a retried pass always finds the turn again
+until reconciliation actually completes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.app import _reconcile_chat_turns_on_startup
+
+result = _reconcile_chat_turns_on_startup()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_agent_workspace_turns_on_startup'><h3><code class='inline'>_reconcile_agent_workspace_turns_on_startup</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _reconcile_agent_workspace_turns_on_startup() -&gt; None</code></div><p>Make room work truthful after the in-process executor has restarted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.app import _reconcile_agent_workspace_turns_on_startup
+
+result = _reconcile_agent_workspace_turns_on_startup()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_autonomy_sessions_on_startup'><h3><code class='inline'>_reconcile_autonomy_sessions_on_startup</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _reconcile_autonomy_sessions_on_startup() -&gt; None</code></div><p>Make spawned-agent work truthful after the in-process executor has restarted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.app import _reconcile_autonomy_sessions_on_startup
+
+result = _reconcile_autonomy_sessions_on_startup()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_research_runs_on_startup'><h3><code class='inline'>_reconcile_research_runs_on_startup</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _reconcile_research_runs_on_startup() -&gt; None</code></div><p>Mark research jobs orphaned by a Gateway restart as interrupted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.app import _reconcile_research_runs_on_startup
+
+result = _reconcile_research_runs_on_startup()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_actions_on_startup'><h3><code class='inline'>_reconcile_actions_on_startup</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _reconcile_actions_on_startup() -&gt; None</code></div><p>Make ActionQueue rows truthful after a crash mid-execution (REL-002).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.app import _reconcile_actions_on_startup
+
+result = _reconcile_actions_on_startup()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-lifespan'><h3><code class='inline'>lifespan</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (21)</span></h3><div class='sig'><code>async def lifespan(app: FastAPI)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.app import lifespan
+
+    result = await lifespan()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-body_size_guard'><h3><code class='inline'>body_size_guard</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def body_size_guard(request: Request, call_next)</code></div><p>Reject requests with content-length exceeding MAX_BODY_BYTES.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.app import body_size_guard
+
+    result = await body_size_guard()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-kitty_error_handler'><h3><code class='inline'>kitty_error_handler</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def kitty_error_handler(request: Request, exc: KittyError)</code></div><p>Translate ``KittyError`` subclasses to a consistent JSON error shape.
+
+Falls through to FastAPI&#x27;s default 500 for genuinely unexpected
+exceptions — this handler only fires for errors the gateway
+describes on purpose. The body shape is:
+
+``{&quot;error&quot;: &quot;&lt;machine code&gt;&quot;, &quot;message&quot;: &quot;...&quot;, &quot;details&quot;: {...}}``</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.app import kitty_error_handler
+
+    result = await kitty_error_handler()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-health'><h3><code class='inline'>health</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def health()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.app import health
+
+    result = await health()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_mood'><h3><code class='inline'>get_mood</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def get_mood()</code></div><p>Return Kitty&#x27;s current mood and session stats for the UI.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.app import get_mood
+
+    result = await get_mood()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-sse_stream'><h3><code class='inline'>sse_stream</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def sse_stream(request: Request, session_id: str | None = None)</code></div><p>Server-Sent Events endpoint for pushing state changes to the UI.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.app import sse_stream
+
+    result = await sse_stream()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-home'><h3><code class='inline'>home</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def home()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.app import home
+
+result = home()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_CORS_ALLOWED_METHODS</code></td><td><code class='inline'>list[str]</code></td></tr><tr><td><code class='inline'>_CORS_ALLOWED_HEADERS</code></td><td><code class='inline'>list[str]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

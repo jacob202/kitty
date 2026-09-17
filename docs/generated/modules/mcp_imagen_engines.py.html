@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.engines — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.engines</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.engines</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/engines/__init__.py</code> &middot; Python &middot; 3 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Engine registry — maps engine slugs to engine instances.
+
+Adding a new engine: implement the Engine protocol, add an entry here.
+The tool layer dispatches by name via ``registry.get(engine_name)``.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>mcp.imagen.engines.airforce</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.engines.comfyui</code>, <code class='inline'>mcp.imagen.engines.dalle</code>, <code class='inline'>mcp.imagen.engines.drawthings</code>, <code class='inline'>mcp.imagen.engines.fal</code>, <code class='inline'>mcp.imagen.engines.imagen4</code>, <code class='inline'>mcp.imagen.engines.nano_banana</code>, <code class='inline'>mcp.imagen.engines.runware</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_register'><code class='inline'>_register</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get'><code class='inline'>get</code></a></td><td>Return the engine for ``name``, or raise a clear error if unknown.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-available'><code class='inline'>available</code></a></td><td>Return the sorted list of registered engine slugs.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_register'><h3><code class='inline'>_register</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _register(engine: Engine) -&gt; Engine</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines import _register
+
+result = _register(engine=...)
+# result: Engine</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get'><h3><code class='inline'>get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get(name: str) -&gt; Engine</code></div><p>Return the engine for ``name``, or raise a clear error if unknown.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines import get
+
+result = get(name=&quot;name_example&quot;)
+# result: Engine</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-available'><h3><code class='inline'>available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def available() -&gt; list[str]</code></div><p>Return the sorted list of registered engine slugs.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines import available
+
+result = available()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_REGISTRY</code></td><td><code class='inline'>dict[str, Engine]</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_benchmark.py.html'><code class='inline'>mcp.imagen.benchmark</code></a></li><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_character_lock.py.html'><code class='inline'>mcp.imagen.character_lock</code></a></li><li><a href='mcp_imagen_config.py.html'><code class='inline'>mcp.imagen.config</code></a></li><li><a href='mcp_imagen_face_match.py.html'><code class='inline'>mcp.imagen.face_match</code></a></li><li><a href='mcp_imagen_io.py.html'><code class='inline'>mcp.imagen.io</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_retry.py.html'><code class='inline'>mcp.imagen.retry</code></a></li><li><a href='mcp_imagen_server.py.html'><code class='inline'>mcp.imagen.server</code></a></li><li><a href='mcp_imagen_tools.py.html'><code class='inline'>mcp.imagen.tools</code></a></li><li><a href='mcp_imagen_verify.py.html'><code class='inline'>mcp.imagen.verify</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

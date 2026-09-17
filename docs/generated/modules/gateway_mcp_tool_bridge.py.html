@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.mcp_tool_bridge — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.mcp_tool_bridge</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.mcp_tool_bridge</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/mcp_tool_bridge.py</code> &middot; Python &middot; 16 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>MCP Tool Bridge — runtime discovery and bounded tool invocation.
+
+This module deliberately owns only the transport/lifecycle seam. Kitty&#x27;s
+standing authorization policy remains in :mod:`gateway.action_grants`.
+Circuit state is process-local load-shedding state, not durable product truth.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.plugin_registry</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>math</code>, <code class='inline'>threading</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-reset_circuit_breakers'><code class='inline'>reset_circuit_breakers</code></a></td><td>Clear ephemeral cutoff state. Primarily a deterministic test/operator seam.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-list_servers'><code class='inline'>list_servers</code></a></td><td>List all configured MCP servers from plugins and repo config.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-list_tools'><code class='inline'>list_tools</code></a></td><td>List tools available on an MCP server from registered definitions.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_validated_timeout'><code class='inline'>_validated_timeout</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_tool_timeout'><code class='inline'>_tool_timeout</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_before_call'><code class='inline'>_before_call</code></a></td><td>Return whether a call may start and, when blocked, retry-after seconds.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_record_success'><code class='inline'>_record_success</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_release_probe'><code class='inline'>_release_probe</code></a></td><td>Release a half-open probe after caller cancellation without blaming the tool.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_record_failure'><code class='inline'>_record_failure</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_server_configuration_error'><code class='inline'>_server_configuration_error</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-tool_health_snapshot'><code class='inline'>tool_health_snapshot</code></a></td><td>Return configured/circuit health without pretending remote liveness was probed.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_communicate'><code class='inline'>_communicate</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_reap_process'><code class='inline'>_reap_process</code></a></td><td>Guarantee a spawned child is not left alive after interruption.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_error'><code class='inline'>_error</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-invoke'><code class='inline'>invoke</code></a></td><td>Invoke an MCP tool with bounded timeout, cleanup, and failure cutoff.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr><tr><td><a href='#fn-get_tool_schema_for_llm'><code class='inline'>get_tool_schema_for_llm</code></a></td><td>Return available MCP tools formatted for LLM tool use.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-reset_circuit_breakers'><h3><code class='inline'>reset_circuit_breakers</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def reset_circuit_breakers() -&gt; None</code></div><p>Clear ephemeral cutoff state. Primarily a deterministic test/operator seam.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import reset_circuit_breakers
+
+result = reset_circuit_breakers()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_servers'><h3><code class='inline'>list_servers</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def list_servers() -&gt; list[dict]</code></div><p>List all configured MCP servers from plugins and repo config.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import list_servers
+
+result = list_servers()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_tools'><h3><code class='inline'>list_tools</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def list_tools(server_name: str) -&gt; list[dict]</code></div><p>List tools available on an MCP server from registered definitions.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import list_tools
+
+result = list_tools(server_name=&quot;server_name_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validated_timeout'><h3><code class='inline'>_validated_timeout</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _validated_timeout(value: object, label: str) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import _validated_timeout
+
+result = _validated_timeout(value=..., label=&quot;label_example&quot;)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_tool_timeout'><h3><code class='inline'>_tool_timeout</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _tool_timeout(server: dict[str, Any], tool_name: str) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import _tool_timeout
+
+result = _tool_timeout(server=&quot;server_example&quot;, tool_name=&quot;tool_name_example&quot;)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_before_call'><h3><code class='inline'>_before_call</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _before_call(key: tuple[str, str]) -&gt; tuple[bool, float]</code></div><p>Return whether a call may start and, when blocked, retry-after seconds.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import _before_call
+
+result = _before_call(key=&quot;key_example&quot;)
+# result: tuple[bool, float]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_record_success'><h3><code class='inline'>_record_success</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _record_success(key: tuple[str, str]) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import _record_success
+
+result = _record_success(key=&quot;key_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_release_probe'><h3><code class='inline'>_release_probe</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _release_probe(key: tuple[str, str]) -&gt; None</code></div><p>Release a half-open probe after caller cancellation without blaming the tool.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import _release_probe
+
+result = _release_probe(key=&quot;key_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_record_failure'><h3><code class='inline'>_record_failure</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _record_failure(key: tuple[str, str], message: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import _record_failure
+
+result = _record_failure(key=&quot;key_example&quot;, message=&quot;message_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_server_configuration_error'><h3><code class='inline'>_server_configuration_error</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def _server_configuration_error(server: dict[str, Any]) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import _server_configuration_error
+
+result = _server_configuration_error(server=&quot;server_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tool_health_snapshot'><h3><code class='inline'>tool_health_snapshot</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def tool_health_snapshot() -&gt; dict[str, Any]</code></div><p>Return configured/circuit health without pretending remote liveness was probed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import tool_health_snapshot
+
+result = tool_health_snapshot()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_communicate'><h3><code class='inline'>_communicate</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _communicate(proc: asyncio.subprocess.Process, payload: bytes, timeout: float) -&gt; tuple[bytes, bytes]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.mcp_tool_bridge import _communicate
+
+    result = await _communicate()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reap_process'><h3><code class='inline'>_reap_process</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def _reap_process(proc: asyncio.subprocess.Process) -&gt; None</code></div><p>Guarantee a spawned child is not left alive after interruption.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.mcp_tool_bridge import _reap_process
+
+    result = await _reap_process()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_error'><h3><code class='inline'>_error</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _error(message: str, code: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import _error
+
+result = _error(message=&quot;message_example&quot;, code=&quot;code_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-invoke'><h3><code class='inline'>invoke</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>async def invoke(server_name: str, tool_name: str, arguments: Optional[dict] = None) -&gt; dict</code></div><p>Invoke an MCP tool with bounded timeout, cleanup, and failure cutoff.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.mcp_tool_bridge import invoke
+
+    result = await invoke()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_tool_schema_for_llm'><h3><code class='inline'>get_tool_schema_for_llm</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_tool_schema_for_llm() -&gt; list[dict]</code></div><p>Return available MCP tools formatted for LLM tool use.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mcp_tool_bridge import get_tool_schema_for_llm
+
+result = get_tool_schema_for_llm()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-_CircuitState'><code class='inline'>_CircuitState</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-_CircuitState'><h3><code class='inline'>_CircuitState</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> consecutive_failures: int, opened_at: float | None, probe_in_flight: bool, last_error: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.mcp_tool_bridge import _CircuitState
+
+obj = _CircuitState(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DEFAULT_TOOL_TIMEOUT_SECONDS</code></td><td><code class='inline'>120.0</code></td></tr><tr><td><code class='inline'>MAX_TOOL_TIMEOUT_SECONDS</code></td><td><code class='inline'>300.0</code></td></tr><tr><td><code class='inline'>PROCESS_REAP_GRACE_SECONDS</code></td><td><code class='inline'>1.0</code></td></tr><tr><td><code class='inline'>CIRCUIT_FAILURE_THRESHOLD</code></td><td><code class='inline'>3</code></td></tr><tr><td><code class='inline'>CIRCUIT_COOLDOWN_SECONDS</code></td><td><code class='inline'>30.0</code></td></tr><tr><td><code class='inline'>_CIRCUITS</code></td><td><code class='inline'>dict[tuple[str, str], _CircuitState]</code></td></tr><tr><td><code class='inline'>_CIRCUIT_LOCK</code></td><td><code class='inline'>Lock()</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

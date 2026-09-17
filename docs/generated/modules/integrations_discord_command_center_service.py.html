@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>integrations.discord_command_center.service — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">integrations.discord_command_center.service</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>integrations.discord_command_center.service</code></h1>
+<p class='muted small'>Source: <code class='inline'>integrations/discord_command_center/service.py</code> &middot; Python &middot; 2 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>.adapters.codex</code>, <code class='inline'>.models</code>, <code class='inline'>.runner</code>, <code class='inline'>.runtime</code>, <code class='inline'>.workspace</code>, <code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>collections.abc</code>, <code class='inline'>gateway.run_workspace</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_format_codex_progress'><code class='inline'>_format_codex_progress</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_extract_agent_answer'><code class='inline'>_extract_agent_answer</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-_format_codex_progress'><h3><code class='inline'>_format_codex_progress</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _format_codex_progress(line: str) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.service import _format_codex_progress
+
+result = _format_codex_progress(line=&quot;line_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_extract_agent_answer'><h3><code class='inline'>_extract_agent_answer</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _extract_agent_answer(line: str) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.service import _extract_agent_answer
+
+result = _extract_agent_answer(line=&quot;line_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-VibeService'><code class='inline'>VibeService</code></a></td><td></td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-VibeService'><h3><code class='inline'>VibeService</code></h3><p>Undocumented class.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, workspace: GitWorktreeManager, adapter: CodexAdapter, runner: SubprocessRunner, timeout_seconds: int,</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>run</code></td><td><code class='inline'>async def run(self, request: str) -&gt; AsyncIterator[ProgressEvent]</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>_remove_event</code></td><td><code class='inline'>def _remove_event(self, worktree, prior_error: Exception | ProgressEvent | None = None) -&gt; ProgressEvent | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_best_effort_cancellation_cleanup</code></td><td><code class='inline'>async def _best_effort_cancellation_cleanup(self, runtime, worktree) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_bounded_cleanup_call</code></td><td><code class='inline'>async def _bounded_cleanup_call(self, label, function, *args) -&gt; tuple[bool, object]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+i
+n
+t
+e
+g
+r
+a
+t
+i
+o
+n
+s
+.
+d
+i
+s
+c
+o
+r
+d
+_
+c
+o
+m
+m
+a
+n
+d
+_
+c
+e
+n
+t
+e
+r
+.
+s
+e
+r
+v
+i
+c
+e
+ 
+i
+m
+p
+o
+r
+t
+ 
+V
+i
+b
+e
+S
+e
+r
+v
+i
+c
+e
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+V
+i
+b
+e
+S
+e
+r
+v
+i
+c
+e
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_CANCELLATION_CLEANUP_TIMEOUT_SECONDS</code></td><td><code class='inline'>5</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='integrations_discord_command_center_adapters.py.html'><code class='inline'>integrations.discord_command_center.adapters</code></a></li><li><a href='integrations_discord_command_center_bot.py.html'><code class='inline'>integrations.discord_command_center.bot</code></a></li><li><a href='integrations_discord_command_center_config.py.html'><code class='inline'>integrations.discord_command_center.config</code></a></li><li><a href='integrations_discord_command_center_models.py.html'><code class='inline'>integrations.discord_command_center.models</code></a></li><li><a href='integrations_discord_command_center_runner.py.html'><code class='inline'>integrations.discord_command_center.runner</code></a></li><li><a href='integrations_discord_command_center_runtime.py.html'><code class='inline'>integrations.discord_command_center.runtime</code></a></li><li><a href='integrations_discord_command_center_scrub.py.html'><code class='inline'>integrations.discord_command_center.scrub</code></a></li><li><a href='integrations_discord_command_center_smoke.py.html'><code class='inline'>integrations.discord_command_center.smoke</code></a></li><li><a href='integrations_discord_command_center_tasks.py.html'><code class='inline'>integrations.discord_command_center.tasks</code></a></li><li><a href='integrations_discord_command_center_workspace.py.html'><code class='inline'>integrations.discord_command_center.workspace</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

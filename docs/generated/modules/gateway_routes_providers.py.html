@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.providers — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.providers</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.providers</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/providers.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Active chat-provider inspection and switching.
+
+The streaming chat path goes through LiteLLM only (no provider fallback
+chain), so &quot;which provider is Kitty using&quot; is a property of
+``gateway/litellm_config.yaml``. These routes read that file to report the
+active upstream and rewrite it to switch upstreams, then restart the
+launchd-managed LiteLLM service so the change takes effect.
+
+Switching is deliberately all-or-nothing across the four kitty-* models —
+a partial rewrite would leave the router in a state nobody designed for.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>os</code>, <code class='inline'>subprocess</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>urllib.request</code>, <code class='inline'>yaml</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_load_config'><code class='inline'>_load_config</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_classify_upstream'><code class='inline'>_classify_upstream</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_active_state'><code class='inline'>_active_state</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_rewrite_config'><code class='inline'>_rewrite_config</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_restart_litellm'><code class='inline'>_restart_litellm</code></a></td><td>Kick the launchd service and wait for liveliness. Fail loud on trouble.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-get_active_provider'><code class='inline'>get_active_provider</code></a></td><td>Report which upstream each kitty-* model routes to.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-switch_provider'><code class='inline'>switch_provider</code></a></td><td>Point all kitty-* models at one upstream and restart LiteLLM.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_load_config'><h3><code class='inline'>_load_config</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _load_config() -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.providers import _load_config
+
+result = _load_config()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_classify_upstream'><h3><code class='inline'>_classify_upstream</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _classify_upstream(params: dict[str, Any]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.providers import _classify_upstream
+
+result = _classify_upstream(params=&quot;params_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_active_state'><h3><code class='inline'>_active_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _active_state() -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.providers import _active_state
+
+result = _active_state()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_rewrite_config'><h3><code class='inline'>_rewrite_config</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _rewrite_config(target: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.providers import _rewrite_config
+
+result = _rewrite_config(target=&quot;target_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_restart_litellm'><h3><code class='inline'>_restart_litellm</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _restart_litellm() -&gt; None</code></div><p>Kick the launchd service and wait for liveliness. Fail loud on trouble.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.providers import _restart_litellm
+
+result = _restart_litellm()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_active_provider'><h3><code class='inline'>get_active_provider</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def get_active_provider() -&gt; dict[str, Any]</code></div><p>Report which upstream each kitty-* model routes to.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.providers import get_active_provider
+
+    result = await get_active_provider()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-switch_provider'><h3><code class='inline'>switch_provider</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def switch_provider(payload: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Point all kitty-* models at one upstream and restart LiteLLM.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.providers import switch_provider
+
+    result = await switch_provider()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_AGENTROUTER_DEFAULT_USER_AGENT</code></td><td><code class='inline'>&#x27;kitty-gateway/1.0&#x27;</code></td></tr><tr><td><code class='inline'>_AGENTROUTER_DEFAULT_ORIGINATOR</code></td><td><code class='inline'>&#x27;kitty&#x27;</code></td></tr><tr><td><code class='inline'>_AGENTROUTER_DEFAULT_VERSION</code></td><td><code class='inline'>&#x27;1.0&#x27;</code></td></tr><tr><td><code class='inline'>CONFIG_PATH</code></td><td><code class='inline'>ROOT / &#x27;gateway&#x27; / &#x27;litellm_config.yaml&#x27;</code></td></tr><tr><td><code class='inline'>LITELLM_HEALTH_URL</code></td><td><code class='inline'>&#x27;http://127.0.0.1:8001/health/liveliness&#x27;</code></td></tr><tr><td><code class='inline'>LITELLM_LAUNCHD_LABEL</code></td><td><code class='inline'>&#x27;com.kitty.litellm&#x27;</code></td></tr><tr><td><code class='inline'>_KITTY_MODELS</code></td><td><code class='inline'>(&#x27;kitty-default&#x27;, &#x27;kitty-sonnet&#x27;, &#x27;kitty-small&#x27;, &#x27;kitty-vision&#x27;)</code></td></tr><tr><td><code class='inline'>_UPSTREAMS</code></td><td><code class='inline'>dict[str, dict[str, Any]]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

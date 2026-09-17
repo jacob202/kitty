@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.verify — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.verify</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.verify</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/verify.py</code> &middot; Python &middot; 14 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Verification loop — generate, score, keep best, stop early.
+
+``generate_until`` runs a criteria-verified generation pipeline: generate N
+images scoring each against a criteria file, stop early when one passes all
+hard gates, keep the best-N across all attempts.
+
+Every attempt is logged to ``~/Pictures/kitty-gen/runs/&lt;run-id&gt;/attempts.jsonl``.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>PIL</code>, <code class='inline'>__future__</code>, <code class='inline'>base64</code>, <code class='inline'>cv2</code>, <code class='inline'>dataclasses</code>, <code class='inline'>httpx</code>, <code class='inline'>importlib.util</code>, <code class='inline'>insightface.app</code>, <code class='inline'>io</code>, <code class='inline'>json</code>, <code class='inline'>mcp.imagen</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.logger</code>, <code class='inline'>mcp.imagen.retry</code>, <code class='inline'>numpy</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-load_criteria'><code class='inline'>load_criteria</code></a></td><td>Load a criteria file from ``config/imagen/criteria/&lt;name&gt;.json``.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_criteria_path'><code class='inline'>_criteria_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-score_mechanical'><code class='inline'>score_mechanical</code></a></td><td>Check resolution floor, file-size sanity, and blank/black detection.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_is_blank'><code class='inline'>_is_blank</code></a></td><td>Quick check if an image is mostly blank/black — reads enough bytes to guess.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_guess_dimensions'><code class='inline'>_guess_dimensions</code></a></td><td>Rough PNG dimension guess from file size — used for mechanical pre-check.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-score_vision_rubric'><code class='inline'>score_vision_rubric</code></a></td><td>Score image against rubric lines via a local VLM (Ollama).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_build_rubric_prompt'><code class='inline'>_build_rubric_prompt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_ollama_vision'><code class='inline'>_ollama_vision</code></a></td><td>Send an image to Ollama&#x27;s local VLM for scoring.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_parse_rubric_response'><code class='inline'>_parse_rubric_response</code></a></td><td>Parse Ollama&#x27;s YES/NO response into a score and failure list.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-score_face_match'><code class='inline'>score_face_match</code></a></td><td>Compare image face(s) against a reference set via InsightFace.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-generate_until'><code class='inline'>generate_until</code></a></td><td>Generate, score, keep best, stop early.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_check_private'><code class='inline'>_check_private</code></a></td><td>Raise if engine is a cloud service and private flag is set.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_make_seed_source'><code class='inline'>_make_seed_source</code></a></td><td>Return a function that generates a new random seed each call.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_log_attempt'><code class='inline'>_log_attempt</code></a></td><td>Append one JSON line to the run&#x27;s attempts log.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-load_criteria'><h3><code class='inline'>load_criteria</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def load_criteria(name: str) -&gt; Criteria</code></div><p>Load a criteria file from ``config/imagen/criteria/&lt;name&gt;.json``.
+
+Returns a best-effort default if the file doesn&#x27;t exist (no hard gates,
+soft scores only) so the loop degrades gracefully without a criteria file.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import load_criteria
+
+result = load_criteria(name=&quot;name_example&quot;)
+# result: Criteria</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_criteria_path'><h3><code class='inline'>_criteria_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _criteria_path(name: str) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import _criteria_path
+
+result = _criteria_path(name=&quot;name_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-score_mechanical'><h3><code class='inline'>score_mechanical</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def score_mechanical(image_data: bytes, cfg: dict[str, Any] | None) -&gt; float</code></div><p>Check resolution floor, file-size sanity, and blank/black detection.
+
+1.0 = passes all mechanical checks; 0.0 = fails a hard one.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import score_mechanical
+
+result = score_mechanical(image_data=..., cfg=&quot;cfg_example&quot;)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_blank'><h3><code class='inline'>_is_blank</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _is_blank(image_data: bytes, threshold: int = 32) -&gt; bool</code></div><p>Quick check if an image is mostly blank/black — reads enough bytes to guess.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import _is_blank
+
+result = _is_blank(image_data=..., threshold=0  # default: 32)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_guess_dimensions'><h3><code class='inline'>_guess_dimensions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _guess_dimensions(data_len: int) -&gt; tuple[int, int]</code></div><p>Rough PNG dimension guess from file size — used for mechanical pre-check.
+
+Returns (1, 1) when guess is unreliable so min_width/height passes through.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import _guess_dimensions
+
+result = _guess_dimensions(data_len=0)
+# result: tuple[int, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-score_vision_rubric'><h3><code class='inline'>score_vision_rubric</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def score_vision_rubric(image_data: bytes, rubric_entries: list[dict[str, Any]], prompt: str) -&gt; tuple[float, list[str]]</code></div><p>Score image against rubric lines via a local VLM (Ollama).
+
+Returns (score, details) where score is the fraction of passed checks and
+details lists which lines failed (for the log).</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import score_vision_rubric
+
+result = score_vision_rubric(image_data=..., rubric_entries=&quot;rubric_entries_example&quot;, prompt=&quot;prompt_example&quot;)
+# result: tuple[float, list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_rubric_prompt'><h3><code class='inline'>_build_rubric_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _build_rubric_prompt(entries: list[dict[str, Any]], prompt: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import _build_rubric_prompt
+
+result = _build_rubric_prompt(entries=&quot;entries_example&quot;, prompt=&quot;prompt_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ollama_vision'><h3><code class='inline'>_ollama_vision</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _ollama_vision(image_data: bytes, prompt_text: str) -&gt; str</code></div><p>Send an image to Ollama&#x27;s local VLM for scoring.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import _ollama_vision
+
+result = _ollama_vision(image_data=..., prompt_text=&quot;prompt_text_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_rubric_response'><h3><code class='inline'>_parse_rubric_response</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _parse_rubric_response(response: str, entries: list[dict[str, Any]]) -&gt; tuple[float, list[str]]</code></div><p>Parse Ollama&#x27;s YES/NO response into a score and failure list.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import _parse_rubric_response
+
+result = _parse_rubric_response(response=&quot;response_example&quot;, entries=&quot;entries_example&quot;)
+# result: tuple[float, list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-score_face_match'><h3><code class='inline'>score_face_match</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def score_face_match(image_data: bytes, cfg: dict[str, Any] | None) -&gt; float</code></div><p>Compare image face(s) against a reference set via InsightFace.
+
+1.0 = strong face match; 0.0 = no face or no reference set configured.
+
+InsightFace is a heavy optional dependency. If not installed this scorer
+returns 1.0 (no penalty) and logs a warning.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import score_face_match
+
+result = score_face_match(image_data=..., cfg=&quot;cfg_example&quot;)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_until'><h3><code class='inline'>generate_until</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def generate_until(prompt: str, criteria_name: str, engine: str = &#x27;&#x27;, max_attempts: int = 8, keep: int = 3, private: bool = False, init_image: str | None = None) -&gt; list[dict[str, Any]]</code></div><p>Generate, score, keep best, stop early.
+
+Args:
+    prompt: Generation prompt.
+    criteria_name: Name of a criteria file in ``config/imagen/criteria/``.
+    engine: Engine name (default from settings).
+    max_attempts: Maximum generation rounds (default 8).
+    keep: How many best candidates to return (default 3).
+    private: When True, refuse cloud engines.
+
+Returns:
+    A list of result dicts with keys:
+      image_data (bytes), saved_path (str), scores (dict), attempt (int),
+      passed (bool), seed (int or None)
+    Sorted by best score first, limited to ``keep``.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import generate_until
+
+result = generate_until(prompt=&quot;prompt_example&quot;, criteria_name=&quot;criteria_name_example&quot;, engine=&quot;engine_example&quot;  # default: &#x27;&#x27;, max_attempts=0  # default: 8, keep=0  # default: 3, private=True  # default: False, init_image=&quot;init_image_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_private'><h3><code class='inline'>_check_private</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _check_private(engine: str) -&gt; None</code></div><p>Raise if engine is a cloud service and private flag is set.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import _check_private
+
+result = _check_private(engine=&quot;engine_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_make_seed_source'><h3><code class='inline'>_make_seed_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _make_seed_source()</code></div><p>Return a function that generates a new random seed each call.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import _make_seed_source
+
+result = _make_seed_source()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_log_attempt'><h3><code class='inline'>_log_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _log_attempt(log_path: Path, attempt_num: int, seed: int | None, scores: dict[str, float], passed: bool) -&gt; None</code></div><p>Append one JSON line to the run&#x27;s attempts log.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.verify import _log_attempt
+
+result = _log_attempt(log_path=&quot;log_path_example&quot;, attempt_num=0, seed=0, scores=&quot;scores_example&quot;, passed=True)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Attempt'><code class='inline'>Attempt</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-Criteria'><code class='inline'>Criteria</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-Attempt'><h3><code class='inline'>Attempt</code></h3><p>One generate + score cycle.</p><p class='small'><b>Attributes:</b> attempt_number: int, image_data: bytes, saved_path: Path, scores: dict[str, float], passed: bool, seed: int | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.verify import Attempt
+
+obj = Attempt(...)</pre></div>
+<div class='card' id='cls-Criteria'><h3><code class='inline'>Criteria</code></h3><p>Parsed criteria file — defines what &#x27;good&#x27; means for one goal.</p><p class='small'><b>Attributes:</b> name: str, face_match: dict[str, Any] | None, rubric: list[dict[str, Any]], mechanical: dict[str, Any] | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.verify import Criteria
+
+obj = Criteria(...)</pre></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_benchmark.py.html'><code class='inline'>mcp.imagen.benchmark</code></a></li><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_character_lock.py.html'><code class='inline'>mcp.imagen.character_lock</code></a></li><li><a href='mcp_imagen_config.py.html'><code class='inline'>mcp.imagen.config</code></a></li><li><a href='mcp_imagen_engines.py.html'><code class='inline'>mcp.imagen.engines</code></a></li><li><a href='mcp_imagen_face_match.py.html'><code class='inline'>mcp.imagen.face_match</code></a></li><li><a href='mcp_imagen_io.py.html'><code class='inline'>mcp.imagen.io</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_retry.py.html'><code class='inline'>mcp.imagen.retry</code></a></li><li><a href='mcp_imagen_server.py.html'><code class='inline'>mcp.imagen.server</code></a></li><li><a href='mcp_imagen_tools.py.html'><code class='inline'>mcp.imagen.tools</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

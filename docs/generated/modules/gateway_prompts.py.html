@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.prompts — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.prompts</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.prompts</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/prompts.py</code> &middot; Python &middot; 6 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Central catalog of inline prompts that were previously scattered across
+domain modules.
+
+Why this exists: a handful of short system / user prompts lived inside
+the modules that use them (``journal.py``, ``parts.py``,
+``inventory.py``). This module is also the home for loading versioned,
+on-disk prompts via ``load_prompt`` — previously a separate
+``prompt_loader`` module that was a 25-line pass-through.
+
+Why not promote them to disk files immediately: every inline prompt
+here is short (one paragraph or a few lines), and keeping them as
+Python constants makes diff review easier. Promoting to disk is a
+follow-up once a prompt is being iterated on.
+
+Contract for callers: import the constant directly. Do not edit the
+string at the call site — change it here so the change is one diff.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>functools</code>, <code class='inline'>gateway.paths</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-load_prompt'><code class='inline'>load_prompt</code></a></td><td>Load and cache a versioned system prompt from /prompts/.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_prompt'><code class='inline'>get_prompt</code></a></td><td>Return the prompt text for ``name``.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_prompt_version'><code class='inline'>get_prompt_version</code></a></td><td>Return the version tag for ``name`` (e.g. ``&quot;v1&quot;``).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-list_prompts'><code class='inline'>list_prompts</code></a></td><td>Return a summary of every cataloged prompt.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-list_templates'><code class='inline'>list_templates</code></a></td><td>Return every prompt template, optionally filtered by ``category``.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_template'><code class='inline'>get_template</code></a></td><td>Return a single template by ``id``, or ``None`` when unknown.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-load_prompt'><h3><code class='inline'>load_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def load_prompt(domain: str) -&gt; str</code></div><p>Load and cache a versioned system prompt from /prompts/.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prompts import load_prompt
+
+result = load_prompt(domain=&quot;domain_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_prompt'><h3><code class='inline'>get_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_prompt(name: str) -&gt; str</code></div><p>Return the prompt text for ``name``.
+
+Raises ``KeyError`` for unknown names — callers should not be
+passing strings that aren&#x27;t in ``CATALOG``. Use the constants
+directly when the name is known at compile time.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prompts import get_prompt
+
+result = get_prompt(name=&quot;name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_prompt_version'><h3><code class='inline'>get_prompt_version</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_prompt_version(name: str) -&gt; str</code></div><p>Return the version tag for ``name`` (e.g. ``&quot;v1&quot;``).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prompts import get_prompt_version
+
+result = get_prompt_version(name=&quot;name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_prompts'><h3><code class='inline'>list_prompts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def list_prompts() -&gt; list[dict[str, str | int]]</code></div><p>Return a summary of every cataloged prompt.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prompts import list_prompts
+
+result = list_prompts()
+# result: list[dict[str, str | int]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_templates'><h3><code class='inline'>list_templates</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_templates(category: str | None = None) -&gt; list[dict]</code></div><p>Return every prompt template, optionally filtered by ``category``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prompts import list_templates
+
+result = list_templates(category=&quot;category_example&quot;  # default: None)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_template'><h3><code class='inline'>get_template</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_template(template_id: str) -&gt; dict | None</code></div><p>Return a single template by ``id``, or ``None`` when unknown.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prompts import get_template
+
+result = get_template(template_id=&quot;template_id_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DOMAIN_TO_FILE</code></td><td><code class='inline'>{&#x27;soul&#x27;: &#x27;soul_v1.md&#x27;}</code></td></tr><tr><td><code class='inline'>JOURNAL_INTERVIEW_PROMPT</code></td><td><code class='inline'>&#x27;You are conducting a journal interview with Jacob. Your job is to be a curious,\nattentive interviewer — not a therapis</code></td></tr><tr><td><code class='inline'>JOURNAL_SYNTHESIS_PROMPT</code></td><td><code class='inline'>&quot;You have just conducted a journal interview with Jacob.\nSynthesize the conversation into a journal entry written from </code></td></tr><tr><td><code class='inline'>PARTS_COUNCIL_PROMPT</code></td><td><code class='inline'>&quot;\n---\n## Parts mode active\n\nBefore responding, work through your internal council:\n\nSkeptic: [what&#x27;s missing, wron</code></td></tr><tr><td><code class='inline'>BUILDER_PROPOSAL_PROMPT</code></td><td><code class='inline'>&#x27;\n---\n## Offering Builder work\n\nYou cannot write or run code yourself in this chat. When Jacob describes a\nconcrete</code></td></tr><tr><td><code class='inline'>INVENTORY_PHOTO_PROMPT</code></td><td><code class='inline'>&#x27;Analyze this photo of electronic components (e.g., a parts bin, a bag of transistors, capacitors).\n        Identify th</code></td></tr><tr><td><code class='inline'>CATALOG</code></td><td><code class='inline'>dict[str, tuple[str, str]]</code></td></tr><tr><td><code class='inline'>_TEMPLATES</code></td><td><code class='inline'>list[dict]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

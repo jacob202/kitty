@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.project_store — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.project_store</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.project_store</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/project_store.py</code> &middot; Python &middot; 21 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Project registry — CRUD for the projects table (P6, docs/packets/021).
+
+Registry only: names, paths, status, and the fields project_resume&#x27;s
+refresh()/resume() compose and render. No git/memory/signal composition
+lives here — see gateway/project_resume.py.
+
+The kitty repo itself is seeded as project #1 on first init, the same
+idempotent-once pattern as todo_store&#x27;s legacy import: dogfoods the loop
+instantly since kitty&#x27;s own git/journal/signals are already local.
+
+Public API:
+  create(name, kind, paths=None, links=None) -&gt; dict
+  get(project_id) -&gt; dict | None
+  list_projects(status=None) -&gt; list[dict]
+  update_fields(project_id, **fields) -&gt; dict
+  touch(project_id) -&gt; None</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-create'><code class='inline'>create</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-get'><code class='inline'>get</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_projects'><code class='inline'>list_projects</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-update_fields'><code class='inline'>update_fields</code></a></td><td>Update one or more columns. JSON-shaped fields accept Python lists/dicts.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-touch'><code class='inline'>touch</code></a></td><td>Bump last_touched to now.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-delete'><code class='inline'>delete</code></a></td><td>Refuse hard deletion; projects with history must be archived instead.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-restore'><code class='inline'>restore</code></a></td><td>Replace Projects with snapshot state.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_write_restore'><code class='inline'>_write_restore</code></a></td><td>Upsert the snapshot rows and drop only what the snapshot omits.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_restore_rows'><code class='inline'>_restore_rows</code></a></td><td>Validate a projects payload and shape it for restore, or raise.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr><tr><td><a href='#fn-_delete_omitted_projects'><code class='inline'>_delete_omitted_projects</code></a></td><td>Delete only projects absent from the snapshot. Raises on a live reference.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_omitted_referenced_error'><code class='inline'>_omitted_referenced_error</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-validate_restore'><code class='inline'>validate_restore</code></a></td><td>Prove ``restore`` can replace Projects, changing nothing.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_require'><code class='inline'>_require</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_row_to_project'><code class='inline'>_row_to_project</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-select_todo'><code class='inline'>select_todo</code></a></td><td>Record the one action the user explicitly chose for this project.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-clear_selected_todo'><code class='inline'>clear_selected_todo</code></a></td><td>Drop the explicit selection without touching the todo itself.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-selected_todo'><code class='inline'>selected_todo</code></a></td><td>Return the chosen todo, repairing the pointer if that todo is gone.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_clear_selected_todo_if_current'><code class='inline'>_clear_selected_todo_if_current</code></a></td><td>Repair one stale pointer without erasing a newer explicit choice.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_seed_kitty_project_once'><code class='inline'>_seed_kitty_project_once</code></a></td><td>Register the kitty repo itself as project #1. Idempotent, once ever.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_seed_benefits_project_once'><code class='inline'>_seed_benefits_project_once</code></a></td><td>Register the benefits-admin project as project #2. Idempotent, once ever (P7).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create'><h3><code class='inline'>create</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def create(name: str, kind: str, paths: list[str] | None = None, links: list[Any] | None = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import create
+
+result = create(name=&quot;name_example&quot;, kind=&quot;kind_example&quot;, paths=&quot;paths_example&quot;  # default: None, links=[]  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get'><h3><code class='inline'>get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get(project_id: int) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import get
+
+result = get(project_id=0)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_projects'><h3><code class='inline'>list_projects</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def list_projects(status: str | None = None) -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import list_projects
+
+result = list_projects(status=&quot;status_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update_fields'><h3><code class='inline'>update_fields</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def update_fields(project_id: int, **fields) -&gt; dict[str, Any]</code></div><p>Update one or more columns. JSON-shaped fields accept Python lists/dicts.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import update_fields
+
+result = update_fields(project_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-touch'><h3><code class='inline'>touch</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def touch(project_id: int) -&gt; None</code></div><p>Bump last_touched to now.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import touch
+
+result = touch(project_id=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete'><h3><code class='inline'>delete</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def delete(project_id: int) -&gt; None</code></div><p>Refuse hard deletion; projects with history must be archived instead.
+
+Several durable owners already link by ``project_id`` without database-level
+foreign keys (notably chat lifecycle and Artifacts). A pre-delete reference
+scan cannot close the race with a concurrent writer. Until those relationships
+have transactional/FK integrity, destructive deletion is not a truthful product
+operation. ``status=&#x27;archived&#x27;`` is the existing reversible lifecycle.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import delete
+
+result = delete(project_id=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-restore'><h3><code class='inline'>restore</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def restore(items: list[dict[str, Any]]) -&gt; int</code></div><p>Replace Projects with snapshot state.
+
+Snapshot restore has the opposite contract to ``update_fields``: rows
+omitted from the snapshot are absent afterwards. ``delete()``&#x27;s archive-only
+policy governs user-initiated deletion, not wholesale snapshot replacement,
+which is the same precedent ``todo_store.restore`` sets for Todos. Todos are
+restored immediately after this in the same ``storage_sync`` pass, so a
+``selected_todo_id`` that is dangling only because its todo has not landed
+yet is reconciled there rather than rejected here.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import restore
+
+result = restore(items=&quot;items_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_write_restore'><h3><code class='inline'>_write_restore</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _write_restore(conn: sqlite3.Connection, rows: list[tuple[Any, ...]], seen_ids: set[int]) -&gt; None</code></div><p>Upsert the snapshot rows and drop only what the snapshot omits.
+
+Caller owns the transaction. Shared with ``validate_restore`` so the prove
+step exercises exactly the statements the real restore runs.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import _write_restore
+
+result = _write_restore(conn=..., rows=[], seen_ids=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_restore_rows'><h3><code class='inline'>_restore_rows</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>def _restore_rows(items: list[dict[str, Any]]) -&gt; tuple[list[tuple[Any, ...]], set[int]]</code></div><p>Validate a projects payload and shape it for restore, or raise.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import _restore_rows
+
+result = _restore_rows(items=&quot;items_example&quot;)
+# result: tuple[list[tuple[Any, ...]], set[int]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_delete_omitted_projects'><h3><code class='inline'>_delete_omitted_projects</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _delete_omitted_projects(conn: sqlite3.Connection, snapshot_ids: set[int]) -&gt; None</code></div><p>Delete only projects absent from the snapshot. Raises on a live reference.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import _delete_omitted_projects
+
+result = _delete_omitted_projects(conn=..., snapshot_ids=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_omitted_referenced_error'><h3><code class='inline'>_omitted_referenced_error</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _omitted_referenced_error() -&gt; ProjectError</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import _omitted_referenced_error
+
+result = _omitted_referenced_error()
+# result: ProjectError</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_restore'><h3><code class='inline'>validate_restore</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def validate_restore(items: list[dict[str, Any]]) -&gt; None</code></div><p>Prove ``restore`` can replace Projects, changing nothing.
+
+``storage_sync`` writes other stores before Projects, so a payload that only
+fails on a foreign-key dependent — or on a value SQLite cannot bind — would
+leave those earlier stores committed against a rejected snapshot. This runs
+the real upsert and omit-delete in a transaction that is always rolled back,
+so callers can fail before any store is written while nothing here persists.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import validate_restore
+
+result = validate_restore(items=&quot;items_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require'><h3><code class='inline'>_require</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _require(project_id: int) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import _require
+
+result = _require(project_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_project'><h3><code class='inline'>_row_to_project</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _row_to_project(row: sqlite3.Row) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import _row_to_project
+
+result = _row_to_project(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-select_todo'><h3><code class='inline'>select_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def select_todo(project_id: int, todo_id: int) -&gt; dict[str, Any]</code></div><p>Record the one action the user explicitly chose for this project.
+
+Explicit choice outranks anything generated. `next_actions_json` and
+`project_next_steps` are both replaceable suggestion state; this is not,
+and regenerating either must leave it alone.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import select_todo
+
+result = select_todo(project_id=0, todo_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-clear_selected_todo'><h3><code class='inline'>clear_selected_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def clear_selected_todo(project_id: int) -&gt; dict[str, Any]</code></div><p>Drop the explicit selection without touching the todo itself.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import clear_selected_todo
+
+result = clear_selected_todo(project_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-selected_todo'><h3><code class='inline'>selected_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def selected_todo(project_id: int) -&gt; dict[str, Any] | None</code></div><p>Return the chosen todo, repairing the pointer if that todo is gone.
+
+A selection pointing at a deleted todo would otherwise surface as a
+phantom next action. Rather than dangle, the pointer clears itself the
+first time anyone looks.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import selected_todo
+
+result = selected_todo(project_id=0)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_clear_selected_todo_if_current'><h3><code class='inline'>_clear_selected_todo_if_current</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _clear_selected_todo_if_current(project_id: int, expected_todo_id: int) -&gt; bool</code></div><p>Repair one stale pointer without erasing a newer explicit choice.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import _clear_selected_todo_if_current
+
+result = _clear_selected_todo_if_current(project_id=0, expected_todo_id=0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_seed_kitty_project_once'><h3><code class='inline'>_seed_kitty_project_once</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _seed_kitty_project_once() -&gt; None</code></div><p>Register the kitty repo itself as project #1. Idempotent, once ever.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import _seed_kitty_project_once
+
+result = _seed_kitty_project_once()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_seed_benefits_project_once'><h3><code class='inline'>_seed_benefits_project_once</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _seed_benefits_project_once() -&gt; None</code></div><p>Register the benefits-admin project as project #2. Idempotent, once ever (P7).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_store import _seed_benefits_project_once
+
+result = _seed_benefits_project_once()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ProjectError'><code class='inline'>ProjectError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ProjectNotFound'><code class='inline'>ProjectNotFound</code></a></td><td>(ProjectError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ProjectDeletionDisabledError'><code class='inline'>ProjectDeletionDisabledError</code></a></td><td>(ProjectError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ProjectError'><h3><code class='inline'>ProjectError</code></h3><p>Base for project-store errors.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.project_store import ProjectError
+
+obj = ProjectError(...)</pre></div>
+<div class='card' id='cls-ProjectNotFound'><h3><code class='inline'>ProjectNotFound</code></h3><p>No project row with that id (404-shaped).</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.project_store import ProjectNotFound
+
+obj = ProjectNotFound(...)</pre></div>
+<div class='card' id='cls-ProjectDeletionDisabledError'><h3><code class='inline'>ProjectDeletionDisabledError</code></h3><p>Hard deletion is unavailable until project relationship integrity is complete.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.project_store import ProjectDeletionDisabledError
+
+obj = ProjectDeletionDisabledError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>PROJECTS_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>KITTY_PROJECT_SEEDED_SETTING</code></td><td><code class='inline'>&#x27;projects_kitty_seeded&#x27;</code></td></tr><tr><td><code class='inline'>BENEFITS_PROJECT_SEEDED_SETTING</code></td><td><code class='inline'>&#x27;projects_benefits_seeded&#x27;</code></td></tr><tr><td><code class='inline'>_JSON_FIELDS</code></td><td><code class='inline'>frozenset({&#x27;paths_json&#x27;, &#x27;open_questions_json&#x27;, &#x27;next_actions_json&#x27;, &#x27;delegable_json&#x27;, &#x27;links_json&#x27;})</code></td></tr><tr><td><code class='inline'>ACTIONABLE_TODO_STATUSES</code></td><td><code class='inline'>frozenset({&#x27;pending&#x27;, &#x27;in_progress&#x27;})</code></td></tr><tr><td><code class='inline'>_UPDATABLE_FIELDS</code></td><td><code class='inline'>frozenset({&#x27;name&#x27;, &#x27;kind&#x27;, &#x27;status&#x27;, &#x27;last_touched&#x27;, &#x27;summary&#x27;, &#x27;paths_json&#x27;, &#x27;open_questions_json&#x27;, &#x27;next_actions_json&#x27;</code></td></tr><tr><td><code class='inline'>_COLUMNS</code></td><td><code class='inline'>&#x27;id, created_at, name, kind, paths_json, status, last_touched, summary, open_questions_json, next_actions_json, delegabl</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

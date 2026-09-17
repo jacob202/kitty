@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.server — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.server</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.server</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/server.py</code> &middot; Python &middot; 31 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Imagen MCP server — photorealistic image generation and editing for Claude Code.
+
+Default engine is Google&#x27;s &quot;Nano Banana&quot; (gemini-2.5-flash-image), which does both
+generation and natural-language editing with strong photorealism. Imagen 4, DALL-E 3,
+Draw Things, and local ComfyUI are available as opt-in alternatives.
+
+Every tool returns the image inline (it renders directly in the chat) AND saves a
+copy to ~/Pictures/kitty-gen/ so you can pass the path back to edit_image to refine it.
+
+PR 3: the 4 legacy generate_image* tools are collapsed into one ``generate(prompt,
+engine=...)`` + ``batch_generate(prompts, engine=...)``. A SHA256 cache deduplicates
+identical (prompt, engine, params) calls. All engine calls retry with exponential
+backoff so 429s recover.
+
+P25 (retired fal): fal.ai was too expensive per-gen; replaced with local engines
+(Draw Things, ComfyUI) and the ``generate_until`` verified loop. The fal code is
+in git history — see ``docs/packets/025-imagegen-pipeline-v2.md``.
+
+Tools:
+  generate              — unified generation (engine: nano_banana | imagen4 | dalle | comfyui | drawthings)
+  edit_image            — natural-language edits (Nano Banana)
+  batch_generate        — N prompts in parallel (asyncio.gather)
+  generate_with_reference — keep a subject consistent / composite images
+  refine_image          — auto loop: generate → vision-critique → edit until it matches
+  variations            — several alternates of an existing image
+  set_avatar / generate_with_avatar — a persistent character you can drop into scenes
+  generate_until        — verified loop: generate → score → keep best → stop early
+  make_gallery          — HTML contact sheet of everything generated
+  generate_image_imagen — Imagen 4: alternative high-fidelity generation, 1-4 at once
+  generate_image_dalle  — DALL-E 3: creative/illustrative prompts, text-in-image
+  generate_image_comfy  — local ComfyUI: full NSFW incl. explicit (needs ComfyUI running)
+  save_character        — save a named character reference (face photo + description)
+  list_characters       — list all saved characters
+  generate_with_character — place a named character in a new scene (Nano Banana reference)
+  generate_scene        — two named characters together (Nano Banana multi-ref)</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>google</code>, <code class='inline'>google.genai</code>, <code class='inline'>html</code>, <code class='inline'>httpx</code>, <code class='inline'>mcp.imagen.tools.generate_until</code>, <code class='inline'>mcp.server.fastmcp</code>, <code class='inline'>openai</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>shutil</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_gemini_client'><code class='inline'>_gemini_client</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_openai_client'><code class='inline'>_openai_client</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_rule_expand'><code class='inline'>_rule_expand</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_expand_prompt'><code class='inline'>_expand_prompt</code></a></td><td>Return (expanded_prompt, was_ai_expanded).</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_save'><code class='inline'>_save</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_first_image_bytes'><code class='inline'>_first_image_bytes</code></a></td><td>Pull raw image bytes out of a generate_content response, or None if the model</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_refusal_text'><code class='inline'>_refusal_text</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_image_part'><code class='inline'>_image_part</code></a></td><td>Build a Gemini image Part from a file on disk.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_nano_image'><code class='inline'>_nano_image</code></a></td><td>Run a Nano Banana generate_content call, return (image_bytes, refusal_text).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_seed'><code class='inline'>_seed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_parse_comfy'><code class='inline'>_parse_comfy</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-_wf_sd15'><code class='inline'>_wf_sd15</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_wf_sdxl'><code class='inline'>_wf_sdxl</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-generate_image'><code class='inline'>generate_image</code></a></td><td>Generate an image from a text description using Nano Banana (gemini-2.5-flash-image).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-edit_image'><code class='inline'>edit_image</code></a></td><td>Edit an existing image with natural-language instructions using Nano Banana.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-generate_image_imagen'><code class='inline'>generate_image_imagen</code></a></td><td>Generate 1-4 images at once using Imagen 4 (imagen-4.0-generate-001). An alternative</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-generate_image_dalle'><code class='inline'>generate_image_dalle</code></a></td><td>Generate an image using DALL-E 3. Best for creative/illustrative prompts, rendering</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-generate_image_comfy'><code class='inline'>generate_image_comfy</code></a></td><td>Generate an image using local ComfyUI (SD1.5 / SDXL). The only backend that allows</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-generate_with_reference'><code class='inline'>generate_with_reference</code></a></td><td>Generate an image conditioned on one or more reference images using Nano Banana.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-set_avatar'><code class='inline'>set_avatar</code></a></td><td>Pin a reference image as the persistent avatar/character. Once set, use</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-generate_with_avatar'><code class='inline'>generate_with_avatar</code></a></td><td>Generate an image of the pinned avatar character (see set_avatar) in a new scene,</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-variations'><code class='inline'>variations</code></a></td><td>Produce several alternates of an existing image — same subject, varied pose,</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-refine_image'><code class='inline'>refine_image</code></a></td><td>Generate an image, then automatically critique and re-edit it until it matches —</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-make_gallery'><code class='inline'>make_gallery</code></a></td><td>Build an HTML contact sheet of every image in ~/Pictures/kitty-gen, newest first,</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-generate_until'><code class='inline'>generate_until</code></a></td><td>Generate an image, score it against criteria, and iterate until one passes.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_char_path'><code class='inline'>_char_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-save_character'><code class='inline'>save_character</code></a></td><td>Save a reference image as a named character so you can recall them by name</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_characters'><code class='inline'>list_characters</code></a></td><td>List all saved characters by name, along with any stored description.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-generate_with_character'><code class='inline'>generate_with_character</code></a></td><td>Generate an image of a saved character (see save_character / list_characters)</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-generate_scene'><code class='inline'>generate_scene</code></a></td><td>Generate a scene with two saved characters together using Nano Banana&#x27;s</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-imagen_help'><code class='inline'>imagen_help</code></a></td><td>Show a menu of every available imagen tool with a one-liner and example prompt.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_gemini_client'><h3><code class='inline'>_gemini_client</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _gemini_client()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _gemini_client
+
+result = _gemini_client()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_openai_client'><h3><code class='inline'>_openai_client</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _openai_client()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _openai_client
+
+result = _openai_client()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_rule_expand'><h3><code class='inline'>_rule_expand</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _rule_expand(raw: str, mode: str = &#x27;generate&#x27;) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _rule_expand
+
+result = _rule_expand(raw=&quot;raw_example&quot;, mode=&quot;mode_example&quot;  # default: &#x27;generate&#x27;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_expand_prompt'><h3><code class='inline'>_expand_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _expand_prompt(raw: str, mode: str = &#x27;generate&#x27;) -&gt; tuple[str, bool]</code></div><p>Return (expanded_prompt, was_ai_expanded).
+
+Calls Gemini 2.5 Flash text (free-tier — not image generation, no billing required)
+to rewrite raw into a detailed, model-optimised FLUX prompt. Falls back to
+rule-based token injection if no key or the call fails.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _expand_prompt
+
+result = _expand_prompt(raw=&quot;raw_example&quot;, mode=&quot;mode_example&quot;  # default: &#x27;generate&#x27;)
+# result: tuple[str, bool]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_save'><h3><code class='inline'>_save</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _save(image_bytes: bytes, prefix: str) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _save
+
+result = _save(image_bytes=..., prefix=&quot;prefix_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_first_image_bytes'><h3><code class='inline'>_first_image_bytes</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _first_image_bytes(response) -&gt; bytes | None</code></div><p>Pull raw image bytes out of a generate_content response, or None if the model
+returned only text (usually a safety refusal explaining why).</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _first_image_bytes
+
+result = _first_image_bytes(response=...)
+# result: bytes | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_refusal_text'><h3><code class='inline'>_refusal_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _refusal_text(response) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _refusal_text
+
+result = _refusal_text(response=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_image_part'><h3><code class='inline'>_image_part</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _image_part(path: Path)</code></div><p>Build a Gemini image Part from a file on disk.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _image_part
+
+result = _image_part(path=&quot;path_example&quot;)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_nano_image'><h3><code class='inline'>_nano_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _nano_image(contents) -&gt; tuple[bytes | None, str]</code></div><p>Run a Nano Banana generate_content call, return (image_bytes, refusal_text).</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _nano_image
+
+result = _nano_image(contents=...)
+# result: tuple[bytes | None, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_seed'><h3><code class='inline'>_seed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _seed() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _seed
+
+result = _seed()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_comfy'><h3><code class='inline'>_parse_comfy</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def _parse_comfy(prompt: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _parse_comfy
+
+result = _parse_comfy(prompt=&quot;prompt_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wf_sd15'><h3><code class='inline'>_wf_sd15</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _wf_sd15(prompt: str, p: dict) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _wf_sd15
+
+result = _wf_sd15(prompt=&quot;prompt_example&quot;, p={})
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wf_sdxl'><h3><code class='inline'>_wf_sdxl</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _wf_sdxl(prompt: str, p: dict) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _wf_sdxl
+
+result = _wf_sdxl(prompt=&quot;prompt_example&quot;, p={})
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_image'><h3><code class='inline'>generate_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def generate_image(prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True) -&gt; list</code></div><p>Generate an image from a text description using Nano Banana (gemini-2.5-flash-image).
+This is the default, best-quality engine for photorealism. The image renders inline
+and is saved to ~/Pictures/kitty-gen/ — pass that path to edit_image to refine it.
+
+Args:
+    prompt: What to generate. Be specific about subject, setting, lighting, mood.
+    aspect_ratio: 1:1, 3:2, 2:3, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, or 21:9. Default 1:1.
+    photorealistic: When True (default), appends photographic quality cues to the
+                    prompt. Set False for illustrations, paintings, or cartoons.
+
+Returns:
+    The generated image (inline) plus the saved file path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import generate_image
+
+result = generate_image(prompt=&quot;prompt_example&quot;, aspect_ratio=&quot;aspect_ratio_example&quot;  # default: &#x27;1:1&#x27;, photorealistic=True  # default: True)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-edit_image'><h3><code class='inline'>edit_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def edit_image(image_path: str, edit_prompt: str) -&gt; list</code></div><p>Edit an existing image with natural-language instructions using Nano Banana.
+Keeps the rest of the image consistent and only changes what you ask for. The result
+renders inline and is saved as a new file (the original is untouched).
+
+Args:
+    image_path: Absolute path to the source image (PNG or JPEG).
+    edit_prompt: What to change, e.g. &quot;make the background a sunset over the ocean&quot;,
+                 &quot;give her a red dress&quot;, &quot;remove the car&quot;, &quot;make it nighttime&quot;.
+
+Returns:
+    The edited image (inline) plus the saved file path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import edit_image
+
+result = edit_image(image_path=&quot;image_path_example&quot;, edit_prompt=&quot;edit_prompt_example&quot;)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_image_imagen'><h3><code class='inline'>generate_image_imagen</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def generate_image_imagen(prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, count: int = 1) -&gt; list</code></div><p>Generate 1-4 images at once using Imagen 4 (imagen-4.0-generate-001). An alternative
+to generate_image when you want several variations of the same prompt in one call.
+Allows tasteful adult imagery (person_generation=ALLOW_ADULT); explicit content is
+blocked — use generate_image_comfy for that. All images render inline and are saved.
+
+Args:
+    prompt: What to generate.
+    aspect_ratio: 1:1, 3:4, 4:3, 9:16, or 16:9. Default 1:1.
+    count: Number of variations (1-4). Default 1.
+
+Returns:
+    Each generated image (inline) plus its saved file path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import generate_image_imagen
+
+result = generate_image_imagen(prompt=&quot;prompt_example&quot;, aspect_ratio=&quot;aspect_ratio_example&quot;  # default: &#x27;1:1&#x27;, count=0  # default: 1)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_image_dalle'><h3><code class='inline'>generate_image_dalle</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def generate_image_dalle(prompt: str, size: str = &#x27;1024x1024&#x27;, quality: str = &#x27;hd&#x27;) -&gt; list</code></div><p>Generate an image using DALL-E 3. Best for creative/illustrative prompts, rendering
+text inside the image, and strong instruction-following. No NSFW. Renders inline + saved.
+
+Args:
+    prompt: What to generate. DALL-E 3 follows complex multi-part instructions well.
+    size: 1024x1024, 1792x1024 (landscape), or 1024x1792 (portrait).
+    quality: &quot;hd&quot; (default, more detail) or &quot;standard&quot; (faster, cheaper).
+
+Returns:
+    The generated image (inline) plus the saved file path, and any prompt revision.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import generate_image_dalle
+
+result = generate_image_dalle(prompt=&quot;prompt_example&quot;, size=&quot;size_example&quot;  # default: &#x27;1024x1024&#x27;, quality=&quot;quality_example&quot;  # default: &#x27;hd&#x27;)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_image_comfy'><h3><code class='inline'>generate_image_comfy</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>async def generate_image_comfy(prompt: str) -&gt; list</code></div><p>Generate an image using local ComfyUI (SD1.5 / SDXL). The only backend that allows
+full explicit NSFW; uses the LoRAs already configured in your ComfyUI. No API cost.
+Requires ComfyUI running at COMFY_URL (default http://127.0.0.1:8188). Renders inline.
+
+Prompt keywords drive model/LoRA selection automatically:
+  realistic / photo / sdxl / photonic → SDXL model
+  explicit / erect / cock / etc        → explicit LoRA
+  portrait / landscape                 → aspect ratio
+  detailed                             → more sampling steps
+  more bear / less bear                → bear LoRA strength
+
+Args:
+    prompt: Text description. Model and LoRA selection is automatic from keywords.
+
+Returns:
+    The generated image (inline) plus its ComfyUI filename.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from mcp.imagen.server import generate_image_comfy
+
+    result = await generate_image_comfy()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_with_reference'><h3><code class='inline'>generate_with_reference</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def generate_with_reference(reference_paths: list[str], prompt: str) -&gt; list</code></div><p>Generate an image conditioned on one or more reference images using Nano Banana.
+This is the standout capability no other engine has:
+
+  • One reference → keep that subject CONSISTENT in a new scene
+    (&quot;the person in this photo, now sitting in a Paris cafe at night&quot;).
+  • Multiple references → COMPOSITE them
+    (&quot;put the person from image 1 in the room from image 2&quot;,
+     &quot;dress the model in image 1 in the outfit from image 2&quot;).
+
+Args:
+    reference_paths: 1-3 absolute paths to reference images (PNG/JPEG).
+    prompt: What to make using those references.
+
+Returns:
+    The generated image (inline) plus the saved file path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import generate_with_reference
+
+result = generate_with_reference(reference_paths=&quot;reference_paths_example&quot;, prompt=&quot;prompt_example&quot;)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_avatar'><h3><code class='inline'>set_avatar</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def set_avatar(image_path: str) -&gt; str</code></div><p>Pin a reference image as the persistent avatar/character. Once set, use
+generate_with_avatar to drop this exact subject into any scene without re-uploading.
+
+Args:
+    image_path: Absolute path to the image to use as the persistent character.
+
+Returns:
+    Confirmation and where it was stored.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import set_avatar
+
+result = set_avatar(image_path=&quot;image_path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_with_avatar'><h3><code class='inline'>generate_with_avatar</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def generate_with_avatar(prompt: str) -&gt; list</code></div><p>Generate an image of the pinned avatar character (see set_avatar) in a new scene,
+keeping the character consistent. Convenience wrapper over generate_with_reference.
+
+Args:
+    prompt: The scene/action, e.g. &quot;on a snowy mountain trail, golden hour&quot;.
+
+Returns:
+    The generated image (inline) plus the saved file path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import generate_with_avatar
+
+result = generate_with_avatar(prompt=&quot;prompt_example&quot;)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-variations'><h3><code class='inline'>variations</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def variations(image_path: str, count: int = 3) -&gt; list</code></div><p>Produce several alternates of an existing image — same subject, varied pose,
+angle, and lighting. Good for &quot;give me more like this one.&quot;
+
+Args:
+    image_path: Absolute path to the source image.
+    count: How many variations (1-4). Default 3.
+
+Returns:
+    Each variation (inline) plus its saved path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import variations
+
+result = variations(image_path=&quot;image_path_example&quot;, count=0  # default: 3)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-refine_image'><h3><code class='inline'>refine_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def refine_image(prompt: str, target: str = &#x27;&#x27;, max_rounds: int = 3) -&gt; list</code></div><p>Generate an image, then automatically critique and re-edit it until it matches —
+the autonomous generate → analyze → fix loop. Each round a vision model checks the
+result against `target` (or `prompt`) and either approves it or hands back one
+concrete edit, which is applied before the next check.
+
+Args:
+    prompt: What to generate initially.
+    target: The success criteria to judge against. Defaults to `prompt`.
+    max_rounds: Max critique/edit rounds (1-5). Default 3.
+
+Returns:
+    The final image (inline), the saved path, and the round-by-round critique trail.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import refine_image
+
+result = refine_image(prompt=&quot;prompt_example&quot;, target=&quot;target_example&quot;  # default: &#x27;&#x27;, max_rounds=0  # default: 3)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-make_gallery'><h3><code class='inline'>make_gallery</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def make_gallery() -&gt; str</code></div><p>Build an HTML contact sheet of every image in ~/Pictures/kitty-gen, newest first,
+so you can browse past generations. Returns the path to the gallery file.
+
+Returns:
+    Path to the generated gallery.html (open it in a browser).</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import make_gallery
+
+result = make_gallery()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_until'><h3><code class='inline'>generate_until</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def generate_until(prompt: str, criteria_name: str = &#x27;default&#x27;, engine: str = &#x27;&#x27;, max_attempts: int = 8, keep: int = 3, private: bool = False) -&gt; list</code></div><p>Generate an image, score it against criteria, and iterate until one passes.
+
+Each attempt is scored on mechanical checks (resolution, blank detection),
+face-match against a reference set, and a vision-model rubric. When a
+candidate passes all hard criteria the loop stops early. The best ``keep``
+candidates across all attempts are returned.
+
+Every attempt is logged to ``~/Pictures/kitty-gen/runs/&lt;run-id&gt;/`` with
+scores and seeds so good results are reproducible.
+
+Args:
+    prompt: What to generate. Be specific about subject, setting, lighting.
+    criteria_name: Name of a criteria file in ``config/imagen/criteria/``.
+                   Defaults to &quot;default&quot; (soft rubric only).
+    engine: Generation engine. Default from settings (nano_banana).
+            Use &quot;drawthings&quot; for local generation.
+    max_attempts: Maximum generation rounds (1-20). Default 8.
+    keep: Number of best candidates to return (1-5). Default 3.
+    private: When True, refuses cloud engines (nano_banana, imagen4, dalle).
+             Use this for personal creative prompts.
+
+Returns:
+    Images (inline) plus a summary of scores and paths.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import generate_until
+
+result = generate_until(prompt=&quot;prompt_example&quot;, criteria_name=&quot;criteria_name_example&quot;  # default: &#x27;default&#x27;, engine=&quot;engine_example&quot;  # default: &#x27;&#x27;, max_attempts=0  # default: 8, keep=0  # default: 3, private=True  # default: False)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_char_path'><h3><code class='inline'>_char_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _char_path(name: str) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import _char_path
+
+result = _char_path(name=&quot;name_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-save_character'><h3><code class='inline'>save_character</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def save_character(name: str, image_path: str, description: str = &#x27;&#x27;) -&gt; str</code></div><p>Save a reference image as a named character so you can recall them by name
+later without re-uploading. Stored in ~/Pictures/kitty-gen/characters/.
+
+Works great with generate_with_character to place two specific people in the same
+scene together without losing either face.
+
+Args:
+    name: Short name for this character, e.g. &quot;marcus&quot; or &quot;blond guy&quot;.
+    image_path: Absolute path to a clear face/body photo for this character.
+    description: Optional text description to store alongside (hair color, build,
+                 any details useful for prompts). Not used by the model directly.
+
+Returns:
+    Confirmation with where the character is stored.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import save_character
+
+result = save_character(name=&quot;name_example&quot;, image_path=&quot;image_path_example&quot;, description=&quot;description_example&quot;  # default: &#x27;&#x27;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_characters'><h3><code class='inline'>list_characters</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def list_characters() -&gt; str</code></div><p>List all saved characters by name, along with any stored description.
+
+Returns:
+    A formatted list of saved character names and descriptions.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import list_characters
+
+result = list_characters()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_with_character'><h3><code class='inline'>generate_with_character</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def generate_with_character(character_name: str, prompt: str, num_images: int = 2) -&gt; list</code></div><p>Generate an image of a saved character (see save_character / list_characters)
+in a new scene using Nano Banana multi-reference compositing. Convenience wrapper
+so you don&#x27;t need to remember the file path.
+
+Args:
+    character_name: The name you used when calling save_character.
+    prompt: Scene description — pose, setting, outfit, lighting, etc.
+    num_images: Number of results (1–4). Default 2.
+
+Returns:
+    Each generated image (inline) plus its saved path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import generate_with_character
+
+result = generate_with_character(character_name=&quot;character_name_example&quot;, prompt=&quot;prompt_example&quot;, num_images=0  # default: 2)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_scene'><h3><code class='inline'>generate_scene</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def generate_scene(character_names: list[str], prompt: str, num_images: int = 2) -&gt; list</code></div><p>Generate a scene with two saved characters together using Nano Banana&#x27;s
+multi-reference compositing. Provide both names; their reference photos are sent
+alongside the scene prompt so the model can keep both faces consistent.
+
+Note: Nano Banana handles 2-character compositing better than PuLID (which is
+optimised for one face). For very tight face lock on one person + a second generic
+person, use generate_with_character with a descriptive prompt for the second person.
+
+Args:
+    character_names: Exactly 2 character names (from save_character / list_characters).
+    prompt: Full scene — who&#x27;s doing what, setting, lighting, mood.
+    num_images: Number of results (1–4). Default 2.
+
+Returns:
+    Each generated image (inline) plus its saved path, or an error if a character
+    name isn&#x27;t found.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import generate_scene
+
+result = generate_scene(character_names=&quot;character_names_example&quot;, prompt=&quot;prompt_example&quot;, num_images=0  # default: 2)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-imagen_help'><h3><code class='inline'>imagen_help</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def imagen_help() -&gt; str</code></div><p>Show a menu of every available imagen tool with a one-liner and example prompt.
+Call this any time you want to see what&#x27;s available.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.server import imagen_help
+
+result = imagen_help()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>OUTPUT_DIR</code></td><td><code class='inline'>Path.home() / &#x27;Pictures&#x27; / &#x27;kitty-gen&#x27;</code></td></tr><tr><td><code class='inline'>AVATAR_PATH</code></td><td><code class='inline'>OUTPUT_DIR / &#x27;_avatar.png&#x27;</code></td></tr><tr><td><code class='inline'>GEMINI_IMAGE_MODEL</code></td><td><code class='inline'>os.environ.get(&#x27;GEMINI_IMAGE_MODEL&#x27;, &#x27;gemini-2.5-flash-image&#x27;)</code></td></tr><tr><td><code class='inline'>GEMINI_VISION_MODEL</code></td><td><code class='inline'>os.environ.get(&#x27;GEMINI_VISION_MODEL&#x27;, &#x27;gemini-2.5-flash&#x27;)</code></td></tr><tr><td><code class='inline'>IMAGEN_MODEL</code></td><td><code class='inline'>os.environ.get(&#x27;IMAGEN_MODEL&#x27;, &#x27;imagen-4.0-generate-001&#x27;)</code></td></tr><tr><td><code class='inline'>PHOTOREAL_SUFFIX</code></td><td><code class='inline'>&#x27;, photorealistic, shot on a full-frame DSLR, 85mm lens, natural lighting, shallow depth of field, sharp focus, high det</code></td></tr><tr><td><code class='inline'>_FLUX_QUALITY</code></td><td><code class='inline'>&#x27;RAW photo, 8k uhd, masterpiece, best quality, ultra-detailed, photorealistic, hyperrealistic, cinematic lighting, sharp</code></td></tr><tr><td><code class='inline'>_SKIN_TOKENS</code></td><td><code class='inline'>&#x27;realistic skin texture, visible skin pores, subsurface scattering, translucent skin, natural skin folds, vellus hair on</code></td></tr><tr><td><code class='inline'>_HAIR_TOKENS</code></td><td><code class='inline'>&#x27;realistic body hair, individual hair strands visible, natural hair growth pattern, fine hair follicles, coarse-to-fine </code></td></tr><tr><td><code class='inline'>_MALE_BODY_TOKENS</code></td><td><code class='inline'>&#x27;anatomically realistic male body, natural muscle definition, realistic body proportions, natural fat distribution&#x27;</code></td></tr><tr><td><code class='inline'>_EDIT_PRESERVE</code></td><td><code class='inline'>&#x27;preserve the face exactly, preserve body pose, preserve background composition, preserve lighting direction, only chang</code></td></tr><tr><td><code class='inline'>_SKIN_KW</code></td><td><code class='inline'>{&#x27;skin&#x27;, &#x27;body&#x27;, &#x27;man&#x27;, &#x27;male&#x27;, &#x27;torso&#x27;, &#x27;chest&#x27;, &#x27;abs&#x27;, &#x27;person&#x27;, &#x27;model&#x27;, &#x27;portrait&#x27;, &#x27;face&#x27;, &#x27;shirtless&#x27;, &#x27;nude&#x27;, &#x27;na</code></td></tr><tr><td><code class='inline'>_HAIR_KW</code></td><td><code class='inline'>{&#x27;hair&#x27;, &#x27;beard&#x27;, &#x27;chest hair&#x27;, &#x27;body hair&#x27;, &#x27;treasure trail&#x27;, &#x27;hairy&#x27;, &#x27;stubble&#x27;, &#x27;fur&#x27;, &#x27;fuzzy&#x27;, &#x27;pubes&#x27;, &#x27;pubic&#x27;, &#x27;ar</code></td></tr><tr><td><code class='inline'>_MALE_KW</code></td><td><code class='inline'>{&#x27;man&#x27;, &#x27;male&#x27;, &#x27;guy&#x27;, &#x27;dude&#x27;, &#x27;him&#x27;, &#x27;his&#x27;, &#x27;boy&#x27;, &#x27;gentleman&#x27;, &#x27;men&#x27;, &#x27;masc&#x27;}</code></td></tr><tr><td><code class='inline'>_GEMINI_TEXT_MODEL</code></td><td><code class='inline'>os.environ.get(&#x27;GEMINI_TEXT_MODEL&#x27;, &#x27;gemini-2.5-flash&#x27;)</code></td></tr><tr><td><code class='inline'>_EXPAND_SYSTEM</code></td><td><code class='inline'>{&#x27;generate&#x27;: &#x27;You are a prompt engineer for FLUX Pro Ultra photorealistic image generation. Rewrite the user prompt into</code></td></tr><tr><td><code class='inline'>COMFY_URL</code></td><td><code class='inline'>os.environ.get(&#x27;COMFY_URL&#x27;, &#x27;http://127.0.0.1:8188&#x27;)</code></td></tr><tr><td><code class='inline'>SD15_CKPT</code></td><td><code class='inline'>&#x27;homofidelis_v50.safetensors&#x27;</code></td></tr><tr><td><code class='inline'>BEAR_LORA</code></td><td><code class='inline'>&#x27;Muscle_Bear_Baker_v2_for_transfer.safetensors&#x27;</code></td></tr><tr><td><code class='inline'>EXPLICIT_LORA</code></td><td><code class='inline'>&#x27;erect_penis_epoch_80.safetensors&#x27;</code></td></tr><tr><td><code class='inline'>SDXL_PHOTONIC</code></td><td><code class='inline'>&#x27;photonicFusionSDXL_final.safetensors&#x27;</code></td></tr><tr><td><code class='inline'>EXPLICIT_KW</code></td><td><code class='inline'>{&#x27;explicit&#x27;, &#x27;erect&#x27;, &#x27;hard cock&#x27;, &#x27;erection&#x27;, &#x27;boner&#x27;, &#x27;cock&#x27;, &#x27;nude explicit&#x27;}</code></td></tr><tr><td><code class='inline'>SDXL_KW</code></td><td><code class='inline'>{&#x27;realistic&#x27;, &#x27;sdxl&#x27;, &#x27;photo&#x27;, &#x27;photorealistic&#x27;, &#x27;high res&#x27;, &#x27;high quality&#x27;, &#x27;photonic&#x27;}</code></td></tr><tr><td><code class='inline'>CHARACTERS_DIR</code></td><td><code class='inline'>OUTPUT_DIR / &#x27;characters&#x27;</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_benchmark.py.html'><code class='inline'>mcp.imagen.benchmark</code></a></li><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_character_lock.py.html'><code class='inline'>mcp.imagen.character_lock</code></a></li><li><a href='mcp_imagen_config.py.html'><code class='inline'>mcp.imagen.config</code></a></li><li><a href='mcp_imagen_engines.py.html'><code class='inline'>mcp.imagen.engines</code></a></li><li><a href='mcp_imagen_face_match.py.html'><code class='inline'>mcp.imagen.face_match</code></a></li><li><a href='mcp_imagen_io.py.html'><code class='inline'>mcp.imagen.io</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_retry.py.html'><code class='inline'>mcp.imagen.retry</code></a></li><li><a href='mcp_imagen_tools.py.html'><code class='inline'>mcp.imagen.tools</code></a></li><li><a href='mcp_imagen_verify.py.html'><code class='inline'>mcp.imagen.verify</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

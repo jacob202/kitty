@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.tools.batch — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.tools.batch</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.tools.batch</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/tools/batch.py</code> &middot; Python &middot; 1 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Batch generation tool — N prompts concurrently via asyncio.gather.
+
+10x speedup for parallel work. Individual failures surface as error strings
+in the result list; the batch continues. A semaphore limits concurrency to
+avoid rate-limiting (default 10).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>mcp.imagen</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.io</code>, <code class='inline'>mcp.imagen.logger</code>, <code class='inline'>mcp.server.fastmcp</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-batch_generate'><code class='inline'>batch_generate</code></a></td><td>Generate N images in parallel. Returns N [Image, path] pairs.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr></table></div>
+<div class='card' id='fn-batch_generate'><h3><code class='inline'>batch_generate</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>async def batch_generate(prompts: list[str], engine: str = &#x27;&#x27;, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, concurrency_limit: int = 0, **kwargs) -&gt; list</code></div><p>Generate N images in parallel. Returns N [Image, path] pairs.
+
+Failures on individual prompts return an error string in the result list;
+the batch continues. Use this when you need several different prompts at once
+(e.g. &quot;generate these three scenes: a, b, c&quot;).
+
+Args:
+    prompts: List of text prompts to generate.
+    engine: One of: nano_banana (default), imagen4, dalle, comfyui.
+    aspect_ratio: Aspect ratio for all images in the batch.
+    photorealistic: Whether to append photographic quality cues.
+    concurrency_limit: Max parallel calls (default 10, from settings).
+                      Lower this if hitting rate limits.
+    **kwargs: Engine-specific passthrough.
+
+Returns:
+    A flat list alternating [Image, path_string, Image, path_string, ...]
+    for successes and error strings for failures.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from mcp.imagen.tools.batch import batch_generate
+
+    result = await batch_generate()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_tools_gallery.py.html'><code class='inline'>mcp.imagen.tools.gallery</code></a></li><li><a href='mcp_imagen_tools_generate.py.html'><code class='inline'>mcp.imagen.tools.generate</code></a></li><li><a href='mcp_imagen_tools_generate_until.py.html'><code class='inline'>mcp.imagen.tools.generate_until</code></a></li><li><a href='mcp_imagen_tools_reference.py.html'><code class='inline'>mcp.imagen.tools.reference</code></a></li><li><a href='mcp_imagen_tools_refine.py.html'><code class='inline'>mcp.imagen.tools.refine</code></a></li><li><a href='mcp_imagen_tools_variations.py.html'><code class='inline'>mcp.imagen.tools.variations</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

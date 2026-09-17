@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.project_resume — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.project_resume</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.project_resume</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/project_resume.py</code> &middot; Python &middot; 12 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Project resume — refresh()/resume() composer (P6, docs/packets/021).
+
+refresh(id) composes real state per project: local git for kind=&quot;code&quot;
+projects, memory_graph mentions, and signals referencing the project name.
+Each source is independently bounded so one slow/broken source cannot fail
+the whole refresh — same discipline as state_composer.compose_now(). No
+LLM summarization in v1 (mechanical only); a follow-on packet can add it
+with last-written-wins semantics per the original P6 design note.
+
+resume(id) is a pure read of the stored project fields plus bounded,
+project-scoped views from canonical child owners (Artifacts, Builder Work,
+chat lifecycle, and deadlines). Querying another store&#x27;s owning API at read
+time is not composition in the refresh() sense (no write, no copied durable
+state) — it is the &quot;query the owning store by project scope&quot; discipline.
+
+Public API:
+  refresh(project_id) -&gt; dict
+  resume(project_id) -&gt; dict</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>concurrent.futures</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_status</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.work_projection</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>subprocess</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-refresh'><code class='inline'>refresh</code></a></td><td>Recompose a project&#x27;s state from git/memory/signals and persist it.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-resume'><code class='inline'>resume</code></a></td><td>Render the stored packet shape. Pure read — no composition.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_artifact_source'><code class='inline'>_artifact_source</code></a></td><td>Return bounded canonical artifacts for resume views.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_conversation_source'><code class='inline'>_conversation_source</code></a></td><td>Project-scoped recent chat descriptors from the canonical chat ledger.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_deadline_source'><code class='inline'>_deadline_source</code></a></td><td>Project-scoped current deadlines from the canonical deadline store.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_work_source'><code class='inline'>_work_source</code></a></td><td>Return the Work snapshot scoped to this project&#x27;s Builder initiatives.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_git_source'><code class='inline'>_git_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_run_git'><code class='inline'>_run_git</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_memory_source'><code class='inline'>_memory_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_run_memory_search'><code class='inline'>_run_memory_search</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_signals_source'><code class='inline'>_signals_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_render_summary'><code class='inline'>_render_summary</code></a></td><td>Mechanical, no-LLM summary line. See module docstring on v1 scope.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr></table></div>
+<div class='card' id='fn-refresh'><h3><code class='inline'>refresh</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def refresh(project_id: int) -&gt; dict[str, Any]</code></div><p>Recompose a project&#x27;s state from git/memory/signals and persist it.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import refresh
+
+result = refresh(project_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resume'><h3><code class='inline'>resume</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def resume(project_id: int) -&gt; dict[str, Any]</code></div><p>Render the stored packet shape. Pure read — no composition.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import resume
+
+result = resume(project_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_artifact_source'><h3><code class='inline'>_artifact_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _artifact_source(project_id: int) -&gt; list[dict[str, Any]]</code></div><p>Return bounded canonical artifacts for resume views.
+
+ArtifactStore remains the source of truth; resume only projects a
+read-only, UI-sized slice of it. A store failure here (e.g. a
+corrupt row elsewhere in the table) must not fail the whole
+resume() call — same &quot;one bad source can&#x27;t take the rest down&quot;
+discipline as refresh(), just without the executor machinery since
+resume() has always been synchronous and has only ever had one
+thing to fetch until now.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _artifact_source
+
+result = _artifact_source(project_id=0)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_conversation_source'><h3><code class='inline'>_conversation_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _conversation_source(project_id: int) -&gt; dict[str, Any]</code></div><p>Project-scoped recent chat descriptors from the canonical chat ledger.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _conversation_source
+
+result = _conversation_source(project_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_deadline_source'><h3><code class='inline'>_deadline_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _deadline_source(project_id: int) -&gt; dict[str, Any]</code></div><p>Project-scoped current deadlines from the canonical deadline store.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _deadline_source
+
+result = _deadline_source(project_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_work_source'><h3><code class='inline'>_work_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _work_source(project_id: int) -&gt; dict[str, Any]</code></div><p>Return the Work snapshot scoped to this project&#x27;s Builder initiatives.
+
+``build_status_snapshot()`` is global (every initiative, every project);
+the filter here is the &quot;query the owning store by project scope&quot;
+discipline used everywhere else in resume() rather than teaching
+``work_projection`` about projects. Same &quot;one bad source can&#x27;t fail the
+whole resume()&quot; handling as ``_artifact_source``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _work_source
+
+result = _work_source(project_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_git_source'><h3><code class='inline'>_git_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _git_source(project: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _git_source
+
+result = _git_source(project=&quot;project_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_git'><h3><code class='inline'>_run_git</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _run_git(path: Path, args: list[str]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _run_git
+
+result = _run_git(path=&quot;path_example&quot;, args=&quot;args_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_memory_source'><h3><code class='inline'>_memory_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _memory_source(project: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _memory_source
+
+result = _memory_source(project=&quot;project_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_memory_search'><h3><code class='inline'>_run_memory_search</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _run_memory_search(query: str)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _run_memory_search
+
+result = _run_memory_search(query=&quot;query_example&quot;)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_signals_source'><h3><code class='inline'>_signals_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _signals_source(project: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _signals_source
+
+result = _signals_source(project=&quot;project_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_render_summary'><h3><code class='inline'>_render_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _render_summary(sources: dict[str, Any]) -&gt; str</code></div><p>Mechanical, no-LLM summary line. See module docstring on v1 scope.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.project_resume import _render_summary
+
+result = _render_summary(sources=&quot;sources_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SOURCE_TIMEOUT_SECONDS</code></td><td><code class='inline'>10.0</code></td></tr><tr><td><code class='inline'>GIT_TIMEOUT_SECONDS</code></td><td><code class='inline'>4.0</code></td></tr><tr><td><code class='inline'>SIGNAL_SCAN_LIMIT</code></td><td><code class='inline'>200</code></td></tr><tr><td><code class='inline'>ARTIFACT_LIMIT</code></td><td><code class='inline'>20</code></td></tr><tr><td><code class='inline'>CONVERSATION_LIMIT</code></td><td><code class='inline'>10</code></td></tr><tr><td><code class='inline'>DEADLINE_LIMIT</code></td><td><code class='inline'>10</code></td></tr><tr><td><code class='inline'>GIT_LOG_LINES</code></td><td><code class='inline'>5</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

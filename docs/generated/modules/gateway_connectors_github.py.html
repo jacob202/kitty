@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.connectors.github — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.connectors.github</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.connectors.github</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/connectors/github.py</code> &middot; Python &middot; 3 functions &middot; 5 classes</p>
+<div class='card'><h2>Overview</h2><p>GitHub read-only connector (P5b, docs/packets/020).
+
+Polls GitHub for open PRs, their check-run status, new review comments, and
+open issues across configured repositories, emitting deduped signal rows.
+
+Scope: personal access token (classic) with `repo:read`. No write scopes.
+The connector only issues GET requests and refuses to construct any mutating
+call — see `GithubConnector` (there is no write path). Signal payloads carry
+repo / PR / issue / check / review summaries only; never diffs or bodies.
+Tokens are never logged: warnings name the repo and PR/issue number, not the
+credential.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.signal_store</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>requests</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_default_http_get'><code class='inline'>_default_http_get</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-is_configured'><code class='inline'>is_configured</code></a></td><td>True if GITHUB_TOKEN is set in the environment.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-poll_now'><code class='inline'>poll_now</code></a></td><td>Cron entry point: load token, poll, return a result dict.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-_default_http_get'><h3><code class='inline'>_default_http_get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _default_http_get(url: str, params: dict[str, str], headers: dict[str, str]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.github import _default_http_get
+
+result = _default_http_get(url=&quot;url_example&quot;, params=&quot;params_example&quot;, headers=&quot;headers_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_configured'><h3><code class='inline'>is_configured</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def is_configured() -&gt; bool</code></div><p>True if GITHUB_TOKEN is set in the environment.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.github import is_configured
+
+result = is_configured()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-poll_now'><h3><code class='inline'>poll_now</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def poll_now() -&gt; dict[str, Any]</code></div><p>Cron entry point: load token, poll, return a result dict.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.github import poll_now
+
+result = poll_now()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-GithubConnectorError'><code class='inline'>GithubConnectorError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-GithubAuthError'><code class='inline'>GithubAuthError</code></a></td><td>(GithubConnectorError)</td><td>0 methods</td></tr><tr><td><a href='#cls-GithubTransportError'><code class='inline'>GithubTransportError</code></a></td><td>(GithubConnectorError)</td><td>0 methods</td></tr><tr><td><a href='#cls-PollResult'><code class='inline'>PollResult</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-GithubConnector'><code class='inline'>GithubConnector</code></a></td><td></td><td>3 methods</td></tr></table></div>
+<div class='card' id='cls-GithubConnectorError'><h3><code class='inline'>GithubConnectorError</code></h3><p>Base for github-connector failures.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.connectors.github import GithubConnectorError
+
+obj = GithubConnectorError(...)</pre></div>
+<div class='card' id='cls-GithubAuthError'><h3><code class='inline'>GithubAuthError</code></h3><p>Token missing, invalid, or unauthorized.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.connectors.github import GithubAuthError
+
+obj = GithubAuthError(...)</pre></div>
+<div class='card' id='cls-GithubTransportError'><h3><code class='inline'>GithubTransportError</code></h3><p>GitHub returned non-200 or unexpected structure.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.connectors.github import GithubTransportError
+
+obj = GithubTransportError(...)</pre></div>
+<div class='card' id='cls-PollResult'><h3><code class='inline'>PollResult</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> new: int, deduped: int, errors: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, int]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.connectors.github import PollResult
+
+obj = PollResult(...)</pre></div>
+<div class='card' id='cls-GithubConnector'><h3><code class='inline'>GithubConnector</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> SOURCE</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, token: str, repos: list[str], http_get: Optional[HttpGet] = None, api_base: str = GITHUB_API_BASE) -&gt;</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_auth_headers</code></td><td><code class='inline'>def _auth_headers(self) -&gt; dict[str, str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>poll</code></td><td><code class='inline'>def poll(self) -&gt; PollResult</code></td><td><span class='pill'>complex</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+c
+o
+n
+n
+e
+c
+t
+o
+r
+s
+.
+g
+i
+t
+h
+u
+b
+ 
+i
+m
+p
+o
+r
+t
+ 
+G
+i
+t
+h
+u
+b
+C
+o
+n
+n
+e
+c
+t
+o
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+G
+i
+t
+h
+u
+b
+C
+o
+n
+n
+e
+c
+t
+o
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>GITHUB_API_BASE</code></td><td><code class='inline'>&#x27;https://api.github.com&#x27;</code></td></tr><tr><td><code class='inline'>GITHUB_DEFAULT_REPOS</code></td><td><code class='inline'>[&#x27;jacob202/kitty&#x27;]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_connectors_mail.py.html'><code class='inline'>gateway.connectors.mail</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

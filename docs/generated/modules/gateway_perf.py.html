@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.perf — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.perf</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.perf</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/perf.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Performance stats and metrics — owned substrate for the perf endpoint.
+
+Why this module exists (Phase 3 of the gateway deepening program):
+the route used to swallow every I/O error with a bare
+``except Exception: pass``, hiding real disk-write failures. The new
+module validates inputs, writes through ``paths.py``, and raises on
+failure so the route layer cannot mask a broken log.
+
+The wire shape of every endpoint that used to live in
+``routes/perf.py`` is unchanged. The route is now a thin
+request-parsing / response-shaping wrapper around these functions.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.cron</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_validate_stat'><code class='inline'>_validate_stat</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-log_perf_stat'><code class='inline'>log_perf_stat</code></a></td><td>Append one performance stat to ``PERF_LOG``.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_read_window'><code class='inline'>_read_window</code></a></td><td>Return perf stats from the last ``window_hours`` hours.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-get_perf_stats'><code class='inline'>get_perf_stats</code></a></td><td>Aggregate counts, latency, and token usage for the last N hours.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-get_recent_stats'><code class='inline'>get_recent_stats</code></a></td><td>Return the most recent ``limit`` perf stats (newest first).</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_parse_ts'><code class='inline'>_parse_ts</code></a></td><td>Coerce a JSON token-log ``ts`` field to seconds since epoch.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_per_tier_stats'><code class='inline'>get_per_tier_stats</code></a></td><td>Aggregate token-usage rows by tier from the JSONL token log.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr></table></div>
+<div class='card' id='fn-_validate_stat'><h3><code class='inline'>_validate_stat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _validate_stat(stat: Any) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.perf import _validate_stat
+
+result = _validate_stat(stat=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-log_perf_stat'><h3><code class='inline'>log_perf_stat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def log_perf_stat(stat: dict) -&gt; None</code></div><p>Append one performance stat to ``PERF_LOG``.
+
+Raises on any I/O failure.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.perf import log_perf_stat
+
+result = log_perf_stat(stat={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_window'><h3><code class='inline'>_read_window</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _read_window(window_hours: int) -&gt; list[dict]</code></div><p>Return perf stats from the last ``window_hours`` hours.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.perf import _read_window
+
+result = _read_window(window_hours=0)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_perf_stats'><h3><code class='inline'>get_perf_stats</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def get_perf_stats(window_hours: int = 24) -&gt; dict</code></div><p>Aggregate counts, latency, and token usage for the last N hours.
+
+Empty when no data has been written. Never returns mock data.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.perf import get_perf_stats
+
+result = get_perf_stats(window_hours=0  # default: 24)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_recent_stats'><h3><code class='inline'>get_recent_stats</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def get_recent_stats(limit: int = 50) -&gt; dict</code></div><p>Return the most recent ``limit`` perf stats (newest first).
+
+Empty when no data has been written. Never returns mock data.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.perf import get_recent_stats
+
+result = get_recent_stats(limit=0  # default: 50)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_ts'><h3><code class='inline'>_parse_ts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _parse_ts(raw: object) -&gt; float</code></div><p>Coerce a JSON token-log ``ts`` field to seconds since epoch.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.perf import _parse_ts
+
+result = _parse_ts(raw=...)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_per_tier_stats'><h3><code class='inline'>get_per_tier_stats</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def get_per_tier_stats(window_hours: int = 24) -&gt; dict[str, dict[str, int]]</code></div><p>Aggregate token-usage rows by tier from the JSONL token log.
+
+Returns a dict keyed by tier name with count, prompt tokens, and
+completion tokens. Empty dict when no tier-tagged data exists.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.perf import get_per_tier_stats
+
+result = get_per_tier_stats(window_hours=0  # default: 24)
+# result: dict[str, dict[str, int]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>PERF_LOG</code></td><td><code class='inline'>DATA_DIR / &#x27;perf_stats.jsonl&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

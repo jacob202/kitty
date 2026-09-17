@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.character_lock — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.character_lock</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.character_lock</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/character_lock.py</code> &middot; Python &middot; 6 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Single-reference character lock — one approved photo per character, fail-closed.
+
+A character&#x27;s identity reference is not &quot;whatever is in the faces directory
+today&quot; — it is exactly the file recorded in ``reference.lock.json``, verified
+by SHA-256 on every read. Any drift (missing lock, missing file, changed
+bytes, undecodable image) blocks rather than silently substituting a
+different photo. Locks live under ``settings.character_locks_dir`` (default
+``~/kitty-services/faces``), outside the git-tracked repo.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>PIL</code>, <code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>pathlib</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-lock_path'><code class='inline'>lock_path</code></a></td><td>Where ``character``&#x27;s lock file lives.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-locked_reference_path'><code class='inline'>locked_reference_path</code></a></td><td>Return the verified canonical reference path for ``character``.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-resolve_locked_reference'><code class='inline'>resolve_locked_reference</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-create_lock'><code class='inline'>create_lock</code></a></td><td>Write ``reference.lock.json`` for ``character`` pointing at ``source_path``.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_sha256_file'><code class='inline'>_sha256_file</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_decode_dimensions'><code class='inline'>_decode_dimensions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-lock_path'><h3><code class='inline'>lock_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def lock_path(character: str) -&gt; Path</code></div><p>Where ``character``&#x27;s lock file lives.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.character_lock import lock_path
+
+result = lock_path(character=&quot;character_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-locked_reference_path'><h3><code class='inline'>locked_reference_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def locked_reference_path(character: str) -&gt; Path</code></div><p>Return the verified canonical reference path for ``character``.
+
+Raises ``CharacterLockError`` (fail closed) on any lock, file, or
+integrity problem — never falls back to another image.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.character_lock import locked_reference_path
+
+result = locked_reference_path(character=&quot;character_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resolve_locked_reference'><h3><code class='inline'>resolve_locked_reference</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def resolve_locked_reference(character: str) -&gt; LockedReference</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.character_lock import resolve_locked_reference
+
+result = resolve_locked_reference(character=&quot;character_example&quot;)
+# result: LockedReference</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_lock'><h3><code class='inline'>create_lock</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def create_lock(character: str, source_path: Path | str) -&gt; LockedReference</code></div><p>Write ``reference.lock.json`` for ``character`` pointing at ``source_path``.
+
+SHA-256 and dimensions are computed from the file itself, so the lock is
+always internally consistent at creation time. Does not copy the photo —
+the lock records a path, the photo stays wherever it already lives.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.character_lock import create_lock
+
+result = create_lock(character=&quot;character_example&quot;, source_path=&quot;source_path_example&quot;)
+# result: LockedReference</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_sha256_file'><h3><code class='inline'>_sha256_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _sha256_file(path: Path) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.character_lock import _sha256_file
+
+result = _sha256_file(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decode_dimensions'><h3><code class='inline'>_decode_dimensions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _decode_dimensions(path: Path, character: str) -&gt; tuple[int, int]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.character_lock import _decode_dimensions
+
+result = _decode_dimensions(path=&quot;path_example&quot;, character=&quot;character_example&quot;)
+# result: tuple[int, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-CharacterLockError'><code class='inline'>CharacterLockError</code></a></td><td>(Exception)</td><td>0 methods</td></tr><tr><td><a href='#cls-LockedReference'><code class='inline'>LockedReference</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-CharacterLockError'><h3><code class='inline'>CharacterLockError</code></h3><p>Reference lock missing, broken, or tampered with — never fall back.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.character_lock import CharacterLockError
+
+obj = CharacterLockError(...)</pre></div>
+<div class='card' id='cls-LockedReference'><h3><code class='inline'>LockedReference</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> character: str, path: Path, sha256: str, width: int, height: int</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.character_lock import LockedReference
+
+obj = LockedReference(...)</pre></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_benchmark.py.html'><code class='inline'>mcp.imagen.benchmark</code></a></li><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_config.py.html'><code class='inline'>mcp.imagen.config</code></a></li><li><a href='mcp_imagen_engines.py.html'><code class='inline'>mcp.imagen.engines</code></a></li><li><a href='mcp_imagen_face_match.py.html'><code class='inline'>mcp.imagen.face_match</code></a></li><li><a href='mcp_imagen_io.py.html'><code class='inline'>mcp.imagen.io</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_retry.py.html'><code class='inline'>mcp.imagen.retry</code></a></li><li><a href='mcp_imagen_server.py.html'><code class='inline'>mcp.imagen.server</code></a></li><li><a href='mcp_imagen_tools.py.html'><code class='inline'>mcp.imagen.tools</code></a></li><li><a href='mcp_imagen_verify.py.html'><code class='inline'>mcp.imagen.verify</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>
