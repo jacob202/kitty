@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.models.builder — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.models.builder</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.models.builder</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/models/builder.py</code> &middot; Python &middot; 0 functions &middot; 10 classes</p>
+<div class='card'><h2>Overview</h2><p>Pydantic models for the KittyBuilder control plane.
+
+Models define Builder operator, worker-result, and agent-dispatch contracts.
+The executable Mission contract is the canonical initiative manifest validated by
+``gateway.builder_initiative`` rather than a parallel Pydantic dialect.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>enum</code>, <code class='inline'>pydantic</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-AgentPreset'><code class='inline'>AgentPreset</code></a></td><td>(str, Enum)</td><td>0 methods</td></tr><tr><td><a href='#cls-ContextTier'><code class='inline'>ContextTier</code></a></td><td>(str, Enum)</td><td>0 methods</td></tr><tr><td><a href='#cls-BuilderCommandRequest'><code class='inline'>BuilderCommandRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-WorkerContextBundle'><code class='inline'>WorkerContextBundle</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-WorkerContract'><code class='inline'>WorkerContract</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-ReviewContract'><code class='inline'>ReviewContract</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-AttemptResult'><code class='inline'>AttemptResult</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-AgentPresetConfig'><code class='inline'>AgentPresetConfig</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-AgentDispatchRequest'><code class='inline'>AgentDispatchRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-AgentDispatchResult'><code class='inline'>AgentDispatchResult</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-AgentPreset'><h3><code class='inline'>AgentPreset</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> explorer, planner, coder, reviewer, researcher</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import AgentPreset
+
+obj = AgentPreset(...)</pre></div>
+<div class='card' id='cls-ContextTier'><h3><code class='inline'>ContextTier</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> trivial, standard, deep</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import ContextTier
+
+obj = ContextTier(...)</pre></div>
+<div class='card' id='cls-BuilderCommandRequest'><h3><code class='inline'>BuilderCommandRequest</code></h3><p>Canonical request shape for Kitty&#x27;s Builder operator controls.
+
+The command route owns transport-specific response and audit behavior;
+Builder state remains behind the canonical command boundary.</p><p class='small'><b>Attributes:</b> action: str, task_id: str | None, initiative_id: str | None, packet_id: str | None, reason: str | None, actor: str | None, expected_version: int | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import BuilderCommandRequest
+
+obj = BuilderCommandRequest(...)</pre></div>
+<div class='card' id='cls-WorkerContextBundle'><h3><code class='inline'>WorkerContextBundle</code></h3><p>The structured context injected into a builder worker environment.</p><p class='small'><b>Attributes:</b> task_id: str, run_id: str, branch: str, brief_path: str | None, bundle_path: str | None, result_path: str | None, context_manifest_path: str | None, attempt_id: str | None, agent_preset: AgentPreset | None, model: str | None, provider: str | None, tier: ContextTier, allowed_paths: list[str], acceptance_criteria: list[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import WorkerContextBundle
+
+obj = WorkerContextBundle(...)</pre></div>
+<div class='card' id='cls-WorkerContract'><h3><code class='inline'>WorkerContract</code></h3><p>Contract a worker writes to KB_RESULT_PATH after execution.</p><p class='small'><b>Attributes:</b> status: str, summary: str | None, diff_summary: str | None, changed_paths: list[str], validation_results: list[dict[str, Any]], claims: list[dict[str, Any]], errors: list[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import WorkerContract
+
+obj = WorkerContract(...)</pre></div>
+<div class='card' id='cls-ReviewContract'><h3><code class='inline'>ReviewContract</code></h3><p>Contract a reviewer writes to KB_REVIEW_RESULT_PATH.</p><p class='small'><b>Attributes:</b> verdict: str, summary: str | None, findings: list[dict[str, Any]]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import ReviewContract
+
+obj = ReviewContract(...)</pre></div>
+<div class='card' id='cls-AttemptResult'><h3><code class='inline'>AttemptResult</code></h3><p>Structured outcome of a single packet attempt.</p><p class='small'><b>Attributes:</b> attempt_id: int, attempt_no: int, outcome: str, run_id: str | None, run_state: str | None, exit_code: int | None, implementation_status: str | None, validation_status: str | None, review_verdict: str | None, failure: str | None, changed_paths: list[str], scope_violations: list[str], identity_findings: list[dict[str, Any]]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import AttemptResult
+
+obj = AttemptResult(...)</pre></div>
+<div class='card' id='cls-AgentPresetConfig'><h3><code class='inline'>AgentPresetConfig</code></h3><p>Configuration for an agent preset that can be dispatched by the builder.</p><p class='small'><b>Attributes:</b> preset: AgentPreset, description: str, system_prompt: str, model: str | None, max_iterations: int, temperature: float, tier: ContextTier, timeout_seconds: int</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import AgentPresetConfig
+
+obj = AgentPresetConfig(...)</pre></div>
+<div class='card' id='cls-AgentDispatchRequest'><h3><code class='inline'>AgentDispatchRequest</code></h3><p>Request to dispatch an agent via the companion wiring.</p><p class='small'><b>Attributes:</b> goal: str, preset: AgentPreset, task_id: str | None, run_id: str | None, extra_context: str | None, model: str | None, max_iterations: int | None, temperature: float | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import AgentDispatchRequest
+
+obj = AgentDispatchRequest(...)</pre></div>
+<div class='card' id='cls-AgentDispatchResult'><h3><code class='inline'>AgentDispatchResult</code></h3><p>Result from dispatching an agent.</p><p class='small'><b>Attributes:</b> session_id: int, preset: AgentPreset, goal: str, status: str, output: str | None, error: str | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.models.builder import AgentDispatchResult
+
+obj = AgentDispatchResult(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

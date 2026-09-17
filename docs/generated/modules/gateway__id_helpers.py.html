@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway._id_helpers — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway._id_helpers</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway._id_helpers</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/_id_helpers.py</code> &middot; Python &middot; 2 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Shared ID-generation helpers.
+
+Lifted out of ``gateway.builder_queue`` and ``gateway.builder_queue_runs``
+during the §2.2 third-cut cleanup to remove the duplicated ``_to_base36``
+helper. Public utility: callers pick the bits they need.
+
+No cycle dependency on any other gateway module (does not import
+``gateway.builder_queue`` or any sibling). Safe to import from any
+gateway submodule.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>secrets</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-to_base36'><code class='inline'>to_base36</code></a></td><td>Encode a non-negative integer as lowercase base36 (no leading zeros).</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-generate_id_with_base36'><code class='inline'>generate_id_with_base36</code></a></td><td>Return ``&lt;prefix&gt;_&lt;base36_unix_ms&gt;_&lt;hex4&gt;`` (time-sortable ID).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-to_base36'><h3><code class='inline'>to_base36</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def to_base36(n: int) -&gt; str</code></div><p>Encode a non-negative integer as lowercase base36 (no leading zeros).</p><h3>Example Usage (synthetic)</h3><pre>from gateway._id_helpers import to_base36
+
+result = to_base36(n=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_id_with_base36'><h3><code class='inline'>generate_id_with_base36</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def generate_id_with_base36(prefix: str) -&gt; str</code></div><p>Return ``&lt;prefix&gt;_&lt;base36_unix_ms&gt;_&lt;hex4&gt;`` (time-sortable ID).
+
+``base36`` of the millisecond timestamp keeps the ID compact and
+monotonically increasing on a single machine; ``hex4`` adds 16 bits of
+local disambiguation so two creates in the same millisecond do not
+collide in practice.</p><h3>Example Usage (synthetic)</h3><pre>from gateway._id_helpers import generate_id_with_base36
+
+result = generate_id_with_base36(prefix=&quot;prefix_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_BASE36_DIGITS</code></td><td><code class='inline'>&#x27;0123456789abcdefghijklmnopqrstuvwxyz&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li><li><a href='gateway_agent_runner.py.html'><code class='inline'>gateway.agent_runner</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

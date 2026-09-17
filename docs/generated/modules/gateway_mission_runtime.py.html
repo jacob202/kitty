@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.mission_runtime — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.mission_runtime</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.mission_runtime</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/mission_runtime.py</code> &middot; Python &middot; 20 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Mission wake/review adapter over existing Automation and free DSH seams.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>hashlib</code>, <code class='inline'>httpx</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>mcp.builder</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_parse_review_json'><code class='inline'>_parse_review_json</code></a></td><td>Parse one reviewer contract despite harmless model framing text.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-register_action'><code class='inline'>register_action</code></a></td><td>Register Mission review through the existing Automation action registry.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_pending_missions'><code class='inline'>_pending_missions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-review_pending_action'><code class='inline'>review_pending_action</code></a></td><td>Review one requested or the oldest pending Mission without owning a scheduler.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-request_plan_review'><code class='inline'>request_plan_review</code></a></td><td>Dispatch one exact plan review through durable Automation authority.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-request_pending_reviews'><code class='inline'>request_pending_reviews</code></a></td><td>Restart recovery for plan review and finished Builder result binding.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_hex_digest'><code class='inline'>_hex_digest</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_candidate_provenance_digest'><code class='inline'>_candidate_provenance_digest</code></a></td><td>Bind acceptance to the exact artifact and reviewed source revision.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_reviewed_builder_result'><code class='inline'>_reviewed_builder_result</code></a></td><td>Resolve and re-hash the exact independently reviewed Builder result artifact.</td><td><span class='pill'>complex</span><span class='muted small'>(33)</span></td></tr><tr><td><a href='#fn-reconcile_result_candidate'><code class='inline'>reconcile_result_candidate</code></a></td><td>Bind finished reviewed Builder work as the exact Mission candidate, never acceptance.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-reconcile_result_candidate_background'><code class='inline'>reconcile_result_candidate_background</code></a></td><td>Reconcile from a background task without losing the reason it failed.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_validated_running_product_evidence'><code class='inline'>_validated_running_product_evidence</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(19)</span></td></tr><tr><td><a href='#fn-_runtime_port'><code class='inline'>_runtime_port</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_gateway_runtime_manifest'><code class='inline'>_gateway_runtime_manifest</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_running_product_runtime_identity'><code class='inline'>_running_product_runtime_identity</code></a></td><td>Prove the actual Gateway/UI listeners are serving the reviewed candidate.</td><td><span class='pill'>complex</span><span class='muted small'>(26)</span></td></tr><tr><td><a href='#fn-acceptance_readiness'><code class='inline'>acceptance_readiness</code></a></td><td>Can this Mission be accepted right now, and if not, exactly what is missing.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-record_running_product_acceptance'><code class='inline'>record_running_product_acceptance</code></a></td><td>Trusted local-operator boundary for exact running-product acceptance.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-review_plan'><code class='inline'>review_plan</code></a></td><td>Run one independent verifier and bind its verdict to the exact plan digest.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_plan_review_prompt'><code class='inline'>_plan_review_prompt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-run_plan_verifier'><code class='inline'>run_plan_verifier</code></a></td><td>Ask Builder to execute one independent read-only review of this exact plan.</td><td><span class='pill'>complex</span><span class='muted small'>(17)</span></td></tr></table></div>
+<div class='card' id='fn-_parse_review_json'><h3><code class='inline'>_parse_review_json</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _parse_review_json(raw: str) -&gt; Any</code></div><p>Parse one reviewer contract despite harmless model framing text.
+
+Free routes occasionally wrap an otherwise valid final JSON object in a
+sentence even when told not to. Accept one unambiguous object, but reject
+multiple JSON objects so contradictory verdicts can never be guessed at.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _parse_review_json
+
+result = _parse_review_json(raw=&quot;raw_example&quot;)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-register_action'><h3><code class='inline'>register_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def register_action() -&gt; None</code></div><p>Register Mission review through the existing Automation action registry.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import register_action
+
+result = register_action()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_pending_missions'><h3><code class='inline'>_pending_missions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _pending_missions() -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _pending_missions
+
+result = _pending_missions()
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-review_pending_action'><h3><code class='inline'>review_pending_action</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def review_pending_action(payload: dict[str, Any]) -&gt; automation_actions.ActionResult</code></div><p>Review one requested or the oldest pending Mission without owning a scheduler.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.mission_runtime import review_pending_action
+
+    result = await review_pending_action()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-request_plan_review'><h3><code class='inline'>request_plan_review</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>async def request_plan_review(mission_id: str) -&gt; dict[str, Any]</code></div><p>Dispatch one exact plan review through durable Automation authority.
+
+A live run for this Mission is reused rather than spawning another model
+invocation. Terminal outages are intentionally retriable: the next proposal
+replay or Gateway startup may create a fresh Automation run.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.mission_runtime import request_plan_review
+
+    result = await request_plan_review()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-request_pending_reviews'><h3><code class='inline'>request_pending_reviews</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def request_pending_reviews() -&gt; list[dict[str, Any]]</code></div><p>Restart recovery for plan review and finished Builder result binding.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.mission_runtime import request_pending_reviews
+
+    result = await request_pending_reviews()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_hex_digest'><h3><code class='inline'>_hex_digest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _hex_digest(value: Any, length: int) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _hex_digest
+
+result = _hex_digest(value=..., length=0)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_candidate_provenance_digest'><h3><code class='inline'>_candidate_provenance_digest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _candidate_provenance_digest(candidate: dict[str, str]) -&gt; str</code></div><p>Bind acceptance to the exact artifact and reviewed source revision.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _candidate_provenance_digest
+
+result = _candidate_provenance_digest(candidate=&quot;candidate_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reviewed_builder_result'><h3><code class='inline'>_reviewed_builder_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (33)</span></h3><div class='sig'><code>def _reviewed_builder_result(mission: dict[str, Any]) -&gt; dict[str, Any] | None</code></div><p>Resolve and re-hash the exact independently reviewed Builder result artifact.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _reviewed_builder_result
+
+result = _reviewed_builder_result(mission=&quot;mission_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reconcile_result_candidate'><h3><code class='inline'>reconcile_result_candidate</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def reconcile_result_candidate(mission_id: str) -&gt; dict[str, Any]</code></div><p>Bind finished reviewed Builder work as the exact Mission candidate, never acceptance.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import reconcile_result_candidate
+
+result = reconcile_result_candidate(mission_id=&quot;mission_id_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reconcile_result_candidate_background'><h3><code class='inline'>reconcile_result_candidate_background</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def reconcile_result_candidate_background(mission_id: str) -&gt; dict[str, Any]</code></div><p>Reconcile from a background task without losing the reason it failed.
+
+A background task&#x27;s return value and exception both go nowhere. The caller
+has already been answered, so the only honest place to leave the cause is on
+the Mission itself, where the next status read can say it out loud.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import reconcile_result_candidate_background
+
+result = reconcile_result_candidate_background(mission_id=&quot;mission_id_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validated_running_product_evidence'><h3><code class='inline'>_validated_running_product_evidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (19)</span></h3><div class='sig'><code>def _validated_running_product_evidence(evidence: dict[str, Any], verdict: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _validated_running_product_evidence
+
+result = _validated_running_product_evidence(evidence=&quot;evidence_example&quot;, verdict=&quot;verdict_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_runtime_port'><h3><code class='inline'>_runtime_port</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _runtime_port(name: str, default: int) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _runtime_port
+
+result = _runtime_port(name=&quot;name_example&quot;, default=0)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_gateway_runtime_manifest'><h3><code class='inline'>_gateway_runtime_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _gateway_runtime_manifest(port: int) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _gateway_runtime_manifest
+
+result = _gateway_runtime_manifest(port=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_running_product_runtime_identity'><h3><code class='inline'>_running_product_runtime_identity</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (26)</span></h3><div class='sig'><code>def _running_product_runtime_identity(expected_review_sha: str) -&gt; dict[str, Any]</code></div><p>Prove the actual Gateway/UI listeners are serving the reviewed candidate.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _running_product_runtime_identity
+
+result = _running_product_runtime_identity(expected_review_sha=&quot;expected_review_sha_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-acceptance_readiness'><h3><code class='inline'>acceptance_readiness</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def acceptance_readiness(mission: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Can this Mission be accepted right now, and if not, exactly what is missing.
+
+Asserts nothing and changes nothing — it runs the same provenance and runtime
+identity checks acceptance runs, and reports the first one that fails. That
+keeps the operator&#x27;s &quot;why not&quot; answer and the acceptance gate itself from
+drifting apart.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import acceptance_readiness
+
+result = acceptance_readiness(mission=&quot;mission_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_running_product_acceptance'><h3><code class='inline'>record_running_product_acceptance</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def record_running_product_acceptance(mission_id: str, candidate_ref: str, candidate_digest: str, verdict: str, evidence: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Trusted local-operator boundary for exact running-product acceptance.
+
+This is deliberately not exposed as normal Gateway HTTP authority. Reviewer
+identity, runtime checkout identity, data-root identity, and artifact
+provenance are derived here rather than accepted from a product client.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import record_running_product_acceptance
+
+result = record_running_product_acceptance(mission_id=&quot;mission_id_example&quot;, candidate_ref=&quot;candidate_ref_example&quot;, candidate_digest=&quot;candidate_digest_example&quot;, verdict=&quot;verdict_example&quot;, evidence=&quot;evidence_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-review_plan'><h3><code class='inline'>review_plan</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def review_plan(mission_id: str) -&gt; dict[str, Any]</code></div><p>Run one independent verifier and bind its verdict to the exact plan digest.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import review_plan
+
+result = review_plan(mission_id=&quot;mission_id_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_plan_review_prompt'><h3><code class='inline'>_plan_review_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _plan_review_prompt(mission: dict[str, Any]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import _plan_review_prompt
+
+result = _plan_review_prompt(mission=&quot;mission_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_plan_verifier'><h3><code class='inline'>run_plan_verifier</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (17)</span></h3><div class='sig'><code>def run_plan_verifier(mission: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Ask Builder to execute one independent read-only review of this exact plan.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_runtime import run_plan_verifier
+
+result = run_plan_verifier(mission=&quot;mission_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-PlanVerifierUnavailable'><code class='inline'>PlanVerifierUnavailable</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ResultCandidateUnavailable'><code class='inline'>ResultCandidateUnavailable</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-PlanVerifierUnavailable'><h3><code class='inline'>PlanVerifierUnavailable</code></h3><p>No trustworthy zero-cost independent plan verifier is available.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.mission_runtime import PlanVerifierUnavailable
+
+obj = PlanVerifierUnavailable(...)</pre></div>
+<div class='card' id='cls-ResultCandidateUnavailable'><h3><code class='inline'>ResultCandidateUnavailable</code></h3><p>The exact reviewed Builder result cannot be bound as a Mission candidate.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.mission_runtime import ResultCandidateUnavailable
+
+obj = ResultCandidateUnavailable(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ACTION_NAME</code></td><td><code class='inline'>&#x27;mission.review_pending&#x27;</code></td></tr><tr><td><code class='inline'>_REVIEW_TIMEOUT_SECONDS</code></td><td><code class='inline'>240</code></td></tr><tr><td><code class='inline'>_LOCAL_ACCEPTANCE_REVIEWER_ID</code></td><td><code class='inline'>&#x27;local:r3-running-product-operator&#x27;</code></td></tr><tr><td><code class='inline'>_RESULT_CANDIDATE_ACTIVE_STATUSES</code></td><td><code class='inline'>(&#x27;EXECUTING&#x27;, &#x27;VERIFYING&#x27;, &#x27;REPAIRING&#x27;)</code></td></tr><tr><td><code class='inline'>REQUIRED_RUNNING_STATES</code></td><td><code class='inline'>(&#x27;desktop&#x27;, &#x27;iphone_class&#x27;, &#x27;happy&#x27;, &#x27;degraded&#x27;, &#x27;reload&#x27;, &#x27;recovery&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.engines.adapters — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.engines.adapters</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.engines.adapters</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/engines/adapters.py</code> &middot; Python &middot; 0 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Adapter interface for local image-generation servers (Packet 025).
+
+An adapter isolates the transport (HTTP to Draw Things / A1111 / ComfyUI) from
+the engine so it can be swapped for a mock in unit tests without a running
+server or a ~7GB model download. The local-first pipeline talks only to this
+interface; the live HTTP adapter is the only place that knows about ``httpx``.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>base64</code>, <code class='inline'>httpx</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ImagegenAdapter'><code class='inline'>ImagegenAdapter</code></a></td><td>(Protocol)</td><td>2 methods</td></tr><tr><td><a href='#cls-DrawThingsHttpAdapter'><code class='inline'>DrawThingsHttpAdapter</code></a></td><td></td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-ImagegenAdapter'><h3><code class='inline'>ImagegenAdapter</code></h3><p>Transport to a local A1111-compatible image server.
+
+``txt2img`` / ``img2img`` take a standard A1111 JSON payload and return the
+generated images as raw bytes. The Draw Things engine builds the payload;
+the adapter owns the network call, so a mock adapter can stand in for a
+real server in tests.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>txt2img</code></td><td><code class='inline'>def txt2img(self, payload: dict) -&gt; list[bytes]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>img2img</code></td><td><code class='inline'>def img2img(self, payload: dict) -&gt; list[bytes]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from mcp.imagen.engines.adapters import ImagegenAdapter
+
+obj = ImagegenAdapter(...)</pre></div>
+<div class='card' id='cls-DrawThingsHttpAdapter'><h3><code class='inline'>DrawThingsHttpAdapter</code></h3><p>Talks to a Draw Things / A1111 server over HTTP via httpx.
+
+Draw Things exposes an A1111-compatible API (Settings → enable API Server).
+Because it is plain A1111 protocol, the same adapter works against any
+A1111 / Forge / SD.Next box — point ``base_url`` at a RunPod/Vast pod for
+the metered tier, no extra code.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, base_url: str, timeout: float = 120.0) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>is_available</code></td><td><code class='inline'>def is_available(self) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_post</code></td><td><code class='inline'>def _post(self, endpoint: str, payload: dict) -&gt; list[bytes]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>txt2img</code></td><td><code class='inline'>def txt2img(self, payload: dict) -&gt; list[bytes]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>img2img</code></td><td><code class='inline'>def img2img(self, payload: dict) -&gt; list[bytes]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+m
+c
+p
+.
+i
+m
+a
+g
+e
+n
+.
+e
+n
+g
+i
+n
+e
+s
+.
+a
+d
+a
+p
+t
+e
+r
+s
+ 
+i
+m
+p
+o
+r
+t
+ 
+D
+r
+a
+w
+T
+h
+i
+n
+g
+s
+H
+t
+t
+p
+A
+d
+a
+p
+t
+e
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+D
+r
+a
+w
+T
+h
+i
+n
+g
+s
+H
+t
+t
+p
+A
+d
+a
+p
+t
+e
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_engines_airforce.py.html'><code class='inline'>mcp.imagen.engines.airforce</code></a></li><li><a href='mcp_imagen_engines_base.py.html'><code class='inline'>mcp.imagen.engines.base</code></a></li><li><a href='mcp_imagen_engines_comfyui.py.html'><code class='inline'>mcp.imagen.engines.comfyui</code></a></li><li><a href='mcp_imagen_engines_dalle.py.html'><code class='inline'>mcp.imagen.engines.dalle</code></a></li><li><a href='mcp_imagen_engines_drawthings.py.html'><code class='inline'>mcp.imagen.engines.drawthings</code></a></li><li><a href='mcp_imagen_engines_fal.py.html'><code class='inline'>mcp.imagen.engines.fal</code></a></li><li><a href='mcp_imagen_engines_imagen4.py.html'><code class='inline'>mcp.imagen.engines.imagen4</code></a></li><li><a href='mcp_imagen_engines_nano_banana.py.html'><code class='inline'>mcp.imagen.engines.nano_banana</code></a></li><li><a href='mcp_imagen_engines_runware.py.html'><code class='inline'>mcp.imagen.engines.runware</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

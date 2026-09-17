@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.next_step — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.next_step</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.next_step</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/next_step.py</code> &middot; Python &middot; 11 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Next-step navigator — one curated &quot;B&quot; per project (P4, docs/packets/016).
+
+generate(project_id) asks an LLM for exactly one concrete next step from a
+project&#x27;s already-composed resume() state — the &quot;B&quot; in Jacob&#x27;s &quot;I know A,
+I know Z, I just need to know B.&quot; Deliberately narrower than 021&#x27;s
+next_actions_json (mechanical top-3, no LLM): &quot;B&quot; is a single LLM-curated
+pick with its own lifecycle, stored in its own table so 021&#x27;s no-LLM
+guarantee for next_actions_json stays true.
+
+get(project_id) is a pure read. invalidate(project_id) clears the stored
+step so the next refresh regenerates instead of showing a stale one —
+exposed for whichever future surface resolves an action tied to a step
+(see docs/packets/016 &quot;too broad if&quot;: this packet does not auto-propose
+such actions, so nothing calls invalidate() automatically yet).
+
+Every project kind routes the same way. ADR 0022 retired the D10 local-only
+boundary, so the old &quot;code is cloud-ok, everything else defaults to
+health_admin&quot; split is gone — these prompts reach a cloud provider.
+
+Public API:
+  generate(project_id, llm_fn=None) -&gt; dict
+  get(project_id) -&gt; dict | None
+  invalidate(project_id) -&gt; None</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-generate'><code class='inline'>generate</code></a></td><td>Generate (or regenerate) the single next step for a project.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-get'><code class='inline'>get</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-invalidate'><code class='inline'>invalidate</code></a></td><td>Clear the stored step so the next refresh regenerates it fresh.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_row_to_step'><code class='inline'>_row_to_step</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_build_prompt'><code class='inline'>_build_prompt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_default_llm'><code class='inline'>_default_llm</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_load_preferences'><code class='inline'>_load_preferences</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_parse_response'><code class='inline'>_parse_response</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_is_self_development'><code class='inline'>_is_self_development</code></a></td><td>True if this code project is about Kitty itself (self-development).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-select_steps'><code class='inline'>select_steps</code></a></td><td>Select next steps with life-first ordering (ADR 0016).</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate'><h3><code class='inline'>generate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def generate(project_id: int, llm_fn: LlmFn | None = None) -&gt; dict[str, Any]</code></div><p>Generate (or regenerate) the single next step for a project.
+
+Does not call project_resume.refresh() itself — the caller refreshes
+first so this always works from the latest composed state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import generate
+
+result = generate(project_id=0, llm_fn=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get'><h3><code class='inline'>get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get(project_id: int) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import get
+
+result = get(project_id=0)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-invalidate'><h3><code class='inline'>invalidate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def invalidate(project_id: int) -&gt; None</code></div><p>Clear the stored step so the next refresh regenerates it fresh.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import invalidate
+
+result = invalidate(project_id=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_step'><h3><code class='inline'>_row_to_step</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _row_to_step(row: Any) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import _row_to_step
+
+result = _row_to_step(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_prompt'><h3><code class='inline'>_build_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _build_prompt(project: dict[str, Any], resumed: dict[str, Any]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import _build_prompt
+
+result = _build_prompt(project=&quot;project_example&quot;, resumed=&quot;resumed_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_default_llm'><h3><code class='inline'>_default_llm</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _default_llm(prompt: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import _default_llm
+
+result = _default_llm(prompt=&quot;prompt_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_preferences'><h3><code class='inline'>_load_preferences</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_preferences() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import _load_preferences
+
+result = _load_preferences()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_response'><h3><code class='inline'>_parse_response</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _parse_response(raw: str) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import _parse_response
+
+result = _parse_response(raw=&quot;raw_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_self_development'><h3><code class='inline'>_is_self_development</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _is_self_development(project: dict[str, Any]) -&gt; bool</code></div><p>True if this code project is about Kitty itself (self-development).
+
+Per ADR 0016 only code projects whose name indicates Kitty work are
+considered self-development and get the &quot;at most one&quot; cap when life
+project steps are available.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import _is_self_development
+
+result = _is_self_development(project=&quot;project_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-select_steps'><h3><code class='inline'>select_steps</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def select_steps(limit: int = 3) -&gt; list[dict[str, Any]]</code></div><p>Select next steps with life-first ordering (ADR 0016).
+
+Life projects (kind != &quot;code&quot;) are preferred over code projects when both
+have eligible stored steps.  At most one Kitty-self-development suggestion
+may surface while any life-project step is available.
+
+Returns the same dict shape as brief.py&#x27;s get_next_steps_section():
+project_id, project_name, step, why.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.next_step import select_steps
+
+result = select_steps(limit=0  # default: 3)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-NextStepError'><code class='inline'>NextStepError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-NextStepError'><h3><code class='inline'>NextStepError</code></h3><p>Raised when the model is unavailable or returns unusable output.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.next_step import NextStepError
+
+obj = NextStepError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>NEXT_STEP_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>_SYSTEM_PROMPT</code></td><td><code class='inline'>&#x27;You\&#x27;re Kitty: direct, honest, never flattering. For the project below, give exactly ONE concrete next step — small eno</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

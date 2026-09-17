@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.council — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.council</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.council</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/council.py</code> &middot; Python &middot; 8 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Council supervisor — classify, route to agents, then synthesize one answer.
+
+The Council does not execute work itself (per the product spec). It runs a fixed
+loop and ends with SYNTHESIZE so the user gets ONE coherent reply, not raw agent
+fragments:
+
+  ANALYZE     decompose input into tasks (split on newlines / &#x27;then&#x27;, not &#x27;and&#x27;)
+  ROUTE       score-based classify -&gt; dispatch each task to a specialist agent
+  VERIFY      flag empty/failed outputs (fail loud, never mask)
+  SYNTHESIZE  combine agent outputs into a single answer, tailored to user state
+
+The agent backend is injectable so the logic is testable without real model APIs.
+The default backend maps each agent role onto gateway.llm_client.call_llm and adds
+a synthesis pass.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>logging</code>, <code class='inline'>re</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-classify'><code class='inline'>classify</code></a></td><td>Return ``(category, agent, priority)`` by keyword score, not first match.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-decompose'><code class='inline'>decompose</code></a></td><td>Split input into task strings. v1: on newlines, &#x27;then&#x27;, and &#x27;;&#x27; — NOT &#x27;and&#x27;</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_default_backend'><code class='inline'>_default_backend</code></a></td><td>Map each agent role to a model hint and call the gateway LLM hub.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-council_route'><code class='inline'>council_route</code></a></td><td>ANALYZE -&gt; ROUTE -&gt; VERIFY -&gt; SYNTHESIZE. Returns one final answer + raw results.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_is_greeting'><code class='inline'>_is_greeting</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_is_referent_only'><code class='inline'>_is_referent_only</code></a></td><td>True when a segment leans on a weak referent and names no concrete object.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_is_answer_ok'><code class='inline'>_is_answer_ok</code></a></td><td>A usable answer, not a clarification question or refusal.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_verify'><code class='inline'>_verify</code></a></td><td>Flag empty/failed outputs (fail loud, never mask).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-classify'><h3><code class='inline'>classify</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def classify(task: str) -&gt; tuple[str, str, str]</code></div><p>Return ``(category, agent, priority)`` by keyword score, not first match.
+
+Ties that include a Claude (synthesis) category resolve to Claude, so
+&quot;explain the code&quot; or &quot;fix the docs&quot; reach planning, not a code agent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.council import classify
+
+result = classify(task=&quot;task_example&quot;)
+# result: tuple[str, str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-decompose'><h3><code class='inline'>decompose</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def decompose(user_input: str) -&gt; list[str]</code></div><p>Split input into task strings. v1: on newlines, &#x27;then&#x27;, and &#x27;;&#x27; — NOT &#x27;and&#x27;
+(coordinating conjunctions usually join a single task, not two).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.council import decompose
+
+result = decompose(user_input=&quot;user_input_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_default_backend'><h3><code class='inline'>_default_backend</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _default_backend() -&gt; AgentBackend</code></div><p>Map each agent role to a model hint and call the gateway LLM hub.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.council import _default_backend
+
+result = _default_backend()
+# result: AgentBackend</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-council_route'><h3><code class='inline'>council_route</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def council_route(user_input: str, backend: AgentBackend | None = None, state: str | None = None) -&gt; CouncilOutput</code></div><p>ANALYZE -&gt; ROUTE -&gt; VERIFY -&gt; SYNTHESIZE. Returns one final answer + raw results.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.council import council_route
+
+result = council_route(user_input=&quot;user_input_example&quot;, backend=...  # default: None, state=&quot;state_example&quot;  # default: None)
+# result: CouncilOutput</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_greeting'><h3><code class='inline'>_is_greeting</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _is_greeting(text: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.council import _is_greeting
+
+result = _is_greeting(text=&quot;text_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_referent_only'><h3><code class='inline'>_is_referent_only</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _is_referent_only(task: str) -&gt; bool</code></div><p>True when a segment leans on a weak referent and names no concrete object.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.council import _is_referent_only
+
+result = _is_referent_only(task=&quot;task_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_answer_ok'><h3><code class='inline'>_is_answer_ok</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _is_answer_ok(text: str) -&gt; bool</code></div><p>A usable answer, not a clarification question or refusal.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.council import _is_answer_ok
+
+result = _is_answer_ok(text=&quot;text_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_verify'><h3><code class='inline'>_verify</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _verify(results: list[TaskResult]) -&gt; list[TaskResult]</code></div><p>Flag empty/failed outputs (fail loud, never mask).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.council import _verify
+
+result = _verify(results=[])
+# result: list[TaskResult]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-TaskDispatch'><code class='inline'>TaskDispatch</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-TaskResult'><code class='inline'>TaskResult</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-CouncilOutput'><code class='inline'>CouncilOutput</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-AgentBackend'><code class='inline'>AgentBackend</code></a></td><td>(Protocol)</td><td>2 methods</td></tr></table></div>
+<div class='card' id='cls-TaskDispatch'><h3><code class='inline'>TaskDispatch</code></h3><p>The only contract an agent receives. Self-contained by design.</p><p class='small'><b>Attributes:</b> task_id: str, priority: str, assigned_to: str, instructions: str, context: dict</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.council import TaskDispatch
+
+obj = TaskDispatch(...)</pre></div>
+<div class='card' id='cls-TaskResult'><h3><code class='inline'>TaskResult</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> task_id: str, assigned_to: str, output: str, ok: bool</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.council import TaskResult
+
+obj = TaskResult(...)</pre></div>
+<div class='card' id='cls-CouncilOutput'><h3><code class='inline'>CouncilOutput</code></h3><p>What the Council returns: the final answer plus the raw agent results.</p><p class='small'><b>Attributes:</b> answer: str, results: list[TaskResult], routing: list[dict], timings: list[dict], total_ms: float</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.council import CouncilOutput
+
+obj = CouncilOutput(...)</pre></div>
+<div class='card' id='cls-AgentBackend'><h3><code class='inline'>AgentBackend</code></h3><p>Anything that can execute a dispatched task and synthesize a final answer.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>run</code></td><td><code class='inline'>def run(self, agent: str, dispatch: TaskDispatch) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>synthesize</code></td><td><code class='inline'>def synthesize(self, question: str, parts: list[TaskResult], state: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.council import AgentBackend
+
+obj = AgentBackend(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>AGENT_DEEPSEEK</code></td><td><code class='inline'>&#x27;deepseek&#x27;</code></td></tr><tr><td><code class='inline'>AGENT_CLAUDE</code></td><td><code class='inline'>&#x27;claude&#x27;</code></td></tr><tr><td><code class='inline'>AGENT_OLLAMA</code></td><td><code class='inline'>&#x27;ollama&#x27;</code></td></tr><tr><td><code class='inline'>_CATEGORY_PATTERNS</code></td><td><code class='inline'>dict[str, re.Pattern[str]]</code></td></tr><tr><td><code class='inline'>_AGENT_FOR</code></td><td><code class='inline'>{&#x27;coding&#x27;: AGENT_DEEPSEEK, &#x27;research&#x27;: AGENT_CLAUDE, &#x27;writing&#x27;: AGENT_CLAUDE, &#x27;routine&#x27;: AGENT_OLLAMA}</code></td></tr><tr><td><code class='inline'>_PRIORITY_FOR</code></td><td><code class='inline'>{&#x27;coding&#x27;: &#x27;high&#x27;, &#x27;research&#x27;: &#x27;medium&#x27;, &#x27;writing&#x27;: &#x27;medium&#x27;, &#x27;routine&#x27;: &#x27;low&#x27;}</code></td></tr><tr><td><code class='inline'>_CODEGEN</code></td><td><code class='inline'>re.compile(&#x27;\\b(write|implement|create|build|make)\\b.{0,20}\\b(script|program|function|code|api|class|module|app|bot)\\</code></td></tr><tr><td><code class='inline'>_REFERENT</code></td><td><code class='inline'>re.compile(&#x27;\\b(it|this|that|these|those|how it works|the above|the previous)\\b&#x27;, re.I)</code></td></tr><tr><td><code class='inline'>_CONCRETE</code></td><td><code class='inline'>re.compile(&#x27;\\b(csv|file|script|function|code|data|list|api|table|result|output|text|string|model|service|app)\\b&#x27;, re.I</code></td></tr><tr><td><code class='inline'>_CLARIFY</code></td><td><code class='inline'>re.compile(&quot;(could you clarify|please specify|can you clarify|i&#x27;m unable to|i cannot help|i can&#x27;t help|what would you li</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

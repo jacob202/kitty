@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.runpod_james_batch — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.runpod_james_batch</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.runpod_james_batch</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/runpod_james_batch.py</code> &middot; Python &middot; 10 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Run several James portrait prompts through one guarded Kitty RunPod session.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>PIL</code>, <code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>asyncio</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.runpod_control</code>, <code class='inline'>gateway.runpod_worker</code>, <code class='inline'>hashlib</code>, <code class='inline'>httpx</code>, <code class='inline'>io</code>, <code class='inline'>json</code>, <code class='inline'>math</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>secrets</code>, <code class='inline'>sys</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_required_env'><code class='inline'>_required_env</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_float_env'><code class='inline'>_float_env</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_int_env'><code class='inline'>_int_env</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_runtime_evidence'><code class='inline'>_runtime_evidence</code></a></td><td>Subset of the raw Pod resource safe to record: no env values, no keys</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_wait_for_pod'><code class='inline'>_wait_for_pod</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_wait_for_worker'><code class='inline'>_wait_for_worker</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_validate_image'><code class='inline'>_validate_image</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-run'><code class='inline'>run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(24)</span></td></tr><tr><td><a href='#fn-parse_args'><code class='inline'>parse_args</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_required_env'><h3><code class='inline'>_required_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _required_env(name: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_james_batch import _required_env
+
+result = _required_env(name=&quot;name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_float_env'><h3><code class='inline'>_float_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _float_env(name: str, default: float) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_james_batch import _float_env
+
+result = _float_env(name=&quot;name_example&quot;, default=0.0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_int_env'><h3><code class='inline'>_int_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _int_env(name: str, default: int) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_james_batch import _int_env
+
+result = _int_env(name=&quot;name_example&quot;, default=0)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_runtime_evidence'><h3><code class='inline'>_runtime_evidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _runtime_evidence(payload: Mapping[str, Any]) -&gt; dict[str, Any]</code></div><p>Subset of the raw Pod resource safe to record: no env values, no keys
+that may carry secrets. Env is reduced to key names only — the worker
+bearer token lives in env, and RunPod pod logs are public in this repo.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_james_batch import _runtime_evidence
+
+result = _runtime_evidence(payload=&quot;payload_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wait_for_pod'><h3><code class='inline'>_wait_for_pod</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def _wait_for_pod(client: RunPodControlClient, pod_id: str, timeout_seconds: int, poll_seconds: float) -&gt; tuple[PodInfo, list[dict[str, Any]], dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.runpod_james_batch import _wait_for_pod
+
+    result = await _wait_for_pod()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wait_for_worker'><h3><code class='inline'>_wait_for_worker</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>async def _wait_for_worker(client: RunPodWorkerClient, timeout_seconds: int, poll_seconds: float) -&gt; tuple[dict[str, Any], list[dict[str, Any]]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.runpod_james_batch import _wait_for_worker
+
+    result = await _wait_for_worker()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_image'><h3><code class='inline'>_validate_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _validate_image(data: bytes, expected_sha256: str) -&gt; tuple[int, int, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_james_batch import _validate_image
+
+result = _validate_image(data=..., expected_sha256=&quot;expected_sha256_example&quot;)
+# result: tuple[int, int, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run'><h3><code class='inline'>run</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (24)</span></h3><div class='sig'><code>async def run(args: argparse.Namespace) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.runpod_james_batch import run
+
+    result = await run()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-parse_args'><h3><code class='inline'>parse_args</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def parse_args() -&gt; argparse.Namespace</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_james_batch import parse_args
+
+result = parse_args()
+# result: argparse.Namespace</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_james_batch import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>REPO_ROOT</code></td><td><code class='inline'>Path(__file__).resolve().parents[1]</code></td></tr><tr><td><code class='inline'>WORKER_PORT</code></td><td><code class='inline'>8000</code></td></tr><tr><td><code class='inline'>NOT_LISTENING_GRACE_SECONDS</code></td><td><code class='inline'>180</code></td></tr><tr><td><code class='inline'>WORKFLOW_ID</code></td><td><code class='inline'>&#x27;text_to_image_v1&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_PROMPTS</code></td><td><code class='inline'>(&#x27;A candid recent iPhone photo of James, a heavyset Canadian man in his late thirties, around 240 pounds, broad friendly</code></td></tr><tr><td><code class='inline'>NEGATIVE_PROMPT</code></td><td><code class='inline'>&#x27;illustration, painting, CGI, plastic skin, beauty retouching, model pose, young skinny man, bodybuilder, exaggerated mu</code></td></tr><tr><td><code class='inline'>_RUNTIME_EVIDENCE_KEYS</code></td><td><code class='inline'>frozenset({&#x27;id&#x27;, &#x27;name&#x27;, &#x27;desiredStatus&#x27;, &#x27;lastStatusChange&#x27;, &#x27;imageName&#x27;, &#x27;dockerId&#x27;, &#x27;containerDiskInGb&#x27;, &#x27;volumeInGb&#x27;</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

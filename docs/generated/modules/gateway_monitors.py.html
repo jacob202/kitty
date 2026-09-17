@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.monitors — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.monitors</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.monitors</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/monitors.py</code> &middot; Python &middot; 6 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>URL/page monitors — owned substrate for the monitors endpoint.
+
+Why this module exists (Phase 3 of the gateway deepening program):
+the route used to keep a parallel in-memory ``_monitors`` list and
+swallow every ``ImportError`` / ``AttributeError`` from
+``gateway.web_monitor`` with a try/except that fell back to the
+mock. That violated the &quot;Fail loud&quot; prime directive. The new
+module delegates to ``web_monitor`` (the real, SQLite-backed store)
+and lets its exceptions surface.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.errors</code>, <code class='inline'>gateway.web_monitor</code>, <code class='inline'>logging</code>, <code class='inline'>sqlite3</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_store_failure'><code class='inline'>_store_failure</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-list_monitors'><code class='inline'>list_monitors</code></a></td><td>Return every URL/page monitor from the canonical store.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-create_monitor'><code class='inline'>create_monitor</code></a></td><td>Register a new monitor. Returns the watch as a dict.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-set_monitor_enabled'><code class='inline'>set_monitor_enabled</code></a></td><td>Enable or disable a monitor without deleting its domain or run history.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-delete_monitor'><code class='inline'>delete_monitor</code></a></td><td>Remove a monitor by id. Returns ``False`` if it was not present.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-check_monitor'><code class='inline'>check_monitor</code></a></td><td>Force-check one monitor immediately.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr></table></div>
+<div class='card' id='fn-_store_failure'><h3><code class='inline'>_store_failure</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _store_failure(operation: str, exc: Exception, **details) -&gt; MonitorError</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.monitors import _store_failure
+
+result = _store_failure(operation=&quot;operation_example&quot;, exc=...)
+# result: MonitorError</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_monitors'><h3><code class='inline'>list_monitors</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def list_monitors() -&gt; list[dict]</code></div><p>Return every URL/page monitor from the canonical store.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.monitors import list_monitors
+
+result = list_monitors()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_monitor'><h3><code class='inline'>create_monitor</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def create_monitor(url: str, label: str | None = None, interval_minutes: int = 300) -&gt; dict</code></div><p>Register a new monitor. Returns the watch as a dict.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.monitors import create_monitor
+
+result = create_monitor(url=&quot;url_example&quot;, label=&quot;label_example&quot;  # default: None, interval_minutes=0  # default: 300)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_monitor_enabled'><h3><code class='inline'>set_monitor_enabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def set_monitor_enabled(monitor_id: str, enabled: bool) -&gt; bool</code></div><p>Enable or disable a monitor without deleting its domain or run history.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.monitors import set_monitor_enabled
+
+result = set_monitor_enabled(monitor_id=&quot;monitor_id_example&quot;, enabled=True)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_monitor'><h3><code class='inline'>delete_monitor</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def delete_monitor(monitor_id: str) -&gt; bool</code></div><p>Remove a monitor by id. Returns ``False`` if it was not present.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.monitors import delete_monitor
+
+result = delete_monitor(monitor_id=&quot;monitor_id_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_monitor'><h3><code class='inline'>check_monitor</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>async def check_monitor(monitor_id: str) -&gt; dict</code></div><p>Force-check one monitor immediately.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.monitors import check_monitor
+
+    result = await check_monitor()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-MonitorError'><code class='inline'>MonitorError</code></a></td><td>(StorageUnavailable)</td><td>0 methods</td></tr><tr><td><a href='#cls-MonitorNotFoundError'><code class='inline'>MonitorNotFoundError</code></a></td><td>(StorageNotFound)</td><td>0 methods</td></tr><tr><td><a href='#cls-MonitorCheckError'><code class='inline'>MonitorCheckError</code></a></td><td>(KittyError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-MonitorError'><h3><code class='inline'>MonitorError</code></h3><p>Raised when the canonical monitor store cannot complete an operation.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.monitors import MonitorError
+
+obj = MonitorError(...)</pre></div>
+<div class='card' id='cls-MonitorNotFoundError'><h3><code class='inline'>MonitorNotFoundError</code></h3><p>Raised when a requested monitor does not exist.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.monitors import MonitorNotFoundError
+
+obj = MonitorNotFoundError(...)</pre></div>
+<div class='card' id='cls-MonitorCheckError'><h3><code class='inline'>MonitorCheckError</code></h3><p>Raised when a monitor exists but its upstream URL check fails.</p><p class='small'><b>Attributes:</b> status_code, code</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.monitors import MonitorCheckError
+
+obj = MonitorCheckError(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.personality — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.personality</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.personality</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/personality.py</code> &middot; Python &middot; 6 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Personality — load and assemble Kitty&#x27;s modular personality files.
+
+Three files in ``PERSONALITY_DIR`` define Kitty&#x27;s identity:
+
+- **soul.md** — core identity, intellectual mission, internal parts,
+  communication style, behavioral boundaries
+- **identity.md** — relationship with Jacob, how Kitty pays attention,
+  memory philosophy, how she grows
+- **agents.md** — how specialists, skills, MCP servers, and tools relate
+  to Kitty as the central agent
+
+Public API:
+  personality_block() -&gt; str     Joined markdown of all 3 files, cached
+  get_personality_files() -&gt; dict  Raw file contents keyed by name</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_read_file'><code class='inline'>_read_file</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_build_block'><code class='inline'>_build_block</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_load_all'><code class='inline'>_load_all</code></a></td><td>Scan PERSONALITY_DIR and return {filename: content} for all 3 files.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-personality_block'><code class='inline'>personality_block</code></a></td><td>Return the joined personality markdown block for injection into the</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_personality_files'><code class='inline'>get_personality_files</code></a></td><td>Return {filename: content} for every loaded personality file.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-invalidate_cache'><code class='inline'>invalidate_cache</code></a></td><td>Force re-read on the next call. Call after a personality file is</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_read_file'><h3><code class='inline'>_read_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _read_file(path: Path) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.personality import _read_file
+
+result = _read_file(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_block'><h3><code class='inline'>_build_block</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _build_block(content: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.personality import _build_block
+
+result = _build_block(content=&quot;content_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_all'><h3><code class='inline'>_load_all</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_all() -&gt; dict[str, str]</code></div><p>Scan PERSONALITY_DIR and return {filename: content} for all 3 files.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.personality import _load_all
+
+result = _load_all()
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-personality_block'><h3><code class='inline'>personality_block</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def personality_block() -&gt; str</code></div><p>Return the joined personality markdown block for injection into the
+system prompt. Cached after first call. Returns an empty string when
+no personality files exist (safe no-op fallback).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.personality import personality_block
+
+result = personality_block()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_personality_files'><h3><code class='inline'>get_personality_files</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_personality_files() -&gt; dict[str, str]</code></div><p>Return {filename: content} for every loaded personality file.
+Used by the personality API route to serve read/edit endpoints.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.personality import get_personality_files
+
+result = get_personality_files()
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-invalidate_cache'><h3><code class='inline'>invalidate_cache</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def invalidate_cache() -&gt; None</code></div><p>Force re-read on the next call. Call after a personality file is
+written so the next request picks up changes without a restart.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.personality import invalidate_cache
+
+result = invalidate_cache()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_PERSONALITY_FILES</code></td><td><code class='inline'>dict[str, str] | None</code></td></tr><tr><td><code class='inline'>_FILE_NAMES</code></td><td><code class='inline'>[&#x27;soul.md&#x27;, &#x27;identity.md&#x27;, &#x27;agents.md&#x27;]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

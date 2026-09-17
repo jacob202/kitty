@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/components/ChatMessage — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/components/ChatMessage</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/components/ChatMessage</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/components/ChatMessage.tsx</code> &middot; TypeScript &middot; 9 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>./CrayonCat</code>, <code class='inline'>./ToolCallBlock</code>, <code class='inline'>./builder/BuilderProposalCard</code>, <code class='inline'>./chat/ActionCard</code>, <code class='inline'>./chat/ArtifactChatCard</code>, <code class='inline'>@/lib/gateway</code>, <code class='inline'>@/lib/queries</code>, <code class='inline'>@/lib/types</code>, <code class='inline'>lucide-react</code>, <code class='inline'>react</code>, <code class='inline'>react-markdown</code>, <code class='inline'>rehype-highlight</code>, <code class='inline'>remark-gfm</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-ChatMessage'><code class='inline'>ChatMessage</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-MessageContent'><code class='inline'>MessageContent</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-CodeBlock'><code class='inline'>CodeBlock</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-Attribution'><code class='inline'>Attribution</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-FORGET_GRACE_MS'><code class='inline'>FORGET_GRACE_MS</code></a></td><td>variable</td><td>How long a &quot;forget&quot; stays cancellable before the DELETE fires (CR-06).</td></tr><tr><td><a href='#ex-MemoryRow'><code class='inline'>MemoryRow</code></a></td><td>function</td><td>One memory row: text + (when deletable) a forget flow with undo grace.</td></tr><tr><td><a href='#ex-MemoryBlock'><code class='inline'>MemoryBlock</code></a></td><td>function</td><td>Collapsed list of the memories that informed a reply (CR-05), with inline</td></tr><tr><td><a href='#ex-SourcesBlock'><code class='inline'>SourcesBlock</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-TypingDots'><code class='inline'>TypingDots</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-ChatMessage'><h3><code class='inline'>ChatMessage</code> <span class='pill'>function</span></h3><div class='sig'><code>export function ChatMessage({ message, isStreaming, catState = &#x27;idle&#x27;, onRetry, chatId, messageIndex, compact = false, branchCount = 0, totalBranches = 0, onSwitchBranch, onOpenWork }: Props)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ChatMessage } from &#x27;@/gateway/kitty-chat/src/components/ChatMessage&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ChatMessage;</pre></div>
+<div class='card' id='ex-MessageContent'><h3><code class='inline'>MessageContent</code> <span class='pill'>function</span></h3><div class='sig'><code>function MessageContent({ content, isUser, chatId, messageIndex, compact, onOpenWork }: { content: string; isUser: boolean; chatId: string; messageIndex: number; compact: boolean; onOpenWork?: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { MessageContent } from &#x27;@/gateway/kitty-chat/src/components/ChatMessage&#x27;;
+
+// TODO: wire real props; see component signature
+const result = MessageContent;</pre></div>
+<div class='card' id='ex-CodeBlock'><h3><code class='inline'>CodeBlock</code> <span class='pill'>function</span></h3><div class='sig'><code>function CodeBlock({ children, chatId, messageIndex, isMobile, isUser, onOpenWork }: { children: ReactNode; chatId: string; messageIndex: number; isMobile: boolean; isUser: boolean; onOpenWork?: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { CodeBlock } from &#x27;@/gateway/kitty-chat/src/components/ChatMessage&#x27;;
+
+// TODO: wire real props; see component signature
+const result = CodeBlock;</pre></div>
+<div class='card' id='ex-Attribution'><h3><code class='inline'>Attribution</code> <span class='pill'>function</span></h3><div class='sig'><code>function Attribution({ message }: { message: Message })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { Attribution } from &#x27;@/gateway/kitty-chat/src/components/ChatMessage&#x27;;
+
+// TODO: wire real props; see component signature
+const result = Attribution;</pre></div>
+<div class='card' id='ex-FORGET_GRACE_MS'><h3><code class='inline'>FORGET_GRACE_MS</code> <span class='pill'>variable</span></h3><div class='sig'><code>export const FORGET_GRACE_MS =</code></div><p>How long a &quot;forget&quot; stays cancellable before the DELETE fires (CR-06).
+ Destructive + phone-first: a single tap must never delete.</p><h3>Code Example</h3><pre>import { FORGET_GRACE_MS } from &#x27;@/gateway/kitty-chat/src/components/ChatMessage&#x27;;
+
+// TODO: wire real props; see component signature
+const result = FORGET_GRACE_MS;</pre></div>
+<div class='card' id='ex-MemoryRow'><h3><code class='inline'>MemoryRow</code> <span class='pill'>function</span></h3><div class='sig'><code>function MemoryRow({ item }: { item: MemoryEvidence })</code></div><p>One memory row: text + (when deletable) a forget flow with undo grace.</p><h3>Code Example</h3><pre>import { MemoryRow } from &#x27;@/gateway/kitty-chat/src/components/ChatMessage&#x27;;
+
+// TODO: wire real props; see component signature
+const result = MemoryRow;</pre></div>
+<div class='card' id='ex-MemoryBlock'><h3><code class='inline'>MemoryBlock</code> <span class='pill'>function</span></h3><div class='sig'><code>function MemoryBlock({ items }: { items: MemoryEvidence[] })</code></div><p>Collapsed list of the memories that informed a reply (CR-05), with inline
+ forget-with-undo correction (CR-06).</p><h3>Code Example</h3><pre>import { MemoryBlock } from &#x27;@/gateway/kitty-chat/src/components/ChatMessage&#x27;;
+
+// TODO: wire real props; see component signature
+const result = MemoryBlock;</pre></div>
+<div class='card' id='ex-SourcesBlock'><h3><code class='inline'>SourcesBlock</code> <span class='pill'>function</span></h3><div class='sig'><code>function SourcesBlock({ items }: { items: EvidenceReceipt[] })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { SourcesBlock } from &#x27;@/gateway/kitty-chat/src/components/ChatMessage&#x27;;
+
+// TODO: wire real props; see component signature
+const result = SourcesBlock;</pre></div>
+<div class='card' id='ex-TypingDots'><h3><code class='inline'>TypingDots</code> <span class='pill'>function</span></h3><div class='sig'><code>function TypingDots()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { TypingDots } from &#x27;@/gateway/kitty-chat/src/components/ChatMessage&#x27;;
+
+// TODO: wire real props; see component signature
+const result = TypingDots;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.kitty_tools — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.kitty_tools</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.kitty_tools</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/kitty_tools.py</code> &middot; Python &middot; 7 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Misc Kitty tool routes (reset, troubleshoot, research, etc.).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway.constants</code>, <code class='inline'>gateway.honcho</code>, <code class='inline'>gateway.inventory</code>, <code class='inline'>gateway.learning</code>, <code class='inline'>gateway.researcher</code>, <code class='inline'>gateway.reset</code>, <code class='inline'>gateway.tasks</code>, <code class='inline'>gateway.troubleshooter</code>, <code class='inline'>pathlib</code>, <code class='inline'>pydantic</code>, <code class='inline'>tempfile</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-nightly_reset'><code class='inline'>nightly_reset</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-troubleshoot'><code class='inline'>troubleshoot</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-learn'><code class='inline'>learn</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-inventory_photo'><code class='inline'>inventory_photo</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-tasks_sync'><code class='inline'>tasks_sync</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-deep_research'><code class='inline'>deep_research</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-weekly_mirror'><code class='inline'>weekly_mirror</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-nightly_reset'><h3><code class='inline'>nightly_reset</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def nightly_reset()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.kitty_tools import nightly_reset
+
+    result = await nightly_reset()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-troubleshoot'><h3><code class='inline'>troubleshoot</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def troubleshoot(payload: TroubleshootRequest)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.kitty_tools import troubleshoot
+
+    result = await troubleshoot()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-learn'><h3><code class='inline'>learn</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def learn(payload: LearnRequest)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.kitty_tools import learn
+
+    result = await learn()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-inventory_photo'><h3><code class='inline'>inventory_photo</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def inventory_photo(file: UploadFile = File(...))</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.kitty_tools import inventory_photo
+
+    result = await inventory_photo()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tasks_sync'><h3><code class='inline'>tasks_sync</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def tasks_sync(payload: TasksSyncRequest)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.kitty_tools import tasks_sync
+
+    result = await tasks_sync()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-deep_research'><h3><code class='inline'>deep_research</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def deep_research(payload: DeepResearchRequest)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.kitty_tools import deep_research
+
+    result = await deep_research()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-weekly_mirror'><h3><code class='inline'>weekly_mirror</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def weekly_mirror()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.kitty_tools import weekly_mirror
+
+    result = await weekly_mirror()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-TroubleshootRequest'><code class='inline'>TroubleshootRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-TasksSyncRequest'><code class='inline'>TasksSyncRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-LearnRequest'><code class='inline'>LearnRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-DeepResearchRequest'><code class='inline'>DeepResearchRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-TroubleshootRequest'><h3><code class='inline'>TroubleshootRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> device: str, symptom: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.kitty_tools import TroubleshootRequest
+
+obj = TroubleshootRequest(...)</pre></div>
+<div class='card' id='cls-TasksSyncRequest'><h3><code class='inline'>TasksSyncRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> action: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.kitty_tools import TasksSyncRequest
+
+obj = TasksSyncRequest(...)</pre></div>
+<div class='card' id='cls-LearnRequest'><h3><code class='inline'>LearnRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> topic: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.kitty_tools import LearnRequest
+
+obj = LearnRequest(...)</pre></div>
+<div class='card' id='cls-DeepResearchRequest'><h3><code class='inline'>DeepResearchRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> topic: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.kitty_tools import DeepResearchRequest
+
+obj = DeepResearchRequest(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

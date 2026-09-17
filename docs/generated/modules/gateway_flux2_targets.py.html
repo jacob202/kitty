@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.flux2_targets — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.flux2_targets</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.flux2_targets</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/flux2_targets.py</code> &middot; Python &middot; 2 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Flux2HostedTarget — the explicit execution-target representation for hosted FLUX.2.
+
+ADR 0040 decision 1 (FLUX.2 as the current benchmarked routing default; this
+module is the replaceable adapter for that family, not an architectural layer)
+plus IL-04&#x27;s &quot;estimate target == availability target == dispatch target ==
+observed cost target&quot; invariant.
+
+This is deliberately small: it is NOT a general provider framework. It carries
+enough truth that a dispatched FLUX.2 job can answer — exactly which model,
+which semantic tier, how many references are allowed, and how much the selected
+model costs for the requested dimensions:
+
+    quality tier (draft/final)
+        ↓  Flux2HostedTarget
+        ↓  model_id (BFL path), endpoint, reference limit, cost contract
+        ↓  actual dispatch + cost reconciliation
+
+Costs are the current official BFL FLUX.2 pricing (vendored at
+gateway/vendored/flux2-guidance, updated 2026-08-19). Credit pricing:
+1 credit = $0.01 USD. Formula (cents): (firstMP + (outputMP-1)*mpPrice) +
+(inputMP*mpPrice).
+
+Estimates must never silently default to zero for an unknown target: unknown
+targets fail loud (``Flux2TargetError``).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.flux2_compiler</code>, <code class='inline'>math</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-resolve_flux2_target'><code class='inline'>resolve_flux2_target</code></a></td><td>Resolve a target id/model id; fail loud instead of defaulting to zero.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-flux2_target_for_quality_tier'><code class='inline'>flux2_target_for_quality_tier</code></a></td><td>Map a recipe quality tier to its exact FLUX.2 execution target.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-resolve_flux2_target'><h3><code class='inline'>resolve_flux2_target</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def resolve_flux2_target(target: str | None) -&gt; Flux2HostedTarget</code></div><p>Resolve a target id/model id; fail loud instead of defaulting to zero.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_targets import resolve_flux2_target
+
+result = resolve_flux2_target(target=&quot;target_example&quot;)
+# result: Flux2HostedTarget</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-flux2_target_for_quality_tier'><h3><code class='inline'>flux2_target_for_quality_tier</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def flux2_target_for_quality_tier(quality_tier: str) -&gt; Flux2HostedTarget</code></div><p>Map a recipe quality tier to its exact FLUX.2 execution target.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_targets import flux2_target_for_quality_tier
+
+result = flux2_target_for_quality_tier(quality_tier=&quot;quality_tier_example&quot;)
+# result: Flux2HostedTarget</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Flux2TargetError'><code class='inline'>Flux2TargetError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-Flux2HostedTarget'><code class='inline'>Flux2HostedTarget</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-Flux2TargetError'><h3><code class='inline'>Flux2TargetError</code></h3><p>Raised when a FLUX.2 execution target is unknown or mis-specified.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.flux2_targets import Flux2TargetError
+
+obj = Flux2TargetError(...)</pre></div>
+<div class='card' id='cls-Flux2HostedTarget'><h3><code class='inline'>Flux2HostedTarget</code></h3><p>Exact hosted FLUX.2 execution target and its cost contract.
+
+Fields:
+    target_id       small stable identifier (&quot;flux2-klein-4b-h&quot;)
+    model_id        BFL API path segment, e.g. &quot;flux-2-klein-4b&quot;
+    quality_tier    semantic tier served: &quot;draft&quot; | &quot;final&quot;
+    hosted          classification used by the IL-02 policy gate (always True)
+    reference_limit max ordered references the API accepts
+    endpoint        absolute BFL endpoint path (may be overridden by env)
+    first_mp_cents  price of the first output megapixel, in credits-cents
+    add_mp_cents    price of each additional output megapixel, in cents
+    input_mp_cents  price per input/reference megapixel, in cents</p><p class='small'><b>Attributes:</b> target_id: str, model_id: str, quality_tier: str, hosted: bool, reference_limit: int, endpoint: str, first_mp_cents: float, add_mp_cents: float, input_mp_cents: float</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>estimate_cost_usd</code></td><td><code class='inline'>def estimate_cost_usd(self, width: int, height: int, operation: str) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.flux2_targets import Flux2HostedTarget
+
+obj = Flux2HostedTarget(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>CREDITS_PER_USD</code></td><td><code class='inline'>100.0</code></td></tr><tr><td><code class='inline'>FLUX2_KLEIN_4B_H</code></td><td><code class='inline'>Flux2HostedTarget(target_id=&#x27;flux2-klein-4b-h&#x27;, model_id=&#x27;flux-2-klein-4b&#x27;, quality_tier=&#x27;draft&#x27;, hosted=True, reference</code></td></tr><tr><td><code class='inline'>FLUX2_PRO_H</code></td><td><code class='inline'>Flux2HostedTarget(target_id=&#x27;flux2-pro-h&#x27;, model_id=&#x27;flux-2-pro&#x27;, quality_tier=&#x27;final&#x27;, hosted=True, reference_limit=8, </code></td></tr><tr><td><code class='inline'>FLUX2_HOSTED_TARGETS</code></td><td><code class='inline'>dict[str, Flux2HostedTarget]</code></td></tr><tr><td><code class='inline'>_QUALITY_TIER_MAP</code></td><td><code class='inline'>dict[str, str]</code></td></tr><tr><td><code class='inline'>VALID_QUALITY_TIERS</code></td><td><code class='inline'>frozenset(_QUALITY_TIER_MAP)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

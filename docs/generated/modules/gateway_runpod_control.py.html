@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.runpod_control — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.runpod_control</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.runpod_control</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/runpod_control.py</code> &middot; Python &middot; 2 functions &middot; 8 classes</p>
+<div class='card'><h2>Overview</h2><p>Narrow RunPod control-plane client for Kitty-managed image Pods.
+
+GPU Pod creation uses RunPod&#x27;s GraphQL mutation because that API supports the
+cloud-enforced ``terminateAfter`` deadline used by the official RunPod CLI.
+Listing, inspection, deletion, and billing continue to use the REST API.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.runpod_graphql</code>, <code class='inline'>httpx</code>, <code class='inline'>math</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_finite_float'><code class='inline'>_finite_float</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_as_mapping'><code class='inline'>_as_mapping</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_finite_float'><h3><code class='inline'>_finite_float</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _finite_float(value: object, allow_zero: bool) -&gt; float | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runpod_control import _finite_float
+
+result = _finite_float(value=..., allow_zero=True)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_as_mapping'><h3><code class='inline'>_as_mapping</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _as_mapping(value: object) -&gt; Mapping[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.runpod_control import _as_mapping
+
+result = _as_mapping(value=...)
+# result: Mapping[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RunPodError'><code class='inline'>RunPodError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunPodConfigurationError'><code class='inline'>RunPodConfigurationError</code></a></td><td>(RunPodError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunPodApiError'><code class='inline'>RunPodApiError</code></a></td><td>(RunPodError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunPodTransportError'><code class='inline'>RunPodTransportError</code></a></td><td>(RunPodApiError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunPodAmbiguousCreateError'><code class='inline'>RunPodAmbiguousCreateError</code></a></td><td>(RunPodApiError)</td><td>1 methods</td></tr><tr><td><a href='#cls-RunPodBudgetError'><code class='inline'>RunPodBudgetError</code></a></td><td>(RunPodError)</td><td>0 methods</td></tr><tr><td><a href='#cls-PodInfo'><code class='inline'>PodInfo</code></a></td><td></td><td>5 methods</td></tr><tr><td><a href='#cls-RunPodControlClient'><code class='inline'>RunPodControlClient</code></a></td><td></td><td>17 methods</td></tr></table></div>
+<div class='card' id='cls-RunPodError'><h3><code class='inline'>RunPodError</code></h3><p>Base class for RunPod control-plane failures.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_control import RunPodError
+
+obj = RunPodError(...)</pre></div>
+<div class='card' id='cls-RunPodConfigurationError'><h3><code class='inline'>RunPodConfigurationError</code></h3><p>Required local configuration is missing or invalid.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_control import RunPodConfigurationError
+
+obj = RunPodConfigurationError(...)</pre></div>
+<div class='card' id='cls-RunPodApiError'><h3><code class='inline'>RunPodApiError</code></h3><p>RunPod returned an unsuccessful or malformed response.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_control import RunPodApiError
+
+obj = RunPodApiError(...)</pre></div>
+<div class='card' id='cls-RunPodTransportError'><h3><code class='inline'>RunPodTransportError</code></h3><p>A REST request lost transport-level confirmation of its outcome.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_control import RunPodTransportError
+
+obj = RunPodTransportError(...)</pre></div>
+<div class='card' id='cls-RunPodAmbiguousCreateError'><h3><code class='inline'>RunPodAmbiguousCreateError</code></h3><p>RunPod may have created a billable Pod despite an inconclusive result.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, pod_name: str, cause: BaseException) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+r
+u
+n
+p
+o
+d
+_
+c
+o
+n
+t
+r
+o
+l
+ 
+i
+m
+p
+o
+r
+t
+ 
+R
+u
+n
+P
+o
+d
+A
+m
+b
+i
+g
+u
+o
+u
+s
+C
+r
+e
+a
+t
+e
+E
+r
+r
+o
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+R
+u
+n
+P
+o
+d
+A
+m
+b
+i
+g
+u
+o
+u
+s
+C
+r
+e
+a
+t
+e
+E
+r
+r
+o
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-RunPodBudgetError'><h3><code class='inline'>RunPodBudgetError</code></h3><p>A created Pod exceeded the configured hourly ceiling.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_control import RunPodBudgetError
+
+obj = RunPodBudgetError(...)</pre></div>
+<div class='card' id='cls-PodInfo'><h3><code class='inline'>PodInfo</code></h3><p>Normalized subset of RunPod&#x27;s Pod response.</p><p class='small'><b>Attributes:</b> pod_id: str, name: str, desired_status: str, gpu_name: str, hourly_rate: float, created_at: str | None, env: dict[str, str], raw: dict[str, Any]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>from_payload</code></td><td><code class='inline'>def from_payload(cls, payload: Mapping[str, Any]) -&gt; &#x27;PodInfo&#x27;</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>proxy_url</code></td><td><code class='inline'>def proxy_url(self, port: int) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>expiry</code></td><td><code class='inline'>def expiry(self) -&gt; datetime | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>is_expired</code></td><td><code class='inline'>def is_expired(self, now: datetime | None = None) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>is_managed</code></td><td><code class='inline'>def is_managed(self) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.runpod_control import PodInfo
+
+obj = PodInfo(...)</pre></div>
+<div class='card' id='cls-RunPodControlClient'><h3><code class='inline'>RunPodControlClient</code></h3><p>Minimal asynchronous RunPod client for ephemeral image Pods.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, api_key: str, base_url: str = RUNPOD_API_BASE, graphql_url: str = RUNPOD_GRAPHQL_URL, timeout_seconds</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__aenter__</code></td><td><code class='inline'>async def __aenter__(self) -&gt; &#x27;RunPodControlClient&#x27;</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__aexit__</code></td><td><code class='inline'>async def __aexit__(self, *_args) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>aclose</code></td><td><code class='inline'>async def aclose(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_headers</code></td><td><code class='inline'>def _headers(self) -&gt; dict[str, str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_request</code></td><td><code class='inline'>async def _request(self, method: str, path: str, params: Mapping[str, str | int | float | bool | None] | None = None, js</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>list_pods</code></td><td><code class='inline'>async def list_pods(self) -&gt; list[PodInfo]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>list_managed_pods</code></td><td><code class='inline'>async def list_managed_pods(self) -&gt; list[PodInfo]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get_pod</code></td><td><code class='inline'>async def get_pod(self, pod_id: str) -&gt; PodInfo</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>create_image_pod</code></td><td><code class='inline'>async def create_image_pod(self, template_id: str, gpu_type_ids: Sequence[str], max_hourly_rate: float, hard_runtime_min</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>_create_image_pod_rest</code></td><td><code class='inline'>async def _create_image_pod_rest(self, image_name: str, gpu_type_ids: Sequence[str], max_hourly_rate: float, ports: Sequ</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>_validate_created_pod_rate</code></td><td><code class='inline'>async def _validate_created_pod_rate(self, pod: PodInfo, max_hourly_rate: float) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_delete_after_invalid_create</code></td><td><code class='inline'>async def _delete_after_invalid_create(self, pod_id: str) -&gt; str | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>delete_pod</code></td><td><code class='inline'>async def delete_pod(self, pod_id: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get_pod_raw</code></td><td><code class='inline'>async def get_pod_raw(self, pod_id: str) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>pod_billing</code></td><td><code class='inline'>async def pod_billing(self, pod_id: str) -&gt; list[dict[str, Any]]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>actual_cost</code></td><td><code class='inline'>async def actual_cost(self, pod_id: str) -&gt; float | None</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+r
+u
+n
+p
+o
+d
+_
+c
+o
+n
+t
+r
+o
+l
+ 
+i
+m
+p
+o
+r
+t
+ 
+R
+u
+n
+P
+o
+d
+C
+o
+n
+t
+r
+o
+l
+C
+l
+i
+e
+n
+t
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+R
+u
+n
+P
+o
+d
+C
+o
+n
+t
+r
+o
+l
+C
+l
+i
+e
+n
+t
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>RUNPOD_API_BASE</code></td><td><code class='inline'>&#x27;https://rest.runpod.io/v1&#x27;</code></td></tr><tr><td><code class='inline'>KITTY_POD_PREFIX</code></td><td><code class='inline'>&#x27;kitty-image-&#x27;</code></td></tr><tr><td><code class='inline'>_RESERVED_ENV_KEYS</code></td><td><code class='inline'>frozenset({&#x27;KITTY_MANAGED&#x27;, &#x27;KITTY_SESSION_EXPIRES_AT&#x27;})</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

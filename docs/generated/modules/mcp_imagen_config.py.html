@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.config — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.config</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.config</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/config.py</code> &middot; Python &middot; 2 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Settings and constants for the imagen MCP server.
+
+All model names are env-overridable so model-name drift never bricks the server.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_env'><code class='inline'>_env</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_env_int'><code class='inline'>_env_int</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_env'><h3><code class='inline'>_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _env(name: str, default: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.config import _env
+
+result = _env(name=&quot;name_example&quot;, default=&quot;default_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_env_int'><h3><code class='inline'>_env_int</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _env_int(name: str, default: int) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.config import _env_int
+
+result = _env_int(name=&quot;name_example&quot;, default=0)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Settings'><code class='inline'>Settings</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-Settings'><h3><code class='inline'>Settings</code></h3><p>Settings snapshot read at import time.
+
+Env overrides are read once here; runtime code reads from ``os.environ``
+for values that should pick up changes without a restart (API keys).</p><p class='small'><b>Attributes:</b> output_dir: Path, avatar_path: Path, gemini_image_model: str, gemini_vision_model: str, imagen_model: str, photoreal_suffix: str, cache_enabled: bool, cache_dir: Path, retry_attempts: int, batch_concurrency_limit: int, default_engine: str, comfy_url: str, dt_url: str, dt_model: str, ollama_url: str, vision_model: str, faces_dir: Path, character_locks_dir: Path, runware_model: str, fal_model: str, fal_poll_interval_seconds: float, fal_poll_max_attempts: int, airforce_model: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.config import Settings
+
+obj = Settings(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_OUTPUT</code></td><td><code class='inline'>Path.home() / &#x27;Pictures&#x27; / &#x27;kitty-gen&#x27;</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_benchmark.py.html'><code class='inline'>mcp.imagen.benchmark</code></a></li><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_character_lock.py.html'><code class='inline'>mcp.imagen.character_lock</code></a></li><li><a href='mcp_imagen_engines.py.html'><code class='inline'>mcp.imagen.engines</code></a></li><li><a href='mcp_imagen_face_match.py.html'><code class='inline'>mcp.imagen.face_match</code></a></li><li><a href='mcp_imagen_io.py.html'><code class='inline'>mcp.imagen.io</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_retry.py.html'><code class='inline'>mcp.imagen.retry</code></a></li><li><a href='mcp_imagen_server.py.html'><code class='inline'>mcp.imagen.server</code></a></li><li><a href='mcp_imagen_tools.py.html'><code class='inline'>mcp.imagen.tools</code></a></li><li><a href='mcp_imagen_verify.py.html'><code class='inline'>mcp.imagen.verify</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

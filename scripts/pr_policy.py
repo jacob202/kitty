@@ -254,6 +254,7 @@ def refactor_signature_waived(
     try:
         changes = pr_scope.pull_request_file_changes(owner, repo, number, token, fetch=fetch)
         base_paths = {path: (previous or path) for path, previous in changes}
+        current_paths = {previous: path for path, previous in changes if previous}
         cache: dict[tuple[str, str], str] = {}
 
         def contents(path: str, ref: str) -> str:
@@ -262,24 +263,38 @@ def refactor_signature_waived(
                 cache[key] = _contents_text(fetch, owner, repo, path, ref, token)
             return cache[key]
 
-        python_paths = [path for path in changed_files if path.endswith(".py")]
-        before_entries = [
-            (path, contents(base_paths.get(path, path), base_sha)) for path in python_paths
+        # ``changed_files`` intentionally contains both names of a rename so
+        # scope classification cannot be bypassed by moving a protected path.
+        # The content proof is different: GitHub reports one logical current
+        # file with an optional previous name, so compare that file exactly once
+        # and fetch its base side through ``previous_filename``.
+        python_changes = [
+            (path, previous or path)
+            for path, previous in changes
+            if path.endswith(".py")
         ]
-        after_entries = [(path, contents(path, head_sha)) for path in python_paths]
+        before_entries = [
+            (path, contents(previous, base_sha)) for path, previous in python_changes
+        ]
+        after_entries = [(path, contents(path, head_sha)) for path, _ in python_changes]
         before_surface = _merged_route_surface(before_entries)
         after_surface = _merged_route_surface(after_entries)
         if before_surface is None or after_surface is None:
             return False, "route surface unanalyzable"
         if before_surface != after_surface:
             return False, "route surface changed"
+
+        logical_irreversible: dict[str, str] = {}
         for path in irreversible:
-            base_handlers = destructive_handlers(contents(base_paths.get(path, path), base_sha))
-            head_handlers = destructive_handlers(contents(path, head_sha))
+            current_path = current_paths.get(path, path)
+            logical_irreversible[current_path] = base_paths.get(current_path, path)
+        for current_path, base_path in logical_irreversible.items():
+            base_handlers = destructive_handlers(contents(base_path, base_sha))
+            head_handlers = destructive_handlers(contents(current_path, head_sha))
             if base_handlers is None or head_handlers is None:
-                return False, f"destructive surface unanalyzable in {path}"
+                return False, f"destructive surface unanalyzable in {current_path}"
             if base_handlers != head_handlers:
-                return False, f"destructive handler changed in {path}"
+                return False, f"destructive handler changed in {current_path}"
     except (HTTPError, URLError, TimeoutError, ValueError, TypeError, OSError, RuntimeError) as exc:
         return False, f"surface proof unavailable: {type(exc).__name__}: {exc}"
     return True, "route surface and destructive handlers are unchanged"

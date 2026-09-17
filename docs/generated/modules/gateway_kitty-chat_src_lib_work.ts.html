@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/lib/work — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/lib/work</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/lib/work</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/lib/work.ts</code> &middot; TypeScript &middot; 34 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>@tanstack/react-query</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-GatewayWorkState'><code class='inline'>GatewayWorkState</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayWorkQueue'><code class='inline'>GatewayWorkQueue</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayWorkItem'><code class='inline'>GatewayWorkItem</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-PreflightAction'><code class='inline'>PreflightAction</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayPreflightResult'><code class='inline'>GatewayPreflightResult</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewaySchedulerStatus'><code class='inline'>GatewaySchedulerStatus</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayWorkSnapshot'><code class='inline'>GatewayWorkSnapshot</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isRecord'><code class='inline'>isRecord</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isNullableString'><code class='inline'>isNullableString</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isNullableNumberOrString'><code class='inline'>isNullableNumberOrString</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isNullableBoolean'><code class='inline'>isNullableBoolean</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isEvidenceField'><code class='inline'>isEvidenceField</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isEvidence'><code class='inline'>isEvidence</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isCurrentPacket'><code class='inline'>isCurrentPacket</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isCurrentRun'><code class='inline'>isCurrentRun</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isWorkItem'><code class='inline'>isWorkItem</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isWorkSnapshot'><code class='inline'>isWorkSnapshot</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isPreflightResult'><code class='inline'>isPreflightResult</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isSchedulerStatus'><code class='inline'>isSchedulerStatus</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-errorDetail'><code class='inline'>errorDetail</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchGatewayWorkSnapshot'><code class='inline'>fetchGatewayWorkSnapshot</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchPreflight'><code class='inline'>fetchPreflight</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-usePreflight'><code class='inline'>usePreflight</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useWorkSnapshot'><code class='inline'>useWorkSnapshot</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewaySupervisor'><code class='inline'>GatewaySupervisor</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderCommandResult'><code class='inline'>BuilderCommandResult</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderCommand'><code class='inline'>BuilderCommand</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isSupervisor'><code class='inline'>isSupervisor</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchSupervisor'><code class='inline'>fetchSupervisor</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useSupervisor'><code class='inline'>useSupervisor</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-postCommandResult'><code class='inline'>postCommandResult</code></a></td><td>function</td><td>The command and tick routes answer 200 with {ok:false, error} for refusals</td></tr><tr><td><a href='#ex-runBuilderCommand'><code class='inline'>runBuilderCommand</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-runSupervisorTick'><code class='inline'>runSupervisorTick</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useBuilderAction'><code class='inline'>useBuilderAction</code></a></td><td>function</td><td>Runs a Builder action and refreshes both projections it can change.</td></tr></table></div>
+<div class='card' id='ex-GatewayWorkState'><h3><code class='inline'>GatewayWorkState</code> <span class='pill'>type</span></h3><div class='sig'><code>export type GatewayWorkState</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayWorkState } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayWorkState;</pre></div>
+<div class='card' id='ex-GatewayWorkQueue'><h3><code class='inline'>GatewayWorkQueue</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayWorkQueue</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayWorkQueue } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayWorkQueue;</pre></div>
+<div class='card' id='ex-GatewayWorkItem'><h3><code class='inline'>GatewayWorkItem</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayWorkItem</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayWorkItem } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayWorkItem;</pre></div>
+<div class='card' id='ex-PreflightAction'><h3><code class='inline'>PreflightAction</code> <span class='pill'>type</span></h3><div class='sig'><code>export type PreflightAction</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { PreflightAction } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = PreflightAction;</pre></div>
+<div class='card' id='ex-GatewayPreflightResult'><h3><code class='inline'>GatewayPreflightResult</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayPreflightResult</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayPreflightResult } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayPreflightResult;</pre></div>
+<div class='card' id='ex-GatewaySchedulerStatus'><h3><code class='inline'>GatewaySchedulerStatus</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewaySchedulerStatus</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewaySchedulerStatus } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewaySchedulerStatus;</pre></div>
+<div class='card' id='ex-GatewayWorkSnapshot'><h3><code class='inline'>GatewayWorkSnapshot</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayWorkSnapshot</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayWorkSnapshot } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayWorkSnapshot;</pre></div>
+<div class='card' id='ex-isRecord'><h3><code class='inline'>isRecord</code> <span class='pill'>function</span></h3><div class='sig'><code>function isRecord(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isRecord } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isRecord;</pre></div>
+<div class='card' id='ex-isNullableString'><h3><code class='inline'>isNullableString</code> <span class='pill'>function</span></h3><div class='sig'><code>function isNullableString(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isNullableString } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isNullableString;</pre></div>
+<div class='card' id='ex-isNullableNumberOrString'><h3><code class='inline'>isNullableNumberOrString</code> <span class='pill'>function</span></h3><div class='sig'><code>function isNullableNumberOrString(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isNullableNumberOrString } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isNullableNumberOrString;</pre></div>
+<div class='card' id='ex-isNullableBoolean'><h3><code class='inline'>isNullableBoolean</code> <span class='pill'>function</span></h3><div class='sig'><code>function isNullableBoolean(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isNullableBoolean } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isNullableBoolean;</pre></div>
+<div class='card' id='ex-isEvidenceField'><h3><code class='inline'>isEvidenceField</code> <span class='pill'>function</span></h3><div class='sig'><code>function isEvidenceField(
+  evidence: Record&lt;string, unknown&gt;,
+  section: string,
+  field: string,
+  predicate: (value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isEvidenceField } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isEvidenceField;</pre></div>
+<div class='card' id='ex-isEvidence'><h3><code class='inline'>isEvidence</code> <span class='pill'>function</span></h3><div class='sig'><code>function isEvidence(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isEvidence } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isEvidence;</pre></div>
+<div class='card' id='ex-isCurrentPacket'><h3><code class='inline'>isCurrentPacket</code> <span class='pill'>function</span></h3><div class='sig'><code>function isCurrentPacket(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isCurrentPacket } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isCurrentPacket;</pre></div>
+<div class='card' id='ex-isCurrentRun'><h3><code class='inline'>isCurrentRun</code> <span class='pill'>function</span></h3><div class='sig'><code>function isCurrentRun(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isCurrentRun } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isCurrentRun;</pre></div>
+<div class='card' id='ex-isWorkItem'><h3><code class='inline'>isWorkItem</code> <span class='pill'>function</span></h3><div class='sig'><code>function isWorkItem(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isWorkItem } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isWorkItem;</pre></div>
+<div class='card' id='ex-isWorkSnapshot'><h3><code class='inline'>isWorkSnapshot</code> <span class='pill'>function</span></h3><div class='sig'><code>function isWorkSnapshot(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isWorkSnapshot } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isWorkSnapshot;</pre></div>
+<div class='card' id='ex-isPreflightResult'><h3><code class='inline'>isPreflightResult</code> <span class='pill'>function</span></h3><div class='sig'><code>function isPreflightResult(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isPreflightResult } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isPreflightResult;</pre></div>
+<div class='card' id='ex-isSchedulerStatus'><h3><code class='inline'>isSchedulerStatus</code> <span class='pill'>function</span></h3><div class='sig'><code>function isSchedulerStatus(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isSchedulerStatus } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isSchedulerStatus;</pre></div>
+<div class='card' id='ex-errorDetail'><h3><code class='inline'>errorDetail</code> <span class='pill'>function</span></h3><div class='sig'><code>async function errorDetail(response: Response)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { errorDetail } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = errorDetail;</pre></div>
+<div class='card' id='ex-fetchGatewayWorkSnapshot'><h3><code class='inline'>fetchGatewayWorkSnapshot</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewayWorkSnapshot()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchGatewayWorkSnapshot } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewayWorkSnapshot;</pre></div>
+<div class='card' id='ex-fetchPreflight'><h3><code class='inline'>fetchPreflight</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchPreflight(initiativeId: string, packetId: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchPreflight } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchPreflight;</pre></div>
+<div class='card' id='ex-usePreflight'><h3><code class='inline'>usePreflight</code> <span class='pill'>function</span></h3><div class='sig'><code>export function usePreflight(initiativeId: string | null, packetId: string | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { usePreflight } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = usePreflight;</pre></div>
+<div class='card' id='ex-useWorkSnapshot'><h3><code class='inline'>useWorkSnapshot</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useWorkSnapshot()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useWorkSnapshot } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useWorkSnapshot;</pre></div>
+<div class='card' id='ex-GatewaySupervisor'><h3><code class='inline'>GatewaySupervisor</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewaySupervisor</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewaySupervisor } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewaySupervisor;</pre></div>
+<div class='card' id='ex-BuilderCommandResult'><h3><code class='inline'>BuilderCommandResult</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface BuilderCommandResult</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderCommandResult } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderCommandResult;</pre></div>
+<div class='card' id='ex-BuilderCommand'><h3><code class='inline'>BuilderCommand</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface BuilderCommand</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderCommand } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderCommand;</pre></div>
+<div class='card' id='ex-isSupervisor'><h3><code class='inline'>isSupervisor</code> <span class='pill'>function</span></h3><div class='sig'><code>function isSupervisor(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isSupervisor } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isSupervisor;</pre></div>
+<div class='card' id='ex-fetchSupervisor'><h3><code class='inline'>fetchSupervisor</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchSupervisor()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchSupervisor } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchSupervisor;</pre></div>
+<div class='card' id='ex-useSupervisor'><h3><code class='inline'>useSupervisor</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useSupervisor()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useSupervisor } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useSupervisor;</pre></div>
+<div class='card' id='ex-postCommandResult'><h3><code class='inline'>postCommandResult</code> <span class='pill'>function</span></h3><div class='sig'><code>async function postCommandResult(endpoint: string, body: unknown, timeoutMs = DEFAULT_TIMEOUT_MS)</code></div><p>The command and tick routes answer 200 with {ok:false, error} for refusals
+the operator must see (task not found, initiative already running). Treating
+a non-200 as the only failure would report those refusals as success, so the
+body is the authority and transport failure is folded into the same shape.</p><h3>Code Example</h3><pre>import { postCommandResult } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = postCommandResult;</pre></div>
+<div class='card' id='ex-runBuilderCommand'><h3><code class='inline'>runBuilderCommand</code> <span class='pill'>function</span></h3><div class='sig'><code>export function runBuilderCommand(command: BuilderCommand)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { runBuilderCommand } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = runBuilderCommand;</pre></div>
+<div class='card' id='ex-runSupervisorTick'><h3><code class='inline'>runSupervisorTick</code> <span class='pill'>function</span></h3><div class='sig'><code>export function runSupervisorTick()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { runSupervisorTick } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = runSupervisorTick;</pre></div>
+<div class='card' id='ex-useBuilderAction'><h3><code class='inline'>useBuilderAction</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useBuilderAction()</code></div><p>Runs a Builder action and refreshes both projections it can change.</p><h3>Code Example</h3><pre>import { useBuilderAction } from &#x27;@/gateway/kitty-chat/src/lib/work&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useBuilderAction;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

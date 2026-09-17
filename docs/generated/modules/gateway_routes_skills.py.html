@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.skills — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.skills</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.skills</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/skills.py</code> &middot; Python &middot; 3 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Skill routes.
+
+Split from the former routes/extended.py on 2026-09-16 so each route module
+owns one domain (architecture claim: &quot;Routes should remain thin&quot;).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway.skill_registry</code>, <code class='inline'>pydantic</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-skills_list'><code class='inline'>skills_list</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-skill_get'><code class='inline'>skill_get</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-skill_invoke'><code class='inline'>skill_invoke</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-skills_list'><h3><code class='inline'>skills_list</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def skills_list(q: Optional[str] = None)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.skills import skills_list
+
+    result = await skills_list()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-skill_get'><h3><code class='inline'>skill_get</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def skill_get(name: str)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.skills import skill_get
+
+    result = await skill_get()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-skill_invoke'><h3><code class='inline'>skill_invoke</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def skill_invoke(name: str, payload: SkillInvokeRequest = SkillInvokeRequest())</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.skills import skill_invoke
+
+    result = await skill_invoke()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-SkillInvokeRequest'><code class='inline'>SkillInvokeRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-SkillInvokeRequest'><h3><code class='inline'>SkillInvokeRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> context: Optional[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.skills import SkillInvokeRequest
+
+obj = SkillInvokeRequest(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

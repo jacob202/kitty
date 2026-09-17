@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_queue — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_queue</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_queue</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_queue.py</code> &middot; Python &middot; 37 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>KittyBuilder Phase 1A — durable local Builder queue store &amp; state machine.
+
+Library-mode SQLite storage for the KittyBuilder orchestrator. Scope so far:
+schema, connection helpers, task creation/retrieval/listing, append-only event
+log, state machine transitions, claims, lease fencing, worker transitions,
+releases, and expired lease recovery. This module does not implement CLI
+commands, daemon/API, worker execution, worktrees, or PR automation yet.
+
+Important scope notes (see docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md):
+
+- This durable Builder queue was independent of the legacy generic
+  gateway/task_runner.py (removed — Builder already owned this domain). The
+  legacy gateway/builder.py pipeline has been retired; this store, backed by
+  BUILDER_QUEUE_DB, is the single Builder execution authority.
+- GitHub bridge metadata is advisory after Phase 1A. The only bridge field
+  that affects idempotency is bridge_external_id; re-adding the same
+  (bridge_source, bridge_external_id) must fail. GitHub comments never
+  mutate local task state (Section 11.4).
+- The events table is append-only. UPDATE and DELETE are blocked by
+  triggers; there is intentionally no public update/delete helper here.
+- Task IDs follow the no-dependency format from Section 11.1:
+  ``kb_&lt;base36_unix_ms&gt;_&lt;hex4&gt;`` — locally unique, roughly time-sortable,
+  short enough to appear in future branch names and PR titles.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>.</code>, <code class='inline'>._id_helpers</code>, <code class='inline'>.builder_queue_branch_leases</code>, <code class='inline'>.builder_queue_db</code>, <code class='inline'>.builder_queue_leases</code>, <code class='inline'>.builder_queue_runs</code>, <code class='inline'>.query_builder</code>, <code class='inline'>__future__</code>, <code class='inline'>collections.abc</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>subprocess</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-connect'><code class='inline'>connect</code></a></td><td>Open the queue DB, preserving the legacy façade path override.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Initialize the queue DB, preserving the legacy façade path override.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-generate_task_id'><code class='inline'>generate_task_id</code></a></td><td>Return ``kb_&lt;base36_unix_ms&gt;_&lt;hex4&gt;``.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_row_to_task'><code class='inline'>_row_to_task</code></a></td><td>Convert a tasks row to a dict, JSON-decoding the fields that are stored</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_row_to_event'><code class='inline'>_row_to_event</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-set_awareness_sink'><code class='inline'>set_awareness_sink</code></a></td><td>Install (or clear) the machine-awareness sink for task transitions.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-publish_task_transition'><code class='inline'>publish_task_transition</code></a></td><td>Publish one Builder task transition into the shared orientation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-install_awareness_sink'><code class='inline'>install_awareness_sink</code></a></td><td>Install the Builder producer as this process&#x27;s awareness sink.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_publish_transition_awareness'><code class='inline'>_publish_transition_awareness</code></a></td><td>Publish transition awareness after the authoritative commit.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-create_task'><code class='inline'>create_task</code></a></td><td>Create a task in state ``queued`` and append a ``created`` event.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-get_task'><code class='inline'>get_task</code></a></td><td>Return the task dict for ``task_id`` or ``None`` if absent.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_get_task_on_conn'><code class='inline'>_get_task_on_conn</code></a></td><td>Return a task using the caller&#x27;s open transaction.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-list_tasks'><code class='inline'>list_tasks</code></a></td><td>List tasks, optionally filtered by state, excluding archived by default.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-append_event'><code class='inline'>append_event</code></a></td><td>Append a row to the events log.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_validate_state'><code class='inline'>_validate_state</code></a></td><td>Raise ``ValueError`` if *state* is not a known machine state.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_apply_transition'><code class='inline'>_apply_transition</code></a></td><td>Apply a state transition on *conn* (inside an open transaction).</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-transition_task'><code class='inline'>transition_task</code></a></td><td>Atomically transition a task to *new_state*.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-operator_cancel_task'><code class='inline'>operator_cancel_task</code></a></td><td>Operator-cancel a task, refusing in-flight or published work.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-edit_task'><code class='inline'>edit_task</code></a></td><td>Edit a queued task&#x27;s editable fields.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-list_events'><code class='inline'>list_events</code></a></td><td>Return all events for a task in chronological order.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-queue_status'><code class='inline'>queue_status</code></a></td><td>Return a summary of queue counts per state and total.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-find_silent_transitions'><code class='inline'>find_silent_transitions</code></a></td><td>Find tasks whose state left ``queued`` with no event trail.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-archive_tasks'><code class='inline'>archive_tasks</code></a></td><td>Soft-archive terminal tasks in *state* older than *older_than_days*.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-attach_final_report'><code class='inline'>attach_final_report</code></a></td><td>Attach a structured final report to a task.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-attach_pr'><code class='inline'>attach_pr</code></a></td><td>Attach or update PR metadata for a task.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_gh_pr_status'><code class='inline'>_gh_pr_status</code></a></td><td>Query GitHub for a PR&#x27;s merge/checks/review state via the ``gh`` CLI.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_roll_up_check_state'><code class='inline'>_roll_up_check_state</code></a></td><td>Map a GitHub statusCheckRollup list to a single aggregate state.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_roll_up_review_state'><code class='inline'>_roll_up_review_state</code></a></td><td>Map GitHub reviews to an aggregate: approved / changes_requested / pending.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-sync_pr_status'><code class='inline'>sync_pr_status</code></a></td><td>Advisory CI/review reconciliation into ``pr_links``.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-detect_merged_prs'><code class='inline'>detect_merged_prs</code></a></td><td>Promote tasks whose linked PR has merged to ``done``.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_mark_pr_merged'><code class='inline'>_mark_pr_merged</code></a></td><td>Set pr_links.merged=1 once GitHub confirms merge (idempotent).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_promote_merged_task'><code class='inline'>_promote_merged_task</code></a></td><td>Drive a merged PR&#x27;s task to ``done`` through the legal state machine.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_recover_cancelled_task_due_to_merge'><code class='inline'>_recover_cancelled_task_due_to_merge</code></a></td><td>Promote a wrongly-cancelled task to ``done`` once its PR is proven merged.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_reconcile_recovery_residue'><code class='inline'>_reconcile_recovery_residue</code></a></td><td>Reconcile durable ownership residue without guessing about live work.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-recover_durable_issues'><code class='inline'>recover_durable_issues</code></a></td><td>Recover and reconcile durable queue issues in one governed pass.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_reconcile_done_unmerged_prs'><code class='inline'>_reconcile_done_unmerged_prs</code></a></td><td>Find done tasks whose linked PR is not merged and reconcile them.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-get_pr_links'><code class='inline'>get_pr_links</code></a></td><td>Return all PR links for a task, newest PR number last.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-connect'><h3><code class='inline'>connect</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def connect(db_path: Path | None = None) -&gt; sqlite3.Connection</code></div><p>Open the queue DB, preserving the legacy façade path override.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import connect
+
+result = connect(db_path=&quot;db_path_example&quot;  # default: None)
+# result: sqlite3.Connection</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def init_db(db_path: Path | None = None) -&gt; None</code></div><p>Initialize the queue DB, preserving the legacy façade path override.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import init_db
+
+result = init_db(db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_task_id'><h3><code class='inline'>generate_task_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def generate_task_id() -&gt; str</code></div><p>Return ``kb_&lt;base36_unix_ms&gt;_&lt;hex4&gt;``.
+
+Delegates to :func:`gateway._id_helpers.generate_id_with_base36` so the
+time-sortable + disambiguation pattern is shared with the runs module.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import generate_task_id
+
+result = generate_task_id()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_task'><h3><code class='inline'>_row_to_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _row_to_task(row: sqlite3.Row) -&gt; dict[str, Any]</code></div><p>Convert a tasks row to a dict, JSON-decoding the fields that are stored
+as JSON text.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _row_to_task
+
+result = _row_to_task(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_event'><h3><code class='inline'>_row_to_event</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _row_to_event(row: sqlite3.Row) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _row_to_event
+
+result = _row_to_event(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_awareness_sink'><h3><code class='inline'>set_awareness_sink</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def set_awareness_sink(sink: &#x27;Callable[[dict[str, Any], str], None] | None&#x27;) -&gt; None</code></div><p>Install (or clear) the machine-awareness sink for task transitions.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import set_awareness_sink
+
+result = set_awareness_sink(sink=&quot;sink_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-publish_task_transition'><h3><code class='inline'>publish_task_transition</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def publish_task_transition(task: dict[str, Any], from_state: str) -&gt; None</code></div><p>Publish one Builder task transition into the shared orientation.
+
+Reads the room&#x27;s global workspace and hands the awareness seam a typed event
+carrying the exact task id and both states, so a reader can tell a current
+fact from a superseded one without trusting prose.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import publish_task_transition
+
+result = publish_task_transition(task=&quot;task_example&quot;, from_state=&quot;from_state_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-install_awareness_sink'><h3><code class='inline'>install_awareness_sink</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def install_awareness_sink() -&gt; None</code></div><p>Install the Builder producer as this process&#x27;s awareness sink.
+
+Called by process entry points that own the room. Unit tests never install
+it, so a queue transition cannot write awareness into a developer&#x27;s real
+room database.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import install_awareness_sink
+
+result = install_awareness_sink()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_publish_transition_awareness'><h3><code class='inline'>_publish_transition_awareness</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _publish_transition_awareness(task: dict[str, Any], from_state: str | None) -&gt; None</code></div><p>Publish transition awareness after the authoritative commit.
+
+Best effort by contract: the transition has already committed, so a broken
+awareness publication is logged and dropped. It must never fail, roll back
+or block the transition that succeeded.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _publish_transition_awareness
+
+result = _publish_transition_awareness(task=&quot;task_example&quot;, from_state=&quot;from_state_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_task'><h3><code class='inline'>create_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def create_task(title: str, description: str | None = None, acceptance_criteria: list[str] | None = None, priority: int = 0, bridge_source: str | None = None, bridge_issue: str | None = None, bridge_external_id: str | None = None, bridge_comment_url: str | None = None, workflow_ref: str | None = None, workflow_sha: str | None = None, repo_path: str | None = None, allowed_paths: list[str] | None = None, db_path: Path | None = None, conn: sqlite3.Connection | None = None) -&gt; dict[str, Any]</code></div><p>Create a task in state ``queued`` and append a ``created`` event.
+
+Bridge idempotency: the unique index on
+``(bridge_source, bridge_external_id)`` (where both are non-null) prevents
+duplicate inserts for the same bridge tuple. On a duplicate, IntegrityError
+is raised and NO ``created`` event is appended.
+
+If ``conn`` is supplied (same pattern as ``append_event``), the insert
+happens on the caller&#x27;s open transaction without committing — used by
+initiative apply to materialize packet tasks atomically with the
+initiative rows.
+
+Returns the created task dict (as from ``get_task``).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import create_task
+
+result = create_task(title=&quot;title_example&quot;, description=&quot;description_example&quot;  # default: None, acceptance_criteria=&quot;acceptance_criteria_example&quot;  # default: None, priority=0  # default: 0, bridge_source=&quot;bridge_source_example&quot;  # default: None, bridge_issue=&quot;bridge_issue_example&quot;  # default: None, bridge_external_id=&quot;bridge_external_id_example&quot;  # default: None, bridge_comment_url=&quot;bridge_comment_url_example&quot;  # default: None, workflow_ref=&quot;workflow_ref_example&quot;  # default: None, workflow_sha=&quot;workflow_sha_example&quot;  # default: None, repo_path=&quot;repo_path_example&quot;  # default: None, allowed_paths=&quot;allowed_paths_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None, conn=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_task'><h3><code class='inline'>get_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_task(task_id: str, db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Return the task dict for ``task_id`` or ``None`` if absent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import get_task
+
+result = get_task(task_id=&quot;task_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_get_task_on_conn'><h3><code class='inline'>_get_task_on_conn</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _get_task_on_conn(conn: sqlite3.Connection, task_id: str) -&gt; dict[str, Any] | None</code></div><p>Return a task using the caller&#x27;s open transaction.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _get_task_on_conn
+
+result = _get_task_on_conn(conn=..., task_id=&quot;task_id_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_tasks'><h3><code class='inline'>list_tasks</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def list_tasks(state: str | None = None, include_archived: bool = False, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>List tasks, optionally filtered by state, excluding archived by default.
+
+Archived tasks (``archived_at IS NOT NULL``) are excluded unless
+``include_archived=True``. Ordering follows the claim index
+(state, priority DESC, id ASC) so consumers see a stable, scan-friendly
+ordering.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import list_tasks
+
+result = list_tasks(state=&quot;state_example&quot;  # default: None, include_archived=True  # default: False, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-append_event'><h3><code class='inline'>append_event</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def append_event(task_id: str, event_type: str, payload: dict[str, Any] | None = None, run_id: str | None = None, db_path: Path | None = None, conn: sqlite3.Connection | None = None) -&gt; dict[str, Any]</code></div><p>Append a row to the events log.
+
+If ``conn`` is supplied, the row is inserted on that connection without
+committing — used by ``create_task`` to atomically insert the task and
+its ``created`` event in one transaction. If no ``conn`` is supplied, a
+fresh connection is opened and the insert is committed immediately.
+
+The events table is append-only: UPDATE/DELETE are blocked by triggers.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import append_event
+
+result = append_event(task_id=&quot;task_id_example&quot;, event_type=&quot;event_type_example&quot;, payload=&quot;payload_example&quot;  # default: None, run_id=&quot;run_id_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None, conn=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_state'><h3><code class='inline'>_validate_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _validate_state(state: str) -&gt; None</code></div><p>Raise ``ValueError`` if *state* is not a known machine state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _validate_state
+
+result = _validate_state(state=&quot;state_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_apply_transition'><h3><code class='inline'>_apply_transition</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _apply_transition(conn: sqlite3.Connection, task_id: str, current_state: str, new_state: str, payload: dict[str, Any] | None = None, extra_where: str = &#x27;&#x27;, extra_params: tuple[Any, ...] = (), event_type: str | None = None) -&gt; None</code></div><p>Apply a state transition on *conn* (inside an open transaction).
+
+Validates states, checks legality, updates the row, and appends an
+event. Does **not** commit — the caller owns the transaction.
+
+Raises:
+    IllegalTransitionError — illegal, changed, or archived.
+    LeaseConflictError — legal transition rejected by lease fencing.
+    ValueError — unknown state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _apply_transition
+
+result = _apply_transition(conn=..., task_id=&quot;task_id_example&quot;, current_state=&quot;current_state_example&quot;, new_state=&quot;new_state_example&quot;, payload=&quot;payload_example&quot;  # default: None, extra_where=&quot;extra_where_example&quot;  # default: &#x27;&#x27;, extra_params=...  # default: (), event_type=&quot;event_type_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-transition_task'><h3><code class='inline'>transition_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def transition_task(task_id: str, new_state: str, payload: dict[str, Any] | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Atomically transition a task to *new_state*.
+
+Opens its own connection, validates the task exists and is not archived,
+runs the transition in ``BEGIN IMMEDIATE``, commits, and returns the
+updated task dict.
+
+Raises:
+    TaskNotFoundError — task ID does not exist.
+    IllegalTransitionError — transition not legal, task archived, or
+        concurrent state change.
+    ValueError — unknown *new_state*.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import transition_task
+
+result = transition_task(task_id=&quot;task_id_example&quot;, new_state=&quot;new_state_example&quot;, payload=&quot;payload_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-operator_cancel_task'><h3><code class='inline'>operator_cancel_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def operator_cancel_task(task_id: str, reason: str = &#x27;operator cancel&#x27;, actor: str | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Operator-cancel a task, refusing in-flight or published work.
+
+Refuses tasks in ``running`` or ``pr_opened``: a running task has a live
+worker (its PR may still merge later), and a ``pr_opened`` task already has
+work published. Cancelling either through the command surface would let
+``operator-cancel`` act as an unblock shortcut that destroys a completed
+implementation&#x27;s eligibility at the queue layer.
+
+Recovering a task cancelled *in error* is the job of the reconciliation
+path (``recover_durable_issues`` / ``reconcile-merges``), which re-evaluates
+the task against ground truth (its linked PR merged) — never by mutating DB
+rows by hand.
+
+Returns the updated task dict.
+
+Raises:
+    TaskNotFoundError — task ID does not exist.
+    IllegalTransitionError — not cancellable (in-flight/published, archived,
+        already terminal, or raced by a concurrent transition).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import operator_cancel_task
+
+result = operator_cancel_task(task_id=&quot;task_id_example&quot;, reason=&quot;reason_example&quot;  # default: &#x27;operator cancel&#x27;, actor=&quot;actor_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-edit_task'><h3><code class='inline'>edit_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def edit_task(task_id: str, title: str | None = None, description: str | None = None, priority: int | None = None, acceptance_criteria: list[str] | None = None, allowed_paths: list[str] | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Edit a queued task&#x27;s editable fields.
+
+Only allowed when state is ``queued``. Editable fields: title, description,
+priority, acceptance_criteria, and allowed_paths. Bridge metadata is
+read-only after creation.
+
+Returns the updated task dict.
+
+Raises:
+    TaskNotFoundError — task ID does not exist.
+    IllegalTransitionError — task is not queued or is archived.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import edit_task
+
+result = edit_task(task_id=&quot;task_id_example&quot;, title=&quot;title_example&quot;  # default: None, description=&quot;description_example&quot;  # default: None, priority=0  # default: None, acceptance_criteria=&quot;acceptance_criteria_example&quot;  # default: None, allowed_paths=&quot;allowed_paths_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_events'><h3><code class='inline'>list_events</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_events(task_id: str, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Return all events for a task in chronological order.
+
+Raises:
+    TaskNotFoundError — task ID does not exist.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import list_events
+
+result = list_events(task_id=&quot;task_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-queue_status'><h3><code class='inline'>queue_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def queue_status(db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Return a summary of queue counts per state and total.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import queue_status
+
+result = queue_status(db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-find_silent_transitions'><h3><code class='inline'>find_silent_transitions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def find_silent_transitions(db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Find tasks whose state left ``queued`` with no event trail.
+
+``_apply_transition`` always appends an event in the same transaction as
+the state change, so every legitimate transition leaves a record. A task
+that is no longer ``queued`` but has one event or fewer (just its
+``created`` event) never went through ``transition_task`` at all — most
+likely a direct write to the database outside the application. This does
+not detect *why* that happened, only *that* it happened, so it can be
+caught immediately instead of reconstructed later from git archaeology.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import find_silent_transitions
+
+result = find_silent_transitions(db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-archive_tasks'><h3><code class='inline'>archive_tasks</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def archive_tasks(state: str, older_than_days: int, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Soft-archive terminal tasks in *state* older than *older_than_days*.
+
+Sets ``archived_at`` on matching tasks. Does **not** delete rows or
+events. Raises ``ValueError`` if *state* is not a terminal state.
+
+Returns a dict with ``tasks_archived`` count and ``task_ids`` list.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import archive_tasks
+
+result = archive_tasks(state=&quot;state_example&quot;, older_than_days=0, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-attach_final_report'><h3><code class='inline'>attach_final_report</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def attach_final_report(task_id: str, report: dict[str, Any], lease_token: str | None = None, claim_version: int | None = None, operator_reason: str | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Attach a structured final report to a task.
+
+Two calling modes:
+
+- **Worker (fenced):** pass ``lease_token`` + ``claim_version``. Rejected
+  with ``LeaseConflictError`` if stale — the report of a superseded
+  worker must not overwrite the current one.
+- **Operator (unfenced):** pass ``operator_reason`` instead. For
+  post-mortems on dead/terminal tasks that no longer hold a lease.
+
+The report replaces ``final_report_json`` and appends a
+``report_attached`` event carrying the report so history keeps every
+version even when the column is overwritten.
+
+Raises:
+    TaskNotFoundError, IllegalTransitionError (archived),
+    LeaseConflictError (stale fencing), ValueError (bad args).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import attach_final_report
+
+result = attach_final_report(task_id=&quot;task_id_example&quot;, report=&quot;report_example&quot;, lease_token=&quot;lease_token_example&quot;  # default: None, claim_version=0  # default: None, operator_reason=&quot;operator_reason_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-attach_pr'><h3><code class='inline'>attach_pr</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def attach_pr(task_id: str, pr_number: int, pr_url: str | None = None, head_sha: str | None = None, checks_state: str | None = None, review_state: str | None = None, mergeable: str | None = None, merge_state_status: str | None = None, base_sha: str | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Attach or update PR metadata for a task.
+
+Upserts one ``pr_links`` row per (task, PR number) and appends a
+``pr_attached`` (new) or ``pr_updated`` (refresh) event. Advisory only:
+task state is never changed here (Section 11.4) — moving a task to
+``pr_opened`` remains an explicit fenced transition.
+
+Only fields passed as non-None are overwritten on refresh.
+
+Mergeability and base-head info are advisory GitHub state (Section 11.4).
+``pr_links`` has no dedicated columns for them, so they are persisted
+durably on the advisory event payload (``pr_attached``/``pr_updated``)
+where the read-only projection can derive recovery actions.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import attach_pr
+
+result = attach_pr(task_id=&quot;task_id_example&quot;, pr_number=0, pr_url=&quot;pr_url_example&quot;  # default: None, head_sha=&quot;head_sha_example&quot;  # default: None, checks_state=&quot;checks_state_example&quot;  # default: None, review_state=&quot;review_state_example&quot;  # default: None, mergeable=&quot;mergeable_example&quot;  # default: None, merge_state_status=&quot;merge_state_status_example&quot;  # default: None, base_sha=&quot;base_sha_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_gh_pr_status'><h3><code class='inline'>_gh_pr_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _gh_pr_status(pr_number: int) -&gt; dict[str, Any]</code></div><p>Query GitHub for a PR&#x27;s merge/checks/review state via the ``gh`` CLI.
+
+Returns ``{&quot;merged&quot;, &quot;url&quot;, &quot;head_sha&quot;, &quot;checks_state&quot;, &quot;review_state&quot;}``.
+Raises ``RuntimeError`` if ``gh`` is unavailable or the PR is not found, so
+the caller can decide whether to skip (advisory) or surface the error.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _gh_pr_status
+
+result = _gh_pr_status(pr_number=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_roll_up_check_state'><h3><code class='inline'>_roll_up_check_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _roll_up_check_state(checks: list[dict[str, Any]]) -&gt; str | None</code></div><p>Map a GitHub statusCheckRollup list to a single aggregate state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _roll_up_check_state
+
+result = _roll_up_check_state(checks=&quot;checks_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_roll_up_review_state'><h3><code class='inline'>_roll_up_review_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def _roll_up_review_state(reviews: list[dict[str, Any]], decision: str | None = None) -&gt; str | None</code></div><p>Map GitHub reviews to an aggregate: approved / changes_requested / pending.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _roll_up_review_state
+
+result = _roll_up_review_state(reviews=&quot;reviews_example&quot;, decision=&quot;decision_example&quot;  # default: None)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-sync_pr_status'><h3><code class='inline'>sync_pr_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def sync_pr_status(db_path: Path | None = None, pr_status: Any = None) -&gt; dict[str, Any]</code></div><p>Advisory CI/review reconciliation into ``pr_links``.
+
+For every attached PR, refresh ``checks_state`` / ``review_state`` /
+``head_sha`` / ``pr_url`` (and ``merged``), but never mutate task state —
+promotion happens only in ``detect_merged_prs``. ``pr_status`` is injectable
+for testing; defaults to ``_gh_pr_status`` (network + ``gh``).
+
+A single PR query failure is recorded under ``errors`` and skipped so one
+bad lookup does not abort the whole reconciliation pass.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import sync_pr_status
+
+result = sync_pr_status(db_path=&quot;db_path_example&quot;  # default: None, pr_status=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detect_merged_prs'><h3><code class='inline'>detect_merged_prs</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def detect_merged_prs(db_path: Path | None = None, pr_merged: Any = None) -&gt; dict[str, Any]</code></div><p>Promote tasks whose linked PR has merged to ``done``.
+
+Scans tasks currently in ``awaiting_review`` (or ``pr_opened``, ``blocked``,
+or task wrongly ``cancelled``) that have a ``pr_links`` row flagged merged,
+or whose merge status is resolved live via ``pr_merged(pr_number)``
+(injectable; defaults to ``_gh_pr_status``). On merge, the task is driven to
+``done`` through the legal state machine (or via the guarded reconciliation
+path when recovering a wrongly-cancelled task that is terminal) and the
+``pr_links`` row is marked merged — which unlocks dependent packets via the
+existing KB-S1B eligibility rollup.
+
+Including ``cancelled`` in the scan is the supported recovery of a task that
+an operator cancelled by mistake: a merged PR is ground truth that the work
+completed, so the cancelled task is promoted to ``done`` instead of counting
+as permanently failed.
+
+Merge detection is read-only against GitHub and never pushes or merges; the
+builder remains operator-controlled per the architecture.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import detect_merged_prs
+
+result = detect_merged_prs(db_path=&quot;db_path_example&quot;  # default: None, pr_merged=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_pr_merged'><h3><code class='inline'>_mark_pr_merged</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _mark_pr_merged(task_id: str, pr_number: int, db_path: Path | None) -&gt; None</code></div><p>Set pr_links.merged=1 once GitHub confirms merge (idempotent).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _mark_pr_merged
+
+result = _mark_pr_merged(task_id=&quot;task_id_example&quot;, pr_number=0, db_path=&quot;db_path_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_promote_merged_task'><h3><code class='inline'>_promote_merged_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _promote_merged_task(task_id: str, db_path: Path | None) -&gt; None</code></div><p>Drive a merged PR&#x27;s task to ``done`` through the legal state machine.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _promote_merged_task
+
+result = _promote_merged_task(task_id=&quot;task_id_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_recover_cancelled_task_due_to_merge'><h3><code class='inline'>_recover_cancelled_task_due_to_merge</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _recover_cancelled_task_due_to_merge(task_id: str, db_path: Path | None) -&gt; None</code></div><p>Promote a wrongly-cancelled task to ``done`` once its PR is proven merged.
+
+``cancelled`` is a terminal state with no legal transitions, so this cannot
+reuse ``transition_task``. Recovery is performed through the guarded
+reconciliation path and is justified *only by merged-PR ground truth* (the
+caller has already confirmed the linked PR merged). It appends an auditable
+``recovered`` event and clears any stale lease/blocked fields so a recovered
+task is not mistakenly left in a partially-run state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _recover_cancelled_task_due_to_merge
+
+result = _recover_cancelled_task_due_to_merge(task_id=&quot;task_id_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_recovery_residue'><h3><code class='inline'>_reconcile_recovery_residue</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _reconcile_recovery_residue(db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Reconcile durable ownership residue without guessing about live work.
+
+Mechanically safe residue is cleared only when durable attempt/task state
+proves the ownership is terminal. Ambiguous open attempts are surfaced for
+operator attention and never executed or auto-closed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _reconcile_recovery_residue
+
+result = _reconcile_recovery_residue(db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-recover_durable_issues'><h3><code class='inline'>recover_durable_issues</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def recover_durable_issues(db_path: Path | None = None, pr_merged: Any = None) -&gt; dict[str, Any]</code></div><p>Recover and reconcile durable queue issues in one governed pass.
+
+This is the supported recover path an operator runs instead of mutating DB
+rows by hand. It tears down stale execution state *and* reconciles task
+state against ground truth (merged PRs) in a single auditable pass:
+
+- expired claimed  -&gt; queued          (recover_expired_leases)
+- expired running  -&gt; blocked         (recover_expired_leases)
+- dead runs        -&gt; interrupted      (recover_interrupted_runs)
+- merged-but-not-done (incl. wrongly cancelled) -&gt; done (detect_merged_prs)
+- done-with-unmerged-PR -&gt; reported for operator attention (no silent demote)
+
+``pr_merged`` is injectable for tests (defaults to ``_gh_pr_status``).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import recover_durable_issues
+
+result = recover_durable_issues(db_path=&quot;db_path_example&quot;  # default: None, pr_merged=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_done_unmerged_prs'><h3><code class='inline'>_reconcile_done_unmerged_prs</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _reconcile_done_unmerged_prs(db_path: Path | None, pr_merged: Any = None) -&gt; dict[str, Any]</code></div><p>Find done tasks whose linked PR is not merged and reconcile them.
+
+A task in ``done`` normally reaches that state via merge promotion, so a
+done task with an unmerged PR link is inconsistent. It is not safe to
+automatically demote a done task, so such tasks are surfaced for operator
+attention rather than silently mutated. If GitHub instead confirms the PR
+actually merged (the link was merely stale), the link is idempotently
+marked merged as a consistency fix.
+
+``pr_merged`` is injectable for tests (defaults to ``_gh_pr_status``).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import _reconcile_done_unmerged_prs
+
+result = _reconcile_done_unmerged_prs(db_path=&quot;db_path_example&quot;, pr_merged=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_pr_links'><h3><code class='inline'>get_pr_links</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_pr_links(task_id: str, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Return all PR links for a task, newest PR number last.
+
+Raises TaskNotFoundError if the task does not exist.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue import get_pr_links
+
+result = get_pr_links(task_id=&quot;task_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

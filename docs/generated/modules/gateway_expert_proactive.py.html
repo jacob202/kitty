@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.expert_proactive — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.expert_proactive</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.expert_proactive</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/expert_proactive.py</code> &middot; Python &middot; 10 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Proactive expert evaluation and learning loop.
+
+Evaluates unread captures and configured directories to emit expert headlines.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>filelock</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.researcher</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>shutil</code>, <code class='inline'>time</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-poll_experts'><code class='inline'>poll_experts</code></a></td><td>Synchronous entry point for cron.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_load_cursors'><code class='inline'>_load_cursors</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_save_cursor'><code class='inline'>_save_cursor</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-async_poll_experts'><code class='inline'>async_poll_experts</code></a></td><td>Evaluate new signals and files for each proactive expert.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_poll_single_expert'><code class='inline'>_poll_single_expert</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(17)</span></td></tr><tr><td><a href='#fn-_already_evaluated'><code class='inline'>_already_evaluated</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_mark_evaluating'><code class='inline'>_mark_evaluating</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_read_csv_tail'><code class='inline'>_read_csv_tail</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_is_duplicate_signal'><code class='inline'>_is_duplicate_signal</code></a></td><td>Hybrid dedup: fast jaccard pre-filter, fallback to LLM.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_evaluate_and_emit'><code class='inline'>_evaluate_and_emit</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(23)</span></td></tr></table></div>
+<div class='card' id='fn-poll_experts'><h3><code class='inline'>poll_experts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def poll_experts() -&gt; None</code></div><p>Synchronous entry point for cron.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.expert_proactive import poll_experts
+
+result = poll_experts()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_cursors'><h3><code class='inline'>_load_cursors</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _load_cursors() -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.expert_proactive import _load_cursors
+
+result = _load_cursors()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_save_cursor'><h3><code class='inline'>_save_cursor</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _save_cursor(expert_id: str, file_key: str, size: int, mtime: float) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.expert_proactive import _save_cursor
+
+result = _save_cursor(expert_id=&quot;expert_id_example&quot;, file_key=&quot;file_key_example&quot;, size=0, mtime=0.0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-async_poll_experts'><h3><code class='inline'>async_poll_experts</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>async def async_poll_experts() -&gt; None</code></div><p>Evaluate new signals and files for each proactive expert.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.expert_proactive import async_poll_experts
+
+    result = await async_poll_experts()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_poll_single_expert'><h3><code class='inline'>_poll_single_expert</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (17)</span></h3><div class='sig'><code>async def _poll_single_expert(expert_id: str, config: dict, inbox_entries: list[dict], cycle_id: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.expert_proactive import _poll_single_expert
+
+    result = await _poll_single_expert()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_already_evaluated'><h3><code class='inline'>_already_evaluated</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _already_evaluated(dedupe_key: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.expert_proactive import _already_evaluated
+
+result = _already_evaluated(dedupe_key=&quot;dedupe_key_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_evaluating'><h3><code class='inline'>_mark_evaluating</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _mark_evaluating(expert_id: str, dedupe_key: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.expert_proactive import _mark_evaluating
+
+result = _mark_evaluating(expert_id=&quot;expert_id_example&quot;, dedupe_key=&quot;dedupe_key_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_csv_tail'><h3><code class='inline'>_read_csv_tail</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _read_csv_tail(path: Path, tail_lines: int = 20) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.expert_proactive import _read_csv_tail
+
+result = _read_csv_tail(path=&quot;path_example&quot;, tail_lines=0  # default: 20)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_duplicate_signal'><h3><code class='inline'>_is_duplicate_signal</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def _is_duplicate_signal(expert_id: str, new_headline: str, new_analysis: str) -&gt; bool</code></div><p>Hybrid dedup: fast jaccard pre-filter, fallback to LLM.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.expert_proactive import _is_duplicate_signal
+
+result = _is_duplicate_signal(expert_id=&quot;expert_id_example&quot;, new_headline=&quot;new_headline_example&quot;, new_analysis=&quot;new_analysis_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_evaluate_and_emit'><h3><code class='inline'>_evaluate_and_emit</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (23)</span></h3><div class='sig'><code>async def _evaluate_and_emit(expert_id: str, expert_prompt: str, data_source: str, learning_enabled: bool, dedupe_key: str, config: dict | None = None, cycle_id: str = &#x27;&#x27;) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.expert_proactive import _evaluate_and_emit
+
+    result = await _evaluate_and_emit()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

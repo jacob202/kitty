@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.llm_client — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.llm_client</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.llm_client</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/llm_client.py</code> &middot; Python &middot; 36 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Unified LLM client — one Kitty route, then provider fallbacks.
+
+All backend LLM calls go through LiteLLM first for logging and proxy-level routing.
+When LiteLLM fails, ``call_llm`` walks the ``PROVIDERS`` table in
+``PROVIDER_FALLBACK_ORDER`` and calls ``_call_provider`` for each entry.
+The dispatcher is generic: provider-specific behavior is data on
+``ProviderConfig`` (``static_headers``, ``model_resolver``,
+``request_mutator``, ``post_processor``). Adding a new provider is a
+new entry in the table — no new top-level function.
+
+Successful completions append one row to ``data/kitty_token_log.jsonl`` via
+``gateway.token_usage_log`` when the API returns a ``usage`` object.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>dotenv</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.chat_errors</code>, <code class='inline'>gateway.http_client</code>, <code class='inline'>gateway.observability</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.provider_prefs</code>, <code class='inline'>gateway.settings</code>, <code class='inline'>gateway.token_usage_log</code>, <code class='inline'>httpx</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>shutil</code>, <code class='inline'>subprocess</code>, <code class='inline'>tempfile</code>, <code class='inline'>tenacity</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_join_names'><code class='inline'>_join_names</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-describe_chain_exhaustion'><code class='inline'>describe_chain_exhaustion</code></a></td><td>Turn raw provider diagnostics into one sentence Jacob can act on.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-_post'><code class='inline'>_post</code></a></td><td>POST once via ``httpx``, retrying only transport failures and HTTP 5xx responses.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_load_dotenv_preserving_agentrouter_keys'><code class='inline'>_load_dotenv_preserving_agentrouter_keys</code></a></td><td>Reload generic dotenv values without caching AgentRouter credentials.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_env_slug'><code class='inline'>_env_slug</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-normalize_litellm_request_model'><code class='inline'>normalize_litellm_request_model</code></a></td><td>Map legacy Kitty aliases onto supported LiteLLM virtual routes.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-normalize_agentrouter_api_base'><code class='inline'>normalize_agentrouter_api_base</code></a></td><td>Return base URL with ``/v1`` suffix, no trailing slash (OpenAI-compatible).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_clean_agentrouter_key'><code class='inline'>_clean_agentrouter_key</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-resolve_agentrouter_api_key'><code class='inline'>resolve_agentrouter_api_key</code></a></td><td>Resolve AgentRouter credentials without mutating the Gateway process environment.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_sanitize_agentrouter_model_id'><code class='inline'>_sanitize_agentrouter_model_id</code></a></td><td>Strip wrappers; detect accidental ``model + api_key`` on one .env line.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-agentrouter_model_for_request'><code class='inline'>agentrouter_model_for_request</code></a></td><td>Pick the upstream AgentRouter model for Kitty&#x27;s single route or an explicit id.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_openrouter_fallback_model'><code class='inline'>_openrouter_fallback_model</code></a></td><td>Map LiteLLM-only model ids to OpenRouter-compatible ids.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_airforce_model_for_request'><code class='inline'>_airforce_model_for_request</code></a></td><td>Map Kitty text roles to a verified Airforce free-tier chat model.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_finalize_openai_shape_response'><code class='inline'>_finalize_openai_shape_response</code></a></td><td>Extract assistant text, normalize usage, append JSONL row, return text.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_resolve_provider_api_key'><code class='inline'>_resolve_provider_api_key</code></a></td><td>Read API key from the first matching env var in the table entry.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_resolve_provider_model'><code class='inline'>_resolve_provider_model</code></a></td><td>Pick the upstream model id. ``model_resolver`` wins over env/default.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-provider_is_configured'><code class='inline'>provider_is_configured</code></a></td><td>Whether this provider has what it needs to be worth calling.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-effective_provider_order'><code class='inline'>effective_provider_order</code></a></td><td>The try-order after applying Jacob&#x27;s saved preference.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_is_agentrouter_disabled'><code class='inline'>_is_agentrouter_disabled</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-provider_is_environment_disabled'><code class='inline'>provider_is_environment_disabled</code></a></td><td>Whether an environment kill switch makes a provider unusable.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-retry_with_backoff'><code class='inline'>retry_with_backoff</code></a></td><td>Retry on 429 rate-limit errors with exponential backoff. All other errors re-raise immediately.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_call_provider'><code class='inline'>_call_provider</code></a></td><td>Generic provider dispatch. The 5 prior direct functions collapse into this.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-selected_provider_name'><code class='inline'>selected_provider_name</code></a></td><td>Return Jacob&#x27;s exact provider selection, or None for automatic routing.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-call_selected_provider'><code class='inline'>call_selected_provider</code></a></td><td>Call exactly one provider. Explicit selection never silently falls elsewhere.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_subscription_messages_to_prompt'><code class='inline'>_subscription_messages_to_prompt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_codex_subscription_completion'><code class='inline'>_codex_subscription_completion</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_claude_subscription_completion'><code class='inline'>_claude_subscription_completion</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-subscription_cli_completion'><code class='inline'>subscription_cli_completion</code></a></td><td>One bounded zero-marginal-cost completion via an authenticated CLI.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-call_llm'><code class='inline'>call_llm</code></a></td><td>Centralized hub for all LLM calls.</td><td><span class='pill'>complex</span><span class='muted small'>(21)</span></td></tr><tr><td><a href='#fn-chat'><code class='inline'>chat</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-route_model'><code class='inline'>route_model</code></a></td><td>Compatibility wrapper for callers that only need the selected model id.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-extract_assistant_text'><code class='inline'>extract_assistant_text</code></a></td><td>Return the first assistant message content from a LiteLLM-style response.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-chat_completions_non_stream'><code class='inline'>chat_completions_non_stream</code></a></td><td>Async chat completion with exact-provider selection or automatic routing.</td><td><span class='pill'>complex</span><span class='muted small'>(15)</span></td></tr><tr><td><a href='#fn-_raise_upstream_status'><code class='inline'>_raise_upstream_status</code></a></td><td>Turn a non-2xx LiteLLM stream response into a typed ChatTurnError.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-iter_chat_completions_stream'><code class='inline'>iter_chat_completions_stream</code></a></td><td>Stream from LiteLLM, or emit an exact selected-provider response as SSE.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-log_chat_trace'><code class='inline'>log_chat_trace</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr></table></div>
+<div class='card' id='fn-_join_names'><h3><code class='inline'>_join_names</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _join_names(names: list[str]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _join_names
+
+result = _join_names(names=&quot;names_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-describe_chain_exhaustion'><h3><code class='inline'>describe_chain_exhaustion</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def describe_chain_exhaustion(errors: list[str]) -&gt; str</code></div><p>Turn raw provider diagnostics into one sentence Jacob can act on.
+
+``errors`` is operator detail (&quot;openrouter: no api key configured&quot;) and stays
+in the durable event. User-facing surfaces show this instead, so a failed turn
+names one cause and one in-product action rather than six provider strings.
+
+The action stays inside the product — Settings › Providers, which already
+marks which providers are usable. Terminal commands, ``.env`` and proxy
+internals belong to the operator record, not to Jacob&#x27;s conversation. When
+nothing is set up there is no in-product fix, so this says setup is required
+instead of sending him to a screen with nothing to choose.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import describe_chain_exhaustion
+
+result = describe_chain_exhaustion(errors=&quot;errors_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_post'><h3><code class='inline'>_post</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _post(*args, **kwargs)</code></div><p>POST once via ``httpx``, retrying only transport failures and HTTP 5xx responses.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _post
+
+result = _post()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_dotenv_preserving_agentrouter_keys'><h3><code class='inline'>_load_dotenv_preserving_agentrouter_keys</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _load_dotenv_preserving_agentrouter_keys() -&gt; bool</code></div><p>Reload generic dotenv values without caching AgentRouter credentials.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _load_dotenv_preserving_agentrouter_keys
+
+result = _load_dotenv_preserving_agentrouter_keys()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_env_slug'><h3><code class='inline'>_env_slug</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _env_slug(name: str, default: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _env_slug
+
+result = _env_slug(name=&quot;name_example&quot;, default=&quot;default_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-normalize_litellm_request_model'><h3><code class='inline'>normalize_litellm_request_model</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def normalize_litellm_request_model(request_model: str | None) -&gt; str | None</code></div><p>Map legacy Kitty aliases onto supported LiteLLM virtual routes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import normalize_litellm_request_model
+
+result = normalize_litellm_request_model(request_model=&quot;request_model_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-normalize_agentrouter_api_base'><h3><code class='inline'>normalize_agentrouter_api_base</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def normalize_agentrouter_api_base(raw: str | None) -&gt; str</code></div><p>Return base URL with ``/v1`` suffix, no trailing slash (OpenAI-compatible).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import normalize_agentrouter_api_base
+
+result = normalize_agentrouter_api_base(raw=&quot;raw_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_clean_agentrouter_key'><h3><code class='inline'>_clean_agentrouter_key</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _clean_agentrouter_key(raw: object, env_name: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _clean_agentrouter_key
+
+result = _clean_agentrouter_key(raw=..., env_name=&quot;env_name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resolve_agentrouter_api_key'><h3><code class='inline'>resolve_agentrouter_api_key</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def resolve_agentrouter_api_key() -&gt; str</code></div><p>Resolve AgentRouter credentials without mutating the Gateway process environment.
+
+Process environment is authoritative. If neither documented key is present,
+read only those key names from the repo dotenv file. Never call
+``load_dotenv(override=True)`` here: provider inspection runs in-process and
+must not rewrite security-critical settings such as ``GATEWAY_SECRET``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import resolve_agentrouter_api_key
+
+result = resolve_agentrouter_api_key()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_sanitize_agentrouter_model_id'><h3><code class='inline'>_sanitize_agentrouter_model_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _sanitize_agentrouter_model_id(raw: str) -&gt; str</code></div><p>Strip wrappers; detect accidental ``model + api_key`` on one .env line.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _sanitize_agentrouter_model_id
+
+result = _sanitize_agentrouter_model_id(raw=&quot;raw_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-agentrouter_model_for_request'><h3><code class='inline'>agentrouter_model_for_request</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def agentrouter_model_for_request(request_model: str | None) -&gt; str</code></div><p>Pick the upstream AgentRouter model for Kitty&#x27;s single route or an explicit id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import agentrouter_model_for_request
+
+result = agentrouter_model_for_request(request_model=&quot;request_model_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_openrouter_fallback_model'><h3><code class='inline'>_openrouter_fallback_model</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _openrouter_fallback_model(litellm_model: str) -&gt; str</code></div><p>Map LiteLLM-only model ids to OpenRouter-compatible ids.
+
+``KITTY_OPENROUTER_DIRECT_MODEL`` is a text-lane override. Vision keeps its
+dedicated multimodal route so an inexpensive text model cannot silently
+replace the model required to inspect an attached image. Explicit free
+routing is also preserved so a zero-cost-only caller cannot be rewritten
+onto a paid direct-model override.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _openrouter_fallback_model
+
+result = _openrouter_fallback_model(litellm_model=&quot;litellm_model_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_airforce_model_for_request'><h3><code class='inline'>_airforce_model_for_request</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _airforce_model_for_request(request_model: str | None) -&gt; str</code></div><p>Map Kitty text roles to a verified Airforce free-tier chat model.
+
+``glm-4.7-flash`` was live-verified on this account on 2026-08-22.
+Unknown/vision models pass through so we fail loudly rather than silently
+send an image turn to a text-only model.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _airforce_model_for_request
+
+result = _airforce_model_for_request(request_model=&quot;request_model_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_finalize_openai_shape_response'><h3><code class='inline'>_finalize_openai_shape_response</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _finalize_openai_shape_response(data: dict[str, Any], provider: str, model_logged: str, operation: str, route: str, request_model: str | None, metadata: dict[str, Any] | None) -&gt; str</code></div><p>Extract assistant text, normalize usage, append JSONL row, return text.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _finalize_openai_shape_response
+
+result = _finalize_openai_shape_response(data=&quot;data_example&quot;, provider=&quot;provider_example&quot;, model_logged=&quot;model_logged_example&quot;, operation=&quot;operation_example&quot;, route=&quot;route_example&quot;, request_model=&quot;request_model_example&quot;, metadata=&quot;metadata_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_provider_api_key'><h3><code class='inline'>_resolve_provider_api_key</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _resolve_provider_api_key(envs: tuple[str, ...]) -&gt; str</code></div><p>Read API key from the first matching env var in the table entry.
+
+The env var *name* lives in the table (read once at import); the *value*
+is read on each call. Callers are responsible for having loaded ``.env``
+(``_call_provider`` does this once up front) so changes take effect without
+a restart. Providers that need richer key handling (e.g. AgentRouter&#x27;s
+multi-line guard) supply a ``key_resolver`` instead.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _resolve_provider_api_key
+
+result = _resolve_provider_api_key(envs=&quot;envs_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_provider_model'><h3><code class='inline'>_resolve_provider_model</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _resolve_provider_model(provider: ProviderConfig, request_model: str | None) -&gt; str</code></div><p>Pick the upstream model id. ``model_resolver`` wins over env/default.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _resolve_provider_model
+
+result = _resolve_provider_model(provider=..., request_model=&quot;request_model_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-provider_is_configured'><h3><code class='inline'>provider_is_configured</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def provider_is_configured(provider: ProviderConfig) -&gt; bool</code></div><p>Whether this provider has what it needs to be worth calling.
+
+Checked before dispatch so an unkeyed provider costs nothing instead of a
+connect timeout. With an empty OPENROUTER_API_KEY the chain used to burn its
+whole deadline discovering, one timeout at a time, that nobody was home.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import provider_is_configured
+
+result = provider_is_configured(provider=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-effective_provider_order'><h3><code class='inline'>effective_provider_order</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def effective_provider_order() -&gt; list[str]</code></div><p>The try-order after applying Jacob&#x27;s saved preference.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import effective_provider_order
+
+result = effective_provider_order()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_agentrouter_disabled'><h3><code class='inline'>_is_agentrouter_disabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _is_agentrouter_disabled() -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _is_agentrouter_disabled
+
+result = _is_agentrouter_disabled()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-provider_is_environment_disabled'><h3><code class='inline'>provider_is_environment_disabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def provider_is_environment_disabled(provider_name: str) -&gt; bool</code></div><p>Whether an environment kill switch makes a provider unusable.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import provider_is_environment_disabled
+
+result = provider_is_environment_disabled(provider_name=&quot;provider_name_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-retry_with_backoff'><h3><code class='inline'>retry_with_backoff</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def retry_with_backoff(func, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 10.0)</code></div><p>Retry on 429 rate-limit errors with exponential backoff. All other errors re-raise immediately.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import retry_with_backoff
+
+result = retry_with_backoff(func=..., max_retries=0  # default: 3, base_delay=0.0  # default: 1.0, max_delay=0.0  # default: 10.0)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_call_provider'><h3><code class='inline'>_call_provider</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def _call_provider(provider: ProviderConfig, messages: list[dict], max_tokens: int, temperature: float, timeout: int, response_format: dict | None = None, operation: str = &#x27;llm.call&#x27;, metadata: dict[str, Any] | None = None, request_model: str | None = None) -&gt; str</code></div><p>Generic provider dispatch. The 5 prior direct functions collapse into this.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _call_provider
+
+result = _call_provider(provider=..., messages=[], max_tokens=0, temperature=0.0, timeout=0, response_format={}  # default: None, operation=&quot;operation_example&quot;  # default: &#x27;llm.call&#x27;, metadata=&quot;metadata_example&quot;  # default: None, request_model=&quot;request_model_example&quot;  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-selected_provider_name'><h3><code class='inline'>selected_provider_name</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def selected_provider_name() -&gt; str | None</code></div><p>Return Jacob&#x27;s exact provider selection, or None for automatic routing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import selected_provider_name
+
+result = selected_provider_name()
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-call_selected_provider'><h3><code class='inline'>call_selected_provider</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def call_selected_provider(provider_name: str, messages: list[dict], request_model: str | None, max_tokens: int, temperature: float, timeout: int, response_format: dict[str, Any] | None = None, operation: str = &#x27;llm.call&#x27;, metadata: dict[str, Any] | None = None) -&gt; str</code></div><p>Call exactly one provider. Explicit selection never silently falls elsewhere.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import call_selected_provider
+
+result = call_selected_provider(provider_name=&quot;provider_name_example&quot;, messages=[], request_model=&quot;request_model_example&quot;, max_tokens=0, temperature=0.0, timeout=0, response_format=&quot;response_format_example&quot;  # default: None, operation=&quot;operation_example&quot;  # default: &#x27;llm.call&#x27;, metadata=&quot;metadata_example&quot;  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_subscription_messages_to_prompt'><h3><code class='inline'>_subscription_messages_to_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _subscription_messages_to_prompt(messages: list[dict]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _subscription_messages_to_prompt
+
+result = _subscription_messages_to_prompt(messages=[])
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_codex_subscription_completion'><h3><code class='inline'>_codex_subscription_completion</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _codex_subscription_completion(prompt: str, timeout: int) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _codex_subscription_completion
+
+result = _codex_subscription_completion(prompt=&quot;prompt_example&quot;, timeout=0)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_claude_subscription_completion'><h3><code class='inline'>_claude_subscription_completion</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _claude_subscription_completion(prompt: str, timeout: int) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _claude_subscription_completion
+
+result = _claude_subscription_completion(prompt=&quot;prompt_example&quot;, timeout=0)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-subscription_cli_completion'><h3><code class='inline'>subscription_cli_completion</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def subscription_cli_completion(messages: list[dict], response_format: dict[str, Any] | None = None, timeout: int | None = None) -&gt; tuple[str, str] | None</code></div><p>One bounded zero-marginal-cost completion via an authenticated CLI.
+
+Order: Codex CLI (ChatGPT auth) then Claude CLI (claude.ai auth). Returns
+``(text, cli_name)`` or ``None`` when no subscription CLI can answer. Never
+raises. ``KITTY_DISABLE_SUBSCRIPTION_CLI=1`` opts out entirely.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import subscription_cli_completion
+
+result = subscription_cli_completion(messages=[], response_format=&quot;response_format_example&quot;  # default: None, timeout=0  # default: None)
+# result: tuple[str, str] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-call_llm'><h3><code class='inline'>call_llm</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (21)</span></h3><div class='sig'><code>def call_llm(messages: list[dict], model: str | None = None, max_tokens: int = 1500, temperature: float = 0.7, timeout: int = 60, response_format: dict[str, Any] | None = None, operation: str = &#x27;llm.call&#x27;, metadata: dict[str, Any] | None = None, zero_cost_only: bool = False) -&gt; str</code></div><p>Centralized hub for all LLM calls.
+Tries LiteLLM proxy first; on failure walks ``effective_provider_order()``.
+
+Every call may reach a cloud provider. ADR 0022 retired the D10 local-only
+boundary; there is no content class that this function keeps on the Mac.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import call_llm
+
+result = call_llm(messages=[], model=&quot;model_example&quot;  # default: None, max_tokens=0  # default: 1500, temperature=0.0  # default: 0.7, timeout=0  # default: 60, response_format=&quot;response_format_example&quot;  # default: None, operation=&quot;operation_example&quot;  # default: &#x27;llm.call&#x27;, metadata=&quot;metadata_example&quot;  # default: None, zero_cost_only=True  # default: False)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-chat'><h3><code class='inline'>chat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def chat(model: str, messages: list[dict], max_tokens: int = 500, temperature: float = 0.7) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import chat
+
+result = chat(model=&quot;model_example&quot;, messages=[], max_tokens=0  # default: 500, temperature=0.0  # default: 0.7)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-route_model'><h3><code class='inline'>route_model</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def route_model(message: str) -&gt; str</code></div><p>Compatibility wrapper for callers that only need the selected model id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import route_model
+
+result = route_model(message=&quot;message_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-extract_assistant_text'><h3><code class='inline'>extract_assistant_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def extract_assistant_text(data: object) -&gt; str</code></div><p>Return the first assistant message content from a LiteLLM-style response.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import extract_assistant_text
+
+result = extract_assistant_text(data=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-chat_completions_non_stream'><h3><code class='inline'>chat_completions_non_stream</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (15)</span></h3><div class='sig'><code>async def chat_completions_non_stream(payload: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Async chat completion with exact-provider selection or automatic routing.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.llm_client import chat_completions_non_stream
+
+    result = await chat_completions_non_stream()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_raise_upstream_status'><h3><code class='inline'>_raise_upstream_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _raise_upstream_status(resp, ChatErrorKind, ChatTurnError) -&gt; None</code></div><p>Turn a non-2xx LiteLLM stream response into a typed ChatTurnError.
+
+The message is kept as detail only (it often names providers/credits); the
+user-facing copy is chosen by the error kind so it never leaks API detail.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import _raise_upstream_status
+
+result = _raise_upstream_status(resp=..., ChatErrorKind=..., ChatTurnError=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-iter_chat_completions_stream'><h3><code class='inline'>iter_chat_completions_stream</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>async def iter_chat_completions_stream(payload: dict[str, Any])</code></div><p>Stream from LiteLLM, or emit an exact selected-provider response as SSE.
+
+Any failure to get a provider-answer surfaces as a ``ChatTurnError`` so the
+route can emit a user-facing error event instead of an empty/half stream
+that the phone renders as opaque &quot;stream closed without [DONE]&quot; copy.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.llm_client import iter_chat_completions_stream
+
+    result = await iter_chat_completions_stream()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-log_chat_trace'><h3><code class='inline'>log_chat_trace</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def log_chat_trace(log_file, correlation_id: str, user_text: str, domain: str, model: str, t_start: float, runtime_revision: str | None = None, model_resolved: str | None = None, tier: str | None = None, trigger: str | None = None, cap_hit: bool | None = None, escalation: bool | None = None) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.llm_client import log_chat_trace
+
+result = log_chat_trace(log_file=..., correlation_id=&quot;correlation_id_example&quot;, user_text=&quot;user_text_example&quot;, domain=&quot;domain_example&quot;, model=&quot;model_example&quot;, t_start=0.0, runtime_revision=&quot;runtime_revision_example&quot;  # default: None, model_resolved=&quot;model_resolved_example&quot;  # default: None, tier=&quot;tier_example&quot;  # default: None, trigger=&quot;trigger_example&quot;  # default: None, cap_hit=True  # default: None, escalation=True  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ProviderChainExhausted'><code class='inline'>ProviderChainExhausted</code></a></td><td>(RuntimeError)</td><td>2 methods</td></tr><tr><td><a href='#cls-ProviderConfig'><code class='inline'>ProviderConfig</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ProviderChainExhausted'><h3><code class='inline'>ProviderChainExhausted</code></h3><p>Raised when LiteLLM and every fallback provider fail to produce a completion.
+
+Replaces the previous silent ``return &quot;&quot;`` so callers see the failure instead
+of downstream code interpreting an empty string as a real answer.</p><p class='small'><b>Attributes:</b> code</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, errors: list[str]) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>user_message</code></td><td><code class='inline'>def user_message(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+l
+l
+m
+_
+c
+l
+i
+e
+n
+t
+ 
+i
+m
+p
+o
+r
+t
+ 
+P
+r
+o
+v
+i
+d
+e
+r
+C
+h
+a
+i
+n
+E
+x
+h
+a
+u
+s
+t
+e
+d
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+P
+r
+o
+v
+i
+d
+e
+r
+C
+h
+a
+i
+n
+E
+x
+h
+a
+u
+s
+t
+e
+d
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-ProviderConfig'><h3><code class='inline'>ProviderConfig</code></h3><p>One row in the ``PROVIDERS`` table.
+
+Adding a new provider is a new entry here, not new code in this file.
+For providers with special behavior, supply a ``request_mutator`` and/or
+``post_processor``. Most providers need neither.</p><p class='small'><b>Attributes:</b> name: str, route: str, base_url: str, api_key_env: tuple[str, ...], model_default: str, model_env: str | None, static_headers: dict[str, str], requires_key: bool, kind: str, free_tier: bool, key_resolver: Callable[[], str] | None, model_resolver: Callable[[str | None], str] | None, request_mutator: Callable[[dict, dict, str | None], tuple[dict, dict]] | None, post_processor: Callable[[httpx.Response, dict], httpx.Response] | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.llm_client import ProviderConfig
+
+obj = ProviderConfig(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_REASON_NO_KEY</code></td><td><code class='inline'>&#x27;no api key configured&#x27;</code></td></tr><tr><td><code class='inline'>_REASON_DISABLED</code></td><td><code class='inline'>&#x27;disabled&#x27;</code></td></tr><tr><td><code class='inline'>_REASON_NO_RESPONSE</code></td><td><code class='inline'>&#x27;no response&#x27;</code></td></tr><tr><td><code class='inline'>_PICK_ANOTHER</code></td><td><code class='inline'>&#x27;Choose a different provider in Settings, under Providers.&#x27;</code></td></tr><tr><td><code class='inline'>_PICK_ANOTHER_CLAUSE</code></td><td><code class='inline'>&#x27;choose a different provider in Settings, under Providers.&#x27;</code></td></tr><tr><td><code class='inline'>_PICK_READY</code></td><td><code class='inline'>&#x27;Choose a provider marked ready in Settings, under Providers.&#x27;</code></td></tr><tr><td><code class='inline'>_CHECK_PROVIDERS</code></td><td><code class='inline'>&#x27;Open Settings, under Providers, to see which ones are ready.&#x27;</code></td></tr><tr><td><code class='inline'>_PROVIDER_CONNECT_TIMEOUT</code></td><td><code class='inline'>_chain_settings.KITTY_PROVIDER_CONNECT_TIMEOUT</code></td></tr><tr><td><code class='inline'>_LLM_CHAIN_DEADLINE</code></td><td><code class='inline'>_chain_settings.KITTY_LLM_CHAIN_DEADLINE</code></td></tr><tr><td><code class='inline'>OPENROUTER_BASE</code></td><td><code class='inline'>&#x27;https://openrouter.ai/api/v1&#x27;</code></td></tr><tr><td><code class='inline'>_LITELLM_DEFAULT</code></td><td><code class='inline'>&#x27;kitty-default&#x27;</code></td></tr><tr><td><code class='inline'>_LITELLM_SONNET</code></td><td><code class='inline'>&#x27;kitty-sonnet&#x27;</code></td></tr><tr><td><code class='inline'>_LITELLM_SMALL</code></td><td><code class='inline'>&#x27;kitty-small&#x27;</code></td></tr><tr><td><code class='inline'>_AGENTROUTER_KEY_ENVS</code></td><td><code class='inline'>(&#x27;AGENT_ROUTER_TOKEN&#x27;, &#x27;AGENTROUTER_API_KEY&#x27;)</code></td></tr><tr><td><code class='inline'>_LITELLM_TO_OPENROUTER</code></td><td><code class='inline'>dict[str, str]</code></td></tr><tr><td><code class='inline'>AIRFORCE_BASE</code></td><td><code class='inline'>&#x27;https://api.airforce/v1&#x27;</code></td></tr><tr><td><code class='inline'>_AIRFORCE_TEXT_ROLES</code></td><td><code class='inline'>{_LITELLM_DEFAULT, _LITELLM_SONNET, _LITELLM_SMALL, &#x27;kitty-think&#x27;, &#x27;kitty-code&#x27;}</code></td></tr><tr><td><code class='inline'>PROVIDERS</code></td><td><code class='inline'>dict[str, ProviderConfig]</code></td></tr><tr><td><code class='inline'>PROVIDER_FALLBACK_ORDER</code></td><td><code class='inline'>tuple[str, ...]</code></td></tr><tr><td><code class='inline'>_SUBSCRIPTION_CLI_PER_CALL_TIMEOUT</code></td><td><code class='inline'>int(os.environ.get(&#x27;KITTY_SUBSCRIPTION_CLI_TIMEOUT&#x27;, &#x27;22&#x27;) or &#x27;22&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

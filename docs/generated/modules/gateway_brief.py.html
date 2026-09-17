@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.brief — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.brief</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.brief</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/brief.py</code> &middot; Python &middot; 25 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>asyncio</code>, <code class='inline'>collections</code>, <code class='inline'>concurrent.futures</code>, <code class='inline'>contracts.brief_item</code>, <code class='inline'>datetime</code>, <code class='inline'>feedparser</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.context_enrichment</code>, <code class='inline'>gateway.journal</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>gateway.memory_graph</code>, <code class='inline'>gateway.model_digest</code>, <code class='inline'>gateway.notify</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>requests</code>, <code class='inline'>subprocess</code>, <code class='inline'>tenacity</code>, <code class='inline'>threading</code>, <code class='inline'>trafilatura</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_git_dirty_count'><code class='inline'>_git_dirty_count</code></a></td><td>Best-effort count of dirty files in the project root.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_current_focus_text'><code class='inline'>_current_focus_text</code></a></td><td>Return the current task line from CURRENT_FOCUS.md if it exists.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-build_worker_brief'><code class='inline'>build_worker_brief</code></a></td><td>Construct the context blob handed to a delegate worker.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_fetch_feed_response'><code class='inline'>_fetch_feed_response</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_fetch_single_feed'><code class='inline'>_fetch_single_feed</code></a></td><td>Fetch headlines from a single RSS feed.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_extract_article_body'><code class='inline'>_extract_article_body</code></a></td><td>Fetch and clean an article body via trafilatura. Returns &quot;&quot; on any failure.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_enrich_with_bodies'><code class='inline'>_enrich_with_bodies</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-fetch_news'><code class='inline'>fetch_news</code></a></td><td>Fetch headlines from all feeds in parallel, optionally enriched with article bodies.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_tasks_summary'><code class='inline'>get_tasks_summary</code></a></td><td>Read the next priority from PROJECT_STATUS.md, falling back to TASKS.md.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-synthesize_brief_with_llm'><code class='inline'>synthesize_brief_with_llm</code></a></td><td>Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_fetch_memory_snippet'><code class='inline'>_fetch_memory_snippet</code></a></td><td>Fetch unified context for brief synthesis.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_fetch_recent_journal_text'><code class='inline'>_fetch_recent_journal_text</code></a></td><td>Return the last few journal entries as plain text for the brief prompt.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_run_async'><code class='inline'>_run_async</code></a></td><td>Run a coroutine from a sync context.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-generate_brief_text'><code class='inline'>generate_brief_text</code></a></td><td>Fallback brief text when LLM is unavailable.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-summarize_headlines_to_bullets'><code class='inline'>summarize_headlines_to_bullets</code></a></td><td>Turn enriched headlines into 3–5 bullet &#x27;what&#x27;s interesting today&#x27; lines.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-get_next_steps_section'><code class='inline'>get_next_steps_section</code></a></td><td>The &quot;What&#x27;s B&quot; section: each active project&#x27;s curated next step (P4, 016).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_deadlines_section'><code class='inline'>get_deadlines_section</code></a></td><td>Upcoming deadlines section (P7, 017).</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_build_brief_result'><code class='inline'>_build_brief_result</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_store_cached_brief'><code class='inline'>_store_cached_brief</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_cached_brief'><code class='inline'>get_cached_brief</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-generate_fast_brief'><code class='inline'>generate_fast_brief</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-detect_research_themes'><code class='inline'>detect_research_themes</code></a></td><td>Detect Jacob&#x27;s current research themes from recent journal entries.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-rank_headlines_by_relevance'><code class='inline'>rank_headlines_by_relevance</code></a></td><td>Rerank headlines by relevance to detected themes.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-detect_brief_novelty'><code class='inline'>detect_brief_novelty</code></a></td><td>Detect what&#x27;s novel in today&#x27;s headlines vs. recent briefs.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-generate_brief'><code class='inline'>generate_brief</code></a></td><td>Generate a morning brief. Returns a dict matching BriefItem schema.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_git_dirty_count'><h3><code class='inline'>_git_dirty_count</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _git_dirty_count() -&gt; int</code></div><p>Best-effort count of dirty files in the project root.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _git_dirty_count
+
+result = _git_dirty_count()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_current_focus_text'><h3><code class='inline'>_current_focus_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _current_focus_text() -&gt; str</code></div><p>Return the current task line from CURRENT_FOCUS.md if it exists.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _current_focus_text
+
+result = _current_focus_text()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_worker_brief'><h3><code class='inline'>build_worker_brief</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def build_worker_brief(task: str, packet: dict | None = None) -&gt; str</code></div><p>Construct the context blob handed to a delegate worker.
+
+Uses the gateway&#x27;s own project root and git state; if a packet is
+provided, it is appended as compact JSON.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import build_worker_brief
+
+result = build_worker_brief(task=&quot;task_example&quot;, packet={}  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fetch_feed_response'><h3><code class='inline'>_fetch_feed_response</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _fetch_feed_response(url: str) -&gt; requests.Response</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _fetch_feed_response
+
+result = _fetch_feed_response(url=&quot;url_example&quot;)
+# result: requests.Response</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fetch_single_feed'><h3><code class='inline'>_fetch_single_feed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _fetch_single_feed(category: str, url: str, limit: int) -&gt; List[NewsHeadline]</code></div><p>Fetch headlines from a single RSS feed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _fetch_single_feed
+
+result = _fetch_single_feed(category=&quot;category_example&quot;, url=&quot;url_example&quot;, limit=0)
+# result: List[NewsHeadline]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_extract_article_body'><h3><code class='inline'>_extract_article_body</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _extract_article_body(url: str) -&gt; str</code></div><p>Fetch and clean an article body via trafilatura. Returns &quot;&quot; on any failure.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _extract_article_body
+
+result = _extract_article_body(url=&quot;url_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_enrich_with_bodies'><h3><code class='inline'>_enrich_with_bodies</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _enrich_with_bodies(headlines: List[NewsHeadline]) -&gt; List[NewsHeadline]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _enrich_with_bodies
+
+result = _enrich_with_bodies(headlines=[])
+# result: List[NewsHeadline]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-fetch_news'><h3><code class='inline'>fetch_news</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def fetch_news(limit_per_feed: int = 3) -&gt; List[NewsHeadline]</code></div><p>Fetch headlines from all feeds in parallel, optionally enriched with article bodies.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import fetch_news
+
+result = fetch_news(limit_per_feed=0  # default: 3)
+# result: List[NewsHeadline]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_tasks_summary'><h3><code class='inline'>get_tasks_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def get_tasks_summary() -&gt; str</code></div><p>Read the next priority from PROJECT_STATUS.md, falling back to TASKS.md.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import get_tasks_summary
+
+result = get_tasks_summary()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-synthesize_brief_with_llm'><h3><code class='inline'>synthesize_brief_with_llm</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, memory_snippet: str, themes: list[dict] | None = None, novelty: dict | None = None, llm: LLMClient | None = None) -&gt; str</code></div><p>Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief.
+
+When themes are present they are surfaced so the brief can connect news to
+what Jacob&#x27;s been working on. novelty is accepted for pipeline compatibility
+but is no longer rendered into the prompt — it read as meta-noise.
+
+``llm`` is injectable for tests/non-default models; when omitted the brief
+uses the default ``DEFAULT_LLM_CLIENT`` (``gateway.llm_client.chat``).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import synthesize_brief_with_llm
+
+result = synthesize_brief_with_llm(headlines=[], task_summary=&quot;task_summary_example&quot;, memory_snippet=&quot;memory_snippet_example&quot;, themes=[]  # default: None, novelty={}  # default: None, llm=...  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fetch_memory_snippet'><h3><code class='inline'>_fetch_memory_snippet</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _fetch_memory_snippet() -&gt; str</code></div><p>Fetch unified context for brief synthesis.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _fetch_memory_snippet
+
+result = _fetch_memory_snippet()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fetch_recent_journal_text'><h3><code class='inline'>_fetch_recent_journal_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _fetch_recent_journal_text(limit: int = 3) -&gt; str</code></div><p>Return the last few journal entries as plain text for the brief prompt.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _fetch_recent_journal_text
+
+result = _fetch_recent_journal_text(limit=0  # default: 3)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_async'><h3><code class='inline'>_run_async</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _run_async(coro)</code></div><p>Run a coroutine from a sync context.
+
+Single seam for any async helper in this module. The brief pipeline
+is invoked from CLI and FastAPI handlers, so this hides the
+asyncio.run pattern behind a named function — both so the call
+sites read uniformly and so a future async refactor can swap the
+implementation (e.g. nest_asyncio or an async entry point) without
+touching every call.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _run_async
+
+result = _run_async(coro=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_brief_text'><h3><code class='inline'>generate_brief_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def generate_brief_text(headlines: List[NewsHeadline], task_summary: str) -&gt; str</code></div><p>Fallback brief text when LLM is unavailable.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import generate_brief_text
+
+result = generate_brief_text(headlines=[], task_summary=&quot;task_summary_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-summarize_headlines_to_bullets'><h3><code class='inline'>summarize_headlines_to_bullets</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def summarize_headlines_to_bullets(headlines: List[NewsHeadline], llm: LLMClient | None = None) -&gt; List[str]</code></div><p>Turn enriched headlines into 3–5 bullet &#x27;what&#x27;s interesting today&#x27; lines.
+
+Requires at least some bodies to be present (i.e. BRIEF_ENRICH_ARTICLES=1).
+Returns [] if there&#x27;s no body content or the LLM call fails.
+
+``llm`` is injectable for tests/non-default models; when omitted the brief
+uses the default ``DEFAULT_LLM_CLIENT``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import summarize_headlines_to_bullets
+
+result = summarize_headlines_to_bullets(headlines=[], llm=...  # default: None)
+# result: List[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_next_steps_section'><h3><code class='inline'>get_next_steps_section</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_next_steps_section(limit: int = 3) -&gt; list[dict]</code></div><p>The &quot;What&#x27;s B&quot; section: each active project&#x27;s curated next step (P4, 016).
+
+Ordered life-first per ADR 0016: life projects (kind != &quot;code&quot;) surface
+before code projects when both have eligible stored steps, and at most one
+Kitty-self-development suggestion is shown while any life-project step is
+available. Skips projects with no stored step (never refreshed under this
+packet) rather than fabricating one.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import get_next_steps_section
+
+result = get_next_steps_section(limit=0  # default: 3)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_deadlines_section'><h3><code class='inline'>get_deadlines_section</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def get_deadlines_section(limit: int = 3) -&gt; list[dict]</code></div><p>Upcoming deadlines section (P7, 017).
+
+Ordered by due_date ascending. High/medium confidence first; needs_jacob
+items are surfaced only if there are fewer than `limit` confident items.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import get_deadlines_section
+
+result = get_deadlines_section(limit=0  # default: 3)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_brief_result'><h3><code class='inline'>_build_brief_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _build_brief_result(today: str, headlines: List[NewsHeadline], memory: str, intention: str, summary_bullets: Optional[List[str]] = None) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _build_brief_result
+
+result = _build_brief_result(today=&quot;today_example&quot;, headlines=[], memory=&quot;memory_example&quot;, intention=&quot;intention_example&quot;, summary_bullets=&quot;summary_bullets_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_store_cached_brief'><h3><code class='inline'>_store_cached_brief</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _store_cached_brief(result: dict) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import _store_cached_brief
+
+result = _store_cached_brief(result={})
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_cached_brief'><h3><code class='inline'>get_cached_brief</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def get_cached_brief(max_age_seconds: Optional[int] = BRIEF_CACHE_TTL_SECONDS) -&gt; Optional[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import get_cached_brief
+
+result = get_cached_brief(max_age_seconds=0  # default: BRIEF_CACHE_TTL_SECONDS)
+# result: Optional[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_fast_brief'><h3><code class='inline'>generate_fast_brief</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def generate_fast_brief() -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import generate_fast_brief
+
+result = generate_fast_brief()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detect_research_themes'><h3><code class='inline'>detect_research_themes</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def detect_research_themes(limit: int = 5, lookback_days: int = 14) -&gt; list[dict]</code></div><p>Detect Jacob&#x27;s current research themes from recent journal entries.
+
+Source: the last ``lookback_days`` of journal entries, ranked by
+bigram frequency. This replaced the earlier &quot;search_all + bigram&quot;
+heuristic that produced noise and lied to the LLM with a fake
+&quot;general knowledge&quot; theme when memory was empty.
+
+Returns a list of ``{&quot;theme&quot;: str, &quot;mentions&quot;: int, &quot;source&quot;:
+&quot;journal&quot;}`` dicts, ordered by mentions descending, capped at
+``limit``. Returns ``[]`` when there is no journal data (empty log
+file, all entries older than ``lookback_days``, or read error).
+
+The caller (``generate_brief``, ``synthesize_brief_with_llm``) is
+responsible for treating ``[]`` honestly — i.e. NOT inserting a
+fabricated theme into the LLM prompt.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import detect_research_themes
+
+result = detect_research_themes(limit=0  # default: 5, lookback_days=0  # default: 14)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-rank_headlines_by_relevance'><h3><code class='inline'>rank_headlines_by_relevance</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def rank_headlines_by_relevance(headlines: List[NewsHeadline], themes: list[dict]) -&gt; List[NewsHeadline]</code></div><p>Rerank headlines by relevance to detected themes.
+Returns headlines with relevance scores, prioritizing theme-matched content.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import rank_headlines_by_relevance
+
+result = rank_headlines_by_relevance(headlines=[], themes=[])
+# result: List[NewsHeadline]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detect_brief_novelty'><h3><code class='inline'>detect_brief_novelty</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def detect_brief_novelty(headlines: List[NewsHeadline], themes: list[dict]) -&gt; dict</code></div><p>Detect what&#x27;s novel in today&#x27;s headlines vs. recent briefs.
+Returns dict with:
+{
+    &quot;new_count&quot;: N,
+    &quot;repeated_count&quot;: N,
+    &quot;novel_headlines&quot;: [...],
+    &quot;summary&quot;: &quot;X new articles on your themes today&quot;
+}</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import detect_brief_novelty
+
+result = detect_brief_novelty(headlines=[], themes=[])
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_brief'><h3><code class='inline'>generate_brief</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def generate_brief(news_source: NewsSource | None = None) -&gt; dict</code></div><p>Generate a morning brief. Returns a dict matching BriefItem schema.
+
+Contextual brief generation:
+1. Detect Jacob&#x27;s current research themes from memory
+2. Rank headlines by relevance to those themes
+3. Identify novel vs. repeated content
+4. Synthesize brief with theme/novelty context
+
+``news_source`` is injectable for tests/non-default feeds; when omitted
+the brief uses the default ``DEFAULT_NEWS_SOURCE`` (same as ``fetch_news``).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.brief import generate_brief
+
+result = generate_brief(news_source=...  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-NewsSource'><code class='inline'>NewsSource</code></a></td><td>(Protocol)</td><td>1 methods</td></tr><tr><td><a href='#cls-RssNewsSource'><code class='inline'>RssNewsSource</code></a></td><td></td><td>2 methods</td></tr><tr><td><a href='#cls-LLMClient'><code class='inline'>LLMClient</code></a></td><td>(Protocol)</td><td>1 methods</td></tr><tr><td><a href='#cls-DefaultLLMClient'><code class='inline'>DefaultLLMClient</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-NewsSource'><h3><code class='inline'>NewsSource</code></h3><p>Interface the brief pipeline uses to obtain headlines.
+
+The pipeline never reaches for ``requests``/``feedparser`` directly —
+it asks a ``NewsSource``. ``RssNewsSource`` is the default
+implementation; any object with a ``fetch`` method satisfies the
+protocol, so feeds can be swapped or faked without editing the
+pipeline (the seam).</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>def fetch(self, limit_per_feed: int = 3) -&gt; List[NewsHeadline]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.brief import NewsSource
+
+obj = NewsSource(...)</pre></div>
+<div class='card' id='cls-RssNewsSource'><h3><code class='inline'>RssNewsSource</code></h3><p>Default news source: pulls configured RSS feeds in parallel.
+
+Wraps the existing feed-fetch + enrichment logic behind the
+``NewsSource`` interface so the feed set is data, not control flow.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, feeds: dict[str, str]) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch</code></td><td><code class='inline'>def fetch(self, limit_per_feed: int = 3) -&gt; List[NewsHeadline]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+b
+r
+i
+e
+f
+ 
+i
+m
+p
+o
+r
+t
+ 
+R
+s
+s
+N
+e
+w
+s
+S
+o
+u
+r
+c
+e
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+R
+s
+s
+N
+e
+w
+s
+S
+o
+u
+r
+c
+e
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-LLMClient'><h3><code class='inline'>LLMClient</code></h3><p>Interface the brief pipeline uses to talk to a language model.
+
+Keeps the concrete ``gateway.llm_client.chat`` call behind a seam so
+synthesis is unit-testable (inject a fake) and swappable without
+editing the prompt-building code.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>complete</code></td><td><code class='inline'>def complete(self, model: str, messages: List[dict], max_tokens: int, temperature: float) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.brief import LLMClient
+
+obj = LLMClient(...)</pre></div>
+<div class='card' id='cls-DefaultLLMClient'><h3><code class='inline'>DefaultLLMClient</code></h3><p>LLMClient backed by ``gateway.llm_client.chat`` (LiteLLM).</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>complete</code></td><td><code class='inline'>def complete(self, model: str, messages: List[dict], max_tokens: int, temperature: float) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.brief import DefaultLLMClient
+
+obj = DefaultLLMClient(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_ENRICH_ARTICLES</code></td><td><code class='inline'>os.environ.get(&#x27;BRIEF_ENRICH_ARTICLES&#x27;, &#x27;0&#x27;) == &#x27;1&#x27;</code></td></tr><tr><td><code class='inline'>_BODY_FETCH_TIMEOUT_SECONDS</code></td><td><code class='inline'>4.0</code></td></tr><tr><td><code class='inline'>_BODY_MAX_LEN</code></td><td><code class='inline'>800</code></td></tr><tr><td><code class='inline'>FEED_TIMEOUT_SECONDS</code></td><td><code class='inline'>1.25</code></td></tr><tr><td><code class='inline'>BRIEF_CACHE_TTL_SECONDS</code></td><td><code class='inline'>900</code></td></tr><tr><td><code class='inline'>DEFAULT_FEEDS</code></td><td><code class='inline'>{&#x27;regina&#x27;: &#x27;https://www.cbc.ca/cmlink/rss-canada-saskatchewan&#x27;, &#x27;audiophile&#x27;: &#x27;https://www.stereophile.com/rss.xml&#x27;, &#x27;ai</code></td></tr><tr><td><code class='inline'>_RSS_HEADERS</code></td><td><code class='inline'>{&#x27;User-Agent&#x27;: &#x27;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 </code></td></tr><tr><td><code class='inline'>DEFAULT_NEWS_SOURCE</code></td><td><code class='inline'>RssNewsSource(DEFAULT_FEEDS)</code></td></tr><tr><td><code class='inline'>DEFAULT_LLM_CLIENT</code></td><td><code class='inline'>DefaultLLMClient()</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

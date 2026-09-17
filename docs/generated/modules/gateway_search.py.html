@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.search — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.search</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.search</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/search.py</code> &middot; Python &middot; 9 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Unified Search — normalized query results across Kitty stores.
+
+Public API:
+  async_search(query) -&gt; dict  Async search with grouped, normalized hits
+  search(query) -&gt; dict        Sync wrapper for offline scripts/tests only</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>gateway</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_compact'><code class='inline'>_compact</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_first_text'><code class='inline'>_first_text</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_score'><code class='inline'>_score</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_short_title'><code class='inline'>_short_title</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_metadata'><code class='inline'>_metadata</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-normalize_hit'><code class='inline'>normalize_hit</code></a></td><td>Return one stable hit shape for display and LLM context callers.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-async_search'><code class='inline'>async_search</code></a></td><td>Unified async search with stable grouped hit shapes.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_item_to_hit'><code class='inline'>_item_to_hit</code></a></td><td>Convert a memory_graph.Item into the stable search hit shape.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-search'><code class='inline'>search</code></a></td><td>Sync wrapper for offline scripts. Async routes should call async_search().</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_compact'><h3><code class='inline'>_compact</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _compact(value: Any, default: str = &#x27;&#x27;) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.search import _compact
+
+result = _compact(value=..., default=&quot;default_example&quot;  # default: &#x27;&#x27;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_first_text'><h3><code class='inline'>_first_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _first_text(item: dict[str, Any], keys: tuple[str, ...]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.search import _first_text
+
+result = _first_text(item=&quot;item_example&quot;, keys=&quot;keys_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_score'><h3><code class='inline'>_score</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _score(item: dict[str, Any]) -&gt; float | int | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.search import _score
+
+result = _score(item=&quot;item_example&quot;)
+# result: float | int | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_short_title'><h3><code class='inline'>_short_title</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _short_title(text: str, fallback: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.search import _short_title
+
+result = _short_title(text=&quot;text_example&quot;, fallback=&quot;fallback_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_metadata'><h3><code class='inline'>_metadata</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _metadata(item: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.search import _metadata
+
+result = _metadata(item=&quot;item_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-normalize_hit'><h3><code class='inline'>normalize_hit</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def normalize_hit(kind: str, item: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Return one stable hit shape for display and LLM context callers.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.search import normalize_hit
+
+result = normalize_hit(kind=&quot;kind_example&quot;, item=&quot;item_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-async_search'><h3><code class='inline'>async_search</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def async_search(query: str, limit: int = 5) -&gt; dict[str, Any]</code></div><p>Unified async search with stable grouped hit shapes.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.search import async_search
+
+    result = await async_search()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_item_to_hit'><h3><code class='inline'>_item_to_hit</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _item_to_hit(kind: str, item: memory_graph.Item) -&gt; dict[str, Any]</code></div><p>Convert a memory_graph.Item into the stable search hit shape.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.search import _item_to_hit
+
+result = _item_to_hit(kind=&quot;kind_example&quot;, item=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search'><h3><code class='inline'>search</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def search(query: str, limit: int = 5) -&gt; dict[str, Any]</code></div><p>Sync wrapper for offline scripts. Async routes should call async_search().</p><h3>Example Usage (synthetic)</h3><pre>from gateway.search import search
+
+result = search(query=&quot;query_example&quot;, limit=0  # default: 5)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SECTION_TO_KIND</code></td><td><code class='inline'>{&#x27;projects&#x27;: &#x27;project&#x27;, &#x27;memories&#x27;: &#x27;memory&#x27;, &#x27;knowledge&#x27;: &#x27;knowledge&#x27;, &#x27;journal&#x27;: &#x27;journal&#x27;, &#x27;traces&#x27;: &#x27;trace&#x27;, &#x27;todos&#x27;</code></td></tr><tr><td><code class='inline'>RAW_TO_SECTION</code></td><td><code class='inline'>{&#x27;projects&#x27;: &#x27;projects&#x27;, &#x27;explicit_memory&#x27;: &#x27;memories&#x27;, &#x27;memory&#x27;: &#x27;memories&#x27;, &#x27;memories&#x27;: &#x27;memories&#x27;, &#x27;knowledge&#x27;: &#x27;know</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

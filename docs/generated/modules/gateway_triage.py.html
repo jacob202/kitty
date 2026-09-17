@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.triage — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.triage</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.triage</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/triage.py</code> &middot; Python &middot; 10 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Inbox triage (P2, docs/packets/002) — classify capture into action buckets.
+
+For every inbox entry that has no ``inbox_triage`` row yet, ask an LLM which
+bucket it belongs in, how confident it is, and why. A call below
+``TRIAGE_CONFIDENCE_FLOOR`` is rerouted to ``needs_jacob`` rather than guessed.
+
+Capture stays dumb (D4): triage never touches ``data/inbox.jsonl``. Results
+live only in ``kitty.db``. ``drop`` is a bucket, not a deletion — a dropped
+entry is still queryable.
+
+There is no rule-based fallback. If the model is unavailable or returns output
+this module cannot parse into a valid bucket, ``run_pass`` raises and writes
+nothing for that entry (CLAUDE.md non-negotiable 1: fail loud, never guess).
+
+Public API:
+  run_pass(limit=25, llm_fn=None) -&gt; dict
+      Classify up to `limit` untriaged entries. Returns counts per bucket.
+  list_triaged(bucket=None, limit=50) -&gt; list[dict]
+      Triage rows joined to their inbox entry text, newest first.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Apply pending migrations. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-run_pass'><code class='inline'>run_pass</code></a></td><td>Classify up to `limit` untriaged inbox entries. Counts per bucket.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-list_triaged'><code class='inline'>list_triaged</code></a></td><td>Triage rows joined to inbox entry text, newest first. Optional bucket.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_classify'><code class='inline'>_classify</code></a></td><td>Ask the model, validate, apply the confidence floor. Raises on failure.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_parse'><code class='inline'>_parse</code></a></td><td>Parse model JSON into validated fields. Raises TriageError on anything off.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_write_row'><code class='inline'>_write_row</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_triaged_ids'><code class='inline'>_triaged_ids</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_default_llm'><code class='inline'>_default_llm</code></a></td><td>Default classifier: Kitty&#x27;s local route, JSON out, no creativity.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_build_prompt'><code class='inline'>_build_prompt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_load_preferences'><code class='inline'>_load_preferences</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Apply pending migrations. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_pass'><h3><code class='inline'>run_pass</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def run_pass(limit: int = 25, llm_fn: LlmFn | None = None) -&gt; dict[str, Any]</code></div><p>Classify up to `limit` untriaged inbox entries. Counts per bucket.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import run_pass
+
+result = run_pass(limit=0  # default: 25, llm_fn=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_triaged'><h3><code class='inline'>list_triaged</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def list_triaged(bucket: str | None = None, limit: int = 50) -&gt; list[dict[str, Any]]</code></div><p>Triage rows joined to inbox entry text, newest first. Optional bucket.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import list_triaged
+
+result = list_triaged(bucket=&quot;bucket_example&quot;  # default: None, limit=0  # default: 50)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_classify'><h3><code class='inline'>_classify</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _classify(entry: dict[str, Any], llm_fn: LlmFn) -&gt; dict[str, Any]</code></div><p>Ask the model, validate, apply the confidence floor. Raises on failure.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import _classify
+
+result = _classify(entry=&quot;entry_example&quot;, llm_fn=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse'><h3><code class='inline'>_parse</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _parse(raw: str, entry_id: str) -&gt; dict[str, Any]</code></div><p>Parse model JSON into validated fields. Raises TriageError on anything off.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import _parse
+
+result = _parse(raw=&quot;raw_example&quot;, entry_id=&quot;entry_id_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_write_row'><h3><code class='inline'>_write_row</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _write_row(inbox_id: str, result: dict[str, Any]) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import _write_row
+
+result = _write_row(inbox_id=&quot;inbox_id_example&quot;, result=&quot;result_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_triaged_ids'><h3><code class='inline'>_triaged_ids</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _triaged_ids() -&gt; set[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import _triaged_ids
+
+result = _triaged_ids()
+# result: set[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_default_llm'><h3><code class='inline'>_default_llm</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _default_llm(prompt: str) -&gt; str</code></div><p>Default classifier: Kitty&#x27;s local route, JSON out, no creativity.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import _default_llm
+
+result = _default_llm(prompt=&quot;prompt_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_prompt'><h3><code class='inline'>_build_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _build_prompt(entry: dict[str, Any]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import _build_prompt
+
+result = _build_prompt(entry=&quot;entry_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_preferences'><h3><code class='inline'>_load_preferences</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_preferences() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.triage import _load_preferences
+
+result = _load_preferences()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-TriageError'><code class='inline'>TriageError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-TriageError'><h3><code class='inline'>TriageError</code></h3><p>Raised when the model is unavailable or returns unusable output.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.triage import TriageError
+
+obj = TriageError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>TRIAGE_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>BUCKETS</code></td><td><code class='inline'>(&#x27;now&#x27;, &#x27;scheduled&#x27;, &#x27;someday&#x27;, &#x27;reference&#x27;, &#x27;needs_jacob&#x27;, &#x27;drop&#x27;)</code></td></tr><tr><td><code class='inline'>TRIAGE_CONFIDENCE_FLOOR</code></td><td><code class='inline'>0.6</code></td></tr><tr><td><code class='inline'>_TRIAGE_ROUTE</code></td><td><code class='inline'>&#x27;kitty-default&#x27;</code></td></tr><tr><td><code class='inline'>_SYSTEM_PROMPT</code></td><td><code class='inline'>&#x27;You are Kitty\&#x27;s inbox triage. For one captured note, decide which single bucket it belongs in and how sure you are.\n\</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

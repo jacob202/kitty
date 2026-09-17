@@ -313,6 +313,11 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   const abortRef = useRef<AbortController | null>(null)
   const colorIndexRef = useRef(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // Bumped whenever the staged set is invalidated. An upload started before a
+  // chat change resolves after it; without this the finished capture would be
+  // appended to whichever chat the user moved to, which is the same
+  // cross-conversation leak by a different path.
+  const stagedAttachmentEpochRef = useRef(0)
 
   // gateway queries
   const queryClient = useQueryClient()
@@ -527,6 +532,19 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
 
   // ── handlers ─────────────────────────────────────────────────────────────────
 
+  // Staged attachments are bound server-side to the active chat's conversation
+  // (see uploadCaptureFile), so they cannot outlive a change of chat: a file
+  // staged for one conversation would otherwise be sent attached to another
+  // conversation's message. Context refs were already cleared on every chat
+  // change; attachments were not, and leaked across.
+  const clearStagedAttachments = useCallback(() => {
+    // Invalidate in-flight uploads as well as completed chips: a capture that
+    // resolves after the chat changed must not be appended to the new chat.
+    stagedAttachmentEpochRef.current += 1
+    setAttachments([])
+    setAttachmentErrors([])
+  }, [])
+
   const handleNewChat = useCallback(() => {
     const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]
     colorIndexRef.current++
@@ -536,7 +554,8 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     setActiveChatId(chat.id)
     setInput('')
     setContextRefs([])
-  }, [activeModel.id])
+    clearStagedAttachments()
+  }, [activeModel.id, clearStagedAttachments])
 
   const handleNewExpertChat = useCallback((expert: ExpertProfile) => {
     const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]
@@ -549,7 +568,8 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     setActiveChatId(chat.id)
     setInput('')
     setContextRefs([])
-  }, [activeModel.id])
+    clearStagedAttachments()
+  }, [activeModel.id, clearStagedAttachments])
 
   const handleToggleTheme = useCallback(() => {
     setTheme((t) => {
@@ -568,8 +588,9 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   const handleSelectChat = useCallback((id: string) => {
     setActiveChatId(id)
     setContextRefs([])
+    clearStagedAttachments()
     if (isMobile) setMobileSidebarOpen(false)
-  }, [isMobile])
+  }, [isMobile, clearStagedAttachments])
 
   const handleSidebarNewChat = useCallback(() => {
     handleNewChat()
@@ -577,7 +598,10 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   }, [handleNewChat, isMobile])
 
   const handleCloseChat = useCallback((id: string) => {
-    if (id === activeChatId) setContextRefs([])
+    if (id === activeChatId) {
+      setContextRefs([])
+      clearStagedAttachments()
+    }
     setChats((prev) => {
       const next = prev.filter((c) => c.id !== id)
       if (next.length === 0) {
@@ -592,7 +616,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       const remaining = chats.filter((c) => c.id !== id)
       return remaining[remaining.length - 1]?.id ?? null
     })
-  }, [chats, activeChatId])
+  }, [chats, activeChatId, clearStagedAttachments])
 
   const handleSelectModel = useCallback((m: Model) => {
     setActiveModel(m)
@@ -798,14 +822,21 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
 
   const handleAddFiles = useCallback(async (files: FileList) => {
     if (!activeChat) return
+    // The upload is bound server-side to this chat. If the user leaves the chat
+    // while it is in flight, the result belongs to a conversation that is no
+    // longer active, so drop it instead of staging it somewhere it was not
+    // attached for.
+    const epoch = stagedAttachmentEpochRef.current
     const { valid, errors } = validateAttachments(files)
     if (errors.length) setAttachmentErrors(errors)
     else setAttachmentErrors([])
     const added: MessageAttachment[] = []
     for (const file of valid) {
       const result = await uploadCaptureFile(file, { conversationId: activeChat.id, projectId: activeProject?.id })
+      if (stagedAttachmentEpochRef.current !== epoch) return
       if (result?.artifact_id) added.push({ id: result.artifact_id, display_name: file.name, media_type: file.type || 'application/octet-stream', size: file.size })
     }
+    if (stagedAttachmentEpochRef.current !== epoch) return
     if (added.length) {
       setAttachments((prev) => [...prev, ...added])
       queryClient.invalidateQueries({ queryKey: ['artifacts'] })

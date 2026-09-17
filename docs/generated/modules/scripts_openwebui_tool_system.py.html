@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.openwebui_tool.system — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.openwebui_tool.system</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.openwebui_tool.system</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/openwebui_tool/system.py</code> &middot; Python &middot; 13 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>.common</code>, <code class='inline'>.service</code>, <code class='inline'>__future__</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>plistlib</code>, <code class='inline'>shutil</code>, <code class='inline'>sqlite3</code>, <code class='inline'>sys</code>, <code class='inline'>tempfile</code>, <code class='inline'>time</code>, <code class='inline'>urllib.error</code>, <code class='inline'>urllib.request</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_launch_domain'><code class='inline'>_launch_domain</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_verify_launch_agent_enabled'><code class='inline'>_verify_launch_agent_enabled</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-install_launch_agent'><code class='inline'>install_launch_agent</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-uninstall_launch_agent'><code class='inline'>uninstall_launch_agent</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_validate_database'><code class='inline'>_validate_database</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-backup_state'><code class='inline'>backup_state</code></a></td><td>Publish a verified SQLite backup atomically.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-latest_backup'><code class='inline'>latest_backup</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_atomic_copy'><code class='inline'>_atomic_copy</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-restore_state'><code class='inline'>restore_state</code></a></td><td>Restore only after a verified copy is ready for atomic replacement.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_wait_for_kitty_identity'><code class='inline'>_wait_for_kitty_identity</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-rollback_to_kitty_ui'><code class='inline'>rollback_to_kitty_ui</code></a></td><td>Hand the day back to the canonical Kitty UI without removing its services.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-write_desktop_shortcut'><code class='inline'>write_desktop_shortcut</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-bootstrap'><code class='inline'>bootstrap</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr></table></div>
+<div class='card' id='fn-_launch_domain'><h3><code class='inline'>_launch_domain</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _launch_domain() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import _launch_domain
+
+result = _launch_domain()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_verify_launch_agent_enabled'><h3><code class='inline'>_verify_launch_agent_enabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _verify_launch_agent_enabled(domain: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import _verify_launch_agent_enabled
+
+result = _verify_launch_agent_enabled(domain=&quot;domain_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-install_launch_agent'><h3><code class='inline'>install_launch_agent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def install_launch_agent() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import install_launch_agent
+
+result = install_launch_agent()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-uninstall_launch_agent'><h3><code class='inline'>uninstall_launch_agent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def uninstall_launch_agent() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import uninstall_launch_agent
+
+result = uninstall_launch_agent()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_database'><h3><code class='inline'>_validate_database</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _validate_database(path: Path) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import _validate_database
+
+result = _validate_database(path=&quot;path_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-backup_state'><h3><code class='inline'>backup_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def backup_state(label: str = &#x27;manual&#x27;) -&gt; Path</code></div><p>Publish a verified SQLite backup atomically.
+
+Open WebUI uses WAL mode, so the backup API is required. A failed backup is
+kept under a hidden temporary name and removed; restore never sees it as a
+candidate.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import backup_state
+
+result = backup_state(label=&quot;label_example&quot;  # default: &#x27;manual&#x27;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-latest_backup'><h3><code class='inline'>latest_backup</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def latest_backup() -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import latest_backup
+
+result = latest_backup()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_atomic_copy'><h3><code class='inline'>_atomic_copy</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _atomic_copy(source: Path, destination: Path, validate_sqlite: bool = False) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import _atomic_copy
+
+result = _atomic_copy(source=&quot;source_example&quot;, destination=&quot;destination_example&quot;, validate_sqlite=True  # default: False)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-restore_state'><h3><code class='inline'>restore_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def restore_state(source: str | None) -&gt; None</code></div><p>Restore only after a verified copy is ready for atomic replacement.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import restore_state
+
+result = restore_state(source=&quot;source_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wait_for_kitty_identity'><h3><code class='inline'>_wait_for_kitty_identity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _wait_for_kitty_identity(url: str, attempts: int = 30) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import _wait_for_kitty_identity
+
+result = _wait_for_kitty_identity(url=&quot;url_example&quot;, attempts=0  # default: 30)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-rollback_to_kitty_ui'><h3><code class='inline'>rollback_to_kitty_ui</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def rollback_to_kitty_ui() -&gt; None</code></div><p>Hand the day back to the canonical Kitty UI without removing its services.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import rollback_to_kitty_ui
+
+result = rollback_to_kitty_ui()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-write_desktop_shortcut'><h3><code class='inline'>write_desktop_shortcut</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def write_desktop_shortcut(url: str | None = None) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import write_desktop_shortcut
+
+result = write_desktop_shortcut(url=&quot;url_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-bootstrap'><h3><code class='inline'>bootstrap</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def bootstrap(accept_charges: bool, no_autostart: bool) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.openwebui_tool.system import bootstrap
+
+result = bootstrap(accept_charges=True, no_autostart=True)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_openwebui_tool_acceptance.py.html'><code class='inline'>scripts.openwebui_tool.acceptance</code></a></li><li><a href='scripts_openwebui_tool_cli.py.html'><code class='inline'>scripts.openwebui_tool.cli</code></a></li><li><a href='scripts_openwebui_tool_common.py.html'><code class='inline'>scripts.openwebui_tool.common</code></a></li><li><a href='scripts_openwebui_tool_service.py.html'><code class='inline'>scripts.openwebui_tool.service</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

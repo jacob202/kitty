@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.capability_report — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.capability_report</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.capability_report</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/capability_report.py</code> &middot; Python &middot; 9 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Startup capability report (QoL Packet 07).
+
+Surfaces, at Kitty startup, a concise summary of what is available, degraded,
+or unavailable — without equating a missing optional dependency (e.g. Ollama)
+with Kitty being broken. The report is derived from real probes plus the
+live automation supervisor state and rendered as one ASCII block.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.automation_supervisor</code>, <code class='inline'>gateway.db</code>, <code class='inline'>gateway.image_backends</code>, <code class='inline'>gateway.memory</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.telegram_bot</code>, <code class='inline'>httpx</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-build_capability_report'><code class='inline'>build_capability_report</code></a></td><td>Assemble a report, ordering known capabilities first, extras after.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-render_capability_report'><code class='inline'>render_capability_report</code></a></td><td>Render the report as the &#x27;KITTY READY&#x27; ASCII block.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-probe_capabilities'><code class='inline'>probe_capabilities</code></a></td><td>Probe real subsystems and produce a live capability report.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_probe_database'><code class='inline'>_probe_database</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_probe_telegram'><code class='inline'>_probe_telegram</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_probe_image_lab'><code class='inline'>_probe_image_lab</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_capability_from_supervisor'><code class='inline'>_capability_from_supervisor</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_probe_ollama'><code class='inline'>_probe_ollama</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_supervisor_status'><code class='inline'>_supervisor_status</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-build_capability_report'><h3><code class='inline'>build_capability_report</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def build_capability_report(probes: Mapping[str, Capability]) -&gt; CapabilityReport</code></div><p>Assemble a report, ordering known capabilities first, extras after.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.capability_report import build_capability_report
+
+result = build_capability_report(probes=&quot;probes_example&quot;)
+# result: CapabilityReport</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-render_capability_report'><h3><code class='inline'>render_capability_report</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def render_capability_report(report: CapabilityReport) -&gt; str</code></div><p>Render the report as the &#x27;KITTY READY&#x27; ASCII block.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.capability_report import render_capability_report
+
+result = render_capability_report(report=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-probe_capabilities'><h3><code class='inline'>probe_capabilities</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def probe_capabilities() -&gt; CapabilityReport</code></div><p>Probe real subsystems and produce a live capability report.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.capability_report import probe_capabilities
+
+    result = await probe_capabilities()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_probe_database'><h3><code class='inline'>_probe_database</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _probe_database() -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.capability_report import _probe_database
+
+    result = await _probe_database()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_probe_telegram'><h3><code class='inline'>_probe_telegram</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _probe_telegram() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.capability_report import _probe_telegram
+
+result = _probe_telegram()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_probe_image_lab'><h3><code class='inline'>_probe_image_lab</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def _probe_image_lab() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.capability_report import _probe_image_lab
+
+    result = await _probe_image_lab()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_capability_from_supervisor'><h3><code class='inline'>_capability_from_supervisor</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _capability_from_supervisor(status: dict[str, str], dependency_ok: bool) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.capability_report import _capability_from_supervisor
+
+result = _capability_from_supervisor(status=&quot;status_example&quot;, dependency_ok=True)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_probe_ollama'><h3><code class='inline'>_probe_ollama</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def _probe_ollama() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.capability_report import _probe_ollama
+
+    result = await _probe_ollama()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_supervisor_status'><h3><code class='inline'>_supervisor_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _supervisor_status(name: str) -&gt; dict[str, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.capability_report import _supervisor_status
+
+result = _supervisor_status(name=&quot;name_example&quot;)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Capability'><code class='inline'>Capability</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-CapabilityReport'><code class='inline'>CapabilityReport</code></a></td><td></td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-Capability'><h3><code class='inline'>Capability</code></h3><p>Diagnostic status of a single capability.</p><p class='small'><b>Attributes:</b> name: str, status: str, detail: str | None, optional: bool</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.capability_report import Capability
+
+obj = Capability(...)</pre></div>
+<div class='card' id='cls-CapabilityReport'><h3><code class='inline'>CapabilityReport</code></h3><p>Ordered capability snapshot plus derived summaries.</p><p class='small'><b>Attributes:</b> capabilities: list[Capability], generated_at: datetime</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>get</code></td><td><code class='inline'>def get(self, name: str) -&gt; Capability | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>available</code></td><td><code class='inline'>def available(self) -&gt; list[Capability]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>degraded_items</code></td><td><code class='inline'>def degraded_items(self) -&gt; list[Capability]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>still_functional</code></td><td><code class='inline'>def still_functional(self) -&gt; list[str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>overall</code></td><td><code class='inline'>def overall(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.capability_report import CapabilityReport
+
+obj = CapabilityReport(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>AVAILABLE</code></td><td><code class='inline'>&#x27;available&#x27;</code></td></tr><tr><td><code class='inline'>DEGRADED</code></td><td><code class='inline'>&#x27;degraded&#x27;</code></td></tr><tr><td><code class='inline'>UNAVAILABLE</code></td><td><code class='inline'>&#x27;unavailable&#x27;</code></td></tr><tr><td><code class='inline'>OPTIONAL_UNAVAILABLE</code></td><td><code class='inline'>&#x27;optional-unavailable&#x27;</code></td></tr><tr><td><code class='inline'>UNKNOWN</code></td><td><code class='inline'>&#x27;unknown&#x27;</code></td></tr><tr><td><code class='inline'>VALID_STATUSES</code></td><td><code class='inline'>frozenset({AVAILABLE, DEGRADED, UNAVAILABLE, OPTIONAL_UNAVAILABLE, UNKNOWN})</code></td></tr><tr><td><code class='inline'>OLLAMA_BASE</code></td><td><code class='inline'>&#x27;http://localhost:11434&#x27;</code></td></tr><tr><td><code class='inline'>OLLAMA_TIMEOUT_SECONDS</code></td><td><code class='inline'>3.0</code></td></tr><tr><td><code class='inline'>_FEATURE_REQUIRES</code></td><td><code class='inline'>dict[str, tuple[str, ...]]</code></td></tr><tr><td><code class='inline'>_CAPABILITY_ORDER</code></td><td><code class='inline'>(&#x27;Gateway&#x27;, &#x27;Database&#x27;, &#x27;Memory&#x27;, &#x27;Automation&#x27;, &#x27;Image Lab&#x27;, &#x27;Image Queue&#x27;, &#x27;Telegram&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

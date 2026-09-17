@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.tools.reference — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.tools.reference</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.tools.reference</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/tools/reference.py</code> &middot; Python &middot; 3 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Reference and avatar tools — subject consistency and compositing.
+
+generate_with_reference: condition on 1-3 reference images (keep a subject
+consistent in a new scene, or composite multiple images).
+set_avatar / generate_with_avatar: pin a recurring character and drop it
+into any scene without re-uploading.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.engines.nano_banana</code>, <code class='inline'>mcp.imagen.io</code>, <code class='inline'>mcp.server.fastmcp</code>, <code class='inline'>pathlib</code>, <code class='inline'>shutil</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-generate_with_reference'><code class='inline'>generate_with_reference</code></a></td><td>Generate an image conditioned on one or more reference images using Nano Banana.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-set_avatar'><code class='inline'>set_avatar</code></a></td><td>Pin a reference image as the persistent avatar/character.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-generate_with_avatar'><code class='inline'>generate_with_avatar</code></a></td><td>Generate an image of the pinned avatar character in a new scene.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-generate_with_reference'><h3><code class='inline'>generate_with_reference</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def generate_with_reference(reference_paths: list[str], prompt: str) -&gt; list</code></div><p>Generate an image conditioned on one or more reference images using Nano Banana.
+
+One reference → keep that subject CONSISTENT in a new scene.
+Multiple references → COMPOSITE them.
+
+Args:
+    reference_paths: 1-3 absolute paths to reference images (PNG/JPEG).
+    prompt: What to make using those references.
+
+Returns:
+    The generated image (inline) plus the saved file path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.tools.reference import generate_with_reference
+
+result = generate_with_reference(reference_paths=&quot;reference_paths_example&quot;, prompt=&quot;prompt_example&quot;)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_avatar'><h3><code class='inline'>set_avatar</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def set_avatar(image_path: str) -&gt; str</code></div><p>Pin a reference image as the persistent avatar/character.
+
+Args:
+    image_path: Absolute path to the image to use as the persistent character.
+
+Returns:
+    Confirmation and where it was stored.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.tools.reference import set_avatar
+
+result = set_avatar(image_path=&quot;image_path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_with_avatar'><h3><code class='inline'>generate_with_avatar</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def generate_with_avatar(prompt: str) -&gt; list</code></div><p>Generate an image of the pinned avatar character in a new scene.
+
+Args:
+    prompt: The scene/action, e.g. &quot;on a snowy mountain trail, golden hour&quot;.
+
+Returns:
+    The generated image (inline) plus the saved file path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.tools.reference import generate_with_avatar
+
+result = generate_with_avatar(prompt=&quot;prompt_example&quot;)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_tools_batch.py.html'><code class='inline'>mcp.imagen.tools.batch</code></a></li><li><a href='mcp_imagen_tools_gallery.py.html'><code class='inline'>mcp.imagen.tools.gallery</code></a></li><li><a href='mcp_imagen_tools_generate.py.html'><code class='inline'>mcp.imagen.tools.generate</code></a></li><li><a href='mcp_imagen_tools_generate_until.py.html'><code class='inline'>mcp.imagen.tools.generate_until</code></a></li><li><a href='mcp_imagen_tools_refine.py.html'><code class='inline'>mcp.imagen.tools.refine</code></a></li><li><a href='mcp_imagen_tools_variations.py.html'><code class='inline'>mcp.imagen.tools.variations</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

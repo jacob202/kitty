@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.missions — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.missions</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.missions</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/missions.py</code> &middot; Python &middot; 9 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Thin Gateway HTTP surface for durable Mission-owned state.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.config</code>, <code class='inline'>pydantic</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_translate'><code class='inline'>_translate</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-create_mission'><code class='inline'>create_mission</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-list_missions'><code class='inline'>list_missions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-missions_by_origin'><code class='inline'>missions_by_origin</code></a></td><td>Find the work a chat or project delegated, without any browser state.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_mission'><code class='inline'>get_mission</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-record_acceptance'><code class='inline'>record_acceptance</code></a></td><td>Legacy test-only route; production acceptance uses the local operator boundary.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-pause_mission'><code class='inline'>pause_mission</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-resume_mission'><code class='inline'>resume_mission</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-stop_mission'><code class='inline'>stop_mission</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_translate'><h3><code class='inline'>_translate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _translate(exc: memory_mission.MissionError) -&gt; HTTPException</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.missions import _translate
+
+result = _translate(exc=...)
+# result: HTTPException</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_mission'><h3><code class='inline'>create_mission</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def create_mission(body: CreateMissionRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.missions import create_mission
+
+result = create_mission(body=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_missions'><h3><code class='inline'>list_missions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def list_missions() -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.missions import list_missions
+
+result = list_missions()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-missions_by_origin'><h3><code class='inline'>missions_by_origin</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def missions_by_origin(conversation_id: str | None = None, project_id: int | None = None) -&gt; dict</code></div><p>Find the work a chat or project delegated, without any browser state.
+
+This is the server-owned recovery path: a new browser, a cleared cache, or
+a phone can all ask what a conversation started and get the same answer.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.missions import missions_by_origin
+
+result = missions_by_origin(conversation_id=&quot;conversation_id_example&quot;  # default: None, project_id=0  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_mission'><h3><code class='inline'>get_mission</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_mission(mission_id: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.missions import get_mission
+
+result = get_mission(mission_id=&quot;mission_id_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_acceptance'><h3><code class='inline'>record_acceptance</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def record_acceptance(mission_id: str, body: AcceptanceRequest) -&gt; dict</code></div><p>Legacy test-only route; production acceptance uses the local operator boundary.
+
+Normal Gateway clients are authenticated for product use, not endowed with
+independent-review authority. Production therefore refuses this route. The
+test-only branch remains so route contract tests can exercise Mission&#x27;s
+lower-level exact-digest behavior without creating a second credential.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.missions import record_acceptance
+
+result = record_acceptance(mission_id=&quot;mission_id_example&quot;, body=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-pause_mission'><h3><code class='inline'>pause_mission</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def pause_mission(mission_id: str, body: ReasonRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.missions import pause_mission
+
+result = pause_mission(mission_id=&quot;mission_id_example&quot;, body=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resume_mission'><h3><code class='inline'>resume_mission</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def resume_mission(mission_id: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.missions import resume_mission
+
+result = resume_mission(mission_id=&quot;mission_id_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-stop_mission'><h3><code class='inline'>stop_mission</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def stop_mission(mission_id: str, body: ReasonRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.missions import stop_mission
+
+result = stop_mission(mission_id=&quot;mission_id_example&quot;, body=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-CreateMissionRequest'><code class='inline'>CreateMissionRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-ReasonRequest'><code class='inline'>ReasonRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-AcceptanceRequest'><code class='inline'>AcceptanceRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-CreateMissionRequest'><h3><code class='inline'>CreateMissionRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> objective: str, definition_of_done: list[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.missions import CreateMissionRequest
+
+obj = CreateMissionRequest(...)</pre></div>
+<div class='card' id='cls-ReasonRequest'><h3><code class='inline'>ReasonRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> reason: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.missions import ReasonRequest
+
+obj = ReasonRequest(...)</pre></div>
+<div class='card' id='cls-AcceptanceRequest'><h3><code class='inline'>AcceptanceRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> reviewer_id: str, candidate_digest: str, verdict: Literal[&#x27;accepted&#x27;, &#x27;rejected&#x27;], evidence: dict[str, Any]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.missions import AcceptanceRequest
+
+obj = AcceptanceRequest(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_SUPERVISOR_ID</code></td><td><code class='inline'>&#x27;kitty&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

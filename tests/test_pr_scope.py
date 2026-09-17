@@ -59,6 +59,29 @@ def test_trust_bearing_paths_are_sensitive(path: str) -> None:
     assert pr_scope.classify([path]).sensitive is True, path
 
 
+def test_backup_script_stays_irreversible() -> None:
+    # Regression for the Qodo finding on #902: a test that only checks
+    # `.sensitive` stays green even if the irreversible-tier pattern (the one
+    # that forces exact-head human approval, not just independent review) is
+    # ever dropped for kitty_backup.py. Assert the irreversible tier directly
+    # so removing that pattern fails this test.
+    path = "scripts/kitty_backup.py"
+    scope = pr_scope.classify([path])
+    assert path in scope.risky_files
+    assert path in pr_scope.irreversible_files([path])
+
+
+def test_packet_preflight_is_sensitive_but_not_irreversible() -> None:
+    # packet_preflight.py deliberately sits in the sensitive tier only
+    # (independent review), not irreversible (exact-head human approval) —
+    # pin that choice so a future change can't silently widen or narrow it
+    # without a test noticing.
+    path = "scripts/packet_preflight.py"
+    scope = pr_scope.classify([path])
+    assert path in scope.risky_files
+    assert path not in pr_scope.irreversible_files([path])
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -150,6 +173,36 @@ def test_unresolvable_comparison_raises_instead_of_narrowing_ci(monkeypatch) -> 
     monkeypatch.setattr(pr_scope, "_github_json", lambda url, token: {"message": "Not Found"})
     with pytest.raises(RuntimeError):
         pr_scope.push_scope("jacob202", "kitty", SHA, OTHER_SHA, "token")
+
+
+def test_push_scope_still_flags_a_renamed_sensitive_script(monkeypatch) -> None:
+    # Regression for the Qodo finding on #902: GitHub reports a rename as one
+    # file entry with `filename` set to the new path and `previous_filename`
+    # set to the old one. Classifying only `filename` let a rename off
+    # scripts/kitty_backup.py silently drop out of sensitive/irreversible
+    # scope.
+    monkeypatch.setattr(
+        pr_scope,
+        "_github_json",
+        lambda url, token: {
+            "files": [{"filename": "scripts/nightly_export.py", "previous_filename": "scripts/kitty_backup.py"}]
+        },
+    )
+    scope = pr_scope.push_scope("jacob202", "kitty", SHA, OTHER_SHA, "token")
+    assert scope.sensitive is True
+    assert "scripts/kitty_backup.py" in pr_scope.irreversible_files(scope.risky_files)
+
+
+def test_pull_request_files_still_flags_a_renamed_sensitive_script(monkeypatch) -> None:
+    monkeypatch.setattr(
+        pr_scope,
+        "_github_json",
+        lambda url, token: [
+            {"filename": "scripts/nightly_export.py", "previous_filename": "scripts/kitty_backup.py"}
+        ],
+    )
+    files = pr_scope.pull_request_files("jacob202", "kitty", 902, "token")
+    assert "scripts/kitty_backup.py" in files
 
 
 def test_pull_request_event_classifies_from_the_live_file_list(monkeypatch) -> None:

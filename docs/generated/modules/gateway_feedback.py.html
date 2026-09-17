@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.feedback — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.feedback</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.feedback</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/feedback.py</code> &middot; Python &middot; 5 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>User feedback and error logging — owned substrate for the feedback endpoint.
+
+Why this module exists (Phase 3 of the gateway deepening program):
+the route handler used to swallow every I/O error with a bare
+``except Exception: pass``, hiding real disk-write failures from the
+operator. The new module validates inputs, writes through ``paths.py``,
+and raises on failure so the route layer cannot mask a broken log.
+
+The wire shape of every endpoint that used to live in
+``routes/feedback.py`` is unchanged. The route is now a thin
+request-parsing / response-shaping wrapper around these functions.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_validate_record'><code class='inline'>_validate_record</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-log_feedback'><code class='inline'>log_feedback</code></a></td><td>Append one feedback record to ``FEEDBACK_LOG``.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-log_error'><code class='inline'>log_error</code></a></td><td>Append one client-side error record to ``ERROR_LOG``.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_read_jsonl'><code class='inline'>_read_jsonl</code></a></td><td>Parse one JSONL file into a list of dicts.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-get_feedback_stats'><code class='inline'>get_feedback_stats</code></a></td><td>Aggregate counts and recent samples from both feedback and error logs.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_validate_record'><h3><code class='inline'>_validate_record</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _validate_record(record: Any, kind: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.feedback import _validate_record
+
+result = _validate_record(record=..., kind=&quot;kind_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-log_feedback'><h3><code class='inline'>log_feedback</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def log_feedback(feedback: dict) -&gt; None</code></div><p>Append one feedback record to ``FEEDBACK_LOG``.
+
+Raises on any I/O failure. The caller (the route layer) does not
+catch this — a write failure is a real, loud failure that the
+operator should see in the gateway log.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.feedback import log_feedback
+
+result = log_feedback(feedback={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-log_error'><h3><code class='inline'>log_error</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def log_error(error: dict) -&gt; None</code></div><p>Append one client-side error record to ``ERROR_LOG``.
+
+Raises on any I/O failure.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.feedback import log_error
+
+result = log_error(error={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_jsonl'><h3><code class='inline'>_read_jsonl</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _read_jsonl(path) -&gt; list[dict]</code></div><p>Parse one JSONL file into a list of dicts.
+
+Skips malformed lines (the old code did the same) but raises on
+any file-level error so a corrupted log does not silently report
+a zero count.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.feedback import _read_jsonl
+
+result = _read_jsonl(path=...)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_feedback_stats'><h3><code class='inline'>get_feedback_stats</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def get_feedback_stats() -&gt; dict</code></div><p>Aggregate counts and recent samples from both feedback and error logs.
+
+Empty when no data has been written. Never returns mock data.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.feedback import get_feedback_stats
+
+result = get_feedback_stats()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>FEEDBACK_LOG</code></td><td><code class='inline'>DATA_DIR / &#x27;feedback.jsonl&#x27;</code></td></tr><tr><td><code class='inline'>ERROR_LOG</code></td><td><code class='inline'>DATA_DIR / &#x27;kitty_errors.jsonl&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

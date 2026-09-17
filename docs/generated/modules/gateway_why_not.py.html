@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.why_not — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.why_not</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.why_not</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/why_not.py</code> &middot; Python &middot; 21 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Truthful &quot;Why didn&#x27;t this happen?&quot; explanations for automations.
+
+QoL Packet 03: eliminate silent failure. Every meaningful automation/action can
+answer why it did not run — including non-execution. This module is a pure,
+read-only resolution surface that composes existing evidence only:
+
+- ``cron`` schedule state (enabled / due / next occurrence),
+- the #550 Automation Run ledger (``automation_runs``) for claimed and terminal
+  outcomes,
+- ``action_grants`` for the manual-action approval story,
+- the supervisor for the execution-gap story (cron runner alive or not).
+
+Nothing here writes to any store. &quot;Nothing happened&quot; is never represented by
+absence of evidence when the system can know why.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.automation_supervisor</code>, <code class='inline'>json</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>zoneinfo</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_run_evidence'><code class='inline'>_run_evidence</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_terminal_reason'><code class='inline'>_terminal_reason</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-_terminal_next_step'><code class='inline'>_terminal_next_step</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_explain_run'><code class='inline'>_explain_run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_next_due_at'><code class='inline'>_next_due_at</code></a></td><td>Timestamp of the next occurrence, or ``None`` when unknown/none remains.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr><tr><td><a href='#fn-_explain_schedule_row'><code class='inline'>_explain_schedule_row</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(15)</span></td></tr><tr><td><a href='#fn-explain_schedule'><code class='inline'>explain_schedule</code></a></td><td>Explain one cron schedule: why it has or has not run.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_grant_state'><code class='inline'>_grant_state</code></a></td><td>Whether the newest grant for a capability is dead, and how.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_explain_manual_action'><code class='inline'>_explain_manual_action</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-explain_action'><code class='inline'>explain_action</code></a></td><td>Explain an action by name: schedule-backed or manual.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_parse_iso_timestamp'><code class='inline'>_parse_iso_timestamp</code></a></td><td>Parse an ISO-8601 timestamp string to a float epoch, or None.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_work_evidence'><code class='inline'>_work_evidence</code></a></td><td>Collect evidence from the work item&#x27;s projected snapshot.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_explain_blocked'><code class='inline'>_explain_blocked</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_explain_failed'><code class='inline'>_explain_failed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_explain_active'><code class='inline'>_explain_active</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_explain_ready'><code class='inline'>_explain_ready</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_explain_paused'><code class='inline'>_explain_paused</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_explain_waiting'><code class='inline'>_explain_waiting</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_explain_completed'><code class='inline'>_explain_completed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_explain_insufficient_evidence'><code class='inline'>_explain_insufficient_evidence</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-explain_work_item'><code class='inline'>explain_work_item</code></a></td><td>Explain one Builder work item: why it has its current status.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-_run_evidence'><h3><code class='inline'>_run_evidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _run_evidence(run: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _run_evidence
+
+result = _run_evidence(run=&quot;run_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_terminal_reason'><h3><code class='inline'>_terminal_reason</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def _terminal_reason(run: dict[str, Any]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _terminal_reason
+
+result = _terminal_reason(run=&quot;run_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_terminal_next_step'><h3><code class='inline'>_terminal_next_step</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _terminal_next_step(outcome: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _terminal_next_step
+
+result = _terminal_next_step(outcome=&quot;outcome_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_run'><h3><code class='inline'>_explain_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _explain_run(run: dict[str, Any], action: str, automation_id: str) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_run
+
+result = _explain_run(run=&quot;run_example&quot;, action=&quot;action_example&quot;, automation_id=&quot;automation_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_next_due_at'><h3><code class='inline'>_next_due_at</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>def _next_due_at(schedule: dict[str, Any], now: float) -&gt; float | None</code></div><p>Timestamp of the next occurrence, or ``None`` when unknown/none remains.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _next_due_at
+
+result = _next_due_at(schedule=&quot;schedule_example&quot;, now=0.0)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_schedule_row'><h3><code class='inline'>_explain_schedule_row</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (15)</span></h3><div class='sig'><code>def _explain_schedule_row(row: dict[str, Any], now: float) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_schedule_row
+
+result = _explain_schedule_row(row=&quot;row_example&quot;, now=0.0)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-explain_schedule'><h3><code class='inline'>explain_schedule</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def explain_schedule(schedule_id: str, now: float | None = None) -&gt; Explanation</code></div><p>Explain one cron schedule: why it has or has not run.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import explain_schedule
+
+result = explain_schedule(schedule_id=&quot;schedule_id_example&quot;, now=0.0  # default: None)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_grant_state'><h3><code class='inline'>_grant_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _grant_state(capability: str, now: float) -&gt; tuple[str | None, dict[str, Any] | None]</code></div><p>Whether the newest grant for a capability is dead, and how.
+
+Returns (None, grant) when the newest grant is still active; the caller then
+falls back to the evaluate() outcome for the operative reason.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _grant_state
+
+result = _grant_state(capability=&quot;capability_example&quot;, now=0.0)
+# result: tuple[str | None, dict[str, Any] | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_manual_action'><h3><code class='inline'>_explain_manual_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _explain_manual_action(action: str, definition: automation_actions.ActionDefinition, now: float) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_manual_action
+
+result = _explain_manual_action(action=&quot;action_example&quot;, definition=..., now=0.0)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-explain_action'><h3><code class='inline'>explain_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def explain_action(action: str, now: float | None = None) -&gt; Explanation</code></div><p>Explain an action by name: schedule-backed or manual.
+
+A schedule-backed action reports its schedule&#x27;s truth first. A manual-only
+action resolves approval state, then the last durable run.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import explain_action
+
+result = explain_action(action=&quot;action_example&quot;, now=0.0  # default: None)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_iso_timestamp'><h3><code class='inline'>_parse_iso_timestamp</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _parse_iso_timestamp(value: str | None) -&gt; float | None</code></div><p>Parse an ISO-8601 timestamp string to a float epoch, or None.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _parse_iso_timestamp
+
+result = _parse_iso_timestamp(value=&quot;value_example&quot;)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_work_evidence'><h3><code class='inline'>_work_evidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _work_evidence(item: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Collect evidence from the work item&#x27;s projected snapshot.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _work_evidence
+
+result = _work_evidence(item=&quot;item_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_blocked'><h3><code class='inline'>_explain_blocked</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _explain_blocked(item: dict[str, Any], packet_id: str | None) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_blocked
+
+result = _explain_blocked(item=&quot;item_example&quot;, packet_id=&quot;packet_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_failed'><h3><code class='inline'>_explain_failed</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _explain_failed(item: dict[str, Any], packet_id: str | None) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_failed
+
+result = _explain_failed(item=&quot;item_example&quot;, packet_id=&quot;packet_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_active'><h3><code class='inline'>_explain_active</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _explain_active(item: dict[str, Any], packet_id: str | None) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_active
+
+result = _explain_active(item=&quot;item_example&quot;, packet_id=&quot;packet_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_ready'><h3><code class='inline'>_explain_ready</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _explain_ready(item: dict[str, Any], packet_id: str | None) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_ready
+
+result = _explain_ready(item=&quot;item_example&quot;, packet_id=&quot;packet_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_paused'><h3><code class='inline'>_explain_paused</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _explain_paused(item: dict[str, Any], packet_id: str | None) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_paused
+
+result = _explain_paused(item=&quot;item_example&quot;, packet_id=&quot;packet_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_waiting'><h3><code class='inline'>_explain_waiting</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _explain_waiting(item: dict[str, Any], packet_id: str | None) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_waiting
+
+result = _explain_waiting(item=&quot;item_example&quot;, packet_id=&quot;packet_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_completed'><h3><code class='inline'>_explain_completed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _explain_completed(item: dict[str, Any], packet_id: str | None) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_completed
+
+result = _explain_completed(item=&quot;item_example&quot;, packet_id=&quot;packet_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explain_insufficient_evidence'><h3><code class='inline'>_explain_insufficient_evidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _explain_insufficient_evidence(item: dict[str, Any], packet_id: str | None) -&gt; Explanation</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import _explain_insufficient_evidence
+
+result = _explain_insufficient_evidence(item=&quot;item_example&quot;, packet_id=&quot;packet_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-explain_work_item'><h3><code class='inline'>explain_work_item</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def explain_work_item(projected: dict[str, Any], initiative_id: str) -&gt; Explanation</code></div><p>Explain one Builder work item: why it has its current status.
+
+``projected`` is the output of ``project_work_snapshot`` — a pre-built work
+projection dict with an ``items`` list. Uses only the existing Builder
+status/work projection — no fabrication, no new stores, no Builder state
+mutation. Unknown initiative ids raise ``WorkNotFound``. When the projection
+lacks evidence, an ``insufficient_evidence`` explanation is returned instead
+of inventing a cause.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.why_not import explain_work_item
+
+result = explain_work_item(projected=&quot;projected_example&quot;, initiative_id=&quot;initiative_id_example&quot;)
+# result: Explanation</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-WhyNotFound'><code class='inline'>WhyNotFound</code></a></td><td>(KeyError)</td><td>0 methods</td></tr><tr><td><a href='#cls-Explanation'><code class='inline'>Explanation</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-WorkNotFound'><code class='inline'>WorkNotFound</code></a></td><td>(KeyError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-WhyNotFound'><h3><code class='inline'>WhyNotFound</code></h3><p>No schedule with the supplied id exists.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.why_not import WhyNotFound
+
+obj = WhyNotFound(...)</pre></div>
+<div class='card' id='cls-Explanation'><h3><code class='inline'>Explanation</code></h3><p>The packet&#x27;s explanation shape: Status, Reason, Relevant timestamp,
+Action, Automation, Evidence, Next step.</p><p class='small'><b>Attributes:</b> status: str, reason: str, relevant_at: float | None, action: str | None, automation: str | None, evidence: dict[str, Any], next_step: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.why_not import Explanation
+
+obj = Explanation(...)</pre></div>
+<div class='card' id='cls-WorkNotFound'><h3><code class='inline'>WorkNotFound</code></h3><p>No work item with the supplied initiative id exists.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.why_not import WorkNotFound
+
+obj = WorkNotFound(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_RUN_STATUS_TO_OUTCOME</code></td><td><code class='inline'>{&#x27;completed&#x27;: &#x27;completed&#x27;, &#x27;failed&#x27;: &#x27;failed&#x27;, &#x27;interrupted&#x27;: &#x27;interrupted&#x27;, &#x27;action_unavailable&#x27;: &#x27;action_unavailable&#x27;,</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

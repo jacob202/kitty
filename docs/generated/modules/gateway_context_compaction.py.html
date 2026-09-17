@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.context_compaction — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.context_compaction</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.context_compaction</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/context_compaction.py</code> &middot; Python &middot; 3 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Context Compaction — auto-summarize long chat threads into memory checkpoints.
+
+When a conversation exceeds MESSAGE_THRESHOLD messages, the compaction system
+replaces the older messages with a single &quot;Previously...&quot; summary and persists
+a memory checkpoint via explicit_memory so the thread stays bounded while
+preserving narrative continuity.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>logging</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_build_summary_prompt'><code class='inline'>_build_summary_prompt</code></a></td><td>Build the LLM prompt for summarising a block of conversation messages.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-compact_chat'><code class='inline'>compact_chat</code></a></td><td>Run context compaction for a chat, returning checkpoint metadata.</td><td><span class='pill'>complex</span><span class='muted small'>(20)</span></td></tr><tr><td><a href='#fn-auto_compact_chat'><code class='inline'>auto_compact_chat</code></a></td><td>Auto-trigger compaction for a chat if it exceeds the threshold.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr></table></div>
+<div class='card' id='fn-_build_summary_prompt'><h3><code class='inline'>_build_summary_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _build_summary_prompt(messages: list[dict]) -&gt; list[dict]</code></div><p>Build the LLM prompt for summarising a block of conversation messages.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_compaction import _build_summary_prompt
+
+result = _build_summary_prompt(messages=[])
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compact_chat'><h3><code class='inline'>compact_chat</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (20)</span></h3><div class='sig'><code>def compact_chat(chat_id: str) -&gt; dict | None</code></div><p>Run context compaction for a chat, returning checkpoint metadata.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_compaction import compact_chat
+
+result = compact_chat(chat_id=&quot;chat_id_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-auto_compact_chat'><h3><code class='inline'>auto_compact_chat</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def auto_compact_chat(chat_id: str) -&gt; dict | None</code></div><p>Auto-trigger compaction for a chat if it exceeds the threshold.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_compaction import auto_compact_chat
+
+result = auto_compact_chat(chat_id=&quot;chat_id_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>MESSAGE_THRESHOLD</code></td><td><code class='inline'>20</code></td></tr><tr><td><code class='inline'>KEEP_LAST</code></td><td><code class='inline'>10</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>
