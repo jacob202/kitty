@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/lib/gateway — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/lib/gateway</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/lib/gateway</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/lib/gateway.ts</code> &middot; TypeScript &middot; 80 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>./model-picker</code>, <code class='inline'>./types</code>, <code class='inline'>nothing tracked</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-GatewayHeadline'><code class='inline'>GatewayHeadline</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayBrief'><code class='inline'>GatewayBrief</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewaySearchHit'><code class='inline'>GatewaySearchHit</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewaySearchSnapshot'><code class='inline'>GatewaySearchSnapshot</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-LoopStatus'><code class='inline'>LoopStatus</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayLoop'><code class='inline'>GatewayLoop</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayLoopsPayload'><code class='inline'>GatewayLoopsPayload</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-InsightKind'><code class='inline'>InsightKind</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayInsight'><code class='inline'>GatewayInsight</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayInsightsPayload'><code class='inline'>GatewayInsightsPayload</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayModelsPayload'><code class='inline'>GatewayModelsPayload</code></a></td><td>type</td><td>When `fromLiveGateway` is false, `error` explains why; `data` is still safe to render (fallback or null).</td></tr><tr><td><a href='#ex-GatewayPersonality'><code class='inline'>GatewayPersonality</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewaySessionContext'><code class='inline'>GatewaySessionContext</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayUsageSummary'><code class='inline'>GatewayUsageSummary</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-RuntimeFactState'><code class='inline'>RuntimeFactState</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-RuntimeFact'><code class='inline'>RuntimeFact</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderQueueStatus'><code class='inline'>BuilderQueueStatus</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderFailureKind'><code class='inline'>BuilderFailureKind</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderDataQuality'><code class='inline'>BuilderDataQuality</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderAttemptStatus'><code class='inline'>BuilderAttemptStatus</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderPacketStatus'><code class='inline'>BuilderPacketStatus</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderInitiativeStatus'><code class='inline'>BuilderInitiativeStatus</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderStatusSnapshot'><code class='inline'>BuilderStatusSnapshot</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayRuntimeManifest'><code class='inline'>GatewayRuntimeManifest</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayBriefPayload'><code class='inline'>GatewayBriefPayload</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewaySearchPayload'><code class='inline'>GatewaySearchPayload</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayCapabilityLaunch'><code class='inline'>GatewayCapabilityLaunch</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayCapability'><code class='inline'>GatewayCapability</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayCapabilitiesPayload'><code class='inline'>GatewayCapabilitiesPayload</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayActivityState'><code class='inline'>GatewayActivityState</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayActivityItem'><code class='inline'>GatewayActivityItem</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayActivityProjection'><code class='inline'>GatewayActivityProjection</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayIntelligenceItem'><code class='inline'>GatewayIntelligenceItem</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayIntelligenceProjection'><code class='inline'>GatewayIntelligenceProjection</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayResearchRun'><code class='inline'>GatewayResearchRun</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayResearchRunsPayload'><code class='inline'>GatewayResearchRunsPayload</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayWeather'><code class='inline'>GatewayWeather</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayWeatherPayload'><code class='inline'>GatewayWeatherPayload</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-describeFetchError'><code class='inline'>describeFetchError</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchWithTimeout'><code class='inline'>fetchWithTimeout</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-hashString'><code class='inline'>hashString</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-prettyModelName'><code class='inline'>prettyModelName</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-colorForModel'><code class='inline'>colorForModel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-glowForColor'><code class='inline'>glowForColor</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-buildGatewayModels'><code class='inline'>buildGatewayModels</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-summarizeGatewaySearch'><code class='inline'>summarizeGatewaySearch</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchGatewayModels'><code class='inline'>fetchGatewayModels</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayModelRoute'><code class='inline'>GatewayModelRoute</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayModelRouting'><code class='inline'>GatewayModelRouting</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchGatewayModelRouting'><code class='inline'>fetchGatewayModelRouting</code></a></td><td>function</td><td>Which provider each kitty-* alias actually calls. Throws so the UI can say</td></tr><tr><td><a href='#ex-GatewayProvider'><code class='inline'>GatewayProvider</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GatewayProviderChain'><code class='inline'>GatewayProviderChain</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchGatewayProviders'><code class='inline'>fetchGatewayProviders</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-saveGatewayProviders'><code class='inline'>saveGatewayProviders</code></a></td><td>function</td><td>Throws on rejection so a bad order surfaces instead of looking saved.</td></tr><tr><td><a href='#ex-fetchGatewayRuntimeManifest'><code class='inline'>fetchGatewayRuntimeManifest</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchGatewayBrief'><code class='inline'>fetchGatewayBrief</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchGatewayWeather'><code class='inline'>fetchGatewayWeather</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentStatus'><code class='inline'>AgentStatus</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentType'><code class='inline'>AgentType</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentSession'><code class='inline'>AgentSession</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentWorkspaceAgent'><code class='inline'>AgentWorkspaceAgent</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentWorkspaceMessage'><code class='inline'>AgentWorkspaceMessage</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentWorkspaceEvent'><code class='inline'>AgentWorkspaceEvent</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentWorkspaceTurn'><code class='inline'>AgentWorkspaceTurn</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentWorkspace'><code class='inline'>AgentWorkspace</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentRoomReceiptState'><code class='inline'>AgentRoomReceiptState</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentRoomInboxMessage'><code class='inline'>AgentRoomInboxMessage</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AgentRoomReceipt'><code class='inline'>AgentRoomReceipt</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-GlobalAgentMessageInput'><code class='inline'>GlobalAgentMessageInput</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-OBJECTIVE_MAX_LENGTH'><code class='inline'>OBJECTIVE_MAX_LENGTH</code></a></td><td>variable</td><td>Gateway-enforced objective length cap, mirrored so the editor can stop at</td></tr><tr><td><a href='#ex-patchChatObjective'><code class='inline'>patchChatObjective</code></a></td><td>function</td><td>Set or clear a chat&#x27;s thread goal. The gateway returns the updated chat and</td></tr><tr><td><a href='#ex-deleteMemory'><code class='inline'>deleteMemory</code></a></td><td>function</td><td>Permanently delete a stored memory by id. The gateway 404s when the id is</td></tr><tr><td><a href='#ex-fetchGatewayPersonality'><code class='inline'>fetchGatewayPersonality</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-updateGatewayPersonality'><code class='inline'>updateGatewayPersonality</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchGatewaySessionContext'><code class='inline'>fetchGatewaySessionContext</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchGatewayUsageSummary'><code class='inline'>fetchGatewayUsageSummary</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isRecord'><code class='inline'>isRecord</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isStringArray'><code class='inline'>isStringArray</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-spawnAgent'><code class='inline'>spawnAgent</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-fetchAgentStatus'><code class='inline'>fetchAgentStatus</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-GatewayHeadline'><h3><code class='inline'>GatewayHeadline</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayHeadline</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayHeadline } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayHeadline;</pre></div>
+<div class='card' id='ex-GatewayBrief'><h3><code class='inline'>GatewayBrief</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayBrief</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayBrief } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayBrief;</pre></div>
+<div class='card' id='ex-GatewaySearchHit'><h3><code class='inline'>GatewaySearchHit</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewaySearchHit</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewaySearchHit } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewaySearchHit;</pre></div>
+<div class='card' id='ex-GatewaySearchSnapshot'><h3><code class='inline'>GatewaySearchSnapshot</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewaySearchSnapshot</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewaySearchSnapshot } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewaySearchSnapshot;</pre></div>
+<div class='card' id='ex-LoopStatus'><h3><code class='inline'>LoopStatus</code> <span class='pill'>type</span></h3><div class='sig'><code>export type LoopStatus</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { LoopStatus } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = LoopStatus;</pre></div>
+<div class='card' id='ex-GatewayLoop'><h3><code class='inline'>GatewayLoop</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayLoop</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayLoop } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayLoop;</pre></div>
+<div class='card' id='ex-GatewayLoopsPayload'><h3><code class='inline'>GatewayLoopsPayload</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayLoopsPayload</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayLoopsPayload } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayLoopsPayload;</pre></div>
+<div class='card' id='ex-InsightKind'><h3><code class='inline'>InsightKind</code> <span class='pill'>type</span></h3><div class='sig'><code>export type InsightKind</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { InsightKind } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = InsightKind;</pre></div>
+<div class='card' id='ex-GatewayInsight'><h3><code class='inline'>GatewayInsight</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayInsight</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayInsight } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayInsight;</pre></div>
+<div class='card' id='ex-GatewayInsightsPayload'><h3><code class='inline'>GatewayInsightsPayload</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayInsightsPayload</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayInsightsPayload } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayInsightsPayload;</pre></div>
+<div class='card' id='ex-GatewayModelsPayload'><h3><code class='inline'>GatewayModelsPayload</code> <span class='pill'>type</span></h3><div class='sig'><code>export type GatewayModelsPayload</code></div><p>When `fromLiveGateway` is false, `error` explains why; `data` is still safe to render (fallback or null).</p><h3>Code Example</h3><pre>import { GatewayModelsPayload } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayModelsPayload;</pre></div>
+<div class='card' id='ex-GatewayPersonality'><h3><code class='inline'>GatewayPersonality</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayPersonality</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayPersonality } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayPersonality;</pre></div>
+<div class='card' id='ex-GatewaySessionContext'><h3><code class='inline'>GatewaySessionContext</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewaySessionContext</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewaySessionContext } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewaySessionContext;</pre></div>
+<div class='card' id='ex-GatewayUsageSummary'><h3><code class='inline'>GatewayUsageSummary</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayUsageSummary</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayUsageSummary } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayUsageSummary;</pre></div>
+<div class='card' id='ex-RuntimeFactState'><h3><code class='inline'>RuntimeFactState</code> <span class='pill'>type</span></h3><div class='sig'><code>export type RuntimeFactState</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { RuntimeFactState } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = RuntimeFactState;</pre></div>
+<div class='card' id='ex-RuntimeFact'><h3><code class='inline'>RuntimeFact</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface RuntimeFact</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { RuntimeFact } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = RuntimeFact;</pre></div>
+<div class='card' id='ex-BuilderQueueStatus'><h3><code class='inline'>BuilderQueueStatus</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface BuilderQueueStatus</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderQueueStatus } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderQueueStatus;</pre></div>
+<div class='card' id='ex-BuilderFailureKind'><h3><code class='inline'>BuilderFailureKind</code> <span class='pill'>type</span></h3><div class='sig'><code>export type BuilderFailureKind</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderFailureKind } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderFailureKind;</pre></div>
+<div class='card' id='ex-BuilderDataQuality'><h3><code class='inline'>BuilderDataQuality</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface BuilderDataQuality</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderDataQuality } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderDataQuality;</pre></div>
+<div class='card' id='ex-BuilderAttemptStatus'><h3><code class='inline'>BuilderAttemptStatus</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface BuilderAttemptStatus</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderAttemptStatus } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderAttemptStatus;</pre></div>
+<div class='card' id='ex-BuilderPacketStatus'><h3><code class='inline'>BuilderPacketStatus</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface BuilderPacketStatus</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderPacketStatus } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderPacketStatus;</pre></div>
+<div class='card' id='ex-BuilderInitiativeStatus'><h3><code class='inline'>BuilderInitiativeStatus</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface BuilderInitiativeStatus</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderInitiativeStatus } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderInitiativeStatus;</pre></div>
+<div class='card' id='ex-BuilderStatusSnapshot'><h3><code class='inline'>BuilderStatusSnapshot</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface BuilderStatusSnapshot</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderStatusSnapshot } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderStatusSnapshot;</pre></div>
+<div class='card' id='ex-GatewayRuntimeManifest'><h3><code class='inline'>GatewayRuntimeManifest</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayRuntimeManifest</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayRuntimeManifest } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayRuntimeManifest;</pre></div>
+<div class='card' id='ex-GatewayBriefPayload'><h3><code class='inline'>GatewayBriefPayload</code> <span class='pill'>type</span></h3><div class='sig'><code>export type GatewayBriefPayload</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayBriefPayload } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayBriefPayload;</pre></div>
+<div class='card' id='ex-GatewaySearchPayload'><h3><code class='inline'>GatewaySearchPayload</code> <span class='pill'>type</span></h3><div class='sig'><code>export type GatewaySearchPayload</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewaySearchPayload } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewaySearchPayload;</pre></div>
+<div class='card' id='ex-GatewayCapabilityLaunch'><h3><code class='inline'>GatewayCapabilityLaunch</code> <span class='pill'>type</span></h3><div class='sig'><code>export type GatewayCapabilityLaunch</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayCapabilityLaunch } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayCapabilityLaunch;</pre></div>
+<div class='card' id='ex-GatewayCapability'><h3><code class='inline'>GatewayCapability</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayCapability</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayCapability } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayCapability;</pre></div>
+<div class='card' id='ex-GatewayCapabilitiesPayload'><h3><code class='inline'>GatewayCapabilitiesPayload</code> <span class='pill'>type</span></h3><div class='sig'><code>export type GatewayCapabilitiesPayload</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayCapabilitiesPayload } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayCapabilitiesPayload;</pre></div>
+<div class='card' id='ex-GatewayActivityState'><h3><code class='inline'>GatewayActivityState</code> <span class='pill'>type</span></h3><div class='sig'><code>export type GatewayActivityState</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayActivityState } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayActivityState;</pre></div>
+<div class='card' id='ex-GatewayActivityItem'><h3><code class='inline'>GatewayActivityItem</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayActivityItem</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayActivityItem } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayActivityItem;</pre></div>
+<div class='card' id='ex-GatewayActivityProjection'><h3><code class='inline'>GatewayActivityProjection</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayActivityProjection</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayActivityProjection } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayActivityProjection;</pre></div>
+<div class='card' id='ex-GatewayIntelligenceItem'><h3><code class='inline'>GatewayIntelligenceItem</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayIntelligenceItem</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayIntelligenceItem } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayIntelligenceItem;</pre></div>
+<div class='card' id='ex-GatewayIntelligenceProjection'><h3><code class='inline'>GatewayIntelligenceProjection</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayIntelligenceProjection</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayIntelligenceProjection } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayIntelligenceProjection;</pre></div>
+<div class='card' id='ex-GatewayResearchRun'><h3><code class='inline'>GatewayResearchRun</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayResearchRun</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayResearchRun } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayResearchRun;</pre></div>
+<div class='card' id='ex-GatewayResearchRunsPayload'><h3><code class='inline'>GatewayResearchRunsPayload</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayResearchRunsPayload</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayResearchRunsPayload } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayResearchRunsPayload;</pre></div>
+<div class='card' id='ex-GatewayWeather'><h3><code class='inline'>GatewayWeather</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayWeather</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayWeather } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayWeather;</pre></div>
+<div class='card' id='ex-GatewayWeatherPayload'><h3><code class='inline'>GatewayWeatherPayload</code> <span class='pill'>type</span></h3><div class='sig'><code>export type GatewayWeatherPayload</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayWeatherPayload } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayWeatherPayload;</pre></div>
+<div class='card' id='ex-describeFetchError'><h3><code class='inline'>describeFetchError</code> <span class='pill'>function</span></h3><div class='sig'><code>function describeFetchError(err: unknown, response: Response | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { describeFetchError } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = describeFetchError;</pre></div>
+<div class='card' id='ex-fetchWithTimeout'><h3><code class='inline'>fetchWithTimeout</code> <span class='pill'>function</span></h3><div class='sig'><code>async function fetchWithTimeout(
+  input: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  externalSignal?: AbortSignal,
+)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchWithTimeout } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchWithTimeout;</pre></div>
+<div class='card' id='ex-hashString'><h3><code class='inline'>hashString</code> <span class='pill'>function</span></h3><div class='sig'><code>function hashString(value: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { hashString } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = hashString;</pre></div>
+<div class='card' id='ex-prettyModelName'><h3><code class='inline'>prettyModelName</code> <span class='pill'>function</span></h3><div class='sig'><code>function prettyModelName(id: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { prettyModelName } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = prettyModelName;</pre></div>
+<div class='card' id='ex-colorForModel'><h3><code class='inline'>colorForModel</code> <span class='pill'>function</span></h3><div class='sig'><code>function colorForModel(id: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { colorForModel } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = colorForModel;</pre></div>
+<div class='card' id='ex-glowForColor'><h3><code class='inline'>glowForColor</code> <span class='pill'>function</span></h3><div class='sig'><code>function glowForColor(color: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { glowForColor } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = glowForColor;</pre></div>
+<div class='card' id='ex-buildGatewayModels'><h3><code class='inline'>buildGatewayModels</code> <span class='pill'>function</span></h3><div class='sig'><code>export function buildGatewayModels(ids: string[], displayNames?: Record&lt;string, string&gt;)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { buildGatewayModels } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = buildGatewayModels;</pre></div>
+<div class='card' id='ex-summarizeGatewaySearch'><h3><code class='inline'>summarizeGatewaySearch</code> <span class='pill'>function</span></h3><div class='sig'><code>export function summarizeGatewaySearch(raw: {
+  query?: string
+  memories?: GatewaySearchHit[]
+  knowledge?: GatewaySearchHit[]
+  journal?: GatewaySearchHit[]
+  todos?: GatewaySearchHit[]
+  inbox?: Ga</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { summarizeGatewaySearch } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = summarizeGatewaySearch;</pre></div>
+<div class='card' id='ex-fetchGatewayModels'><h3><code class='inline'>fetchGatewayModels</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewayModels()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchGatewayModels } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewayModels;</pre></div>
+<div class='card' id='ex-GatewayModelRoute'><h3><code class='inline'>GatewayModelRoute</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayModelRoute</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayModelRoute } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayModelRoute;</pre></div>
+<div class='card' id='ex-GatewayModelRouting'><h3><code class='inline'>GatewayModelRouting</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayModelRouting</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayModelRouting } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayModelRouting;</pre></div>
+<div class='card' id='ex-fetchGatewayModelRouting'><h3><code class='inline'>fetchGatewayModelRouting</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewayModelRouting()</code></div><p>Which provider each kitty-* alias actually calls. Throws so the UI can say
+ &quot;couldn&#x27;t read the routing&quot; instead of implying everything is fine.</p><h3>Code Example</h3><pre>import { fetchGatewayModelRouting } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewayModelRouting;</pre></div>
+<div class='card' id='ex-GatewayProvider'><h3><code class='inline'>GatewayProvider</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayProvider</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayProvider } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayProvider;</pre></div>
+<div class='card' id='ex-GatewayProviderChain'><h3><code class='inline'>GatewayProviderChain</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GatewayProviderChain</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GatewayProviderChain } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GatewayProviderChain;</pre></div>
+<div class='card' id='ex-fetchGatewayProviders'><h3><code class='inline'>fetchGatewayProviders</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewayProviders()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchGatewayProviders } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewayProviders;</pre></div>
+<div class='card' id='ex-saveGatewayProviders'><h3><code class='inline'>saveGatewayProviders</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function saveGatewayProviders(
+  order: string[],
+  disabled: string[],
+  active = &#x27;auto&#x27;,
+)</code></div><p>Throws on rejection so a bad order surfaces instead of looking saved.</p><h3>Code Example</h3><pre>import { saveGatewayProviders } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = saveGatewayProviders;</pre></div>
+<div class='card' id='ex-fetchGatewayRuntimeManifest'><h3><code class='inline'>fetchGatewayRuntimeManifest</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewayRuntimeManifest(projectId?: number)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchGatewayRuntimeManifest } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewayRuntimeManifest;</pre></div>
+<div class='card' id='ex-fetchGatewayBrief'><h3><code class='inline'>fetchGatewayBrief</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewayBrief()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchGatewayBrief } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewayBrief;</pre></div>
+<div class='card' id='ex-fetchGatewayWeather'><h3><code class='inline'>fetchGatewayWeather</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewayWeather()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchGatewayWeather } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewayWeather;</pre></div>
+<div class='card' id='ex-AgentStatus'><h3><code class='inline'>AgentStatus</code> <span class='pill'>type</span></h3><div class='sig'><code>export type AgentStatus</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentStatus } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentStatus;</pre></div>
+<div class='card' id='ex-AgentType'><h3><code class='inline'>AgentType</code> <span class='pill'>type</span></h3><div class='sig'><code>export type AgentType</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentType } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentType;</pre></div>
+<div class='card' id='ex-AgentSession'><h3><code class='inline'>AgentSession</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface AgentSession</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentSession } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentSession;</pre></div>
+<div class='card' id='ex-AgentWorkspaceAgent'><h3><code class='inline'>AgentWorkspaceAgent</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface AgentWorkspaceAgent</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentWorkspaceAgent } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentWorkspaceAgent;</pre></div>
+<div class='card' id='ex-AgentWorkspaceMessage'><h3><code class='inline'>AgentWorkspaceMessage</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface AgentWorkspaceMessage</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentWorkspaceMessage } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentWorkspaceMessage;</pre></div>
+<div class='card' id='ex-AgentWorkspaceEvent'><h3><code class='inline'>AgentWorkspaceEvent</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface AgentWorkspaceEvent</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentWorkspaceEvent } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentWorkspaceEvent;</pre></div>
+<div class='card' id='ex-AgentWorkspaceTurn'><h3><code class='inline'>AgentWorkspaceTurn</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface AgentWorkspaceTurn</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentWorkspaceTurn } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentWorkspaceTurn;</pre></div>
+<div class='card' id='ex-AgentWorkspace'><h3><code class='inline'>AgentWorkspace</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface AgentWorkspace</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentWorkspace } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentWorkspace;</pre></div>
+<div class='card' id='ex-AgentRoomReceiptState'><h3><code class='inline'>AgentRoomReceiptState</code> <span class='pill'>type</span></h3><div class='sig'><code>export type AgentRoomReceiptState</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentRoomReceiptState } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentRoomReceiptState;</pre></div>
+<div class='card' id='ex-AgentRoomInboxMessage'><h3><code class='inline'>AgentRoomInboxMessage</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface AgentRoomInboxMessage</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentRoomInboxMessage } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentRoomInboxMessage;</pre></div>
+<div class='card' id='ex-AgentRoomReceipt'><h3><code class='inline'>AgentRoomReceipt</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface AgentRoomReceipt</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AgentRoomReceipt } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AgentRoomReceipt;</pre></div>
+<div class='card' id='ex-GlobalAgentMessageInput'><h3><code class='inline'>GlobalAgentMessageInput</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface GlobalAgentMessageInput</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { GlobalAgentMessageInput } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = GlobalAgentMessageInput;</pre></div>
+<div class='card' id='ex-OBJECTIVE_MAX_LENGTH'><h3><code class='inline'>OBJECTIVE_MAX_LENGTH</code> <span class='pill'>variable</span></h3><div class='sig'><code>export const OBJECTIVE_MAX_LENGTH =</code></div><p>Gateway-enforced objective length cap, mirrored so the editor can stop at
+ the boundary instead of round-tripping a 400.</p><h3>Code Example</h3><pre>import { OBJECTIVE_MAX_LENGTH } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = OBJECTIVE_MAX_LENGTH;</pre></div>
+<div class='card' id='ex-patchChatObjective'><h3><code class='inline'>patchChatObjective</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function patchChatObjective(
+  chatId: string,
+  objective: string | null,
+)</code></div><p>Set or clear a chat&#x27;s thread goal. The gateway returns the updated chat and
+ omits `objective` when cleared; callers get the server-confirmed value.</p><h3>Code Example</h3><pre>import { patchChatObjective } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = patchChatObjective;</pre></div>
+<div class='card' id='ex-deleteMemory'><h3><code class='inline'>deleteMemory</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function deleteMemory(memoryId: string)</code></div><p>Permanently delete a stored memory by id. The gateway 404s when the id is
+ unknown; callers surface that instead of pretending the forget landed.</p><h3>Code Example</h3><pre>import { deleteMemory } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = deleteMemory;</pre></div>
+<div class='card' id='ex-fetchGatewayPersonality'><h3><code class='inline'>fetchGatewayPersonality</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewayPersonality()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchGatewayPersonality } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewayPersonality;</pre></div>
+<div class='card' id='ex-updateGatewayPersonality'><h3><code class='inline'>updateGatewayPersonality</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function updateGatewayPersonality(payload: GatewayPersonality)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { updateGatewayPersonality } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = updateGatewayPersonality;</pre></div>
+<div class='card' id='ex-fetchGatewaySessionContext'><h3><code class='inline'>fetchGatewaySessionContext</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewaySessionContext()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchGatewaySessionContext } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewaySessionContext;</pre></div>
+<div class='card' id='ex-fetchGatewayUsageSummary'><h3><code class='inline'>fetchGatewayUsageSummary</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchGatewayUsageSummary()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchGatewayUsageSummary } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchGatewayUsageSummary;</pre></div>
+<div class='card' id='ex-isRecord'><h3><code class='inline'>isRecord</code> <span class='pill'>function</span></h3><div class='sig'><code>function isRecord(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isRecord } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isRecord;</pre></div>
+<div class='card' id='ex-isStringArray'><h3><code class='inline'>isStringArray</code> <span class='pill'>function</span></h3><div class='sig'><code>function isStringArray(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isStringArray } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isStringArray;</pre></div>
+<div class='card' id='ex-spawnAgent'><h3><code class='inline'>spawnAgent</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function spawnAgent(goal: string, agentType: AgentType = &#x27;explorer&#x27;)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { spawnAgent } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = spawnAgent;</pre></div>
+<div class='card' id='ex-fetchAgentStatus'><h3><code class='inline'>fetchAgentStatus</code> <span class='pill'>function</span></h3><div class='sig'><code>export async function fetchAgentStatus(sessionId: number)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { fetchAgentStatus } from &#x27;@/gateway/kitty-chat/src/lib/gateway&#x27;;
+
+// TODO: wire real props; see component signature
+const result = fetchAgentStatus;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

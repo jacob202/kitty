@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.kitty_desktop_launchd — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.kitty_desktop_launchd</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.kitty_desktop_launchd</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/kitty_desktop_launchd.py</code> &middot; Python &middot; 20 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Generate and manage the macOS LaunchAgents for the Kitty Desktop service stack.
+
+Three per-user LaunchAgents own the always-on local services so that Kitty
+survives logout/login and reboot without a Terminal:
+
+    com.kitty.desktop.litellm  -&gt; 127.0.0.1:8001
+    com.kitty.desktop.gateway  -&gt; 127.0.0.1:8000
+    com.kitty.desktop.ui       -&gt; 127.0.0.1:4000
+
+launchd owns the service lifecycle (start at login, keep alive, throttle crash
+loops, capture stdout/stderr). This module is deliberately small: it only
+renders plists and builds *fixed* launchctl argument vectors against a strict
+label allowlist. It never embeds a secret in a plist — the service wrapper
+scripts load `.env` at start time. Loopback binding is pinned in the plist
+environment so a misconfigured wrapper cannot expose a service to the network.
+
+The launchctl-executing commands are guarded to macOS. Plist rendering and
+validation are pure and run anywhere, which is what the test-suite exercises.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>dataclasses</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>plistlib</code>, <code class='inline'>shlex</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-repo_root_default'><code class='inline'>repo_root_default</code></a></td><td>Repo root inferred from this file&#x27;s location (scripts/ -&gt; root).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-launchagents_dir'><code class='inline'>launchagents_dir</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-is_linked_git_worktree'><code class='inline'>is_linked_git_worktree</code></a></td><td>Linked git worktrees use a .git file that points at another git dir.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-validate_install_root'><code class='inline'>validate_install_root</code></a></td><td>Refuse launchd installs from disposable worktrees unless made explicit.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-plist_path'><code class='inline'>plist_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-log_paths'><code class='inline'>log_paths</code></a></td><td>(stdout, stderr) log paths for a service, under logs/desktop/.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_require'><code class='inline'>_require</code></a></td><td>Validate a service name against the allowlist. Raises on anything else.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-resolve_targets'><code class='inline'>resolve_targets</code></a></td><td>Expand a CLI target (&#x27;all&#x27; or one service) into ordered service names.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-build_plist'><code class='inline'>build_plist</code></a></td><td>Render the plist dict for one service. Pure; safe to call anywhere.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-render_plist_bytes'><code class='inline'>render_plist_bytes</code></a></td><td>Serialize a service plist to XML bytes (plistlib handles escaping).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_require_macos'><code class='inline'>_require_macos</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_domain_target'><code class='inline'>_domain_target</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_run'><code class='inline'>_run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-install'><code class='inline'>install</code></a></td><td>Write all plists and ensure the log directory exists. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-bootstrap'><code class='inline'>bootstrap</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-bootout'><code class='inline'>bootout</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-restart'><code class='inline'>restart</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-status'><code class='inline'>status</code></a></td><td>Return launchctl print output per service (diagnostic context only).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_build_parser'><code class='inline'>_build_parser</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr></table></div>
+<div class='card' id='fn-repo_root_default'><h3><code class='inline'>repo_root_default</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def repo_root_default() -&gt; Path</code></div><p>Repo root inferred from this file&#x27;s location (scripts/ -&gt; root).</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import repo_root_default
+
+result = repo_root_default()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-launchagents_dir'><h3><code class='inline'>launchagents_dir</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def launchagents_dir() -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import launchagents_dir
+
+result = launchagents_dir()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_linked_git_worktree'><h3><code class='inline'>is_linked_git_worktree</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def is_linked_git_worktree(repo_root: Path) -&gt; bool</code></div><p>Linked git worktrees use a .git file that points at another git dir.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import is_linked_git_worktree
+
+result = is_linked_git_worktree(repo_root=&quot;repo_root_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_install_root'><h3><code class='inline'>validate_install_root</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def validate_install_root(repo_root: Path, allow_worktree_install: bool = False) -&gt; None</code></div><p>Refuse launchd installs from disposable worktrees unless made explicit.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import validate_install_root
+
+result = validate_install_root(repo_root=&quot;repo_root_example&quot;, allow_worktree_install=True  # default: False)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-plist_path'><h3><code class='inline'>plist_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def plist_path(name: str) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import plist_path
+
+result = plist_path(name=&quot;name_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-log_paths'><h3><code class='inline'>log_paths</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def log_paths(name: str, repo_root: Path) -&gt; tuple[Path, Path]</code></div><p>(stdout, stderr) log paths for a service, under logs/desktop/.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import log_paths
+
+result = log_paths(name=&quot;name_example&quot;, repo_root=&quot;repo_root_example&quot;)
+# result: tuple[Path, Path]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require'><h3><code class='inline'>_require</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _require(name: str) -&gt; str</code></div><p>Validate a service name against the allowlist. Raises on anything else.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import _require
+
+result = _require(name=&quot;name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resolve_targets'><h3><code class='inline'>resolve_targets</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def resolve_targets(name: str) -&gt; list[str]</code></div><p>Expand a CLI target (&#x27;all&#x27; or one service) into ordered service names.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import resolve_targets
+
+result = resolve_targets(name=&quot;name_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_plist'><h3><code class='inline'>build_plist</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def build_plist(name: str, repo_root: Path | None = None) -&gt; dict</code></div><p>Render the plist dict for one service. Pure; safe to call anywhere.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import build_plist
+
+result = build_plist(name=&quot;name_example&quot;, repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-render_plist_bytes'><h3><code class='inline'>render_plist_bytes</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def render_plist_bytes(name: str, repo_root: Path | None = None) -&gt; bytes</code></div><p>Serialize a service plist to XML bytes (plistlib handles escaping).</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import render_plist_bytes
+
+result = render_plist_bytes(name=&quot;name_example&quot;, repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: bytes</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require_macos'><h3><code class='inline'>_require_macos</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _require_macos() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import _require_macos
+
+result = _require_macos()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_domain_target'><h3><code class='inline'>_domain_target</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _domain_target(label: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import _domain_target
+
+result = _domain_target(label=&quot;label_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run'><h3><code class='inline'>_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _run(args: list[str]) -&gt; subprocess.CompletedProcess</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import _run
+
+result = _run(args=&quot;args_example&quot;)
+# result: subprocess.CompletedProcess</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-install'><h3><code class='inline'>install</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def install(repo_root: Path | None = None, allow_worktree_install: bool = False) -&gt; list[Path]</code></div><p>Write all plists and ensure the log directory exists. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import install
+
+result = install(repo_root=&quot;repo_root_example&quot;  # default: None, allow_worktree_install=True  # default: False)
+# result: list[Path]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-bootstrap'><h3><code class='inline'>bootstrap</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def bootstrap(name: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import bootstrap
+
+result = bootstrap(name=&quot;name_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-bootout'><h3><code class='inline'>bootout</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def bootout(name: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import bootout
+
+result = bootout(name=&quot;name_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-restart'><h3><code class='inline'>restart</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def restart(name: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import restart
+
+result = restart(name=&quot;name_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-status'><h3><code class='inline'>status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def status(name: str = &#x27;all&#x27;) -&gt; dict[str, str]</code></div><p>Return launchctl print output per service (diagnostic context only).</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import status
+
+result = status(name=&quot;name_example&quot;  # default: &#x27;all&#x27;)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_parser'><h3><code class='inline'>_build_parser</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _build_parser() -&gt; argparse.ArgumentParser</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import _build_parser
+
+result = _build_parser()
+# result: argparse.ArgumentParser</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def main(argv: list[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.kitty_desktop_launchd import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Service'><code class='inline'>Service</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-Service'><h3><code class='inline'>Service</code></h3><p>A single managed service.
+
+`program` is resolved to an absolute path under the repo root at render
+time. `env` carries only non-secret config; loopback host pinning lives
+here so it is enforced regardless of wrapper defaults.</p><p class='small'><b>Attributes:</b> name: str, program: str, env: dict[str, str]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>label</code></td><td><code class='inline'>def label(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from scripts.kitty_desktop_launchd import Service
+
+obj = Service(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>LABEL_PREFIX</code></td><td><code class='inline'>&#x27;com.kitty.desktop&#x27;</code></td></tr><tr><td><code class='inline'>LOGIN_SAFE_PATH</code></td><td><code class='inline'>&#x27;/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin&#x27;</code></td></tr><tr><td><code class='inline'>THROTTLE_INTERVAL</code></td><td><code class='inline'>10</code></td></tr><tr><td><code class='inline'>SERVICES</code></td><td><code class='inline'>dict[str, Service]</code></td></tr><tr><td><code class='inline'>SERVICE_ORDER</code></td><td><code class='inline'>[&#x27;litellm&#x27;, &#x27;gateway&#x27;, &#x27;ui&#x27;]</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

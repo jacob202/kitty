@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.prefetcher — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.prefetcher</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.prefetcher</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/prefetcher.py</code> &middot; Python &middot; 13 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Predictive context prefetcher.
+
+Learns which queries you tend to ask under a given *behavioural fingerprint*
+(time-of-week + current git branch + recently-touched files), then pre-warms
+``memory_graph.unified_context`` for the likely-next queries so the real
+request hits a warm cache instead of recomputing.
+
+Ported down from the abandoned ``space_kitty`` prototype — deliberately the
+lazy version: the original also captured bluetooth peers and clipboard, kept
+its own SQLite + cosine index, and leaned on the dead ``MemoryWeave``. None of
+that survives here.
+
+Fingerprints (time / branch / filenames) never leave the box — they are
+appended to a local JSONL and used only to pick queries. That is a property of
+this module, not of a router boundary: ADR 0022 retired D10, so the warmed
+context itself reaches a cloud provider like any other prompt.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.jsonl_tail</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>subprocess</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_time_slot'><code class='inline'>_time_slot</code></a></td><td>Weekday + 4-hour block — captures a weekly rhythm without over-fitting.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_git_branch'><code class='inline'>_git_branch</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_recent_files'><code class='inline'>_recent_files</code></a></td><td>Basenames of the most recently modified tracked files (no paths — keeps</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-capture_fingerprint'><code class='inline'>capture_fingerprint</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-record'><code class='inline'>record</code></a></td><td>Append a (fingerprint, query) observation for future prediction.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_load_history'><code class='inline'>_load_history</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_similarity'><code class='inline'>_similarity</code></a></td><td>Weighted overlap. Branch is the strongest signal, then time, then files.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-predict'><code class='inline'>predict</code></a></td><td>Most likely next queries for ``fp``, best-first, deduped.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-get_cached'><code class='inline'>get_cached</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-current_generation'><code class='inline'>current_generation</code></a></td><td>The cache&#x27;s current generation. Capture this before starting a slow</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-put_cached'><code class='inline'>put_cached</code></a></td><td>Cache ``context`` for ``query``.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-invalidate_all'><code class='inline'>invalidate_all</code></a></td><td>Drop every cached context. Called by stores whose write path can make</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-warm'><code class='inline'>warm</code></a></td><td>Precompute context for the predicted next queries. Returns how many were</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-_time_slot'><h3><code class='inline'>_time_slot</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _time_slot(now: datetime) -&gt; str</code></div><p>Weekday + 4-hour block — captures a weekly rhythm without over-fitting.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import _time_slot
+
+result = _time_slot(now=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_git_branch'><h3><code class='inline'>_git_branch</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _git_branch() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import _git_branch
+
+result = _git_branch()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_recent_files'><h3><code class='inline'>_recent_files</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _recent_files() -&gt; tuple[str, ...]</code></div><p>Basenames of the most recently modified tracked files (no paths — keeps
+the fingerprint portable and avoids leaking directory structure).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import _recent_files
+
+result = _recent_files()
+# result: tuple[str, ...]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-capture_fingerprint'><h3><code class='inline'>capture_fingerprint</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def capture_fingerprint() -&gt; Fingerprint</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import capture_fingerprint
+
+result = capture_fingerprint()
+# result: Fingerprint</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record'><h3><code class='inline'>record</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def record(query: str, fp: Fingerprint | None = None) -&gt; None</code></div><p>Append a (fingerprint, query) observation for future prediction.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import record
+
+result = record(query=&quot;query_example&quot;, fp=0  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_history'><h3><code class='inline'>_load_history</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_history() -&gt; list[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import _load_history
+
+result = _load_history()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_similarity'><h3><code class='inline'>_similarity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _similarity(a: Fingerprint, b: dict) -&gt; float</code></div><p>Weighted overlap. Branch is the strongest signal, then time, then files.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import _similarity
+
+result = _similarity(a=0, b={})
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-predict'><h3><code class='inline'>predict</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def predict(fp: Fingerprint | None = None, k: int = 3) -&gt; list[str]</code></div><p>Most likely next queries for ``fp``, best-first, deduped.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import predict
+
+result = predict(fp=0  # default: None, k=0  # default: 3)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_cached'><h3><code class='inline'>get_cached</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_cached(query: str) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import get_cached
+
+result = get_cached(query=&quot;query_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-current_generation'><h3><code class='inline'>current_generation</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def current_generation() -&gt; int</code></div><p>The cache&#x27;s current generation. Capture this before starting a slow
+compute so a later ``put_cached(..., generation=...)`` can detect a
+concurrent invalidation and refuse to publish a stale result.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import current_generation
+
+result = current_generation()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-put_cached'><h3><code class='inline'>put_cached</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def put_cached(query: str, context: str, generation: int | None = None) -&gt; None</code></div><p>Cache ``context`` for ``query``.
+
+``generation``, when given, must match the generation captured before
+the compute started (see :func:`current_generation`). A mismatch means
+``invalidate_all()`` ran while this result was being computed — the
+result is stale and is dropped rather than written, so a slow query
+racing a correction cannot resurrect the answer the correction just
+cleared.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import put_cached
+
+result = put_cached(query=&quot;query_example&quot;, context=&quot;context_example&quot;, generation=0  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-invalidate_all'><h3><code class='inline'>invalidate_all</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def invalidate_all() -&gt; None</code></div><p>Drop every cached context. Called by stores whose write path can make
+a cached answer stale before its TTL — an explicit correction must never
+lose to a blind 300s cache (C4-03).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.prefetcher import invalidate_all
+
+result = invalidate_all()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-warm'><h3><code class='inline'>warm</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def warm(k: int = 3) -&gt; int</code></div><p>Precompute context for the predicted next queries. Returns how many were
+freshly warmed (already-cached predictions are skipped).</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.prefetcher import warm
+
+    result = await warm()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Fingerprint'><code class='inline'>Fingerprint</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-Fingerprint'><h3><code class='inline'>Fingerprint</code></h3><p>Cheap, local signals that correlate with what you&#x27;re about to ask.</p><p class='small'><b>Attributes:</b> time_slot: str, git_branch: str, recent_files: tuple[str, ...]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.prefetcher import Fingerprint
+
+obj = Fingerprint(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_ROOT</code></td><td><code class='inline'>Path(__file__).resolve().parent.parent</code></td></tr><tr><td><code class='inline'>_HISTORY</code></td><td><code class='inline'>_paths.DATA_DIR / &#x27;prefetch_history.jsonl&#x27;</code></td></tr><tr><td><code class='inline'>_HISTORY_SCAN</code></td><td><code class='inline'>500</code></td></tr><tr><td><code class='inline'>_HISTORY_SCAN_BYTES</code></td><td><code class='inline'>2 * 1024 * 1024</code></td></tr><tr><td><code class='inline'>_CACHE_TTL_S</code></td><td><code class='inline'>300.0</code></td></tr><tr><td><code class='inline'>_RECENT_FILES</code></td><td><code class='inline'>5</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

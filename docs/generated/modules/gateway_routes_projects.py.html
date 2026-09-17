@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.projects — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.projects</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.projects</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/projects.py</code> &middot; Python &middot; 13 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Project registry + resume endpoints (P6/P4, docs/packets/021 + 016).
+
+Sync handlers on purpose: refresh() blocks on git subprocess calls and an
+asyncio.run for the memory search, so FastAPI should run these in its
+worker pool, not the event loop (same reasoning as /state and /actions).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.push</code>, <code class='inline'>gateway.sse</code>, <code class='inline'>hashlib</code>, <code class='inline'>logging</code>, <code class='inline'>pydantic</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_handle'><code class='inline'>_handle</code></a></td><td>Run a store/composer call, translating its typed errors to HTTP status.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get_projects'><code class='inline'>get_projects</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-post_project'><code class='inline'>post_project</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-patch_project'><code class='inline'>patch_project</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-delete_project'><code class='inline'>delete_project</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-post_refresh'><code class='inline'>post_refresh</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-put_selected_todo'><code class='inline'>put_selected_todo</code></a></td><td>Choose the one action for this project. Beats every generated suggestion.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_selected_todo'><code class='inline'>get_selected_todo</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-delete_selected_todo'><code class='inline'>delete_selected_todo</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_resume'><code class='inline'>get_resume</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_next_steps'><code class='inline'>get_next_steps</code></a></td><td>Life-first ordered next steps across all active projects (ADR 0016).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_next_step_map'><code class='inline'>get_next_step_map</code></a></td><td>Return exact generated steps for requested project ids without Home ranking.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-get_next'><code class='inline'>get_next</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_handle'><h3><code class='inline'>_handle</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _handle(fn, *args, **kwargs)</code></div><p>Run a store/composer call, translating its typed errors to HTTP status.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import _handle
+
+result = _handle(fn=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_projects'><h3><code class='inline'>get_projects</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_projects(status: str | None = None) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import get_projects
+
+result = get_projects(status=&quot;status_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_project'><h3><code class='inline'>post_project</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def post_project(payload: CreateProjectRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import post_project
+
+result = post_project(payload=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-patch_project'><h3><code class='inline'>patch_project</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def patch_project(project_id: int, payload: UpdateProjectRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import patch_project
+
+result = patch_project(project_id=0, payload=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_project'><h3><code class='inline'>delete_project</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def delete_project(project_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import delete_project
+
+result = delete_project(project_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_refresh'><h3><code class='inline'>post_refresh</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def post_refresh(project_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import post_refresh
+
+result = post_refresh(project_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-put_selected_todo'><h3><code class='inline'>put_selected_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def put_selected_todo(project_id: int, body: SelectTodoRequest) -&gt; dict</code></div><p>Choose the one action for this project. Beats every generated suggestion.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import put_selected_todo
+
+result = put_selected_todo(project_id=0, body=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_selected_todo'><h3><code class='inline'>get_selected_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_selected_todo(project_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import get_selected_todo
+
+result = get_selected_todo(project_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_selected_todo'><h3><code class='inline'>delete_selected_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def delete_selected_todo(project_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import delete_selected_todo
+
+result = delete_selected_todo(project_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_resume'><h3><code class='inline'>get_resume</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_resume(project_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import get_resume
+
+result = get_resume(project_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_next_steps'><h3><code class='inline'>get_next_steps</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_next_steps(limit: int = 3) -&gt; list[dict]</code></div><p>Life-first ordered next steps across all active projects (ADR 0016).
+
+Used by the Home &quot;What&#x27;s Next&quot; card so the rendered top step prefers
+life projects over code projects and caps Kitty self-development when
+life steps are available.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import get_next_steps
+
+result = get_next_steps(limit=0  # default: 3)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_next_step_map'><h3><code class='inline'>get_next_step_map</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def get_next_step_map(project_ids: str) -&gt; list[dict]</code></div><p>Return exact generated steps for requested project ids without Home ranking.
+
+Projects needs a complete projection for the rows it already owns. The
+life-first ``/projects/next-steps`` endpoint is intentionally ranked and
+capped for Home, so it must not double as a completeness API.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import get_next_step_map
+
+result = get_next_step_map(project_ids=&quot;project_ids_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_next'><h3><code class='inline'>get_next</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_next(project_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.projects import get_next
+
+result = get_next(project_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-CreateProjectRequest'><code class='inline'>CreateProjectRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-UpdateProjectRequest'><code class='inline'>UpdateProjectRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-SelectTodoRequest'><code class='inline'>SelectTodoRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-CreateProjectRequest'><h3><code class='inline'>CreateProjectRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> name: str, kind: str, paths: list[str], links: list</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.projects import CreateProjectRequest
+
+obj = CreateProjectRequest(...)</pre></div>
+<div class='card' id='cls-UpdateProjectRequest'><h3><code class='inline'>UpdateProjectRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> name: str | None, kind: str | None, status: str | None, paths: list[str] | None, links: list | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.projects import UpdateProjectRequest
+
+obj = UpdateProjectRequest(...)</pre></div>
+<div class='card' id='cls-SelectTodoRequest'><h3><code class='inline'>SelectTodoRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> todo_id: StrictInt</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.projects import SelectTodoRequest
+
+obj = SelectTodoRequest(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

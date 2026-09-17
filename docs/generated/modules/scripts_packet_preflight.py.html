@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.packet_preflight — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.packet_preflight</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.packet_preflight</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/packet_preflight.py</code> &middot; Python &middot; 11 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Check a Builder packet manifest for the defects that have actually stopped runs.
+
+Read-only. Mutates nothing, inspects no Builder state, and is not a second
+control plane — it answers one question: would this packet waste an attempt?
+
+Rules and the failures behind them are documented in
+``docs/packets/PACKET_STANDARD.md``. Run this before
+``kitty builder initiative validate``; that command owns schema and dependency
+integrity, this one owns authoring defects the schema cannot see.
+
+    python scripts/packet_preflight.py docs/initiatives/foo.json
+    python scripts/packet_preflight.py --all
+
+Exit 0 when every checked manifest is clean, 1 when any error is found.
+Warnings never fail the run.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-implies_new_file'><code class='inline'>implies_new_file</code></a></td><td>True when the text asks for something new, ignoring stated non-goals.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-demands_new_file'><code class='inline'>demands_new_file</code></a></td><td>True when the text names a new artifact, ignoring stated non-goals.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-display_path'><code class='inline'>display_path</code></a></td><td>Repo-relative when the manifest lives here, absolute when it does not.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-tracked_paths'><code class='inline'>tracked_paths</code></a></td><td>Every path in HEAD. The worker branches from a commit, so the dirty</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-path_kind'><code class='inline'>path_kind</code></a></td><td>&#x27;file&#x27; if HEAD has it, &#x27;dir&#x27; if HEAD has anything under it, else &#x27;new&#x27;.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-subsystem'><code class='inline'>subsystem</code></a></td><td>The fence a new file would need. Two components where the first is a</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-is_test_path'><code class='inline'>is_test_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-command_targets'><code class='inline'>command_targets</code></a></td><td>Repo-relative paths a validation command names.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-check_packet'><code class='inline'>check_packet</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(49)</span></td></tr><tr><td><a href='#fn-check_manifest'><code class='inline'>check_manifest</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(22)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr></table></div>
+<div class='card' id='fn-implies_new_file'><h3><code class='inline'>implies_new_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def implies_new_file(text: str) -&gt; bool</code></div><p>True when the text asks for something new, ignoring stated non-goals.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import implies_new_file
+
+result = implies_new_file(text=&quot;text_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-demands_new_file'><h3><code class='inline'>demands_new_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def demands_new_file(text: str) -&gt; bool</code></div><p>True when the text names a new artifact, ignoring stated non-goals.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import demands_new_file
+
+result = demands_new_file(text=&quot;text_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-display_path'><h3><code class='inline'>display_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def display_path(path: Path) -&gt; str</code></div><p>Repo-relative when the manifest lives here, absolute when it does not.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import display_path
+
+result = display_path(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tracked_paths'><h3><code class='inline'>tracked_paths</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def tracked_paths() -&gt; set[str]</code></div><p>Every path in HEAD. The worker branches from a commit, so the dirty
+working tree is the wrong thing to test membership against.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import tracked_paths
+
+result = tracked_paths()
+# result: set[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-path_kind'><h3><code class='inline'>path_kind</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def path_kind(path: str, tracked: set[str]) -&gt; str</code></div><p>&#x27;file&#x27; if HEAD has it, &#x27;dir&#x27; if HEAD has anything under it, else &#x27;new&#x27;.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import path_kind
+
+result = path_kind(path=&quot;path_example&quot;, tracked=&quot;tracked_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-subsystem'><h3><code class='inline'>subsystem</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def subsystem(path: str) -&gt; str</code></div><p>The fence a new file would need. Two components where the first is a
+container of subprojects, otherwise one.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import subsystem
+
+result = subsystem(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_test_path'><h3><code class='inline'>is_test_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def is_test_path(path: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import is_test_path
+
+result = is_test_path(path=&quot;path_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-command_targets'><h3><code class='inline'>command_targets</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def command_targets(command: str) -&gt; list[str]</code></div><p>Repo-relative paths a validation command names.
+
+A command may start `cd gateway/kitty-chat &amp;&amp; ...`, after which its paths
+are relative to that directory, not the repository root.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import command_targets
+
+result = command_targets(command=&quot;command_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_packet'><h3><code class='inline'>check_packet</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (49)</span></h3><div class='sig'><code>def check_packet(packet: dict, tracked: set[str], seen_ids: dict[tuple[str, str], str], manifest_name: str, initiative_id: str) -&gt; list[Finding]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import check_packet
+
+result = check_packet(packet={}, tracked=&quot;tracked_example&quot;, seen_ids=&quot;seen_ids_example&quot;, manifest_name=&quot;manifest_name_example&quot;, initiative_id=&quot;initiative_id_example&quot;)
+# result: list[Finding]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_manifest'><h3><code class='inline'>check_manifest</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (22)</span></h3><div class='sig'><code>def check_manifest(path: Path, tracked: set[str], seen_ids: dict[tuple[str, str], str]) -&gt; list[Finding]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import check_manifest
+
+result = check_manifest(path=&quot;path_example&quot;, tracked=&quot;tracked_example&quot;, seen_ids=&quot;seen_ids_example&quot;)
+# result: list[Finding]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.packet_preflight import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Finding'><code class='inline'>Finding</code></a></td><td></td><td>2 methods</td></tr></table></div>
+<div class='card' id='cls-Finding'><h3><code class='inline'>Finding</code></h3><p>Undocumented class.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, level: str, packet: str, message: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__str__</code></td><td><code class='inline'>def __str__(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+s
+c
+r
+i
+p
+t
+s
+.
+p
+a
+c
+k
+e
+t
+_
+p
+r
+e
+f
+l
+i
+g
+h
+t
+ 
+i
+m
+p
+o
+r
+t
+ 
+F
+i
+n
+d
+i
+n
+g
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+F
+i
+n
+d
+i
+n
+g
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ROOT</code></td><td><code class='inline'>Path(__file__).resolve().parent.parent</code></td></tr><tr><td><code class='inline'>INITIATIVES</code></td><td><code class='inline'>ROOT / &#x27;docs&#x27; / &#x27;initiatives&#x27;</code></td></tr><tr><td><code class='inline'>MANIFEST_KEYS</code></td><td><code class='inline'>{&#x27;manifest_version&#x27;, &#x27;initiative_id&#x27;, &#x27;title&#x27;, &#x27;description&#x27;, &#x27;packets&#x27;}</code></td></tr><tr><td><code class='inline'>PACKET_KEYS</code></td><td><code class='inline'>{&#x27;id&#x27;, &#x27;title&#x27;, &#x27;objective&#x27;, &#x27;depends_on&#x27;, &#x27;acceptance_criteria&#x27;, &#x27;allowed_paths&#x27;, &#x27;policy&#x27;, &#x27;validation_commands&#x27;}</code></td></tr><tr><td><code class='inline'>FORBIDDEN_PREFIXES</code></td><td><code class='inline'>(&#x27;.claude/&#x27;, &#x27;.github/workflows/&#x27;, &#x27;data/&#x27;, &#x27;logs/&#x27;, &#x27;.env&#x27;, &#x27;config/action_tiers.json&#x27;)</code></td></tr><tr><td><code class='inline'>PINNED_INTERPRETER</code></td><td><code class='inline'>re.compile(&#x27;\\bpython3\\.\\d+\\b&#x27;)</code></td></tr><tr><td><code class='inline'>NPM_RUN</code></td><td><code class='inline'>re.compile(&#x27;\\bnpm\\s+run\\b&#x27;)</code></td></tr><tr><td><code class='inline'>NODE_TOOLING</code></td><td><code class='inline'>re.compile(&#x27;\\b(npx|npm)\\b&#x27;)</code></td></tr><tr><td><code class='inline'>CREATION_VERBS</code></td><td><code class='inline'>re.compile(&#x27;\\b(add|creat|introduc|implement|build|writ|generat|author|new (module|file|endpoint|route|component|script|</code></td></tr><tr><td><code class='inline'>NEGATED_CREATION</code></td><td><code class='inline'>re.compile(&quot;\\b(?:do not|does not|don&#x27;t|never|without|rather than|instead of)\\s+(?:\\w+ly\\s+)?(?:add|creat|introduc|im</code></td></tr><tr><td><code class='inline'>EXPLICIT_NEW_ARTIFACT</code></td><td><code class='inline'>re.compile(&#x27;\\bnew (module|file|endpoint|route|component|script|helper|test)\\b&#x27;, re.IGNORECASE)</code></td></tr><tr><td><code class='inline'>COMMAND_PATH</code></td><td><code class='inline'>re.compile(&#x27;(?&lt;![\\w./-])((?:[\\w.-]+/)+[\\w.*-]+)&#x27;)</code></td></tr><tr><td><code class='inline'>EDIT_ONLY_DECLARATION</code></td><td><code class='inline'>re.compile(&#x27;creates? no new (?:production )?files?&#x27;, re.IGNORECASE)</code></td></tr><tr><td><code class='inline'>CD_PREFIX</code></td><td><code class='inline'>re.compile(&#x27;^\\s*cd\\s+([\\w./-]+)\\s*&amp;&amp;\\s*&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

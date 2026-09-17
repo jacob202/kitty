@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_gen — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_gen</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_gen</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_gen.py</code> &middot; Python &middot; 15 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>ComfyUI image generation — calls the ComfyUI REST API (local or Colab tunnel).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>asyncio</code>, <code class='inline'>gateway.image_jobs</code>, <code class='inline'>hashlib</code>, <code class='inline'>httpx</code>, <code class='inline'>json</code>, <code class='inline'>mcp.imagen.io</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_history'><code class='inline'>get_history</code></a></td><td>Gallery history from the durable job store (IMG-01) — survives restarts.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_parse'><code class='inline'>_parse</code></a></td><td>Extract keyword-derived params for an SDXL workflow.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_seed'><code class='inline'>_seed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_wf_sdxl'><code class='inline'>_wf_sdxl</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_wf_ipadapter_sdxl'><code class='inline'>_wf_ipadapter_sdxl</code></a></td><td>SDXL workflow with IP-Adapter FaceID identity preservation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_wf_ipadapter_identity'><code class='inline'>_wf_ipadapter_identity</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_upload_ref_to_comfy'><code class='inline'>_upload_ref_to_comfy</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-is_identity_ready'><code class='inline'>is_identity_ready</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-generate_with_character'><code class='inline'>generate_with_character</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_finalize_persisted_job'><code class='inline'>_finalize_persisted_job</code></a></td><td>Link a persisted output into canonical Artifact truth, then succeed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_poll'><code class='inline'>_poll</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_mark_failed'><code class='inline'>_mark_failed</code></a></td><td>Record a failure unless the job already reached a terminal state.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-cancel'><code class='inline'>cancel</code></a></td><td>Cancel an in-flight ComfyUI generation after verifying prompt ownership.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-is_available'><code class='inline'>is_available</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-generate'><code class='inline'>generate</code></a></td><td>Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr></table></div>
+<div class='card' id='fn-get_history'><h3><code class='inline'>get_history</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def get_history(limit: int = 20) -&gt; list[dict]</code></div><p>Gallery history from the durable job store (IMG-01) — survives restarts.
+
+Only succeeded jobs with an artifact are gallery entries; the response
+keeps the legacy {prompt_id, filename, prompt, created_at} shape the UI
+polls, plus the durable job_id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_gen import get_history
+
+result = get_history(limit=0  # default: 20)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse'><h3><code class='inline'>_parse</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _parse(prompt: str) -&gt; dict</code></div><p>Extract keyword-derived params for an SDXL workflow.
+
+Always returns SDXL-native defaults (1024×1024, 6 steps, cfg 1.5).
+Keyword overrides for dimensions and quality are preserved.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_gen import _parse
+
+result = _parse(prompt=&quot;prompt_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_seed'><h3><code class='inline'>_seed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _seed() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_gen import _seed
+
+result = _seed()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wf_sdxl'><h3><code class='inline'>_wf_sdxl</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _wf_sdxl(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_gen import _wf_sdxl
+
+result = _wf_sdxl(prompt=&quot;prompt_example&quot;, neg=&quot;neg_example&quot;, w=0, h=0, steps=0, cfg=0.0, ckpt=&quot;ckpt_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wf_ipadapter_sdxl'><h3><code class='inline'>_wf_ipadapter_sdxl</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _wf_ipadapter_sdxl(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt: str, ref_image_name: str, identity_weight: float = 0.7) -&gt; dict</code></div><p>SDXL workflow with IP-Adapter FaceID identity preservation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_gen import _wf_ipadapter_sdxl
+
+result = _wf_ipadapter_sdxl(prompt=&quot;prompt_example&quot;, neg=&quot;neg_example&quot;, w=0, h=0, steps=0, cfg=0.0, ckpt=&quot;ckpt_example&quot;, ref_image_name=&quot;ref_image_name_example&quot;, identity_weight=0.0  # default: 0.7)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wf_ipadapter_identity'><h3><code class='inline'>_wf_ipadapter_identity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _wf_ipadapter_identity(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt: str, ref_image_name: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_gen import _wf_ipadapter_identity
+
+result = _wf_ipadapter_identity(prompt=&quot;prompt_example&quot;, neg=&quot;neg_example&quot;, w=0, h=0, steps=0, cfg=0.0, ckpt=&quot;ckpt_example&quot;, ref_image_name=&quot;ref_image_name_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_upload_ref_to_comfy'><h3><code class='inline'>_upload_ref_to_comfy</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def _upload_ref_to_comfy(ref_path: str, client: httpx.AsyncClient) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_gen import _upload_ref_to_comfy
+
+    result = await _upload_ref_to_comfy()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_identity_ready'><h3><code class='inline'>is_identity_ready</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>async def is_identity_ready() -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_gen import is_identity_ready
+
+    result = await is_identity_ready()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_with_character'><h3><code class='inline'>generate_with_character</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>async def generate_with_character(prompt: str, character_ref_path: str, identity_mode: str = &#x27;balanced&#x27;, negative_prompt: str | None = None, width: int = 1024, height: int = 1024, steps: int = 8, cfg: float = 4.5, seed: int | None = None, guidance_tags: list[str] | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_gen import generate_with_character
+
+    result = await generate_with_character()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_finalize_persisted_job'><h3><code class='inline'>_finalize_persisted_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _finalize_persisted_job(job_id: str, local_path: Path, project_id: int | None = None) -&gt; None</code></div><p>Link a persisted output into canonical Artifact truth, then succeed.
+
+Persistence/registration failures are terminal failures, not zombie RUNNING
+jobs. Both ComfyUI generation paths use this one completion seam.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_gen import _finalize_persisted_job
+
+result = _finalize_persisted_job(job_id=&quot;job_id_example&quot;, local_path=&quot;local_path_example&quot;, project_id=0  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_poll'><h3><code class='inline'>_poll</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>async def _poll(client: httpx.AsyncClient, prompt_id: str, timeout: int = 360, job_id: str | None = None) -&gt; Optional[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_gen import _poll
+
+    result = await _poll()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_failed'><h3><code class='inline'>_mark_failed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _mark_failed(job_id: str, message: str) -&gt; None</code></div><p>Record a failure unless the job already reached a terminal state.
+
+A cancel racing the generate() coroutine wins: the canceled state stays,
+and the failure that the interrupt provoked is not an error to report.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_gen import _mark_failed
+
+result = _mark_failed(job_id=&quot;job_id_example&quot;, message=&quot;message_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-cancel'><h3><code class='inline'>cancel</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>async def cancel(job_id: str) -&gt; dict</code></div><p>Cancel an in-flight ComfyUI generation after verifying prompt ownership.
+
+Safety rules enforced:
+- Only comfyui jobs are cancellable (other providers have no implemented
+  cancellation mechanism).
+- The job must have a stored provider_job_id (prompt was submitted).
+- ComfyUI&#x27;s queue/running state is queried to determine whether the
+  requested prompt is currently executing or queued.
+- /interrupt is sent only when the requested prompt is proven to be the
+  active prompt.
+- Queued prompts are removed via the /queue DELETE API.
+- Durable status changes to canceled only after provider-side cancellation
+  succeeds.
+- Terminal jobs are rejected.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_gen import cancel
+
+    result = await cancel()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_available'><h3><code class='inline'>is_available</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def is_available() -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_gen import is_available
+
+    result = await is_available()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate'><h3><code class='inline'>generate</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>async def generate(prompt: str, parent_id: str | None = None, guidance_tags: list[str] | None = None, project_id: int | None = None, plan_id: str | None = None, intent_json: str | None = None) -&gt; dict</code></div><p>Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.image_gen import generate
+
+    result = await generate()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ImageGenerationCancelled'><code class='inline'>ImageGenerationCancelled</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-CancellationUnsupportedError'><code class='inline'>CancellationUnsupportedError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-CancellationConflictError'><code class='inline'>CancellationConflictError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ImageGenerationCancelled'><h3><code class='inline'>ImageGenerationCancelled</code></h3><p>The caller canceled this job while ComfyUI was generating it.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_gen import ImageGenerationCancelled
+
+obj = ImageGenerationCancelled(...)</pre></div>
+<div class='card' id='cls-CancellationUnsupportedError'><h3><code class='inline'>CancellationUnsupportedError</code></h3><p>The job&#x27;s provider does not support cancellation.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_gen import CancellationUnsupportedError
+
+obj = CancellationUnsupportedError(...)</pre></div>
+<div class='card' id='cls-CancellationConflictError'><h3><code class='inline'>CancellationConflictError</code></h3><p>The job cannot be canceled in its current provider-side state.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_gen import CancellationConflictError
+
+obj = CancellationConflictError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>COMFY_URL</code></td><td><code class='inline'>os.environ.get(&#x27;COMFY_URL&#x27;, &#x27;http://127.0.0.1:8188&#x27;)</code></td></tr><tr><td><code class='inline'>SDXL_CKPT</code></td><td><code class='inline'>&#x27;RealCoreXL.safetensors&#x27;</code></td></tr><tr><td><code class='inline'>SDXL_PHOTONIC</code></td><td><code class='inline'>&#x27;RealCoreXL.safetensors&#x27;</code></td></tr><tr><td><code class='inline'>IPADAPTER_MODEL</code></td><td><code class='inline'>&#x27;ip-adapter-faceid_sd15.bin&#x27;</code></td></tr><tr><td><code class='inline'>IPADAPTER_CLIP_VISION</code></td><td><code class='inline'>&#x27;CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors&#x27;</code></td></tr><tr><td><code class='inline'>COMFY_REQUIRED_NODES</code></td><td><code class='inline'>frozenset({&#x27;CheckpointLoaderSimple&#x27;, &#x27;LoraLoader&#x27;, &#x27;CLIPTextEncode&#x27;, &#x27;EmptyLatentImage&#x27;, &#x27;KSampler&#x27;, &#x27;VAEDecode&#x27;, &#x27;SaveI</code></td></tr><tr><td><code class='inline'>COMFY_IDENTITY_NODES</code></td><td><code class='inline'>frozenset({&#x27;IPAdapter&#x27;, &#x27;IPAdapterModelLoader&#x27;})</code></td></tr><tr><td><code class='inline'>EXPLICIT_KW</code></td><td><code class='inline'>{&#x27;explicit&#x27;, &#x27;erect&#x27;, &#x27;hard cock&#x27;, &#x27;erection&#x27;, &#x27;boner&#x27;, &#x27;cock&#x27;, &#x27;nude explicit&#x27;}</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

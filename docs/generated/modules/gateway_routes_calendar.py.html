@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.calendar — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.calendar</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.calendar</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/calendar.py</code> &middot; Python &middot; 3 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>macOS Calendar integration routes.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway.calendar_integration</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_calendar_events_response'><code class='inline'>_calendar_events_response</code></a></td><td>Run blocking Calendar AppleScript off the event loop.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-calendar_today'><code class='inline'>calendar_today</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-calendar_upcoming'><code class='inline'>calendar_upcoming</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_calendar_events_response'><h3><code class='inline'>_calendar_events_response</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _calendar_events_response(fetch_events)</code></div><p>Run blocking Calendar AppleScript off the event loop.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.calendar import _calendar_events_response
+
+    result = await _calendar_events_response()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-calendar_today'><h3><code class='inline'>calendar_today</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def calendar_today()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.calendar import calendar_today
+
+    result = await calendar_today()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-calendar_upcoming'><h3><code class='inline'>calendar_upcoming</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def calendar_upcoming(days: int = 7)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.calendar import calendar_upcoming
+
+    result = await calendar_upcoming()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li><li><a href='gateway_routes_chats.py.html'><code class='inline'>gateway.routes.chats</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

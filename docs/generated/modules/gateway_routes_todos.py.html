@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.todos — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.todos</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.todos</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/todos.py</code> &middot; Python &middot; 8 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Todo routes.
+
+Split from the former routes/extended.py on 2026-09-16 so each route module
+owns one domain (architecture claim: &quot;Routes should remain thin&quot;).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway.storage_router</code>, <code class='inline'>gateway.todo_store</code>, <code class='inline'>pydantic</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-todos_update'><code class='inline'>todos_update</code></a></td><td>Replace the entire todo list. Model-invokable structured task tracking.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-todos_get'><code class='inline'>todos_get</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-todos_clear'><code class='inline'>todos_clear</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-todos_add'><code class='inline'>todos_add</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-todos_complete_by_id'><code class='inline'>todos_complete_by_id</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-todos_set_progress'><code class='inline'>todos_set_progress</code></a></td><td>Record where the user stopped. A different statement from completing it.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-todos_set_project'><code class='inline'>todos_set_project</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-todos_delete'><code class='inline'>todos_delete</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-todos_update'><h3><code class='inline'>todos_update</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def todos_update(payload: TodoUpdateRequest)</code></div><p>Replace the entire todo list. Model-invokable structured task tracking.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.todos import todos_update
+
+    result = await todos_update()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-todos_get'><h3><code class='inline'>todos_get</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def todos_get()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.todos import todos_get
+
+    result = await todos_get()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-todos_clear'><h3><code class='inline'>todos_clear</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def todos_clear()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.todos import todos_clear
+
+    result = await todos_clear()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-todos_add'><h3><code class='inline'>todos_add</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def todos_add(payload: TodoAddRequest)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.todos import todos_add
+
+    result = await todos_add()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-todos_complete_by_id'><h3><code class='inline'>todos_complete_by_id</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def todos_complete_by_id(todo_id: int)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.todos import todos_complete_by_id
+
+    result = await todos_complete_by_id()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-todos_set_progress'><h3><code class='inline'>todos_set_progress</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def todos_set_progress(todo_id: int, payload: TodoProgressRequest)</code></div><p>Record where the user stopped. A different statement from completing it.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.todos import todos_set_progress
+
+    result = await todos_set_progress()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-todos_set_project'><h3><code class='inline'>todos_set_project</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def todos_set_project(todo_id: int, payload: TodoProjectRequest)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.todos import todos_set_project
+
+    result = await todos_set_project()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-todos_delete'><h3><code class='inline'>todos_delete</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def todos_delete(todo_id: int)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.todos import todos_delete
+
+    result = await todos_delete()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-TodoUpdateRequest'><code class='inline'>TodoUpdateRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-TodoAddRequest'><code class='inline'>TodoAddRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-TodoProgressRequest'><code class='inline'>TodoProgressRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-TodoProjectRequest'><code class='inline'>TodoProjectRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-TodoUpdateRequest'><h3><code class='inline'>TodoUpdateRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> items: list[dict]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.todos import TodoUpdateRequest
+
+obj = TodoUpdateRequest(...)</pre></div>
+<div class='card' id='cls-TodoAddRequest'><h3><code class='inline'>TodoAddRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> content: str, status: str, active_form: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.todos import TodoAddRequest
+
+obj = TodoAddRequest(...)</pre></div>
+<div class='card' id='cls-TodoProgressRequest'><h3><code class='inline'>TodoProgressRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> note: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.todos import TodoProgressRequest
+
+obj = TodoProgressRequest(...)</pre></div>
+<div class='card' id='cls-TodoProjectRequest'><h3><code class='inline'>TodoProjectRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> project_id: Optional[int]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.todos import TodoProjectRequest
+
+obj = TodoProjectRequest(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

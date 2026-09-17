@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.hybrid_search — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.hybrid_search</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.hybrid_search</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/hybrid_search.py</code> &middot; Python &middot; 8 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Hybrid search: ChromaDB (vector) + SQLite FTS5 (keyword) with RRF fusion.
+
+Stolen from: LangChain&#x27;s SelfQueryRetriever (MIT), Qdrant hybrid search (Apache 2),
+SQLite FTS5 docs (public domain).
+
+ChromaDB does NOT natively support hybrid search. The &quot;default_ef&quot; parameter
+is an HNSW efSearch parameter, NOT hybrid search. This module adds true
+BM25-style keyword search via SQLite FTS5, then fuses results with
+Reciprocal Rank Fusion (RRF).
+
+Usage:
+    from gateway.hybrid_search import hybrid_search
+
+    results = hybrid_search(&quot;python async patterns&quot;, limit=5, alpha=0.3)
+    # alpha=0.3 means 30% vector weight, 70% keyword weight
+
+Integration into Kitty:
+    1. Call hybrid_search() instead of knowledge.search() for queries where
+       exact keyword matching matters (code search, named entities).
+    2. The FTS5 index is rebuilt automatically when documents are ingested.
+    3. Zero new dependencies: uses sqlite3 (stdlib) + existing ChromaDB setup.
+
+Performance:
+    - FTS5 index: ~50MB for 100K documents
+    - Query time: &lt;10ms for FTS5, &lt;50ms for ChromaDB vector search
+    - Fusion: O(n log n) for the merge step</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.archivist</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>sqlite3</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_get_fts_conn'><code class='inline'>_get_fts_conn</code></a></td><td>Get or create the FTS5 database with the same schema as ChromaDB docs.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-index_document'><code class='inline'>index_document</code></a></td><td>Index a single document into the FTS5 store.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-delete_document'><code class='inline'>delete_document</code></a></td><td>Remove a document from the FTS5 index.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-keyword_search'><code class='inline'>keyword_search</code></a></td><td>BM25-style keyword search via SQLite FTS5.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-vector_search'><code class='inline'>vector_search</code></a></td><td>Existing ChromaDB vector search (wraps gateway.knowledge.search).</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_rrf_fusion'><code class='inline'>_rrf_fusion</code></a></td><td>Reciprocal Rank Fusion with weighted alpha.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-hybrid_search'><code class='inline'>hybrid_search</code></a></td><td>Hybrid search: vector + keyword with RRF fusion.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-rebuild_index'><code class='inline'>rebuild_index</code></a></td><td>Rebuild the FTS5 index from ChromaDB&#x27;s current state.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr></table></div>
+<div class='card' id='fn-_get_fts_conn'><h3><code class='inline'>_get_fts_conn</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _get_fts_conn() -&gt; sqlite3.Connection</code></div><p>Get or create the FTS5 database with the same schema as ChromaDB docs.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.hybrid_search import _get_fts_conn
+
+result = _get_fts_conn()
+# result: sqlite3.Connection</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-index_document'><h3><code class='inline'>index_document</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def index_document(doc_id: str, text: str, source: str = &#x27;unknown&#x27;, doc_type: str = &#x27;general&#x27;, metadata: dict | None = None, content_hash: str = &#x27;&#x27;) -&gt; None</code></div><p>Index a single document into the FTS5 store.
+
+Call this alongside ChromaDB&#x27;s collection.add() in the ingest pipeline.
+The doc_id should match the ChromaDB document ID for cross-referencing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.hybrid_search import index_document
+
+result = index_document(doc_id=&quot;doc_id_example&quot;, text=&quot;text_example&quot;, source=&quot;source_example&quot;  # default: &#x27;unknown&#x27;, doc_type=&quot;doc_type_example&quot;  # default: &#x27;general&#x27;, metadata={}  # default: None, content_hash=&quot;content_hash_example&quot;  # default: &#x27;&#x27;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_document'><h3><code class='inline'>delete_document</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def delete_document(doc_id: str) -&gt; None</code></div><p>Remove a document from the FTS5 index.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.hybrid_search import delete_document
+
+result = delete_document(doc_id=&quot;doc_id_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-keyword_search'><h3><code class='inline'>keyword_search</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def keyword_search(query: str, limit: int = 10) -&gt; list[dict[str, Any]]</code></div><p>BM25-style keyword search via SQLite FTS5.
+
+Returns results with FTS5 rank (lower = better match).
+Uses the porter stemmer and unicode61 tokenizer.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.hybrid_search import keyword_search
+
+result = keyword_search(query=&quot;query_example&quot;, limit=0  # default: 10)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-vector_search'><h3><code class='inline'>vector_search</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def vector_search(query: str, limit: int = 10, collections: list[str] | None = None) -&gt; list[dict[str, Any]]</code></div><p>Existing ChromaDB vector search (wraps gateway.knowledge.search).
+
+Returns results with cosine distance converted to a score in [0, 1].</p><h3>Example Usage (synthetic)</h3><pre>from gateway.hybrid_search import vector_search
+
+result = vector_search(query=&quot;query_example&quot;, limit=0  # default: 10, collections=&quot;collections_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_rrf_fusion'><h3><code class='inline'>_rrf_fusion</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _rrf_fusion(vector_results: list[dict[str, Any]], keyword_results: list[dict[str, Any]], limit: int, alpha: float = 0.5) -&gt; list[dict[str, Any]]</code></div><p>Reciprocal Rank Fusion with weighted alpha.
+
+Args:
+    vector_results: Results from ChromaDB vector search.
+    keyword_results: Results from FTS5 keyword search.
+    limit: Max results to return.
+    alpha: Weight for vector score (0-1). keyword weight = 1-alpha.
+           alpha=1.0 = pure vector search, alpha=0.0 = pure keyword.
+
+Returns:
+    Fused and sorted results, deduplicated by text content.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.hybrid_search import _rrf_fusion
+
+result = _rrf_fusion(vector_results=&quot;vector_results_example&quot;, keyword_results=&quot;keyword_results_example&quot;, limit=0, alpha=0.0  # default: 0.5)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-hybrid_search'><h3><code class='inline'>hybrid_search</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def hybrid_search(query: str, limit: int = 5, collections: list[str] | None = None, alpha: float = 0.5) -&gt; list[dict[str, Any]]</code></div><p>Hybrid search: vector + keyword with RRF fusion.
+
+Args:
+    query: The search query (used for both vector embedding and FTS5).
+    limit: Max results to return.
+    collections: Optional ChromaDB collection filter.
+    alpha: Vector score weight (0-1). 0.5 = equal weight.
+
+Returns:
+    Fused results sorted by combined RRF score.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.hybrid_search import hybrid_search
+
+result = hybrid_search(query=&quot;query_example&quot;, limit=0  # default: 5, collections=&quot;collections_example&quot;  # default: None, alpha=0.0  # default: 0.5)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-rebuild_index'><h3><code class='inline'>rebuild_index</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def rebuild_index() -&gt; int</code></div><p>Rebuild the FTS5 index from ChromaDB&#x27;s current state.
+
+Returns the number of documents indexed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.hybrid_search import rebuild_index
+
+result = rebuild_index()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>FTS_DB_PATH</code></td><td><code class='inline'>DATA_DIR / &#x27;hybrid_fts.db&#x27;</code></td></tr><tr><td><code class='inline'>FTS_TABLE</code></td><td><code class='inline'>&#x27;documents_fts&#x27;</code></td></tr><tr><td><code class='inline'>_RRF_K</code></td><td><code class='inline'>60.0</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.work_spine — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.work_spine</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.work_spine</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/work_spine.py</code> &middot; Python &middot; 8 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Work spine — read-only projection over public Builder read APIs.
+
+Provides a stable ``WorkItem`` view of Builder queue state using the
+``builder:&lt;task_id&gt;`` identity scheme. No new Work database: every query
+delegates to the public read surfaces of the Builder modules.
+
+Builder is the only v1 source of truth.  Every item has ``source`` equal
+to ``&quot;builder&quot;`` and ``source_id`` equal to the Builder task id.
+
+Known Builder task states map to normalized Work states.  An unknown task
+state from the Builder store raises ``WorkStateError`` immediately — no
+silent defaulting to ``unknown``.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>collections</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_queue_db</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_normalize_state'><code class='inline'>_normalize_state</code></a></td><td>Map a Builder task state to the normalized Work state.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_parse_work_id'><code class='inline'>_parse_work_id</code></a></td><td>Split a ``builder:&lt;task_id&gt;`` work ID into (source, task_id).</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_build_work_id'><code class='inline'>_build_work_id</code></a></td><td>Return a ``builder:&lt;task_id&gt;`` work ID for the given task.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_parse_json_field'><code class='inline'>_parse_json_field</code></a></td><td>Parse a JSON string into a structured dict; return as-is if already dict.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_work'><code class='inline'>list_work</code></a></td><td>List work items with campaign-level truth, optionally filtered.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-_task_to_list_item'><code class='inline'>_task_to_list_item</code></a></td><td>Build a list-level Work item dict from a Builder task dict.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_work'><code class='inline'>get_work</code></a></td><td>Return a single work item with full detail.</td><td><span class='pill'>complex</span><span class='muted small'>(29)</span></td></tr><tr><td><a href='#fn-get_work_events'><code class='inline'>get_work_events</code></a></td><td>Return all events for a work item in chronological order.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_normalize_state'><h3><code class='inline'>_normalize_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _normalize_state(builder_state: str) -&gt; str</code></div><p>Map a Builder task state to the normalized Work state.
+
+Raises ``WorkStateError`` for any unrecognised value.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.work_spine import _normalize_state
+
+result = _normalize_state(builder_state=&quot;builder_state_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_work_id'><h3><code class='inline'>_parse_work_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _parse_work_id(work_id: str) -&gt; tuple[str, str]</code></div><p>Split a ``builder:&lt;task_id&gt;`` work ID into (source, task_id).
+
+Raises ``WorkSourceError`` if the prefix is not recognised.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.work_spine import _parse_work_id
+
+result = _parse_work_id(work_id=&quot;work_id_example&quot;)
+# result: tuple[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_work_id'><h3><code class='inline'>_build_work_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _build_work_id(task_id: str) -&gt; str</code></div><p>Return a ``builder:&lt;task_id&gt;`` work ID for the given task.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.work_spine import _build_work_id
+
+result = _build_work_id(task_id=&quot;task_id_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_json_field'><h3><code class='inline'>_parse_json_field</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _parse_json_field(raw: Any) -&gt; Any</code></div><p>Parse a JSON string into a structured dict; return as-is if already dict.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.work_spine import _parse_json_field
+
+result = _parse_json_field(raw=...)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_work'><h3><code class='inline'>list_work</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def list_work(state: str | None = None, source: str | None = None, limit: int = 100, db_path: Path | None = None) -&gt; tuple[dict[str, Any], list[dict[str, Any]]]</code></div><p>List work items with campaign-level truth, optionally filtered.
+
+In v1 only ``source=builder`` is supported.  Any other source value
+raises ``WorkSourceError``.
+
+Args:
+    state: Filter by normalized Work state.
+    source: Must be ``&quot;builder&quot;`` in v1 (or ``None``).
+    limit: Maximum items to return (clamped to 1-500).
+
+Returns:
+    A tuple of (campaign, items) where campaign is the envelope dict
+    and items is the list of work item dicts.
+
+Raises:
+    WorkStateError: if *state* is not a recognised Work state.
+    WorkSourceError: if *source* is not ``&quot;builder&quot;``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.work_spine import list_work
+
+result = list_work(state=&quot;state_example&quot;  # default: None, source=&quot;source_example&quot;  # default: None, limit=0  # default: 100, db_path=&quot;db_path_example&quot;  # default: None)
+# result: tuple[dict[str, Any], list[dict[str, Any]]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_task_to_list_item'><h3><code class='inline'>_task_to_list_item</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _task_to_list_item(task: dict[str, Any], work_state: str) -&gt; dict[str, Any]</code></div><p>Build a list-level Work item dict from a Builder task dict.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.work_spine import _task_to_list_item
+
+result = _task_to_list_item(task=&quot;task_example&quot;, work_state=&quot;work_state_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_work'><h3><code class='inline'>get_work</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (29)</span></h3><div class='sig'><code>def get_work(work_id: str, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Return a single work item with full detail.
+
+Raises:
+    WorkNotFoundError: if the work ID does not exist.
+    WorkSourceError: if the work ID prefix is unrecognised.
+    WorkStateError: if the Builder task state is unrecognised.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.work_spine import get_work
+
+result = get_work(work_id=&quot;work_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_work_events'><h3><code class='inline'>get_work_events</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_work_events(work_id: str, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Return all events for a work item in chronological order.
+
+Events are returned in exactly the Builder append-only order with
+source timestamps and source event identity preserved.
+
+Raises:
+    WorkNotFoundError: if the work ID does not exist.
+    WorkSourceError: if the work ID prefix is unrecognised.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.work_spine import get_work_events
+
+result = get_work_events(work_id=&quot;work_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-WorkError'><code class='inline'>WorkError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-WorkNotFoundError'><code class='inline'>WorkNotFoundError</code></a></td><td>(WorkError)</td><td>0 methods</td></tr><tr><td><a href='#cls-WorkStateError'><code class='inline'>WorkStateError</code></a></td><td>(WorkError)</td><td>0 methods</td></tr><tr><td><a href='#cls-WorkSourceError'><code class='inline'>WorkSourceError</code></a></td><td>(WorkError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-WorkError'><h3><code class='inline'>WorkError</code></h3><p>Base error for work spine operations.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.work_spine import WorkError
+
+obj = WorkError(...)</pre></div>
+<div class='card' id='cls-WorkNotFoundError'><h3><code class='inline'>WorkNotFoundError</code></h3><p>Raised when a work ID does not correspond to any known Builder work.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.work_spine import WorkNotFoundError
+
+obj = WorkNotFoundError(...)</pre></div>
+<div class='card' id='cls-WorkStateError'><h3><code class='inline'>WorkStateError</code></h3><p>Raised when the Builder store returns an unrecognised task state.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.work_spine import WorkStateError
+
+obj = WorkStateError(...)</pre></div>
+<div class='card' id='cls-WorkSourceError'><h3><code class='inline'>WorkSourceError</code></h3><p>Raised when a work ID has an unrecognised source prefix.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.work_spine import WorkSourceError
+
+obj = WorkSourceError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>WORK_ID_PREFIX</code></td><td><code class='inline'>&#x27;builder:&#x27;</code></td></tr><tr><td><code class='inline'>WORK_STATE_PENDING</code></td><td><code class='inline'>&#x27;pending&#x27;</code></td></tr><tr><td><code class='inline'>WORK_STATE_RUNNING</code></td><td><code class='inline'>&#x27;running&#x27;</code></td></tr><tr><td><code class='inline'>WORK_STATE_BLOCKED</code></td><td><code class='inline'>&#x27;blocked&#x27;</code></td></tr><tr><td><code class='inline'>WORK_STATE_REVIEW</code></td><td><code class='inline'>&#x27;review&#x27;</code></td></tr><tr><td><code class='inline'>WORK_STATE_COMPLETED</code></td><td><code class='inline'>&#x27;completed&#x27;</code></td></tr><tr><td><code class='inline'>WORK_STATE_FAILED</code></td><td><code class='inline'>&#x27;failed&#x27;</code></td></tr><tr><td><code class='inline'>WORK_STATE_CANCELLED</code></td><td><code class='inline'>&#x27;cancelled&#x27;</code></td></tr><tr><td><code class='inline'>_WORK_STATES</code></td><td><code class='inline'>frozenset({WORK_STATE_PENDING, WORK_STATE_RUNNING, WORK_STATE_BLOCKED, WORK_STATE_REVIEW, WORK_STATE_COMPLETED, WORK_STA</code></td></tr><tr><td><code class='inline'>SOURCE_BUILDER</code></td><td><code class='inline'>&#x27;builder&#x27;</code></td></tr><tr><td><code class='inline'>_BUILDER_TO_WORK_STATE</code></td><td><code class='inline'>dict[str, str]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

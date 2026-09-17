@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.memory_policy — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.memory_policy</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.memory_policy</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/memory_policy.py</code> &middot; Python &middot; 7 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Memory policy — consentful, scoped, decayed memory for continuity, not surveillance.
+
+Rule-based classification and filtering so Kitty remembers what helps Jacob
+continue and does not repeatedly foreground sensitive/support context unless
+directly relevant or explicitly requested.
+
+Public surface:
+- :func:`classify` — classify an Item into a MemoryClass
+- :func:`should_surface` — whether an item should appear in assembled context
+- :func:`rewrite_sensitive_summary` — rewrite psych summaries as support preferences
+- :func:`memory_display_reason` — one-line explanation for surfacing
+- :class:`MemoryClass` — the classification enum</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>enum</code>, <code class='inline'>gateway.memory_graph</code>, <code class='inline'>re</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-classify'><code class='inline'>classify</code></a></td><td>Classify a memory Item into a MemoryClass using rule-based heuristics.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-should_surface'><code class='inline'>should_surface</code></a></td><td>Whether this item should be included in the assembled context.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-rewrite_sensitive_summary'><code class='inline'>rewrite_sensitive_summary</code></a></td><td>Rewrite a psych/identity summary into a support-preference statement.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-memory_display_reason'><code class='inline'>memory_display_reason</code></a></td><td>Short, one-line explanation of why this item is being surfaced.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_get_tags'><code class='inline'>_get_tags</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_has_any'><code class='inline'>_has_any</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_query_matches_sensitive'><code class='inline'>_query_matches_sensitive</code></a></td><td>Return True if the user&#x27;s query explicitly references a sensitive topic.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-classify'><h3><code class='inline'>classify</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def classify(item: Item, query: str = &#x27;&#x27;) -&gt; MemoryClass</code></div><p>Classify a memory Item into a MemoryClass using rule-based heuristics.
+
+Priority order (first match wins):
+  1. Pinned — metadata or explicit pin marker
+  2. Blocked — metadata or ``keep_quiet``/``blocked`` tag
+  3. Archived — metadata archive flag
+  4. Sensitive support — keywords or sensitivity tags
+  5. Working context — project/building/decision keywords
+  6. Preference — likes/workflow keywords
+  7. Creative thread — art/music/writing keywords
+  8. Default — preference (safe fallback)</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_policy import classify
+
+result = classify(item=..., query=&quot;query_example&quot;  # default: &#x27;&#x27;)
+# result: MemoryClass</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-should_surface'><h3><code class='inline'>should_surface</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def should_surface(item: Item, query: str = &#x27;&#x27;, mode: str = &#x27;default&#x27;) -&gt; bool</code></div><p>Whether this item should be included in the assembled context.
+
+Args:
+    item: The memory item to evaluate.
+    query: The user&#x27;s current message (used for relevance matching).
+    mode: Context assembly mode — ``&quot;default&quot;``, ``&quot;creative&quot;``,
+        or ``&quot;support&quot;``.
+
+Rules:
+    - Pinned items always surface.
+    - Blocked items never surface unless directly queried by keyword.
+    - Archived items never surface unless directly queried.
+    - Sensitive support items are suppressed in default mode unless
+      the query directly mentions a sensitive term.
+    - All other classes surface normally.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_policy import should_surface
+
+result = should_surface(item=..., query=&quot;query_example&quot;  # default: &#x27;&#x27;, mode=&quot;mode_example&quot;  # default: &#x27;default&#x27;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-rewrite_sensitive_summary'><h3><code class='inline'>rewrite_sensitive_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def rewrite_sensitive_summary(text: str) -&gt; str</code></div><p>Rewrite a psych/identity summary into a support-preference statement.
+
+Transforms patterns like:
+    &quot;Jacob has been spiraling about X&quot;
+    -&gt; &quot;Jacob prefers practical, positive support around X.&quot;
+
+Returns the original text unchanged if no rewrite is needed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_policy import rewrite_sensitive_summary
+
+result = rewrite_sensitive_summary(text=&quot;text_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-memory_display_reason'><h3><code class='inline'>memory_display_reason</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def memory_display_reason(item: Item, query: str = &#x27;&#x27;) -&gt; str</code></div><p>Short, one-line explanation of why this item is being surfaced.
+
+Returns a string like:
+    &quot;Pinned memory&quot; / &quot;Active project context&quot; / &quot;Preference&quot; / &quot;Creative thread&quot;</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_policy import memory_display_reason
+
+result = memory_display_reason(item=..., query=&quot;query_example&quot;  # default: &#x27;&#x27;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_get_tags'><h3><code class='inline'>_get_tags</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _get_tags(metadata: dict[str, Any]) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_policy import _get_tags
+
+result = _get_tags(metadata=&quot;metadata_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_has_any'><h3><code class='inline'>_has_any</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _has_any(text: str, terms: tuple[str, ...]) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_policy import _has_any
+
+result = _has_any(text=&quot;text_example&quot;, terms=&quot;terms_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_query_matches_sensitive'><h3><code class='inline'>_query_matches_sensitive</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _query_matches_sensitive(query_terms: set[str]) -&gt; bool</code></div><p>Return True if the user&#x27;s query explicitly references a sensitive topic.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_policy import _query_matches_sensitive
+
+result = _query_matches_sensitive(query_terms=&quot;query_terms_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-MemoryClass'><code class='inline'>MemoryClass</code></a></td><td>(str, Enum)</td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-MemoryClass'><h3><code class='inline'>MemoryClass</code></h3><p>The mode/classification of a memory item.
+
+Values are ordered roughly from &quot;most likely to surface&quot; to &quot;least likely.&quot;</p><p class='small'><b>Attributes:</b> PINNED, WORKING_CONTEXT, PREFERENCE, CREATIVE_THREAD, SENSITIVE_SUPPORT, ARCHIVED, BLOCKED</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__str__</code></td><td><code class='inline'>def __str__(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_policy import MemoryClass
+
+obj = MemoryClass(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_SENSITIVE_TERMS</code></td><td><code class='inline'>tuple[str, ...]</code></td></tr><tr><td><code class='inline'>_PREFERENCE_TERMS</code></td><td><code class='inline'>tuple[str, ...]</code></td></tr><tr><td><code class='inline'>_CREATIVE_TERMS</code></td><td><code class='inline'>tuple[str, ...]</code></td></tr><tr><td><code class='inline'>_WORKING_CONTEXT_TERMS</code></td><td><code class='inline'>tuple[str, ...]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

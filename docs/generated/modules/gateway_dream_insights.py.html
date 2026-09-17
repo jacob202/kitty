@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.dream_insights — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.dream_insights</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.dream_insights</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/dream_insights.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Dream / memory consolidation — owned substrate for the dream endpoint.
+
+Why this module exists (Phase 3 of the gateway deepening program):
+the route used to embed the ``nightly_dream()`` summary parser and a
+``_run_dream_task`` background handler inline, with multiple
+``try/except`` blocks that either swallowed real failures or invented
+fake data on a &quot;simulate&quot; branch. The new module owns the storage,
+the parser, the trigger, and the status surface; the route layer is
+a thin request-parsing / response-shaping wrapper.
+
+The wire shape of every endpoint that used to live in
+``routes/dream.py`` and the dream-touching endpoints in
+``routes/insights.py`` is unchanged.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.memory_consolidation</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_classify_kind'><code class='inline'>_classify_kind</code></a></td><td>Map one summary sentence to its kind card.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-save_dream_insights'><code class='inline'>save_dream_insights</code></a></td><td>Parse ``summary`` (output of ``nightly_dream()``) into insight cards.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_normalize_created_at'><code class='inline'>_normalize_created_at</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-load_dream_insights'><code class='inline'>load_dream_insights</code></a></td><td>Return dream insight cards, newest first, normalized for the UI.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-dismiss_dream_insight'><code class='inline'>dismiss_dream_insight</code></a></td><td>Remove one insight card by id. Returns True when something was removed.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-trigger_dream'><code class='inline'>trigger_dream</code></a></td><td>Run ``nightly_dream()`` synchronously and persist its cards.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-dream_status'><code class='inline'>dream_status</code></a></td><td>Return the consolidation runtime status for ``/dream/status``.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_classify_kind'><h3><code class='inline'>_classify_kind</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _classify_kind(sentence: str) -&gt; str</code></div><p>Map one summary sentence to its kind card.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.dream_insights import _classify_kind
+
+result = _classify_kind(sentence=&quot;sentence_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-save_dream_insights'><h3><code class='inline'>save_dream_insights</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def save_dream_insights(summary: str) -&gt; None</code></div><p>Parse ``summary`` (output of ``nightly_dream()``) into insight cards.
+
+One card per non-empty line. Each card gets a fresh id, the
+current timestamp, a fixed ``source`` of ``&quot;nightly_dream&quot;``, and
+a kind derived from sentence content. Writes JSON to
+``DREAM_INSIGHTS_FILE`` (overwriting any prior content).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.dream_insights import save_dream_insights
+
+result = save_dream_insights(summary=&quot;summary_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_normalize_created_at'><h3><code class='inline'>_normalize_created_at</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _normalize_created_at(value: object) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.dream_insights import _normalize_created_at
+
+result = _normalize_created_at(value=...)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-load_dream_insights'><h3><code class='inline'>load_dream_insights</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def load_dream_insights(limit: int = 10) -&gt; list[dict]</code></div><p>Return dream insight cards, newest first, normalized for the UI.
+
+Returns ``[]`` when no data has been written. The empty state is
+explicit — never mock data.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.dream_insights import load_dream_insights
+
+result = load_dream_insights(limit=0  # default: 10)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-dismiss_dream_insight'><h3><code class='inline'>dismiss_dream_insight</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def dismiss_dream_insight(insight_id: str) -&gt; bool</code></div><p>Remove one insight card by id. Returns True when something was removed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.dream_insights import dismiss_dream_insight
+
+result = dismiss_dream_insight(insight_id=&quot;insight_id_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-trigger_dream'><h3><code class='inline'>trigger_dream</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def trigger_dream() -&gt; str</code></div><p>Run ``nightly_dream()`` synchronously and persist its cards.
+
+Raises when ``nightly_dream`` is unavailable or fails — the old
+code&#x27;s &quot;simulate&quot; branch invented fake data and is gone.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.dream_insights import trigger_dream
+
+result = trigger_dream()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-dream_status'><h3><code class='inline'>dream_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def dream_status() -&gt; dict</code></div><p>Return the consolidation runtime status for ``/dream/status``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.dream_insights import dream_status
+
+result = dream_status()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DREAM_INSIGHTS_FILE</code></td><td><code class='inline'>DATA_DIR / &#x27;dream_insights.json&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

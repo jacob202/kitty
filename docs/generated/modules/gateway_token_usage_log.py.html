@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.token_usage_log — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.token_usage_log</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.token_usage_log</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/token_usage_log.py</code> &middot; Python &middot; 2 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Thread-safe JSONL token telemetry to data/kitty_token_log.jsonl.
+
+Schema (one object per line), aligned with AGENTS.md:
+  ts, date, provider, model, operation, usage, metadata
+
+``usage`` uses API-native prompt_tokens / completion_tokens / total_tokens when present.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>threading</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-normalize_usage_payload'><code class='inline'>normalize_usage_payload</code></a></td><td>Normalize provider ``usage`` objects to int fields (best-effort).</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-log_llm_usage'><code class='inline'>log_llm_usage</code></a></td><td>Append one usage row. Never raises — failures log at WARNING.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr></table></div>
+<div class='card' id='fn-normalize_usage_payload'><h3><code class='inline'>normalize_usage_payload</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def normalize_usage_payload(raw: dict[str, Any] | None) -&gt; dict[str, int]</code></div><p>Normalize provider ``usage`` objects to int fields (best-effort).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.token_usage_log import normalize_usage_payload
+
+result = normalize_usage_payload(raw=&quot;raw_example&quot;)
+# result: dict[str, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-log_llm_usage'><h3><code class='inline'>log_llm_usage</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def log_llm_usage(provider: str, model: str, operation: str, usage: dict[str, int] | None = None, metadata: dict[str, Any] | None = None) -&gt; None</code></div><p>Append one usage row. Never raises — failures log at WARNING.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.token_usage_log import log_llm_usage
+
+result = log_llm_usage(provider=&quot;provider_example&quot;, model=&quot;model_example&quot;, operation=&quot;operation_example&quot;, usage=&quot;usage_example&quot;  # default: None, metadata=&quot;metadata_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

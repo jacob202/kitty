@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.connectors — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.connectors</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.connectors</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/connectors/__init__.py</code> &middot; Python &middot; 0 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>External connectors — read-only integrations that emit signals (P3).
+
+Each connector is a thin adapter that polls its upstream on a schedule
+and writes deduped rows to ``gateway.signal_store``. The connector
+shape (§17.2) is shared: cron-polled, signal-emitting, no webhooks,
+no per-connector table.
+
+Connectors must:
+
+- Fail loud on transport or credential errors. A quiet inbox is
+  indistinguishable from a broken connector — and broken wins.
+- Emit *summaries*, never bodies or document contents. Bodies (when
+  needed) are fetched on explicit demand and must never land in a signal
+  row — that keeps signal rows small and scannable. It is not a privacy
+  guarantee: ADR 0022 retired D10, and a body handed to an LLM goes to a
+  cloud provider.
+- Not push, send, modify, label, or delete upstream. Read-only at
+  the protocol level where the provider enforces it (Gmail scope);
+  the code adds a second layer of refusal on top.
+
+Public API is per-module; this package collects them.</p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

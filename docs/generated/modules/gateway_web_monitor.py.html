@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.web_monitor — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.web_monitor</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.web_monitor</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/web_monitor.py</code> &middot; Python &middot; 12 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Web Monitor — persistent URL polling with change detection and keyword matching.
+
+Public API:
+  add_watch(url, label, keywords, interval_minutes) -&gt; watch_id
+  remove_watch(watch_id) -&gt; bool
+  check_now(watch_id) -&gt; dict
+  list_watches() -&gt; list[dict]
+
+Storage: SQLite in data/web_monitors.db</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.automation_actions</code>, <code class='inline'>gateway.db</code>, <code class='inline'>gateway.notify</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.signal_store</code>, <code class='inline'>hashlib</code>, <code class='inline'>httpx</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-add_watch'><code class='inline'>add_watch</code></a></td><td>Add a URL to monitor. Returns watch_id.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-remove_watch'><code class='inline'>remove_watch</code></a></td><td>Remove a watch by ID.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-set_watch_enabled'><code class='inline'>set_watch_enabled</code></a></td><td>Set one watch enabled state. Returns the new state, or None if missing.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-list_watches'><code class='inline'>list_watches</code></a></td><td>List all watches.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_watch'><code class='inline'>get_watch</code></a></td><td>Fetch one watch&#x27;s current row, or None if it no longer exists.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-check_now'><code class='inline'>check_now</code></a></td><td>Force-check a single watch immediately.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-check_due'><code class='inline'>check_due</code></a></td><td>Check enabled watches whose per-watch interval is due once.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_check_watch'><code class='inline'>_check_watch</code></a></td><td>Check a single watch for changes. Returns result dict.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_handle_watch_result'><code class='inline'>_handle_watch_result</code></a></td><td>Record monitor truth, emitting a signal before any notification action.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-deliver_notification'><code class='inline'>deliver_notification</code></a></td><td>Send a web-monitor notification as one registered Automation action.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_row_to_dict'><code class='inline'>_row_to_dict</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.web_monitor import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-add_watch'><h3><code class='inline'>add_watch</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def add_watch(url: str, label: str = &#x27;&#x27;, keywords: Optional[list[str]] = None, interval_minutes: int = 30) -&gt; str</code></div><p>Add a URL to monitor. Returns watch_id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.web_monitor import add_watch
+
+result = add_watch(url=&quot;url_example&quot;, label=&quot;label_example&quot;  # default: &#x27;&#x27;, keywords=&quot;keywords_example&quot;  # default: None, interval_minutes=0  # default: 30)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-remove_watch'><h3><code class='inline'>remove_watch</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def remove_watch(watch_id: str) -&gt; bool</code></div><p>Remove a watch by ID.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.web_monitor import remove_watch
+
+result = remove_watch(watch_id=&quot;watch_id_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_watch_enabled'><h3><code class='inline'>set_watch_enabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def set_watch_enabled(watch_id: str, enabled: bool) -&gt; bool | None</code></div><p>Set one watch enabled state. Returns the new state, or None if missing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.web_monitor import set_watch_enabled
+
+result = set_watch_enabled(watch_id=&quot;watch_id_example&quot;, enabled=True)
+# result: bool | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_watches'><h3><code class='inline'>list_watches</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_watches() -&gt; list[dict]</code></div><p>List all watches.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.web_monitor import list_watches
+
+result = list_watches()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_watch'><h3><code class='inline'>get_watch</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_watch(watch_id: str) -&gt; dict | None</code></div><p>Fetch one watch&#x27;s current row, or None if it no longer exists.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.web_monitor import get_watch
+
+result = get_watch(watch_id=&quot;watch_id_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_now'><h3><code class='inline'>check_now</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def check_now(watch_id: str) -&gt; dict</code></div><p>Force-check a single watch immediately.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.web_monitor import check_now
+
+    result = await check_now()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_due'><h3><code class='inline'>check_due</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>async def check_due() -&gt; dict</code></div><p>Check enabled watches whose per-watch interval is due once.
+
+Timing ownership belongs to the canonical cron/Automation lifecycle; this
+function retains web-monitor domain semantics and per-watch cadence.
+
+A sweep already in progress holds `_sweep_lock` for its full duration, so
+an overlapping call skips rather than racing it over the same watches&#x27;
+stored state. Any watch still due when the running sweep finishes gets
+picked up on the next scheduled tick.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.web_monitor import check_due
+
+    result = await check_due()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_watch'><h3><code class='inline'>_check_watch</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>async def _check_watch(watch: dict) -&gt; dict</code></div><p>Check a single watch for changes. Returns result dict.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.web_monitor import _check_watch
+
+    result = await _check_watch()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_watch_result'><h3><code class='inline'>_handle_watch_result</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>async def _handle_watch_result(watch: dict, result: dict) -&gt; None</code></div><p>Record monitor truth, emitting a signal before any notification action.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.web_monitor import _handle_watch_result
+
+    result = await _handle_watch_result()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-deliver_notification'><h3><code class='inline'>deliver_notification</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>async def deliver_notification(payload: dict) -&gt; object</code></div><p>Send a web-monitor notification as one registered Automation action.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.web_monitor import deliver_notification
+
+    result = await deliver_notification()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_dict'><h3><code class='inline'>_row_to_dict</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _row_to_dict(row: sqlite3.Row) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.web_monitor import _row_to_dict
+
+result = _row_to_dict(row=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>MONITOR_DB</code></td><td><code class='inline'>DATA_DIR / &#x27;web_monitors.db&#x27;</code></td></tr><tr><td><code class='inline'>CHECK_INTERVAL_SECONDS</code></td><td><code class='inline'>int</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

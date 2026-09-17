@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.skill_registry — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.skill_registry</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.skill_registry</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/skill_registry.py</code> &middot; Python &middot; 15 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Skill Registry — discover, register, and invoke skills from disk.
+
+Skills live in .agents/skills/&lt;name&gt;/SKILL.md or .agents/skills/&lt;category&gt;/&lt;name&gt;/SKILL.md with YAML frontmatter:
+  ---
+  name: skill-name
+  description: what it does
+  when_to_use: (optional) when the model should consider this skill
+  model: (optional) preferred model
+  allowed_tools: (optional) list of tool names
+  ---
+
+Frontmatter is parsed as real YAML, so nested lists/dicts and multi-line
+values work. The Agent Skills spec spells the tools field `allowed-tools`
+(hyphen); Kitty&#x27;s own skills use `allowed_tools` (underscore). Both are
+accepted on read so third-party skill bundles parse without edits.
+
+Public API:
+  discover() -&gt; list[dict]     Scan disk and return all skills
+  get(name) -&gt; dict | None     Get one skill by name
+  search(query) -&gt; list[dict]  Find skills matching a query
+  invoke(name, context) -&gt; str Render a skill&#x27;s system prompt for injection</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>typing</code>, <code class='inline'>yaml</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_yaml_frontmatter_legacy'><code class='inline'>_yaml_frontmatter_legacy</code></a></td><td>Line-based frontmatter fallback for values that aren&#x27;t valid YAML.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_yaml_frontmatter'><code class='inline'>_yaml_frontmatter</code></a></td><td>Extract and parse YAML frontmatter from markdown text (between --- delimiters).</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_to_str'><code class='inline'>_to_str</code></a></td><td>Coerce a frontmatter value to plain text; anything but a string is dropped.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_to_str_or_none'><code class='inline'>_to_str_or_none</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_to_str_list'><code class='inline'>_to_str_list</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_to_bool'><code class='inline'>_to_bool</code></a></td><td>Only an explicit YAML boolean opts a skill into a boolean capability.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_parse_skill_file'><code class='inline'>_parse_skill_file</code></a></td><td>Parse a SKILL.md file and return skill metadata dict.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_scan_directories'><code class='inline'>_scan_directories</code></a></td><td>Scan all skill roots for SKILL.md files and parse them.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-discover'><code class='inline'>discover</code></a></td><td>Discover all skills from disk. Caches after first call.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-get'><code class='inline'>get</code></a></td><td>Get a single skill by name.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-search'><code class='inline'>search</code></a></td><td>Find skills matching a query (searches name + description).</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_triggers'><code class='inline'>_triggers</code></a></td><td>Extract trigger phrases from a skill&#x27;s `USE WHEN ...` clause + when_to_use.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-suggest'><code class='inline'>suggest</code></a></td><td>Return skills whose trigger phrases appear in the message, best match first.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_expand_local_markdown_includes'><code class='inline'>_expand_local_markdown_includes</code></a></td><td>Expand bounded same-directory Markdown includes used by skill bundles.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-invoke'><code class='inline'>invoke</code></a></td><td>Prepare a skill for invocation. Returns the skill data with a rendered prompt.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_yaml_frontmatter_legacy'><h3><code class='inline'>_yaml_frontmatter_legacy</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _yaml_frontmatter_legacy(raw: str) -&gt; dict</code></div><p>Line-based frontmatter fallback for values that aren&#x27;t valid YAML.
+
+Kitty&#x27;s early skills sometimes carry an unquoted ``USE WHEN: ...`` clause
+inside ``description``, which is a real YAML syntax error (an unquoted
+colon-space mid-scalar). Rather than dropping those skills from discovery,
+fall back to the original single-colon-per-line parse.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _yaml_frontmatter_legacy
+
+result = _yaml_frontmatter_legacy(raw=&quot;raw_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_yaml_frontmatter'><h3><code class='inline'>_yaml_frontmatter</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _yaml_frontmatter(text: str) -&gt; dict</code></div><p>Extract and parse YAML frontmatter from markdown text (between --- delimiters).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _yaml_frontmatter
+
+result = _yaml_frontmatter(text=&quot;text_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_to_str'><h3><code class='inline'>_to_str</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _to_str(value: object) -&gt; str</code></div><p>Coerce a frontmatter value to plain text; anything but a string is dropped.
+
+Real YAML can produce None/bool/list/dict where Kitty&#x27;s string fields
+expect text (the old line parser always produced a string). Calling
+str() on an unexpected nested structure would re-walk it and can
+reproduce YAML alias/anchor amplification — a handful of anchors can
+expand to megabytes on re-serialization — so an unexpected shape becomes
+&quot;&quot; rather than being stringified.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _to_str
+
+result = _to_str(value=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_to_str_or_none'><h3><code class='inline'>_to_str_or_none</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _to_str_or_none(value: object) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _to_str_or_none
+
+result = _to_str_or_none(value=...)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_to_str_list'><h3><code class='inline'>_to_str_list</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _to_str_list(value: object) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _to_str_list
+
+result = _to_str_list(value=...)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_to_bool'><h3><code class='inline'>_to_bool</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _to_bool(value: object) -&gt; bool</code></div><p>Only an explicit YAML boolean opts a skill into a boolean capability.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _to_bool
+
+result = _to_bool(value=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_skill_file'><h3><code class='inline'>_parse_skill_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _parse_skill_file(path: Path) -&gt; dict | None</code></div><p>Parse a SKILL.md file and return skill metadata dict.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _parse_skill_file
+
+result = _parse_skill_file(path=&quot;path_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_scan_directories'><h3><code class='inline'>_scan_directories</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _scan_directories() -&gt; list[dict]</code></div><p>Scan all skill roots for SKILL.md files and parse them.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _scan_directories
+
+result = _scan_directories()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-discover'><h3><code class='inline'>discover</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def discover(force_refresh: bool = False) -&gt; list[dict]</code></div><p>Discover all skills from disk. Caches after first call.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import discover
+
+result = discover(force_refresh=True  # default: False)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get'><h3><code class='inline'>get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get(name: str) -&gt; dict | None</code></div><p>Get a single skill by name.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import get
+
+result = get(name=&quot;name_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search'><h3><code class='inline'>search</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def search(query: str) -&gt; list[dict]</code></div><p>Find skills matching a query (searches name + description).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import search
+
+result = search(query=&quot;query_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_triggers'><h3><code class='inline'>_triggers</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _triggers(skill: dict) -&gt; list[str]</code></div><p>Extract trigger phrases from a skill&#x27;s `USE WHEN ...` clause + when_to_use.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _triggers
+
+result = _triggers(skill={})
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-suggest'><h3><code class='inline'>suggest</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def suggest(message: str, limit: int = 1) -&gt; list[dict]</code></div><p>Return skills whose trigger phrases appear in the message, best match first.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import suggest
+
+result = suggest(message=&quot;message_example&quot;, limit=0  # default: 1)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_expand_local_markdown_includes'><h3><code class='inline'>_expand_local_markdown_includes</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _expand_local_markdown_includes(prompt: str, skill_path: str) -&gt; str</code></div><p>Expand bounded same-directory Markdown includes used by skill bundles.
+
+The tracked skills use CommandCode&#x27;s ``!`cat ...` `` syntax, but Kitty
+injects skill prompts directly and never executes shell substitutions. Only
+a single Markdown basename in the skill directory is accepted here; missing
+or oversized includes fail visibly instead of leaving an inert shell token.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import _expand_local_markdown_includes
+
+result = _expand_local_markdown_includes(prompt=&quot;prompt_example&quot;, skill_path=&quot;skill_path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-invoke'><h3><code class='inline'>invoke</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def invoke(name: str, context: Optional[str] = None) -&gt; dict</code></div><p>Prepare a skill for invocation. Returns the skill data with a rendered prompt.
+
+This doesn&#x27;t execute the skill — it returns the system prompt and metadata
+so the caller (context assembler or LLM) can inject it into the session.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_registry import invoke
+
+result = invoke(name=&quot;name_example&quot;, context=&quot;context_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SKILL_ROOTS</code></td><td><code class='inline'>list[Path]</code></td></tr><tr><td><code class='inline'>_LOCAL_MARKDOWN_INCLUDE</code></td><td><code class='inline'>re.compile(&#x27;!`cat &quot;\\$\\{COMMANDCODE_SKILL_DIR\\}/([A-Za-z0-9_.-]+\\.md)&quot;`&#x27;)</code></td></tr><tr><td><code class='inline'>_MAX_LOCAL_INCLUDE_BYTES</code></td><td><code class='inline'>64 * 1024</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

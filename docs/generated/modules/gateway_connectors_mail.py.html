@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.connectors.mail — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.connectors.mail</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.connectors.mail</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/connectors/mail.py</code> &middot; Python &middot; 8 functions &middot; 5 classes</p>
+<div class='card'><h2>Overview</h2><p>Gmail read-only connector (P3, docs/packets/005).
+
+Polls Gmail for new messages and emits deduped signal rows. Fetches
+full bodies only on explicit demand. Bodies are never put in a signal
+payload — that is a size and hygiene rule, and it still stands. What no
+longer holds is the privacy half: ADR 0022 retired D10, so a body handed
+to an LLM reaches a cloud provider.
+
+Scope: ``https://www.googleapis.com/auth/gmail.readonly``. No send,
+no modify, no labels — Google rejects anything else before the code
+sees it, and this module refuses to construct any other request.
+
+The transport layer is injectable so tests can drive the connector
+without ever touching the network. The default transport uses
+``google-auth`` for the token dance and ``requests`` for the two
+Gmail REST calls (``users.messages.list`` and ``users.messages.get``).
+``google-api-python-client`` is intentionally not used — discovery +
+httplib2 for two endpoints is not worth the dep.
+
+Public API:
+  MailConnector(creds, *, http_get=None, http_post=None)
+      Wrap a ``google.oauth2.credentials.Credentials`` and (optionally)
+      injected HTTP callables. ``creds`` is opaque to tests — the only
+      requirement is that ``creds.valid`` is a bool and ``creds.expired``
+      triggers a refresh via the injected (or default) request.
+  connector.poll(since_ts=None) -&gt; dict
+      List messages newer than ``since_ts`` and emit signals.
+      Returns ``{&quot;new&quot;: int, &quot;deduped&quot;: int, &quot;errors&quot;: 0}``.
+      ``since_ts`` is a Unix epoch in seconds. First-run callers pass
+      ``None`` and the connector uses Gmail&#x27;s ``newer_than:1d`` filter
+      as a safe default.
+  connector.fetch_body(message_id) -&gt; str
+      Fetch a full message body. The caller must not put it in a signal
+      payload (size and hygiene, not privacy — ADR 0022 retired D10).
+      text/plain preferred; base64url decoded.
+
+Errors: ``MailConnectorError`` (base), ``MailAuthError`` (credentials
+unusable), ``MailTransportError`` (non-200 from Gmail). All raise —
+never return an empty list to mask a broken connector.
+
+Cron entry point: ``poll_now()`` — loads creds from disk (or returns
+a warning) and runs ``poll()``. Wired into ``gateway.app`` as
+``mail.poll``. A missing token file logs once per run and returns;
+a broken token raises (the cron runner logs the failure but does
+not crash).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>base64</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.signal_store</code>, <code class='inline'>google.auth.transport.requests</code>, <code class='inline'>google.oauth2.credentials</code>, <code class='inline'>google_auth_oauthlib.flow</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>requests</code>, <code class='inline'>sys</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_default_http_get'><code class='inline'>_default_http_get</code></a></td><td>Default GET using the requests library. Imports lazily for test speed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_default_http_post'><code class='inline'>_default_http_post</code></a></td><td>Default POST using the requests library. Imports lazily for test speed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_decode_body'><code class='inline'>_decode_body</code></a></td><td>Walk the message parts, prefer text/plain, decode base64url.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_b64url_decode'><code class='inline'>_b64url_decode</code></a></td><td>Gmail uses URL-safe base64 without padding. Return text or &#x27;&#x27; on garbage.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_load_credentials'><code class='inline'>_load_credentials</code></a></td><td>Load Gmail OAuth credentials from the token file. Raises MailAuthError.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-is_configured'><code class='inline'>is_configured</code></a></td><td>True if the token file is on disk and the env var (if set) points to a real file.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-poll_now'><code class='inline'>poll_now</code></a></td><td>Cron entry point: load creds, poll, return a result dict.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-run_auth'><code class='inline'>run_auth</code></a></td><td>One-time OAuth consent flow. Run as ``python -m gateway.connectors.mail --auth``.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_default_http_get'><h3><code class='inline'>_default_http_get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _default_http_get(url: str, params: dict[str, str], headers: dict[str, str]) -&gt; dict[str, Any]</code></div><p>Default GET using the requests library. Imports lazily for test speed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.mail import _default_http_get
+
+result = _default_http_get(url=&quot;url_example&quot;, params=&quot;params_example&quot;, headers=&quot;headers_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_default_http_post'><h3><code class='inline'>_default_http_post</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _default_http_post(url: str, headers: dict[str, str], body: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Default POST using the requests library. Imports lazily for test speed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.mail import _default_http_post
+
+result = _default_http_post(url=&quot;url_example&quot;, headers=&quot;headers_example&quot;, body=&quot;body_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decode_body'><h3><code class='inline'>_decode_body</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _decode_body(detail: dict[str, Any]) -&gt; str</code></div><p>Walk the message parts, prefer text/plain, decode base64url.
+
+Multipart messages: first text/plain found, else first text/* with
+data, else empty string. Empty string is still a valid result —
+the caller decides what to do with it.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.mail import _decode_body
+
+result = _decode_body(detail=&quot;detail_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_b64url_decode'><h3><code class='inline'>_b64url_decode</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _b64url_decode(data: str) -&gt; str</code></div><p>Gmail uses URL-safe base64 without padding. Return text or &#x27;&#x27; on garbage.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.mail import _b64url_decode
+
+result = _b64url_decode(data=&quot;data_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_credentials'><h3><code class='inline'>_load_credentials</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_credentials() -&gt; Any</code></div><p>Load Gmail OAuth credentials from the token file. Raises MailAuthError.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.mail import _load_credentials
+
+result = _load_credentials()
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_configured'><h3><code class='inline'>is_configured</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def is_configured() -&gt; bool</code></div><p>True if the token file is on disk and the env var (if set) points to a real file.
+
+The OAuth client secret path is only required for the one-time consent
+flow (`--auth`); the polling path only needs the token file. So this
+check is &quot;do we have a usable token&quot; — not &quot;is the env fully populated.&quot;</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.mail import is_configured
+
+result = is_configured()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-poll_now'><h3><code class='inline'>poll_now</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def poll_now() -&gt; dict[str, Any]</code></div><p>Cron entry point: load creds, poll, return a result dict.
+
+Missing token file -&gt; warn and return an empty result (so a not-yet-
+configured connector does not crash the cron runner). Anything else
+raises — the cron runner logs it and moves on.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.mail import poll_now
+
+result = poll_now()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_auth'><h3><code class='inline'>run_auth</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def run_auth() -&gt; int</code></div><p>One-time OAuth consent flow. Run as ``python -m gateway.connectors.mail --auth``.
+
+Reads the OAuth client secret from ``GMAIL_CLIENT_SECRET_FILE``, opens
+a local server for the redirect, and writes the granted token to
+``DEFAULT_TOKEN_PATH`` (or ``GMAIL_TOKEN_FILE`` if set).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.connectors.mail import run_auth
+
+result = run_auth()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-MailConnectorError'><code class='inline'>MailConnectorError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-MailAuthError'><code class='inline'>MailAuthError</code></a></td><td>(MailConnectorError)</td><td>0 methods</td></tr><tr><td><a href='#cls-MailTransportError'><code class='inline'>MailTransportError</code></a></td><td>(MailConnectorError)</td><td>0 methods</td></tr><tr><td><a href='#cls-PollResult'><code class='inline'>PollResult</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-MailConnector'><code class='inline'>MailConnector</code></a></td><td></td><td>7 methods</td></tr></table></div>
+<div class='card' id='cls-MailConnectorError'><h3><code class='inline'>MailConnectorError</code></h3><p>Base for mail-connector failures. Subclasses narrow the cause.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.connectors.mail import MailConnectorError
+
+obj = MailConnectorError(...)</pre></div>
+<div class='card' id='cls-MailAuthError'><h3><code class='inline'>MailAuthError</code></h3><p>Credentials missing, malformed, or beyond refresh.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.connectors.mail import MailAuthError
+
+obj = MailAuthError(...)</pre></div>
+<div class='card' id='cls-MailTransportError'><h3><code class='inline'>MailTransportError</code></h3><p>Gmail returned non-200, or the network call failed in an unexpected way.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.connectors.mail import MailTransportError
+
+obj = MailTransportError(...)</pre></div>
+<div class='card' id='cls-PollResult'><h3><code class='inline'>PollResult</code></h3><p>Counts from one ``poll()`` run. Signals are written as a side effect.</p><p class='small'><b>Attributes:</b> new: int, deduped: int, errors: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, int]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.connectors.mail import PollResult
+
+obj = PollResult(...)</pre></div>
+<div class='card' id='cls-MailConnector'><h3><code class='inline'>MailConnector</code></h3><p>Read-only Gmail connector. See module docstring for the contract.</p><p class='small'><b>Attributes:</b> SOURCE, KIND</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, creds: Any, http_get: Optional[HttpGet] = None, http_post: Optional[HttpPost] = None, api_base: str =</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_auth_headers</code></td><td><code class='inline'>def _auth_headers(self) -&gt; dict[str, str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_refresh_if_possible</code></td><td><code class='inline'>def _refresh_if_possible(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>poll</code></td><td><code class='inline'>def poll(self, since_ts: Optional[float] = None) -&gt; PollResult</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>_fetch_metadata</code></td><td><code class='inline'>def _fetch_metadata(self, message_id: str) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_signal_payload</code></td><td><code class='inline'>def _signal_payload(message_id: str, detail: dict[str, Any]) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fetch_body</code></td><td><code class='inline'>def fetch_body(self, message_id: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+c
+o
+n
+n
+e
+c
+t
+o
+r
+s
+.
+m
+a
+i
+l
+ 
+i
+m
+p
+o
+r
+t
+ 
+M
+a
+i
+l
+C
+o
+n
+n
+e
+c
+t
+o
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+M
+a
+i
+l
+C
+o
+n
+n
+e
+c
+t
+o
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>GMAIL_READONLY_SCOPE</code></td><td><code class='inline'>&#x27;https://www.googleapis.com/auth/gmail.readonly&#x27;</code></td></tr><tr><td><code class='inline'>GMAIL_API_BASE</code></td><td><code class='inline'>&#x27;https://gmail.googleapis.com/gmail/v1/users/me&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_TOKEN_PATH</code></td><td><code class='inline'>DATA_DIR / &#x27;gmail_token.json&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_connectors_github.py.html'><code class='inline'>gateway.connectors.github</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

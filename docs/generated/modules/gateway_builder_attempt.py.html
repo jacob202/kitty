@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_attempt — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_attempt</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_attempt</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_attempt.py</code> &middot; Python &middot; 29 functions &middot; 5 classes</p>
+<div class='card'><h2>Overview</h2><p>KittyBuilder KB-S2 — packet attempts: context bundles + result contracts.
+
+An *attempt* is one execution try for an initiative packet. Each attempt
+carries a bounded context bundle (packet objective/criteria/paths plus
+truncated summaries of prior attempts) built at start time and persisted, so
+retries see what attempt N-1 did and why it failed even across restarts.
+
+Attempts record two structured contracts: the implementation result (from the
+worker) and the review result (from an independent reviewer). Both are
+validated with hard size caps on every free-text field — a worker cannot blow
+up the durable store or the next attempt&#x27;s context with an unbounded dump.
+
+Scope boundaries (KB-S2): storage and validation only. No worker execution,
+no repair-loop driving (KB-S3), no push/PR (KB-S4). The queue task state
+machine is untouched; attempts are rows in the same DB keyed to the packet&#x27;s
+task, with audit entries in the existing append-only events table.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_runner</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_ensure_attempt_columns'><code class='inline'>_ensure_attempt_columns</code></a></td><td>Add KB-S3a columns to packet_attempts tables created before them.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Ensure initiative schema plus the attempts table exist. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_check_capped_str'><code class='inline'>_check_capped_str</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-validate_implementation_result'><code class='inline'>validate_implementation_result</code></a></td><td>Validate an implementation-result contract. Empty list = valid.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-validate_review_result'><code class='inline'>validate_review_result</code></a></td><td>Validate a review-result contract. Empty list = valid.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_clip'><code class='inline'>_clip</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_prior_attempt_summary'><code class='inline'>_prior_attempt_summary</code></a></td><td>Bounded digest of a closed attempt for the next attempt&#x27;s bundle.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_packet_row'><code class='inline'>_packet_row</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_packet_base_sha'><code class='inline'>get_packet_base_sha</code></a></td><td>Return the durable base SHA stored in the packet&#x27;s initiative_packets row.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_build_bundle_on_conn'><code class='inline'>_build_bundle_on_conn</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-attempt_budget_remaining'><code class='inline'>attempt_budget_remaining</code></a></td><td>Return remaining budget-consuming attempts without mutating state.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-build_context_bundle'><code class='inline'>build_context_bundle</code></a></td><td>Preview the bundle the NEXT attempt would receive. Read-only.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_liveness_certified_stale_attempts'><code class='inline'>_liveness_certified_stale_attempts</code></a></td><td>Return open attempts whose own worker run was durably interrupted.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-list_stale_attempts'><code class='inline'>list_stale_attempts</code></a></td><td>Return liveness-certified interrupted attempts for a packet.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-list_all_stale_attempts'><code class='inline'>list_all_stale_attempts</code></a></td><td>Return every liveness-certified interrupted attempt.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_attempt_count'><code class='inline'>_attempt_count</code></a></td><td>Count attempts for a packet.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_row_to_attempt'><code class='inline'>_row_to_attempt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-start_attempt'><code class='inline'>start_attempt</code></a></td><td>Open attempt N+1 for a packet, persisting its context bundle.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-grant_attempt'><code class='inline'>grant_attempt</code></a></td><td>Grant exactly one additional attempt to a packet&#x27;s retry budget.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-claim_and_start_attempt'><code class='inline'>claim_and_start_attempt</code></a></td><td>Atomically claim a branch lease and start the next attempt.</td><td><span class='pill'>complex</span><span class='muted small'>(15)</span></td></tr><tr><td><a href='#fn-close_attempt_and_release_lease'><code class='inline'>close_attempt_and_release_lease</code></a></td><td>Atomically close an attempt and release its exact owner-fenced lease.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_open_attempt_row'><code class='inline'>_open_attempt_row</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-record_implementation_result'><code class='inline'>record_implementation_result</code></a></td><td>Attach a validated implementation result to an open attempt. Write-once.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-run_validation'><code class='inline'>run_validation</code></a></td><td>Run the packet&#x27;s declared validation_commands and record the verdict.</td><td><span class='pill'>complex</span><span class='muted small'>(19)</span></td></tr><tr><td><a href='#fn-record_review_result'><code class='inline'>record_review_result</code></a></td><td>Attach a validated review result. Requires the implementation first.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-close_attempt'><code class='inline'>close_attempt</code></a></td><td>Close an open attempt with a terminal outcome.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_open_attempt_for_task'><code class='inline'>get_open_attempt_for_task</code></a></td><td>Return the current open packet attempt for a durable task, if any.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_attempt'><code class='inline'>get_attempt</code></a></td><td>Return one attempt with decoded bundle/results, or None.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-list_attempts'><code class='inline'>list_attempts</code></a></td><td>List attempts for an initiative (optionally one packet), oldest first.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_ensure_attempt_columns'><h3><code class='inline'>_ensure_attempt_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _ensure_attempt_columns(conn: sqlite3.Connection) -&gt; None</code></div><p>Add KB-S3a columns to packet_attempts tables created before them.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _ensure_attempt_columns
+
+result = _ensure_attempt_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db(db_path: Path | None = None) -&gt; None</code></div><p>Ensure initiative schema plus the attempts table exist. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import init_db
+
+result = init_db(db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_capped_str'><h3><code class='inline'>_check_capped_str</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _check_capped_str(value: Any, label: str, cap: int, errors: list[str], required: bool) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _check_capped_str
+
+result = _check_capped_str(value=..., label=&quot;label_example&quot;, cap=0, errors=&quot;errors_example&quot;, required=True)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_implementation_result'><h3><code class='inline'>validate_implementation_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def validate_implementation_result(result: Any) -&gt; list[str]</code></div><p>Validate an implementation-result contract. Empty list = valid.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import validate_implementation_result
+
+result = validate_implementation_result(result=...)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_review_result'><h3><code class='inline'>validate_review_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def validate_review_result(result: Any) -&gt; list[str]</code></div><p>Validate a review-result contract. Empty list = valid.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import validate_review_result
+
+result = validate_review_result(result=...)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_clip'><h3><code class='inline'>_clip</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _clip(text: str | None, cap: int) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _clip
+
+result = _clip(text=&quot;text_example&quot;, cap=0)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_prior_attempt_summary'><h3><code class='inline'>_prior_attempt_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _prior_attempt_summary(row: sqlite3.Row) -&gt; dict[str, Any]</code></div><p>Bounded digest of a closed attempt for the next attempt&#x27;s bundle.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _prior_attempt_summary
+
+result = _prior_attempt_summary(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_packet_row'><h3><code class='inline'>_packet_row</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _packet_row(conn: sqlite3.Connection, initiative_id: str, packet_id: str) -&gt; sqlite3.Row</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _packet_row
+
+result = _packet_row(conn=..., initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;)
+# result: sqlite3.Row</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_packet_base_sha'><h3><code class='inline'>get_packet_base_sha</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def get_packet_base_sha(initiative_id: str, packet_id: str, db_path: Path | None = None) -&gt; str</code></div><p>Return the durable base SHA stored in the packet&#x27;s initiative_packets row.
+
+Raises AttemptError if the packet is missing or has no base_sha.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import get_packet_base_sha
+
+result = get_packet_base_sha(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_bundle_on_conn'><h3><code class='inline'>_build_bundle_on_conn</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _build_bundle_on_conn(conn: sqlite3.Connection, packet: sqlite3.Row, attempt_no: int) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _build_bundle_on_conn
+
+result = _build_bundle_on_conn(conn=..., packet=..., attempt_no=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-attempt_budget_remaining'><h3><code class='inline'>attempt_budget_remaining</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def attempt_budget_remaining(initiative_id: str, packet_id: str, db_path: Path | None = None) -&gt; int</code></div><p>Return remaining budget-consuming attempts without mutating state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import attempt_budget_remaining
+
+result = attempt_budget_remaining(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_context_bundle'><h3><code class='inline'>build_context_bundle</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def build_context_bundle(initiative_id: str, packet_id: str, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Preview the bundle the NEXT attempt would receive. Read-only.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import build_context_bundle
+
+result = build_context_bundle(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_liveness_certified_stale_attempts'><h3><code class='inline'>_liveness_certified_stale_attempts</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _liveness_certified_stale_attempts(attempts: list[dict[str, Any]], db_path: Path | None) -&gt; list[dict[str, Any]]</code></div><p>Return open attempts whose own worker run was durably interrupted.
+
+``outcome IS NULL`` is an in-flight state, not proof that a worker died.
+An attempt becomes recoverable only when ``recover_interrupted_runs`` has
+recorded a matching ``run_interrupted`` event after that attempt started
+and the referenced run is still durably ``interrupted``. This event-order
+fence prevents an earlier interrupted run from being misapplied to a later
+attempt on the same task.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _liveness_certified_stale_attempts
+
+result = _liveness_certified_stale_attempts(attempts=&quot;attempts_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_stale_attempts'><h3><code class='inline'>list_stale_attempts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def list_stale_attempts(initiative_id: str, packet_id: str, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Return liveness-certified interrupted attempts for a packet.
+
+An open attempt is not stale merely because its outcome is absent. It must
+be tied to an interrupted worker run through durable task events before
+recovery may close its attempt and release its branch lease.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import list_stale_attempts
+
+result = list_stale_attempts(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_all_stale_attempts'><h3><code class='inline'>list_all_stale_attempts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def list_all_stale_attempts(db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Return every liveness-certified interrupted attempt.
+
+This is the global counterpart to ``list_stale_attempts``. It finds only
+attempts fenced by durable run-interruption evidence, so unrelated open
+attempts cannot have their leases released by a recovery scan.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import list_all_stale_attempts
+
+result = list_all_stale_attempts(db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_attempt_count'><h3><code class='inline'>_attempt_count</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _attempt_count(conn: sqlite3.Connection, initiative_id: str, packet_id: str, exclude_crashed: bool = False) -&gt; int</code></div><p>Count attempts for a packet.
+
+When ``exclude_crashed`` is true, only budget-consuming outcomes are
+counted (``failed``/``aborted``) — ``crashed`` and ``succeeded`` never
+consume the retry budget. This matches ``_BUDGET_CONSUMING_OUTCOMES``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _attempt_count
+
+result = _attempt_count(conn=..., initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, exclude_crashed=True  # default: False)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_attempt'><h3><code class='inline'>_row_to_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _row_to_attempt(row: sqlite3.Row) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _row_to_attempt
+
+result = _row_to_attempt(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-start_attempt'><h3><code class='inline'>start_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def start_attempt(initiative_id: str, packet_id: str, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Open attempt N+1 for a packet, persisting its context bundle.
+
+Refuses when a prior attempt is still open (one attempt at a time) or the
+packet&#x27;s ``policy.max_attempts`` budget (default 2) is exhausted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import start_attempt
+
+result = start_attempt(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-grant_attempt'><h3><code class='inline'>grant_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def grant_attempt(initiative_id: str, packet_id: str, reason: str | None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Grant exactly one additional attempt to a packet&#x27;s retry budget.
+
+The operator intervention the exhausted-budget error message points at.
+Raises the packet&#x27;s ``policy.max_attempts`` by one (persisted to the
+existing budget system) and records a durable ``attempt_granted`` event so
+the change has an audit trail. Never touches prior attempts: their rows,
+outcomes, and result contracts are left exactly as recorded.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import grant_attempt
+
+result = grant_attempt(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, reason=&quot;reason_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-claim_and_start_attempt'><h3><code class='inline'>claim_and_start_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (15)</span></h3><div class='sig'><code>def claim_and_start_attempt(initiative_id: str, packet_id: str, worker_id: str, branch: str, worktree_path: str, base_sha: str, db_path: Path | None = None) -&gt; tuple[dict[str, Any], dict[str, Any]]</code></div><p>Atomically claim a branch lease and start the next attempt.
+
+Both the branch lease INSERT and the packet_attempts INSERT happen in a
+single BEGIN IMMEDIATE transaction. If either operation fails, both are
+rolled back — eliminating the reachable state ``lease exists with no
+attempt`` during normal transactional execution.
+
+Returns ``(attempt_dict, lease_dict)``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import claim_and_start_attempt
+
+result = claim_and_start_attempt(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, worker_id=&quot;worker_id_example&quot;, branch=&quot;branch_example&quot;, worktree_path=&quot;worktree_path_example&quot;, base_sha=&quot;base_sha_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: tuple[dict[str, Any], dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-close_attempt_and_release_lease'><h3><code class='inline'>close_attempt_and_release_lease</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def close_attempt_and_release_lease(attempt_id: int, outcome: str, lease_id: int, packet_id: str, worker_id: str, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Atomically close an attempt and release its exact owner-fenced lease.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import close_attempt_and_release_lease
+
+result = close_attempt_and_release_lease(attempt_id=0, outcome=&quot;outcome_example&quot;, lease_id=0, packet_id=&quot;packet_id_example&quot;, worker_id=&quot;worker_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_open_attempt_row'><h3><code class='inline'>_open_attempt_row</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _open_attempt_row(conn: sqlite3.Connection, attempt_id: int) -&gt; sqlite3.Row</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import _open_attempt_row
+
+result = _open_attempt_row(conn=..., attempt_id=0)
+# result: sqlite3.Row</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_implementation_result'><h3><code class='inline'>record_implementation_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def record_implementation_result(attempt_id: int, result: dict[str, Any], db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Attach a validated implementation result to an open attempt. Write-once.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import record_implementation_result
+
+result = record_implementation_result(attempt_id=0, result=&quot;result_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_validation'><h3><code class='inline'>run_validation</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (19)</span></h3><div class='sig'><code>def run_validation(attempt_id: int, cwd: Path | None = None, timeout_seconds: int = DEFAULT_VALIDATION_TIMEOUT, db_path: Path | None = None, extra_commands: list[str] | None = None) -&gt; dict[str, Any]</code></div><p>Run the packet&#x27;s declared validation_commands and record the verdict.
+
+Deterministic, orchestrator-owned check — independent of whatever the
+worker claimed in its implementation result. Commands run sequentially
+with ``shell=True`` in ``cwd`` (default: the task&#x27;s runner worktree,
+which must already exist). Manifests are operator-authored, so commands
+carry the same trust as the worker command passed to ``queue run``.
+
+Result (write-once on the attempt): ``status`` is ``passed`` when every
+command exits 0, ``failed`` if any fails or times out, ``skipped`` when
+the packet declares no commands. Output tails are capped at OUTPUT_CAP.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import run_validation
+
+result = run_validation(attempt_id=0, cwd=&quot;cwd_example&quot;  # default: None, timeout_seconds=0  # default: DEFAULT_VALIDATION_TIMEOUT, db_path=&quot;db_path_example&quot;  # default: None, extra_commands=&quot;extra_commands_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_review_result'><h3><code class='inline'>record_review_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def record_review_result(attempt_id: int, result: dict[str, Any], db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Attach a validated review result. Requires the implementation first.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import record_review_result
+
+result = record_review_result(attempt_id=0, result=&quot;result_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-close_attempt'><h3><code class='inline'>close_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def close_attempt(attempt_id: int, outcome: str, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Close an open attempt with a terminal outcome.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import close_attempt
+
+result = close_attempt(attempt_id=0, outcome=&quot;outcome_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_open_attempt_for_task'><h3><code class='inline'>get_open_attempt_for_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_open_attempt_for_task(task_id: str, db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Return the current open packet attempt for a durable task, if any.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import get_open_attempt_for_task
+
+result = get_open_attempt_for_task(task_id=&quot;task_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_attempt'><h3><code class='inline'>get_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_attempt(attempt_id: int, db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Return one attempt with decoded bundle/results, or None.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import get_attempt
+
+result = get_attempt(attempt_id=0, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_attempts'><h3><code class='inline'>list_attempts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_attempts(initiative_id: str, packet_id: str | None = None, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>List attempts for an initiative (optionally one packet), oldest first.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_attempt import list_attempts
+
+result = list_attempts(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-AttemptError'><code class='inline'>AttemptError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AttemptNotFoundError'><code class='inline'>AttemptNotFoundError</code></a></td><td>(AttemptError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AttemptLimitError'><code class='inline'>AttemptLimitError</code></a></td><td>(AttemptError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AttemptStateError'><code class='inline'>AttemptStateError</code></a></td><td>(AttemptError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ResultContractError'><code class='inline'>ResultContractError</code></a></td><td>(ValueError)</td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-AttemptError'><h3><code class='inline'>AttemptError</code></h3><p>Base error for attempt operations.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_attempt import AttemptError
+
+obj = AttemptError(...)</pre></div>
+<div class='card' id='cls-AttemptNotFoundError'><h3><code class='inline'>AttemptNotFoundError</code></h3><p>Raised when an attempt ID does not exist.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_attempt import AttemptNotFoundError
+
+obj = AttemptNotFoundError(...)</pre></div>
+<div class='card' id='cls-AttemptLimitError'><h3><code class='inline'>AttemptLimitError</code></h3><p>Raised when the packet&#x27;s max_attempts budget is exhausted.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_attempt import AttemptLimitError
+
+obj = AttemptLimitError(...)</pre></div>
+<div class='card' id='cls-AttemptStateError'><h3><code class='inline'>AttemptStateError</code></h3><p>Raised on operations illegal for the attempt&#x27;s current state.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_attempt import AttemptStateError
+
+obj = AttemptStateError(...)</pre></div>
+<div class='card' id='cls-ResultContractError'><h3><code class='inline'>ResultContractError</code></h3><p>Raised when a result payload fails contract validation.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, errors: list[str])</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+b
+u
+i
+l
+d
+e
+r
+_
+a
+t
+t
+e
+m
+p
+t
+ 
+i
+m
+p
+o
+r
+t
+ 
+R
+e
+s
+u
+l
+t
+C
+o
+n
+t
+r
+a
+c
+t
+E
+r
+r
+o
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+R
+e
+s
+u
+l
+t
+C
+o
+n
+t
+r
+a
+c
+t
+E
+r
+r
+o
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>BUNDLE_VERSION</code></td><td><code class='inline'>1</code></td></tr><tr><td><code class='inline'>CONTRACT_VERSION</code></td><td><code class='inline'>1</code></td></tr><tr><td><code class='inline'>DEFAULT_MAX_ATTEMPTS</code></td><td><code class='inline'>2</code></td></tr><tr><td><code class='inline'>PRIOR_ATTEMPT_WINDOW</code></td><td><code class='inline'>3</code></td></tr><tr><td><code class='inline'>SUMMARY_CAP</code></td><td><code class='inline'>4000</code></td></tr><tr><td><code class='inline'>OUTPUT_CAP</code></td><td><code class='inline'>8000</code></td></tr><tr><td><code class='inline'>NOTE_CAP</code></td><td><code class='inline'>2000</code></td></tr><tr><td><code class='inline'>CLAIM_CAP</code></td><td><code class='inline'>1000</code></td></tr><tr><td><code class='inline'>MAX_CLAIMS</code></td><td><code class='inline'>20</code></td></tr><tr><td><code class='inline'>MAX_FINDINGS</code></td><td><code class='inline'>50</code></td></tr><tr><td><code class='inline'>ATTEMPT_SUCCEEDED</code></td><td><code class='inline'>&#x27;succeeded&#x27;</code></td></tr><tr><td><code class='inline'>ATTEMPT_FAILED</code></td><td><code class='inline'>&#x27;failed&#x27;</code></td></tr><tr><td><code class='inline'>ATTEMPT_ABORTED</code></td><td><code class='inline'>&#x27;aborted&#x27;</code></td></tr><tr><td><code class='inline'>ATTEMPT_CRASHED</code></td><td><code class='inline'>&#x27;crashed&#x27;</code></td></tr><tr><td><code class='inline'>_OUTCOMES</code></td><td><code class='inline'>frozenset({ATTEMPT_SUCCEEDED, ATTEMPT_FAILED, ATTEMPT_ABORTED, ATTEMPT_CRASHED})</code></td></tr><tr><td><code class='inline'>_BUDGET_CONSUMING_OUTCOMES</code></td><td><code class='inline'>frozenset({ATTEMPT_FAILED, ATTEMPT_ABORTED})</code></td></tr><tr><td><code class='inline'>_IMPL_STATUSES</code></td><td><code class='inline'>frozenset({&#x27;completed&#x27;, &#x27;failed&#x27;, &#x27;aborted&#x27;})</code></td></tr><tr><td><code class='inline'>_REVIEW_VERDICTS</code></td><td><code class='inline'>frozenset({&#x27;approve&#x27;, &#x27;request_changes&#x27;, &#x27;reject&#x27;})</code></td></tr><tr><td><code class='inline'>_FINDING_SEVERITIES</code></td><td><code class='inline'>frozenset({&#x27;critical&#x27;, &#x27;major&#x27;, &#x27;minor&#x27;})</code></td></tr><tr><td><code class='inline'>_IMPL_KEYS</code></td><td><code class='inline'>frozenset({&#x27;contract_version&#x27;, &#x27;status&#x27;, &#x27;summary&#x27;, &#x27;diff_summary&#x27;, &#x27;validation&#x27;, &#x27;claims&#x27;})</code></td></tr><tr><td><code class='inline'>_VALIDATION_KEYS</code></td><td><code class='inline'>frozenset({&#x27;passed&#x27;, &#x27;output&#x27;})</code></td></tr><tr><td><code class='inline'>_REVIEW_KEYS</code></td><td><code class='inline'>frozenset({&#x27;contract_version&#x27;, &#x27;verdict&#x27;, &#x27;summary&#x27;, &#x27;findings&#x27;})</code></td></tr><tr><td><code class='inline'>_FINDING_KEYS</code></td><td><code class='inline'>frozenset({&#x27;severity&#x27;, &#x27;note&#x27;})</code></td></tr><tr><td><code class='inline'>_SCHEMA_SQL</code></td><td><code class='inline'>&#x27;\nCREATE TABLE IF NOT EXISTS packet_attempts (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    initiative_id TEXT NOT N</code></td></tr><tr><td><code class='inline'>VALIDATION_PASSED</code></td><td><code class='inline'>&#x27;passed&#x27;</code></td></tr><tr><td><code class='inline'>VALIDATION_FAILED</code></td><td><code class='inline'>&#x27;failed&#x27;</code></td></tr><tr><td><code class='inline'>VALIDATION_SKIPPED</code></td><td><code class='inline'>&#x27;skipped&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_VALIDATION_TIMEOUT</code></td><td><code class='inline'>600</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

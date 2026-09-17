@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_status_readonly — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_status_readonly</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_status_readonly</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_status_readonly.py</code> &middot; Python &middot; 3 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Genuinely read-only detailed KittyBuilder projections.
+
+The existing runtime/UI helpers intentionally initialize/migrate Builder schema
+before reading. MCP cold starts and external inspection need a stronger
+contract: inspection must not create or migrate the durable store. These helpers
+open SQLite with ``mode=ro`` + ``query_only`` and reuse Builder&#x27;s projection
+logic.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_readonly_connection'><code class='inline'>_readonly_connection</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-build_status_snapshot_readonly'><code class='inline'>build_status_snapshot_readonly</code></a></td><td>Return the detailed Builder snapshot without creating or mutating storage.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-get_initiative_readonly'><code class='inline'>get_initiative_readonly</code></a></td><td>Return one initiative/manifest without initializing or migrating Builder.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-_readonly_connection'><h3><code class='inline'>_readonly_connection</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _readonly_connection(db_path: Path) -&gt; sqlite3.Connection</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_status_readonly import _readonly_connection
+
+result = _readonly_connection(db_path=&quot;db_path_example&quot;)
+# result: sqlite3.Connection</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_status_snapshot_readonly'><h3><code class='inline'>build_status_snapshot_readonly</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def build_status_snapshot_readonly(db_path: Path) -&gt; dict[str, Any]</code></div><p>Return the detailed Builder snapshot without creating or mutating storage.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_status_readonly import build_status_snapshot_readonly
+
+result = build_status_snapshot_readonly(db_path=&quot;db_path_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_initiative_readonly'><h3><code class='inline'>get_initiative_readonly</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def get_initiative_readonly(initiative_id: str, db_path: Path) -&gt; dict[str, Any] | None</code></div><p>Return one initiative/manifest without initializing or migrating Builder.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_status_readonly import get_initiative_readonly
+
+result = get_initiative_readonly(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

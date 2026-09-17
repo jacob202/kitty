@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_agent — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_agent</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_agent</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_agent.py</code> &middot; Python &middot; 20 functions &middot; 9 classes</p>
+<div class='card'><h2>Overview</h2><p>Bounded image-specialist controller (issue #336, slice A3).
+
+A1 gave the conversation a memory and A2 gave the plan a durable identity, but
+nothing turned &quot;keep his face, make his build broader&quot; into a validated
+operation. This module is that step: a bounded LLM loop that reads the session,
+picks one intent, and returns a validated decision.
+
+Boundaries:
+- The model chooses intent. It never mutates job state. This module persists an
+  approved plan (A2&#x27;s store) and records the turn; dispatch stays with
+  ``image_runner`` via the caller, so a decision can be inspected before any
+  renderer or GPU is touched.
+- The loop is bounded at ``MAX_ROUNDS`` LLM calls. Read-only tools consume a
+  round like anything else, and exhausting the budget without a terminal action
+  raises. There is no unbounded ReAct loop and no &quot;one more round&quot; escape.
+- Every failure is loud. Malformed output, an unknown reference, an unsupported
+  operation, a renderer that cannot actually edit, and a spent budget each raise
+  a distinct error. Returning a plausible-looking plan built on a reference the
+  session does not own is the exact failure issue #336 exists to prevent.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.image_guidance_bank</code>, <code class='inline'>gateway.image_plan_store</code>, <code class='inline'>gateway.image_plan_types</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>json</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_default_llm'><code class='inline'>_default_llm</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_parse_action'><code class='inline'>_parse_action</code></a></td><td>Parse one model turn into a fully-specified action, or raise.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_require_text'><code class='inline'>_require_text</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_require_list'><code class='inline'>_require_list</code></a></td><td>Read an optional string list, rejecting non-strings, blanks, and repeats.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_optional_id'><code class='inline'>_optional_id</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-session_registry'><code class='inline'>session_registry</code></a></td><td>Every id this session owns, grouped by kind.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_check_budget'><code class='inline'>_check_budget</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-edit_workflow_available'><code class='inline'>edit_workflow_available</code></a></td><td>Whether a real reference-conditioned edit can be rendered at all.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_route_recipe'><code class='inline'>_route_recipe</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_build_and_persist_plan'><code class='inline'>_build_and_persist_plan</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_observe_list_assets'><code class='inline'>_observe_list_assets</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_observe_guidance'><code class='inline'>_observe_guidance</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_observe_anchor'><code class='inline'>_observe_anchor</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_decide_generate'><code class='inline'>_decide_generate</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_decide_edit'><code class='inline'>_decide_edit</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_persist_decision'><code class='inline'>_persist_decision</code></a></td><td>Record the outcome on the session so a restart resumes with it.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_build_context'><code class='inline'>_build_context</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-decide'><code class='inline'>decide</code></a></td><td>Turn one natural request into one validated action for *session_id*.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_run_read_action'><code class='inline'>_run_read_action</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_finalize'><code class='inline'>_finalize</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_default_llm'><h3><code class='inline'>_default_llm</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _default_llm(messages: list[dict[str, str]]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _default_llm
+
+result = _default_llm(messages=&quot;messages_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_action'><h3><code class='inline'>_parse_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _parse_action(raw: str) -&gt; dict[str, Any]</code></div><p>Parse one model turn into a fully-specified action, or raise.
+
+Strict on purpose: no code-fence stripping, no unknown-key tolerance, no
+defaulting of a missing field. A half-understood action renders a real image
+and bills a real GPU, so an unparseable turn has to stop the loop.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _parse_action
+
+result = _parse_action(raw=&quot;raw_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require_text'><h3><code class='inline'>_require_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _require_text(payload: dict[str, Any], key: str, action: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _require_text
+
+result = _require_text(payload=&quot;payload_example&quot;, key=&quot;key_example&quot;, action=&quot;action_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require_list'><h3><code class='inline'>_require_list</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _require_list(payload: dict[str, Any], key: str, action: str) -&gt; list[str]</code></div><p>Read an optional string list, rejecting non-strings, blanks, and repeats.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _require_list
+
+result = _require_list(payload=&quot;payload_example&quot;, key=&quot;key_example&quot;, action=&quot;action_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_optional_id'><h3><code class='inline'>_optional_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _optional_id(payload: dict[str, Any], key: str, action: str) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _optional_id
+
+result = _optional_id(payload=&quot;payload_example&quot;, key=&quot;key_example&quot;, action=&quot;action_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-session_registry'><h3><code class='inline'>session_registry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def session_registry(session: Any) -&gt; dict[str, list[str]]</code></div><p>Every id this session owns, grouped by kind.
+
+This is the whole universe of references the model may name. Anything else
+is a hallucination, and resolving it would attach someone else&#x27;s face to
+Jacob&#x27;s render.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import session_registry
+
+result = session_registry(session=...)
+# result: dict[str, list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_budget'><h3><code class='inline'>_check_budget</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_budget(session: Any, budget: AgentBudget, action: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _check_budget
+
+result = _check_budget(session=..., budget=..., action=&quot;action_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-edit_workflow_available'><h3><code class='inline'>edit_workflow_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def edit_workflow_available() -&gt; bool</code></div><p>Whether a real reference-conditioned edit can be rendered at all.
+
+The worker binds workflows by bundle directory, so the presence of the
+bundle is the honest local signal. A4 adds it; until then an edit must
+fail here rather than silently downgrade to a text-to-image reroll.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import edit_workflow_available
+
+result = edit_workflow_available()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_route_recipe'><h3><code class='inline'>_route_recipe</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _route_recipe(has_character: bool, preferred_recipe: str | None, operation: str, quality_tier: str, identity_mode: str, available_providers: set[str] | None = None) -&gt; Any</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _route_recipe
+
+result = _route_recipe(has_character=True, preferred_recipe=&quot;preferred_recipe_example&quot;, operation=&quot;operation_example&quot;, quality_tier=&quot;quality_tier_example&quot;, identity_mode=&quot;identity_mode_example&quot;, available_providers=&quot;available_providers_example&quot;  # default: None)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_and_persist_plan'><h3><code class='inline'>_build_and_persist_plan</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _build_and_persist_plan(session_id: str, prompt: str, character_id: str | None, recipe_id: str | None, guidance_tags: list[str], operation: str, anchor_job_id: str | None, requested_changes: list[str] | None = None, protected_traits: list[str] | None = None) -&gt; Any</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _build_and_persist_plan
+
+result = _build_and_persist_plan(session_id=&quot;session_id_example&quot;, prompt=&quot;prompt_example&quot;, character_id=&quot;character_id_example&quot;, recipe_id=&quot;recipe_id_example&quot;, guidance_tags=&quot;guidance_tags_example&quot;, operation=&quot;operation_example&quot;, anchor_job_id=&quot;anchor_job_id_example&quot;, requested_changes=&quot;requested_changes_example&quot;  # default: None, protected_traits=&quot;protected_traits_example&quot;  # default: None)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_observe_list_assets'><h3><code class='inline'>_observe_list_assets</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _observe_list_assets(session: Any) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _observe_list_assets
+
+result = _observe_list_assets(session=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_observe_guidance'><h3><code class='inline'>_observe_guidance</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _observe_guidance(tag: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _observe_guidance
+
+result = _observe_guidance(tag=&quot;tag_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_observe_anchor'><h3><code class='inline'>_observe_anchor</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _observe_anchor(session: Any) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _observe_anchor
+
+result = _observe_anchor(session=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decide_generate'><h3><code class='inline'>_decide_generate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _decide_generate(payload: dict[str, Any], session: Any, budget: AgentBudget, rounds: int, preferred_recipe: str | None = None, available_providers: set[str] | None = None) -&gt; AgentDecision</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _decide_generate
+
+result = _decide_generate(payload=&quot;payload_example&quot;, session=..., budget=..., rounds=0, preferred_recipe=&quot;preferred_recipe_example&quot;  # default: None, available_providers=&quot;available_providers_example&quot;  # default: None)
+# result: AgentDecision</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decide_edit'><h3><code class='inline'>_decide_edit</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _decide_edit(payload: dict[str, Any], session: Any, budget: AgentBudget, rounds: int, preferred_recipe: str | None = None, available_providers: set[str] | None = None) -&gt; AgentDecision</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _decide_edit
+
+result = _decide_edit(payload=&quot;payload_example&quot;, session=..., budget=..., rounds=0, preferred_recipe=&quot;preferred_recipe_example&quot;  # default: None, available_providers=&quot;available_providers_example&quot;  # default: None)
+# result: AgentDecision</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_persist_decision'><h3><code class='inline'>_persist_decision</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _persist_decision(session_id: str, decision: AgentDecision) -&gt; None</code></div><p>Record the outcome on the session so a restart resumes with it.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _persist_decision
+
+result = _persist_decision(session_id=&quot;session_id_example&quot;, decision=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_context'><h3><code class='inline'>_build_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _build_context(session: Any) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _build_context
+
+result = _build_context(session=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-decide'><h3><code class='inline'>decide</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def decide(session_id: str, request: str, preferred_recipe: str | None = None, available_providers: set[str] | None = None, budget: AgentBudget | None = None, llm: Callable[[list[dict[str, str]]], str] | None = None, max_rounds: int = MAX_ROUNDS) -&gt; AgentDecision</code></div><p>Turn one natural request into one validated action for *session_id*.
+
+Runs at most *max_rounds* model calls. Read-only actions feed an observation
+back and consume a round; the first terminal action is validated and
+returned. Raises rather than returning a partial or guessed decision.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import decide
+
+result = decide(session_id=&quot;session_id_example&quot;, request=&quot;request_example&quot;, preferred_recipe=&quot;preferred_recipe_example&quot;  # default: None, available_providers=&quot;available_providers_example&quot;  # default: None, budget=...  # default: None, llm=&quot;llm_example&quot;  # default: None, max_rounds=0  # default: MAX_ROUNDS)
+# result: AgentDecision</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_read_action'><h3><code class='inline'>_run_read_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _run_read_action(payload: dict[str, Any], action: str, session: Any) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _run_read_action
+
+result = _run_read_action(payload=&quot;payload_example&quot;, action=&quot;action_example&quot;, session=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_finalize'><h3><code class='inline'>_finalize</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _finalize(payload: dict[str, Any], action: str, session: Any, budget: AgentBudget, rounds: int, preferred_recipe: str | None = None, available_providers: set[str] | None = None) -&gt; AgentDecision</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_agent import _finalize
+
+result = _finalize(payload=&quot;payload_example&quot;, action=&quot;action_example&quot;, session=..., budget=..., rounds=0, preferred_recipe=&quot;preferred_recipe_example&quot;  # default: None, available_providers=&quot;available_providers_example&quot;  # default: None)
+# result: AgentDecision</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ImageAgentError'><code class='inline'>ImageAgentError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AgentProtocolError'><code class='inline'>AgentProtocolError</code></a></td><td>(ImageAgentError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AgentLoopExhaustedError'><code class='inline'>AgentLoopExhaustedError</code></a></td><td>(ImageAgentError)</td><td>0 methods</td></tr><tr><td><a href='#cls-UnknownReferenceError'><code class='inline'>UnknownReferenceError</code></a></td><td>(ImageAgentError)</td><td>0 methods</td></tr><tr><td><a href='#cls-UnsupportedOperationError'><code class='inline'>UnsupportedOperationError</code></a></td><td>(ImageAgentError)</td><td>0 methods</td></tr><tr><td><a href='#cls-CapabilityError'><code class='inline'>CapabilityError</code></a></td><td>(ImageAgentError)</td><td>0 methods</td></tr><tr><td><a href='#cls-BudgetRefusedError'><code class='inline'>BudgetRefusedError</code></a></td><td>(ImageAgentError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AgentBudget'><code class='inline'>AgentBudget</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-AgentDecision'><code class='inline'>AgentDecision</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-ImageAgentError'><h3><code class='inline'>ImageAgentError</code></h3><p>Raised when the controller cannot produce a safe decision.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_agent import ImageAgentError
+
+obj = ImageAgentError(...)</pre></div>
+<div class='card' id='cls-AgentProtocolError'><h3><code class='inline'>AgentProtocolError</code></h3><p>Raised when model output is not a valid, fully-specified action.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_agent import AgentProtocolError
+
+obj = AgentProtocolError(...)</pre></div>
+<div class='card' id='cls-AgentLoopExhaustedError'><h3><code class='inline'>AgentLoopExhaustedError</code></h3><p>Raised when MAX_ROUNDS passed without the model committing to an action.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_agent import AgentLoopExhaustedError
+
+obj = AgentLoopExhaustedError(...)</pre></div>
+<div class='card' id='cls-UnknownReferenceError'><h3><code class='inline'>UnknownReferenceError</code></h3><p>Raised when an action names an id the session does not own.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_agent import UnknownReferenceError
+
+obj = UnknownReferenceError(...)</pre></div>
+<div class='card' id='cls-UnsupportedOperationError'><h3><code class='inline'>UnsupportedOperationError</code></h3><p>Raised when the requested operation cannot apply to this session.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_agent import UnsupportedOperationError
+
+obj = UnsupportedOperationError(...)</pre></div>
+<div class='card' id='cls-CapabilityError'><h3><code class='inline'>CapabilityError</code></h3><p>Raised when no renderer can actually perform the requested operation.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_agent import CapabilityError
+
+obj = CapabilityError(...)</pre></div>
+<div class='card' id='cls-BudgetRefusedError'><h3><code class='inline'>BudgetRefusedError</code></h3><p>Raised when a session has spent its attempt or cost allowance.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_agent import BudgetRefusedError
+
+obj = BudgetRefusedError(...)</pre></div>
+<div class='card' id='cls-AgentBudget'><h3><code class='inline'>AgentBudget</code></h3><p>Per-session ceiling on render work the controller may authorise.</p><p class='small'><b>Attributes:</b> max_attempts: int, max_spend_usd: float</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_agent import AgentBudget
+
+obj = AgentBudget(...)</pre></div>
+<div class='card' id='cls-AgentDecision'><h3><code class='inline'>AgentDecision</code></h3><p>The controller&#x27;s single validated outcome for one user request.</p><p class='small'><b>Attributes:</b> action: str, session_id: str, rounds_used: int, summary: str, plan_id: str | None, plan: dict[str, Any] | None, operation: str | None, recipe_id: str | None, anchor_job_id: str | None, protected_traits: list[str], requested_changes: list[str], guidance_tags: list[str], question: str | None, reason: str | None, observations: list[str]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_agent import AgentDecision
+
+obj = AgentDecision(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>MAX_ROUNDS</code></td><td><code class='inline'>3</code></td></tr><tr><td><code class='inline'>EDIT_WORKFLOW_ID</code></td><td><code class='inline'>&#x27;image_to_image_v1&#x27;</code></td></tr><tr><td><code class='inline'>_WORKFLOWS_DIR</code></td><td><code class='inline'>_paths.ROOT / &#x27;workflows&#x27;</code></td></tr><tr><td><code class='inline'>_TERMINAL_ACTIONS</code></td><td><code class='inline'>{&#x27;generate&#x27;, &#x27;edit&#x27;, &#x27;cancel&#x27;, &#x27;clarify&#x27;}</code></td></tr><tr><td><code class='inline'>_ACTION_FIELDS</code></td><td><code class='inline'>dict[str, tuple[set[str], set[str]]]</code></td></tr><tr><td><code class='inline'>_SYSTEM_PROMPT</code></td><td><code class='inline'>&#x27;You are Kitty\&#x27;s image specialist. You turn a natural request into exactly one validated action.\n\nReply with a single</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

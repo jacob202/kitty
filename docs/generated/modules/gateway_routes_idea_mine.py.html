@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.idea_mine — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.idea_mine</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.idea_mine</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/idea_mine.py</code> &middot; Python &middot; 4 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Idea-mine review endpoints (packet 024, phase 2).
+
+List quarantined extraction items, change their review state, and hand
+approved items to the inbox pipeline. Surfacing is gated by review state
+(see ``gateway/idea_mine_store``), so nothing recovered from chat history
+becomes always-on memory until Jacob approves it.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>logging</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_review_queue'><code class='inline'>get_review_queue</code></a></td><td>List extraction items awaiting (or having received) review.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-get_surfaceable'><code class='inline'>get_surfaceable</code></a></td><td>Items currently allowed to appear in future context (approved/edited).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-patch_review'><code class='inline'>patch_review</code></a></td><td>Set an item&#x27;s review state (unreviewed/approved/edited/rejected/keep_quiet).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-post_export'><code class='inline'>post_export</code></a></td><td>Hand approved items to the inbox → triage → knowledge pipeline.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-get_review_queue'><h3><code class='inline'>get_review_queue</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def get_review_queue(object_type: str | None = None, review: str | None = None) -&gt; dict</code></div><p>List extraction items awaiting (or having received) review.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.idea_mine import get_review_queue
+
+result = get_review_queue(object_type=&quot;object_type_example&quot;  # default: None, review=&quot;review_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_surfaceable'><h3><code class='inline'>get_surfaceable</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_surfaceable() -&gt; dict</code></div><p>Items currently allowed to appear in future context (approved/edited).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.idea_mine import get_surfaceable
+
+result = get_surfaceable()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-patch_review'><h3><code class='inline'>patch_review</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def patch_review(item_id: int, review_state: str) -&gt; dict</code></div><p>Set an item&#x27;s review state (unreviewed/approved/edited/rejected/keep_quiet).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.idea_mine import patch_review
+
+result = patch_review(item_id=0, review_state=&quot;review_state_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_export'><h3><code class='inline'>post_export</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def post_export(dry_run: bool = False) -&gt; dict</code></div><p>Hand approved items to the inbox → triage → knowledge pipeline.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.idea_mine import post_export
+
+result = post_export(dry_run=True  # default: False)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

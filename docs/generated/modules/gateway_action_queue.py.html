@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.action_queue — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.action_queue</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.action_queue</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/action_queue.py</code> &middot; Python &middot; 28 functions &middot; 9 classes</p>
+<div class='card'><h2>Overview</h2><p>Action queue with enforced risk tiers (P3, docs/packets/003).
+
+This is the only path from &quot;Kitty thinks X should happen&quot; to &quot;X happened,
+recorded.&quot; Every action is a row: proposed → (approved|rejected) →
+executed|failed. No code elsewhere may cause an external or state-mutating
+effect without going through ``execute`` here.
+
+Tiers are loaded read-only at startup from ``config/action_tiers.json`` (signed
+off by Jacob) and enforced in the executor registry, in code:
+
+- **T0** — may execute automatically from ``proposed``; every execution is
+  recorded.
+- **T1** — may create *local* draft artifacts automatically from ``proposed``;
+  transmits nothing and performs no external side effect.
+- **T2** — requires explicit per-action approval before execution.
+
+A kind absent from the tier file cannot be registered. A kind listed under
+``_disabled_v1`` must not exist as an executor at all — proposing one is a hard
+error. There is no runtime mutation API for tiers and no retry/scheduling of
+failed actions (both out of scope for v1).
+
+On top of that baseline, ``gateway.action_grants`` records what the *user* has
+standing-decided (allow/ask/deny for a scope, optionally expiring, session-bound
+or spend-capped) and ``execute`` consults it before dispatch. A grant can
+authorize an action the tier sheet would have asked about; it can never make a
+disabled kind or a missing executor valid, because those are refused first.
+
+Public API:
+  propose(*, source_kind, kind, title, preview, source_id=None, payload=None,
+          scope_type=&quot;global&quot;, scope_id=&quot;&quot;, session_id=None,
+          estimated_cost_usd=None) -&gt; dict
+  approve(action_id) -&gt; dict
+  reject(action_id) -&gt; dict
+  execute(action_id) -&gt; dict
+  get(action_id) -&gt; dict | None
+  list_actions(status=None, limit=50) -&gt; list[dict]
+  reconcile_stale_executing() -&gt; int   # startup: orphaned `executing` -&gt; `unknown`
+  reload_registry() -&gt; None   # test seam; rebuilds from ACTION_TIERS_FILE</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Apply pending migrations. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_exec_todo_create'><code class='inline'>_exec_todo_create</code></a></td><td>Create a todo and record an undo journal entry.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_exec_note_draft'><code class='inline'>_exec_note_draft</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_exec_packet_delegate'><code class='inline'>_exec_packet_delegate</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_exec_calendar_create'><code class='inline'>_exec_calendar_create</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_load_tiers'><code class='inline'>_load_tiers</code></a></td><td>Read the signed tier file: {kind: tier} plus the disabled-kind set.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_build_registry'><code class='inline'>_build_registry</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_registry'><code class='inline'>_registry</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-reload_registry'><code class='inline'>reload_registry</code></a></td><td>Rebuild the registry from the current ACTION_TIERS_FILE. Test seam.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-effective_risk_tier'><code class='inline'>effective_risk_tier</code></a></td><td>Return the tier enforced *now* for a registered action kind.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-propose'><code class='inline'>propose</code></a></td><td>Record a proposed action. Rejects unknown/disabled kinds and bad payloads.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-approve'><code class='inline'>approve</code></a></td><td>proposed → approved, bound to the exact proposed call identity.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-reject'><code class='inline'>reject</code></a></td><td>proposed → rejected. Rejected actions stay queryable.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-execute'><code class='inline'>execute</code></a></td><td>Dispatch through the executor registry with tier enforcement.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_reserve_budget'><code class='inline'>_reserve_budget</code></a></td><td>Hold this action&#x27;s cost against the grant that authorized it.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_release_budget'><code class='inline'>_release_budget</code></a></td><td>Return a reservation for a side effect that never happened.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_claim_for_execution'><code class='inline'>_claim_for_execution</code></a></td><td>Atomically move proposed/approved → executing. False if already claimed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get'><code class='inline'>get</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-reconcile_stale_executing'><code class='inline'>reconcile_stale_executing</code></a></td><td>Mark actions orphaned mid-execution by a gateway restart as outcome-unknown.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_actions_scoped'><code class='inline'>list_actions_scoped</code></a></td><td>Return newest actions matching chat-source or project scope, then apply limit.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-list_actions'><code class='inline'>list_actions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_decide'><code class='inline'>_decide</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_finish'><code class='inline'>_finish</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_require'><code class='inline'>_require</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_approval_fingerprint'><code class='inline'>_approval_fingerprint</code></a></td><td>Canonical identity for the exact side effect a one-shot approval covers.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_validate_payload'><code class='inline'>_validate_payload</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_slug'><code class='inline'>_slug</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_row_to_action'><code class='inline'>_row_to_action</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Apply pending migrations. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_exec_todo_create'><h3><code class='inline'>_exec_todo_create</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _exec_todo_create(payload: dict[str, Any]) -&gt; tuple[str, str | None]</code></div><p>Create a todo and record an undo journal entry.
+
+Returns (result_string, undo_journal_id). If journal recording fails after
+todo creation, compensates by deleting the todo. If compensation cannot be
+proven, returns a result indicating unknown outcome and no journal_id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _exec_todo_create
+
+result = _exec_todo_create(payload=&quot;payload_example&quot;)
+# result: tuple[str, str | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_exec_note_draft'><h3><code class='inline'>_exec_note_draft</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _exec_note_draft(payload: dict[str, Any]) -&gt; tuple[str, None]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _exec_note_draft
+
+result = _exec_note_draft(payload=&quot;payload_example&quot;)
+# result: tuple[str, None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_exec_packet_delegate'><h3><code class='inline'>_exec_packet_delegate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _exec_packet_delegate(payload: dict[str, Any]) -&gt; tuple[str, None]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _exec_packet_delegate
+
+result = _exec_packet_delegate(payload=&quot;payload_example&quot;)
+# result: tuple[str, None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_exec_calendar_create'><h3><code class='inline'>_exec_calendar_create</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _exec_calendar_create(payload: dict[str, Any]) -&gt; tuple[str, None]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _exec_calendar_create
+
+result = _exec_calendar_create(payload=&quot;payload_example&quot;)
+# result: tuple[str, None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_tiers'><h3><code class='inline'>_load_tiers</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _load_tiers() -&gt; tuple[dict[str, str], set[str]]</code></div><p>Read the signed tier file: {kind: tier} plus the disabled-kind set.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _load_tiers
+
+result = _load_tiers()
+# result: tuple[dict[str, str], set[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_registry'><h3><code class='inline'>_build_registry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _build_registry() -&gt; dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _build_registry
+
+result = _build_registry()
+# result: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_registry'><h3><code class='inline'>_registry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _registry() -&gt; dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _registry
+
+result = _registry()
+# result: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reload_registry'><h3><code class='inline'>reload_registry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def reload_registry() -&gt; None</code></div><p>Rebuild the registry from the current ACTION_TIERS_FILE. Test seam.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import reload_registry
+
+result = reload_registry()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-effective_risk_tier'><h3><code class='inline'>effective_risk_tier</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def effective_risk_tier(kind: str) -&gt; str | None</code></div><p>Return the tier enforced *now* for a registered action kind.
+
+Action rows retain the tier stamped when proposed for audit history, but
+execution deliberately consults the current signed registry. UI callers
+need both values so they never offer a control the executor will refuse.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import effective_risk_tier
+
+result = effective_risk_tier(kind=&quot;kind_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-propose'><h3><code class='inline'>propose</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def propose(source_kind: str, kind: str, title: str, preview: str, source_id: str | None = None, payload: dict[str, Any] | None = None, scope_type: str = &#x27;global&#x27;, scope_id: str = &#x27;&#x27;, session_id: str | None = None, estimated_cost_usd: float | None = None) -&gt; dict[str, Any]</code></div><p>Record a proposed action. Rejects unknown/disabled kinds and bad payloads.
+
+``scope_type``/``scope_id`` say what this action is *for* — a project, a
+site, an integration — so a scoped grant has something to match against.
+``estimated_cost_usd`` lets a budget-limited grant check its ceiling; left
+unset, such a grant asks rather than spending an unknown amount.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import propose
+
+result = propose(source_kind=&quot;source_kind_example&quot;, kind=&quot;kind_example&quot;, title=&quot;title_example&quot;, preview=&quot;preview_example&quot;, source_id=&quot;source_id_example&quot;  # default: None, payload=&quot;payload_example&quot;  # default: None, scope_type=&quot;scope_type_example&quot;  # default: &#x27;global&#x27;, scope_id=&quot;scope_id_example&quot;  # default: &#x27;&#x27;, session_id=&quot;session_id_example&quot;  # default: None, estimated_cost_usd=0.0  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-approve'><h3><code class='inline'>approve</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def approve(action_id: int) -&gt; dict[str, Any]</code></div><p>proposed → approved, bound to the exact proposed call identity.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import approve
+
+result = approve(action_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reject'><h3><code class='inline'>reject</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def reject(action_id: int) -&gt; dict[str, Any]</code></div><p>proposed → rejected. Rejected actions stay queryable.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import reject
+
+result = reject(action_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-execute'><h3><code class='inline'>execute</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def execute(action_id: int) -&gt; dict[str, Any]</code></div><p>Dispatch through the executor registry with tier enforcement.
+
+T2 requires status ``approved``; T0/T1 may run from ``proposed``. The
+executor&#x27;s success text or exception is recorded on the row.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import execute
+
+result = execute(action_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reserve_budget'><h3><code class='inline'>_reserve_budget</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _reserve_budget(decision: action_grants.Decision, cost_usd: float | None) -&gt; bool</code></div><p>Hold this action&#x27;s cost against the grant that authorized it.
+
+Returns whether a reservation was taken. Raises :class:`TierViolation` when
+the ceiling can no longer absorb the cost — the user is asked rather than
+the spend happening anyway.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _reserve_budget
+
+result = _reserve_budget(decision=..., cost_usd=0.0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_release_budget'><h3><code class='inline'>_release_budget</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _release_budget(action_id: int, decision: action_grants.Decision, cost_usd: float | None, reserved: bool) -&gt; None</code></div><p>Return a reservation for a side effect that never happened.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _release_budget
+
+result = _release_budget(action_id=0, decision=..., cost_usd=0.0, reserved=True)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_claim_for_execution'><h3><code class='inline'>_claim_for_execution</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _claim_for_execution(action_id: int, expected_status: str) -&gt; bool</code></div><p>Atomically move proposed/approved → executing. False if already claimed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _claim_for_execution
+
+result = _claim_for_execution(action_id=0, expected_status=&quot;expected_status_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get'><h3><code class='inline'>get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get(action_id: int) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import get
+
+result = get(action_id=0)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reconcile_stale_executing'><h3><code class='inline'>reconcile_stale_executing</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def reconcile_stale_executing() -&gt; int</code></div><p>Mark actions orphaned mid-execution by a gateway restart as outcome-unknown.
+
+A row still ``executing`` at startup was claimed by a coroutine that no
+longer exists — the executor may have completed the external effect,
+partially completed it, or never run at all. There is no way to tell
+which, so it is never blindly retried (that could duplicate a completed
+effect) and never silently left ``executing`` forever (nothing could ever
+query, retry, or resolve it). It is moved to a terminal ``unknown``
+status with an explanatory result so it surfaces for manual review, the
+same as an orphaned image job or autonomy session.
+
+Returns the number of rows reconciled.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import reconcile_stale_executing
+
+result = reconcile_stale_executing()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_actions_scoped'><h3><code class='inline'>list_actions_scoped</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def list_actions_scoped(source_ids: set[str] | None = None, project_scope_ids: set[str] | None = None, limit: int = 50) -&gt; list[dict[str, Any]]</code></div><p>Return newest actions matching chat-source or project scope, then apply limit.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import list_actions_scoped
+
+result = list_actions_scoped(source_ids=&quot;source_ids_example&quot;  # default: None, project_scope_ids=&quot;project_scope_ids_example&quot;  # default: None, limit=0  # default: 50)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_actions'><h3><code class='inline'>list_actions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def list_actions(status: str | None = None, limit: int = 50) -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import list_actions
+
+result = list_actions(status=&quot;status_example&quot;  # default: None, limit=0  # default: 50)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decide'><h3><code class='inline'>_decide</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _decide(action_id: int, new_status: str, approval_fingerprint: str | None = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _decide
+
+result = _decide(action_id=0, new_status=&quot;new_status_example&quot;, approval_fingerprint=&quot;approval_fingerprint_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_finish'><h3><code class='inline'>_finish</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _finish(action_id: int, status: str, result: str, undo_journal_id: str | None = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _finish
+
+result = _finish(action_id=0, status=&quot;status_example&quot;, result=&quot;result_example&quot;, undo_journal_id=&quot;undo_journal_id_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require'><h3><code class='inline'>_require</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _require(action_id: int) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _require
+
+result = _require(action_id=0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_approval_fingerprint'><h3><code class='inline'>_approval_fingerprint</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _approval_fingerprint(action: dict[str, Any]) -&gt; str</code></div><p>Canonical identity for the exact side effect a one-shot approval covers.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _approval_fingerprint
+
+result = _approval_fingerprint(action=&quot;action_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_payload'><h3><code class='inline'>_validate_payload</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _validate_payload(kind: str, payload: Any) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _validate_payload
+
+result = _validate_payload(kind=&quot;kind_example&quot;, payload=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_slug'><h3><code class='inline'>_slug</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _slug(text: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _slug
+
+result = _slug(text=&quot;text_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_action'><h3><code class='inline'>_row_to_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _row_to_action(row: Any) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.action_queue import _row_to_action
+
+result = _row_to_action(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ActionError'><code class='inline'>ActionError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ActionConfigError'><code class='inline'>ActionConfigError</code></a></td><td>(ActionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-UnknownActionKind'><code class='inline'>UnknownActionKind</code></a></td><td>(ActionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ActionPayloadError'><code class='inline'>ActionPayloadError</code></a></td><td>(ActionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-TierViolation'><code class='inline'>TierViolation</code></a></td><td>(ActionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-GrantDenied'><code class='inline'>GrantDenied</code></a></td><td>(ActionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ActionNotFound'><code class='inline'>ActionNotFound</code></a></td><td>(ActionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ApprovalIdentityMismatch'><code class='inline'>ApprovalIdentityMismatch</code></a></td><td>(ActionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ActionStateError'><code class='inline'>ActionStateError</code></a></td><td>(ActionError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ActionError'><h3><code class='inline'>ActionError</code></h3><p>Base for action-queue errors.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_queue import ActionError
+
+obj = ActionError(...)</pre></div>
+<div class='card' id='cls-ActionConfigError'><h3><code class='inline'>ActionConfigError</code></h3><p>The tier file and the executor set disagree (startup/config fault).</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_queue import ActionConfigError
+
+obj = ActionConfigError(...)</pre></div>
+<div class='card' id='cls-UnknownActionKind'><h3><code class='inline'>UnknownActionKind</code></h3><p>No executor is registered for the requested kind (400-shaped).</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_queue import UnknownActionKind
+
+obj = UnknownActionKind(...)</pre></div>
+<div class='card' id='cls-ActionPayloadError'><h3><code class='inline'>ActionPayloadError</code></h3><p>The payload is missing a field its kind requires (400-shaped).</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_queue import ActionPayloadError
+
+obj = ActionPayloadError(...)</pre></div>
+<div class='card' id='cls-TierViolation'><h3><code class='inline'>TierViolation</code></h3><p>The action must be approved before it can execute (403-shaped).
+
+Raised when the policy layer&#x27;s answer is &quot;ask&quot; — either the signed tier
+requires per-action approval, or a scoped grant says to ask every time.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_queue import TierViolation
+
+obj = TierViolation(...)</pre></div>
+<div class='card' id='cls-GrantDenied'><h3><code class='inline'>GrantDenied</code></h3><p>A scoped user grant denies this action outright (403-shaped).
+
+Distinct from :class:`TierViolation`: approving the individual proposal
+does not clear it. The grant has to be revoked first.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_queue import GrantDenied
+
+obj = GrantDenied(...)</pre></div>
+<div class='card' id='cls-ActionNotFound'><h3><code class='inline'>ActionNotFound</code></h3><p>No action row with that id (404-shaped).</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_queue import ActionNotFound
+
+obj = ActionNotFound(...)</pre></div>
+<div class='card' id='cls-ApprovalIdentityMismatch'><h3><code class='inline'>ApprovalIdentityMismatch</code></h3><p>An approved action changed after the user approved it.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_queue import ApprovalIdentityMismatch
+
+obj = ApprovalIdentityMismatch(...)</pre></div>
+<div class='card' id='cls-ActionStateError'><h3><code class='inline'>ActionStateError</code></h3><p>The action is in the wrong status for the requested transition (409-shaped).</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.action_queue import ActionStateError
+
+obj = ActionStateError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ACTIONS_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>_AUTO_EXECUTE_TIERS</code></td><td><code class='inline'>frozenset({&#x27;T0&#x27;, &#x27;T1&#x27;})</code></td></tr><tr><td><code class='inline'>_PAYLOAD_REQUIRED</code></td><td><code class='inline'>dict[str, str]</code></td></tr><tr><td><code class='inline'>_EXECUTORS</code></td><td><code class='inline'>dict[str, Callable[[dict[str, Any]], tuple[str, str | None]]]</code></td></tr><tr><td><code class='inline'>_REGISTRY</code></td><td><code class='inline'>dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]] | None</code></td></tr><tr><td><code class='inline'>_COLUMNS</code></td><td><code class='inline'>&#x27;id, created_at, source_kind, source_id, kind, title, preview, payload, risk_tier, status, result, decided_at, executed_</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li><li><a href='gateway_agent_runner.py.html'><code class='inline'>gateway.agent_runner</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.journal_store — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.journal_store</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.journal_store</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/journal_store.py</code> &middot; Python &middot; 15 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Journal entry store — normalized columns in kitty.db.
+
+The journal module (gateway/journal.py:save_journal_entry) calls into
+this module instead of appending to data/journal_entries.jsonl directly.
+The wire shape (return value of save_journal_entry) is preserved; the
+storage substrate changes.
+
+Public API:
+  append_entry(ts, theme, entry, session_id=None) -&gt; dict
+      Mirror of save_journal_entry&#x27;s contract: returns the stored record.
+
+  list_entries(limit=50, theme=None) -&gt; list[dict]
+      Newest first. Optional theme filter.
+
+  list_recent(days=14, limit=20) -&gt; list[dict]
+      Newer than `days` ago, newest first. Used by the brief.
+
+  search(query, limit=5) -&gt; list[dict]
+      Keyword search. Each result carries an `_score`.
+
+  count_entries(theme=None) -&gt; int
+      Total entries, optionally filtered by theme.
+
+  delete_entry(ts, session_id=None) -&gt; bool
+      Remove one entry by ts (and optional session_id). True if a row was
+      deleted.
+
+Legacy import: on first access, if data/journal_entries.jsonl exists
+and the table is empty, the JSONL contents are imported. The JSONL
+file is never deleted. The import marker is stored in app_settings
+key &#x27;journal_legacy_imported&#x27;.
+
+Rollback (documented escape hatch): if the SQLite layer needs to be
+abandoned, the JSONL file is still the source of truth. To roll back:
+  1. DROP TABLE journal_entries;
+  2. DELETE FROM app_settings WHERE key = &#x27;journal_legacy_imported&#x27;;
+  3. DELETE FROM schema_migrations WHERE name = &#x27;005_journal_entries.sql&#x27;;
+  4. Re-run the gateway; migrate re-applies 005_journal_entries.sql,
+     then the import rebuilds the table from the JSONL file.
+This is verified by TestLegacyImport.test_rollback_re_imports_from_intact_jsonl.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Apply pending migrations and run the one-time legacy import. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-append_entry'><code class='inline'>append_entry</code></a></td><td>Append one entry. Returns the stored record (mirrors save_journal_entry).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-validate_records'><code class='inline'>validate_records</code></a></td><td>Prove these records can be appended, changing nothing.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-list_entries'><code class='inline'>list_entries</code></a></td><td>Return entries, newest first. Optional theme filter.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-count_entries'><code class='inline'>count_entries</code></a></td><td>Total entries, optionally filtered by theme.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-delete_entry'><code class='inline'>delete_entry</code></a></td><td>Remove one entry by ts (and optional session_id). True if a row was deleted.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_recent'><code class='inline'>list_recent</code></a></td><td>Return entries newer than `days` ago, newest first. Used by the brief.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-search'><code class='inline'>search</code></a></td><td>Keyword search over entry text. Each result carries an `_score`.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_row_to_entry'><code class='inline'>_row_to_entry</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_import_legacy_journal_once'><code class='inline'>_import_legacy_journal_once</code></a></td><td>Copy entries from the legacy JSONL file once. The JSONL file is never deleted.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_insert_entry_raw'><code class='inline'>_insert_entry_raw</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_validate_legacy_entry'><code class='inline'>_validate_legacy_entry</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_already_imported'><code class='inline'>_already_imported</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_read_legacy_entries'><code class='inline'>_read_legacy_entries</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_mark_legacy_imported'><code class='inline'>_mark_legacy_imported</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Apply pending migrations and run the one-time legacy import. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-append_entry'><h3><code class='inline'>append_entry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def append_entry(ts: float, entry: str, theme: str | None = None, session_id: str | None = None) -&gt; dict</code></div><p>Append one entry. Returns the stored record (mirrors save_journal_entry).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import append_entry
+
+result = append_entry(ts=0.0, entry=&quot;entry_example&quot;, theme=&quot;theme_example&quot;  # default: None, session_id=&quot;session_id_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_records'><h3><code class='inline'>validate_records</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def validate_records(payload: list) -&gt; None</code></div><p>Prove these records can be appended, changing nothing.
+
+Enumerating what SQLite will reject is how a snapshot ends up partially
+imported: the real INSERTs know the answer and a hand-written type check
+does not. This runs the identical statements in a transaction that is
+always rolled back, so a caller can reject the whole snapshot up front.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import validate_records
+
+result = validate_records(payload=[])
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_entries'><h3><code class='inline'>list_entries</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def list_entries(limit: int = 50, theme: str | None = None) -&gt; list[dict]</code></div><p>Return entries, newest first. Optional theme filter.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import list_entries
+
+result = list_entries(limit=0  # default: 50, theme=&quot;theme_example&quot;  # default: None)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-count_entries'><h3><code class='inline'>count_entries</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def count_entries(theme: str | None = None) -&gt; int</code></div><p>Total entries, optionally filtered by theme.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import count_entries
+
+result = count_entries(theme=&quot;theme_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_entry'><h3><code class='inline'>delete_entry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def delete_entry(ts: float, session_id: str | None = None) -&gt; bool</code></div><p>Remove one entry by ts (and optional session_id). True if a row was deleted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import delete_entry
+
+result = delete_entry(ts=0.0, session_id=&quot;session_id_example&quot;  # default: None)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_recent'><h3><code class='inline'>list_recent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_recent(days: int = 14, limit: int = 20) -&gt; list[dict]</code></div><p>Return entries newer than `days` ago, newest first. Used by the brief.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import list_recent
+
+result = list_recent(days=0  # default: 14, limit=0  # default: 20)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search'><h3><code class='inline'>search</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def search(query: str, limit: int = 5) -&gt; list[dict]</code></div><p>Keyword search over entry text. Each result carries an `_score`.
+
+Used by memory_graph unified_context. Score is the count of distinct query
+terms that appear in the entry text. Empty query returns [].</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import search
+
+result = search(query=&quot;query_example&quot;, limit=0  # default: 5)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_entry'><h3><code class='inline'>_row_to_entry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _row_to_entry(row: sqlite3.Row) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import _row_to_entry
+
+result = _row_to_entry(row=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_import_legacy_journal_once'><h3><code class='inline'>_import_legacy_journal_once</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _import_legacy_journal_once() -&gt; None</code></div><p>Copy entries from the legacy JSONL file once. The JSONL file is never deleted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import _import_legacy_journal_once
+
+result = _import_legacy_journal_once()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_insert_entry_raw'><h3><code class='inline'>_insert_entry_raw</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _insert_entry_raw(conn: sqlite3.Connection, entry: dict) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import _insert_entry_raw
+
+result = _insert_entry_raw(conn=..., entry={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_legacy_entry'><h3><code class='inline'>_validate_legacy_entry</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _validate_legacy_entry(entry: object) -&gt; dict[str, object]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import _validate_legacy_entry
+
+result = _validate_legacy_entry(entry=...)
+# result: dict[str, object]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_already_imported'><h3><code class='inline'>_already_imported</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _already_imported(conn: sqlite3.Connection) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import _already_imported
+
+result = _already_imported(conn=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_legacy_entries'><h3><code class='inline'>_read_legacy_entries</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _read_legacy_entries() -&gt; list[dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import _read_legacy_entries
+
+result = _read_legacy_entries()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_legacy_imported'><h3><code class='inline'>_mark_legacy_imported</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _mark_legacy_imported(conn: sqlite3.Connection, value: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.journal_store import _mark_legacy_imported
+
+result = _mark_legacy_imported(conn=..., value=&quot;value_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>JOURNAL_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>LEGACY_JOURNAL_LOG</code></td><td><code class='inline'>DATA_DIR / &#x27;journal_entries.jsonl&#x27;</code></td></tr><tr><td><code class='inline'>LEGACY_IMPORT_SETTING</code></td><td><code class='inline'>&#x27;journal_legacy_imported&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

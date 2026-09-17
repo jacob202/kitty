@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.model_digest — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.model_digest</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.model_digest</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/model_digest.py</code> &middot; Python &middot; 3 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>AI Model Digest — read stored model-change events for the morning brief.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>gateway.db</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>sqlite3</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_get_conn'><code class='inline'>_get_conn</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_load_recent_events'><code class='inline'>_load_recent_events</code></a></td><td>Load the most recent digest events from SQLite.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_model_digest_section'><code class='inline'>get_model_digest_section</code></a></td><td>Returns a brief text block of recent model changes for the morning brief.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-_get_conn'><h3><code class='inline'>_get_conn</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _get_conn() -&gt; sqlite3.Connection</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.model_digest import _get_conn
+
+result = _get_conn()
+# result: sqlite3.Connection</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_load_recent_events'><h3><code class='inline'>_load_recent_events</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _load_recent_events(limit: int = 10) -&gt; list[dict]</code></div><p>Load the most recent digest events from SQLite.
+
+Fails loud: a store error raises ModelDigestError instead of silently
+returning an empty list, so the morning brief can report the outage
+honestly rather than appearing to have &quot;no model news&quot;.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.model_digest import _load_recent_events
+
+result = _load_recent_events(limit=0  # default: 10)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_model_digest_section'><h3><code class='inline'>get_model_digest_section</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def get_model_digest_section(limit: int = 3) -&gt; str</code></div><p>Returns a brief text block of recent model changes for the morning brief.
+
+A store outage is reported as an explicit &quot;unavailable&quot; note rather than
+a silently empty section.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.model_digest import get_model_digest_section
+
+result = get_model_digest_section(limit=0  # default: 3)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ModelDigestError'><code class='inline'>ModelDigestError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ModelDigestError'><h3><code class='inline'>ModelDigestError</code></h3><p>Raised when the model-digest SQLite store cannot be read or written.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.model_digest import ModelDigestError
+
+obj = ModelDigestError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DB_PATH</code></td><td><code class='inline'>MODEL_DIGEST_DB</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

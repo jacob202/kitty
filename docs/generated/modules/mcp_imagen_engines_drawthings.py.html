@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.engines.drawthings — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.engines.drawthings</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.engines.drawthings</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/engines/drawthings.py</code> &middot; Python &middot; 1 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Draw Things engine — A1111-compatible API for local Apple Silicon generation.
+
+Draw Things exposes an A1111-compatible HTTP API (Settings → enable API Server,
+default http://127.0.0.1:7860). The /sdapi/v1/txt2img endpoint accepts the same
+JSON payload as Automatic1111, making this engine compatible with any A1111-
+compatible backend (Draw Things native, A1111, Forge, SD.Next, etc.).
+
+Set ``DT_URL`` to point at the running instance.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>PIL</code>, <code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>base64</code>, <code class='inline'>io</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.adapters</code>, <code class='inline'>mcp.imagen.retry</code>, <code class='inline'>pathlib</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_aspect_to_wh'><code class='inline'>_aspect_to_wh</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_aspect_to_wh'><h3><code class='inline'>_aspect_to_wh</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _aspect_to_wh(aspect_ratio: str, width: int | None, height: int | None) -&gt; tuple[int, int]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines.drawthings import _aspect_to_wh
+
+result = _aspect_to_wh(aspect_ratio=&quot;aspect_ratio_example&quot;, width=0, height=0)
+# result: tuple[int, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-DrawThingsEngine'><code class='inline'>DrawThingsEngine</code></a></td><td></td><td>6 methods</td></tr></table></div>
+<div class='card' id='cls-DrawThingsEngine'><h3><code class='inline'>DrawThingsEngine</code></h3><p>Local Draw Things / A1111-compatible backend via the standard txt2img API.
+
+The network transport is an :class:`ImagegenAdapter`; by default a live
+``DrawThingsHttpAdapter`` is used, but a mock adapter can be injected for
+tests (Packet 025 — no server or model download needed).</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, adapter: ImagegenAdapter | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>model_name</code></td><td><code class='inline'>def model_name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>generate</code></td><td><code class='inline'>def generate(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = None, negativ</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>generate_async</code></td><td><code class='inline'>async def generate_async(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = N</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>edit</code></td><td><code class='inline'>def edit(self, image_path: Path, edit_prompt: str) -&gt; bytes</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+m
+c
+p
+.
+i
+m
+a
+g
+e
+n
+.
+e
+n
+g
+i
+n
+e
+s
+.
+d
+r
+a
+w
+t
+h
+i
+n
+g
+s
+ 
+i
+m
+p
+o
+r
+t
+ 
+D
+r
+a
+w
+T
+h
+i
+n
+g
+s
+E
+n
+g
+i
+n
+e
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+D
+r
+a
+w
+T
+h
+i
+n
+g
+s
+E
+n
+g
+i
+n
+e
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_engines_adapters.py.html'><code class='inline'>mcp.imagen.engines.adapters</code></a></li><li><a href='mcp_imagen_engines_airforce.py.html'><code class='inline'>mcp.imagen.engines.airforce</code></a></li><li><a href='mcp_imagen_engines_base.py.html'><code class='inline'>mcp.imagen.engines.base</code></a></li><li><a href='mcp_imagen_engines_comfyui.py.html'><code class='inline'>mcp.imagen.engines.comfyui</code></a></li><li><a href='mcp_imagen_engines_dalle.py.html'><code class='inline'>mcp.imagen.engines.dalle</code></a></li><li><a href='mcp_imagen_engines_fal.py.html'><code class='inline'>mcp.imagen.engines.fal</code></a></li><li><a href='mcp_imagen_engines_imagen4.py.html'><code class='inline'>mcp.imagen.engines.imagen4</code></a></li><li><a href='mcp_imagen_engines_nano_banana.py.html'><code class='inline'>mcp.imagen.engines.nano_banana</code></a></li><li><a href='mcp_imagen_engines_runware.py.html'><code class='inline'>mcp.imagen.engines.runware</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

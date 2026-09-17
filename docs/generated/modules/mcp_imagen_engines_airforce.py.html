@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.engines.airforce — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.engines.airforce</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.engines.airforce</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/engines/airforce.py</code> &middot; Python &middot; 1 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Airforce engine — OpenAI-compatible images/generations REST gateway.
+
+``https://api.airforce/v1/images/generations`` is OpenAI-compatible:
+``Authorization: Bearer &lt;AIRFORCE_API_KEY&gt;``, JSON body with ``model`` and
+``prompt``, response ``data: [{b64_json | url}]``.
+
+This gateway has no reference-image identity conditioning. Rather than
+silently generating an unconditioned image while a caller believes identity
+is locked, ``identity_images`` raises — the character-lock invariant must
+never be quietly weakened to make a provider easier to integrate.
+
+Paid submissions are intentionally at-most-once from Kitty. A failure after
+the provider accepts a request must not trigger a second paid generation.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>base64</code>, <code class='inline'>httpx</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_api_key'><code class='inline'>_api_key</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_api_key'><h3><code class='inline'>_api_key</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _api_key() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines.airforce import _api_key
+
+result = _api_key()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-AirforceEngine'><code class='inline'>AirforceEngine</code></a></td><td></td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-AirforceEngine'><h3><code class='inline'>AirforceEngine</code></h3><p>Airforce REST backend — OpenAI-compatible, no identity conditioning.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>model_name</code></td><td><code class='inline'>def model_name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>generate</code></td><td><code class='inline'>def generate(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = None, **kwarg</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>generate_async</code></td><td><code class='inline'>async def generate_async(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = N</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>edit</code></td><td><code class='inline'>def edit(self, image_path: Path, edit_prompt: str) -&gt; bytes</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from mcp.imagen.engines.airforce import AirforceEngine
+
+obj = AirforceEngine(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>AIRFORCE_API_URL</code></td><td><code class='inline'>&#x27;https://api.airforce/v1/images/generations&#x27;</code></td></tr><tr><td><code class='inline'>_GROK_IMAGINE_SUPPORTED_ASPECT_RATIOS</code></td><td><code class='inline'>frozenset({&#x27;1:1&#x27;, &#x27;16:9&#x27;, &#x27;9:16&#x27;})</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_engines_adapters.py.html'><code class='inline'>mcp.imagen.engines.adapters</code></a></li><li><a href='mcp_imagen_engines_base.py.html'><code class='inline'>mcp.imagen.engines.base</code></a></li><li><a href='mcp_imagen_engines_comfyui.py.html'><code class='inline'>mcp.imagen.engines.comfyui</code></a></li><li><a href='mcp_imagen_engines_dalle.py.html'><code class='inline'>mcp.imagen.engines.dalle</code></a></li><li><a href='mcp_imagen_engines_drawthings.py.html'><code class='inline'>mcp.imagen.engines.drawthings</code></a></li><li><a href='mcp_imagen_engines_fal.py.html'><code class='inline'>mcp.imagen.engines.fal</code></a></li><li><a href='mcp_imagen_engines_imagen4.py.html'><code class='inline'>mcp.imagen.engines.imagen4</code></a></li><li><a href='mcp_imagen_engines_nano_banana.py.html'><code class='inline'>mcp.imagen.engines.nano_banana</code></a></li><li><a href='mcp_imagen_engines_runware.py.html'><code class='inline'>mcp.imagen.engines.runware</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

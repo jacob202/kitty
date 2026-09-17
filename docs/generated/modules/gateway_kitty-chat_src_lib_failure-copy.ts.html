@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/lib/failure-copy — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/lib/failure-copy</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/lib/failure-copy</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/lib/failure-copy.ts</code> &middot; TypeScript &middot; 2 exports</p>
+<div class='card'><h2>Overview</h2><p>Translates a thrown fetch/query error into one short, plain-language
+sentence. Jacob does not code — raw strings like &quot;Gateway returned 404
+Not Found&quot; name no cause and no action. This is the only place that
+translation happens; gateway.ts keeps returning the raw diagnostic form
+for anything that still needs it.</p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-extractParts'><code class='inline'>extractParts</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-describeFailure'><code class='inline'>describeFailure</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-extractParts'><h3><code class='inline'>extractParts</code> <span class='pill'>function</span></h3><div class='sig'><code>function extractParts(error: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { extractParts } from &#x27;@/gateway/kitty-chat/src/lib/failure-copy&#x27;;
+
+// TODO: wire real props; see component signature
+const result = extractParts;</pre></div>
+<div class='card' id='ex-describeFailure'><h3><code class='inline'>describeFailure</code> <span class='pill'>function</span></h3><div class='sig'><code>export function describeFailure(error: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { describeFailure } from &#x27;@/gateway/kitty-chat/src/lib/failure-copy&#x27;;
+
+// TODO: wire real props; see component signature
+const result = describeFailure;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

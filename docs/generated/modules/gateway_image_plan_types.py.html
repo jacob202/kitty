@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_plan_types — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_plan_types</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_plan_types</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_plan_types.py</code> &middot; Python &middot; 5 functions &middot; 6 classes</p>
+<div class='card'><h2>Overview</h2><p>Kitty ImagePlan types — plan type definitions and builder for the
+bounded plan → renderer boundary.
+
+Adapted from GenEvolve&#x27;s ``GenEvolveResult`` and ``_finalize_answer``
+(``genevolve/agent.py:150-171, 357-391``).  Kitty&#x27;s version is local-first:
+references are validated local character IDs, guidance is curated Markdown,
+and dispatch always goes through the existing ``image_runner.run()`` lifecycle.
+
+The plan type is a validated, serialisable preview that the user can inspect
+and approve before generation begins — it never calls a renderer on its own.
+
+Pointers:
+  - plan type (this module) vs plan store (image_plan_store): the type defines
+    the shape and validation; the store persists approved plans under stable IDs.
+  - ``ImageIntent`` is provider-neutral; the renderer receives the refined prompt
+    + resolved references separately — the plan type never embeds renderer args.
+  - Content-lane defaults to SAFE (ADR 0040 #8) so callers that don&#x27;t opt in are
+    never private; the builder deliberately does not derive a lane from prompt text.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.image_guidance_bank</code>, <code class='inline'>gateway.image_policy</code>, <code class='inline'>math</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-build_image_plan'><code class='inline'>build_image_plan</code></a></td><td>Build a validated provider-neutral plan from user inputs.</td><td><span class='pill'>complex</span><span class='muted small'>(58)</span></td></tr><tr><td><a href='#fn-_primary_character_ref'><code class='inline'>_primary_character_ref</code></a></td><td>Return the character&#x27;s primary stored reference record.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_primary_character_ref_path'><code class='inline'>_primary_character_ref_path</code></a></td><td>Backward-compatible path projection of the primary reference.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_refine_prompt'><code class='inline'>_refine_prompt</code></a></td><td>Build a refined prompt by appending character context and guidance.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_extract_guidance_instructions'><code class='inline'>_extract_guidance_instructions</code></a></td><td>Pull out the actionable prompt-writing advice from a guidance file.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr></table></div>
+<div class='card' id='fn-build_image_plan'><h3><code class='inline'>build_image_plan</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (58)</span></h3><div class='sig'><code>def build_image_plan(prompt: str, character_id: str | None = None, cast: list[CastSlot] | None = None, reference_bindings: list[ReferenceBinding] | None = None, recipe_id: str | None = None, guidance_tags: list[str] | None = None, content_lane: str | None = None, consent_basis: str | None = None, adult_confirmed: bool = False, operation: str = &#x27;txt2img&#x27;, scene: dict[str, Any] | None = None, target: dict[str, Any] | None = None, requested_changes: list[str] | None = None, protected_traits: list[str] | None = None, privacy_required: bool | None = None, quality_request: dict[str, Any] | None = None, budget_request: dict[str, Any] | None = None) -&gt; ImagePlan</code></div><p>Build a validated provider-neutral plan from user inputs.
+
+``character_id`` remains the backward-compatible single-character input.
+``cast`` is the multi-character path: each stable slot resolves a durable
+Character, and every reference binding is checked against that slot&#x27;s
+Character before the plan can be approved or persisted.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_types import build_image_plan
+
+result = build_image_plan(prompt=&quot;prompt_example&quot;, character_id=&quot;character_id_example&quot;  # default: None, cast=[]  # default: None, reference_bindings=[]  # default: None, recipe_id=&quot;recipe_id_example&quot;  # default: None, guidance_tags=&quot;guidance_tags_example&quot;  # default: None, content_lane=&quot;content_lane_example&quot;  # default: None, consent_basis=&quot;consent_basis_example&quot;  # default: None, adult_confirmed=True  # default: False, operation=&quot;operation_example&quot;  # default: &#x27;txt2img&#x27;, scene=&quot;scene_example&quot;  # default: None, target=&quot;target_example&quot;  # default: None, requested_changes=&quot;requested_changes_example&quot;  # default: None, protected_traits=&quot;protected_traits_example&quot;  # default: None, privacy_required=True  # default: None, quality_request=&quot;quality_request_example&quot;  # default: None, budget_request=&quot;budget_request_example&quot;  # default: None)
+# result: ImagePlan</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_primary_character_ref'><h3><code class='inline'>_primary_character_ref</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _primary_character_ref(char: Any) -&gt; Any | None</code></div><p>Return the character&#x27;s primary stored reference record.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_types import _primary_character_ref
+
+result = _primary_character_ref(char=...)
+# result: Any | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_primary_character_ref_path'><h3><code class='inline'>_primary_character_ref_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _primary_character_ref_path(char: Any) -&gt; str | None</code></div><p>Backward-compatible path projection of the primary reference.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_types import _primary_character_ref_path
+
+result = _primary_character_ref_path(char=...)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_refine_prompt'><h3><code class='inline'>_refine_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _refine_prompt(prompt: str, character_name: str | None = None, character_desc: str | None = None, character_contexts: list[tuple[str, str | None]] | None = None, guidance_tags: list[str] | None = None) -&gt; str</code></div><p>Build a refined prompt by appending character context and guidance.
+
+The original prompt is always preserved verbatim.  Character context and
+guidance are appended as separate sentences so the renderer can parse them
+independently — never modify the user&#x27;s text.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_types import _refine_prompt
+
+result = _refine_prompt(prompt=&quot;prompt_example&quot;, character_name=&quot;character_name_example&quot;  # default: None, character_desc=&quot;character_desc_example&quot;  # default: None, character_contexts=&quot;character_contexts_example&quot;  # default: None, guidance_tags=&quot;guidance_tags_example&quot;  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_extract_guidance_instructions'><h3><code class='inline'>_extract_guidance_instructions</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _extract_guidance_instructions(guidance_md: str) -&gt; str</code></div><p>Pull out the actionable prompt-writing advice from a guidance file.
+
+Skips the renderer/model metadata header, section headings, and
+the Source/Version footer. Returns only the bullet-list
+instructions as a single sentence block.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_types import _extract_guidance_instructions
+
+result = _extract_guidance_instructions(guidance_md=&quot;guidance_md_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ReferenceProvenance'><code class='inline'>ReferenceProvenance</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-ReferenceBinding'><code class='inline'>ReferenceBinding</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-CastSlot'><code class='inline'>CastSlot</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-ImageIntent'><code class='inline'>ImageIntent</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-ImagePlan'><code class='inline'>ImagePlan</code></a></td><td></td><td>2 methods</td></tr><tr><td><a href='#cls-ImagePlanError'><code class='inline'>ImagePlanError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ReferenceProvenance'><h3><code class='inline'>ReferenceProvenance</code></h3><p>Why a specific local reference was selected for this plan.</p><p class='small'><b>Attributes:</b> character_id: str, name: str, path: str, reason: str, reference_id: str | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_plan_types import ReferenceProvenance
+
+obj = ReferenceProvenance(...)</pre></div>
+<div class='card' id='cls-ReferenceBinding'><h3><code class='inline'>ReferenceBinding</code></h3><p>Typed reference assignment for character-bound generation.</p><p class='small'><b>Attributes:</b> reference_id: str, role: str, cast_slot: str, weight: float | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_plan_types import ReferenceBinding
+
+obj = ReferenceBinding(...)</pre></div>
+<div class='card' id='cls-CastSlot'><h3><code class='inline'>CastSlot</code></h3><p>Stable character slot in a scene with optional spatial placement.</p><p class='small'><b>Attributes:</b> slot_id: str, character_id: str, display_name: str | None, position: str | None, depth_order: int | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_plan_types import CastSlot
+
+obj = CastSlot(...)</pre></div>
+<div class='card' id='cls-ImageIntent'><h3><code class='inline'>ImageIntent</code></h3><p>Provider-neutral intent contract layered onto existing plans.</p><p class='small'><b>Attributes:</b> intent_version: int, operation: str, cast: list[CastSlot], references: list[ReferenceBinding], scene: dict[str, Any], target: dict[str, Any], requested_changes: list[str], protected_traits: list[str], content_lane: str, consent_basis: str | None, adult_confirmed: bool, privacy_required: bool, quality_request: dict[str, Any], budget_request: dict[str, Any]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_plan_types import ImageIntent
+
+obj = ImageIntent(...)</pre></div>
+<div class='card' id='cls-ImagePlan'><h3><code class='inline'>ImagePlan</code></h3><p>A validated, user-approvable image-generation plan.
+
+Produced by the plan endpoint and submitted to the generate endpoint.
+The renderer receives the refined prompt + resolved references; the
+plan metadata is attached to the image job for provenance.
+
+Content-lane fields (ADR 0040 #8) default to the safe lane so a caller
+that does not opt in is never private; the plan builder deliberately does
+not derive a lane or consent from prompt text.</p><p class='small'><b>Attributes:</b> original_prompt: str, refined_prompt: str, character_id: str | None, character_ref_path: str | None, recipe_id: str | None, guidance_tags: list[str], references: list[ReferenceProvenance], intent: ImageIntent | None, content_lane: str, consent_basis: str | None, adult_confirmed: bool, created_at: str</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__post_init__</code></td><td><code class='inline'>def __post_init__(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_plan_types import ImagePlan
+
+obj = ImagePlan(...)</pre></div>
+<div class='card' id='cls-ImagePlanError'><h3><code class='inline'>ImagePlanError</code></h3><p>Raised when a plan cannot be built safely (e.g. missing character).</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_plan_types import ImagePlanError
+
+obj = ImagePlanError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ALLOWED_REFERENCE_ROLES</code></td><td><code class='inline'>frozenset({&#x27;subject&#x27;, &#x27;identity&#x27;, &#x27;person&#x27;, &#x27;face&#x27;, &#x27;body&#x27;, &#x27;outfit&#x27;, &#x27;clothing&#x27;, &#x27;location&#x27;, &#x27;environment&#x27;, &#x27;pose&#x27;, &#x27;ex</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

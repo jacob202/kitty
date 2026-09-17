@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.skill_import — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.skill_import</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.skill_import</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/skill_import.py</code> &middot; Python &middot; 4 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Skill bundle import with DeepTutor-grade safety.
+
+Adapted from ``deeptutor/utils/archive_extractor.py`` + ``document_validator.py``.
+A skill bundle is a ``.zip`` of a ``SKILL.md`` plus optional data assets.
+Importing an untrusted bundle is gated the same way as a document upload:
+
+* every member&#x27;s path is validated (no ``..`` segment, no absolute path —
+  defuses Zip Slip) and written into ``&lt;skills&gt;/{name}/`` preserving its
+  relative subdirectory, so the Agent Skills convention of ``references/``,
+  ``assets/`` etc. survives instead of colliding at a flattened root;
+* per-entry uncompressed size, cumulative size, entry count and compression
+  ratio are bounded to defeat zip bombs;
+* only documentation/data extensions are accepted; no executable or nested
+  archive survives — this includes ``scripts/``, so a bundle depending on
+  executable helpers is rejected outright, not partially imported;
+* each member&#x27;s leading bytes are sniffed so a renamed binary (``.exe`` -&gt; ``.md``)
+  is rejected;
+* ``__MACOSX`` resource forks, dotfiles, and directories are dropped;
+* a bundle may contain exactly one ``SKILL.md`` (the root) — a nested one
+  would otherwise be discoverable by :mod:`gateway.skill_registry`&#x27;s
+  filesystem scan as a second, entirely unvalidated skill.
+
+Failure is loud: any violation raises ``SkillImportError`` with a cause.
+
+The destination follows Kitty&#x27;s existing skill layout
+(``.agents/skills/&lt;name&gt;/SKILL.md``), so imported skills are immediately
+discoverable by :mod:`gateway.skill_registry`.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>shutil</code>, <code class='inline'>zipfile</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_safe_relative_path'><code class='inline'>_safe_relative_path</code></a></td><td>Resolve a zip member&#x27;s name to a safe relative path under the skill dir.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_reject_binary_payload'><code class='inline'>_reject_binary_payload</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_skill_name_from'><code class='inline'>_skill_name_from</code></a></td><td>Extract the ``name`` field from SKILL.md frontmatter, or raise.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-import_skill_bundle'><code class='inline'>import_skill_bundle</code></a></td><td>Safely extract a skill ``.zip`` into ``target_root/{name}/`` and validate it.</td><td><span class='pill'>complex</span><span class='muted small'>(26)</span></td></tr></table></div>
+<div class='card' id='fn-_safe_relative_path'><h3><code class='inline'>_safe_relative_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _safe_relative_path(filename: str) -&gt; Path | None</code></div><p>Resolve a zip member&#x27;s name to a safe relative path under the skill dir.
+
+Checks traversal *before* the junk-file skip: a naive substring check for
+dotfiles (``/.``) would otherwise also match `../` and silently treat an
+escape attempt as a skippable file instead of raising.
+
+Returns ``None`` for junk entries that should be silently skipped
+(resource forks, dotfiles/dot-dirs). Raises :class:`SkillImportError` for
+an escape attempt (``..`` segment or absolute path) rather than silently
+collapsing it, since that is the Zip Slip case.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_import import _safe_relative_path
+
+result = _safe_relative_path(filename=&quot;filename_example&quot;)
+# result: Path | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reject_binary_payload'><h3><code class='inline'>_reject_binary_payload</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _reject_binary_payload(name: str, data: bytes) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_import import _reject_binary_payload
+
+result = _reject_binary_payload(name=&quot;name_example&quot;, data=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_skill_name_from'><h3><code class='inline'>_skill_name_from</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _skill_name_from(md_text: str) -&gt; str</code></div><p>Extract the ``name`` field from SKILL.md frontmatter, or raise.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_import import _skill_name_from
+
+result = _skill_name_from(md_text=&quot;md_text_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-import_skill_bundle'><h3><code class='inline'>import_skill_bundle</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (26)</span></h3><div class='sig'><code>def import_skill_bundle(zip_path: str | Path, target_root: Path = SKILL_ROOT) -&gt; SkillImportResult</code></div><p>Safely extract a skill ``.zip`` into ``target_root/{name}/`` and validate it.
+
+Returns :class:`SkillImportResult` on success. Raises :class:`SkillImportError`
+on any security or schema violation. Never silently skips a bad member.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.skill_import import import_skill_bundle
+
+result = import_skill_bundle(zip_path=&quot;zip_path_example&quot;, target_root=&quot;target_root_example&quot;  # default: SKILL_ROOT)
+# result: SkillImportResult</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-SkillImportError'><code class='inline'>SkillImportError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-SkillImportResult'><code class='inline'>SkillImportResult</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-SkillImportError'><h3><code class='inline'>SkillImportError</code></h3><p>Raised when a skill bundle fails import security or schema checks.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.skill_import import SkillImportError
+
+obj = SkillImportError(...)</pre></div>
+<div class='card' id='cls-SkillImportResult'><h3><code class='inline'>SkillImportResult</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> name: str, path: Path, files: list[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.skill_import import SkillImportResult
+
+obj = SkillImportResult(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SKILL_ROOT</code></td><td><code class='inline'>Path</code></td></tr><tr><td><code class='inline'>ALLOWED_SKILL_EXTENSIONS</code></td><td><code class='inline'>frozenset[str]</code></td></tr><tr><td><code class='inline'>MAX_BUNDLE_BYTES</code></td><td><code class='inline'>50 * 1024 * 1024</code></td></tr><tr><td><code class='inline'>MAX_ENTRY_BYTES</code></td><td><code class='inline'>10 * 1024 * 1024</code></td></tr><tr><td><code class='inline'>MAX_ENTRIES</code></td><td><code class='inline'>200</code></td></tr><tr><td><code class='inline'>MAX_COMPRESSION_RATIO</code></td><td><code class='inline'>100.0</code></td></tr><tr><td><code class='inline'>_BINARY_PREFIXES</code></td><td><code class='inline'>tuple[bytes, ...]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

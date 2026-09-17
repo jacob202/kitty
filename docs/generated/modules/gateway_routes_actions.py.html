@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.actions — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.actions</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.actions</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/actions.py</code> &middot; Python &middot; 11 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Action-queue endpoints (P3, docs/packets/003).
+
+Sync handlers on purpose: executing a T2 action blocks on osascript, so
+FastAPI should run these in its worker pool (same reasoning as /state).
+
+Exceptions from ``action_queue`` map to HTTP status here — the queue module
+stays framework-free.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>pydantic</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_handle'><code class='inline'>_handle</code></a></td><td>Run a queue call, translating its typed errors to HTTP status codes.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_handle_grant'><code class='inline'>_handle_grant</code></a></td><td>Same, for the grant store&#x27;s typed errors.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_actions'><code class='inline'>get_actions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-post_propose'><code class='inline'>post_propose</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-post_approve'><code class='inline'>post_approve</code></a></td><td>Approve this action, and optionally stop asking for ones like it.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-post_reject'><code class='inline'>post_reject</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-post_execute'><code class='inline'>post_execute</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_grants'><code class='inline'>get_grants</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_action'><code class='inline'>get_action</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-post_grant'><code class='inline'>post_grant</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-delete_grant'><code class='inline'>delete_grant</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_handle'><h3><code class='inline'>_handle</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _handle(fn, *args, **kwargs)</code></div><p>Run a queue call, translating its typed errors to HTTP status codes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import _handle
+
+result = _handle(fn=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_grant'><h3><code class='inline'>_handle_grant</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _handle_grant(fn, *args, **kwargs)</code></div><p>Same, for the grant store&#x27;s typed errors.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import _handle_grant
+
+result = _handle_grant(fn=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_actions'><h3><code class='inline'>get_actions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_actions(status: str | None = None, limit: int = 50) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import get_actions
+
+result = get_actions(status=&quot;status_example&quot;  # default: None, limit=0  # default: 50)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_propose'><h3><code class='inline'>post_propose</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def post_propose(payload: ProposeRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import post_propose
+
+result = post_propose(payload=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_approve'><h3><code class='inline'>post_approve</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def post_approve(action_id: int, payload: ApproveRequest | None = None) -&gt; dict</code></div><p>Approve this action, and optionally stop asking for ones like it.
+
+Body is optional, so existing callers that send none keep working. Sending
+``{&quot;remember&quot;: {...}}`` is the UI&#x27;s &quot;always allow here&quot;: it approves this
+proposal *and* records the standing grant, in that order. The grant is
+minted from the approved row, never from the request body — see
+:func:`action_grants.grant_from_approved_action`.
+
+The approve step commits durably and cannot be undone, so a *subsequent*
+failure to record the grant (e.g. a bad ``expires_at``) must never be
+reported as if approval itself had failed (COR-002) — the caller would
+see a top-level error, then retry ``/approve`` and get a confusing 409
+for an action already decided. Instead the approved action is returned
+with a ``grant_error`` field describing what the &quot;remember&quot; step could
+not do.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import post_approve
+
+result = post_approve(action_id=0, payload=...  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_reject'><h3><code class='inline'>post_reject</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def post_reject(action_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import post_reject
+
+result = post_reject(action_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_execute'><h3><code class='inline'>post_execute</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def post_execute(action_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import post_execute
+
+result = post_execute(action_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_grants'><h3><code class='inline'>get_grants</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_grants(capability: str | None = None, include_inactive: bool = False) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import get_grants
+
+result = get_grants(capability=&quot;capability_example&quot;  # default: None, include_inactive=True  # default: False)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_action'><h3><code class='inline'>get_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_action(action_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import get_action
+
+result = get_action(action_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_grant'><h3><code class='inline'>post_grant</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def post_grant(payload: GrantRequest) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import post_grant
+
+result = post_grant(payload=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_grant'><h3><code class='inline'>delete_grant</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def delete_grant(grant_id: int) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.actions import delete_grant
+
+result = delete_grant(grant_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ProposeRequest'><code class='inline'>ProposeRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-GrantRequest'><code class='inline'>GrantRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-RememberRequest'><code class='inline'>RememberRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-ApproveRequest'><code class='inline'>ApproveRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ProposeRequest'><h3><code class='inline'>ProposeRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> source_kind: str, kind: str, title: str, preview: str, source_id: str | None, payload: dict, scope_type: str, scope_id: str, session_id: str | None, estimated_cost_usd: float | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.actions import ProposeRequest
+
+obj = ProposeRequest(...)</pre></div>
+<div class='card' id='cls-GrantRequest'><h3><code class='inline'>GrantRequest</code></h3><p>One standing user decision. Mirrors the four UI choices in issue #554.
+
+&quot;Allow once&quot; is not a grant — it is the existing per-action approve call.</p><p class='small'><b>Attributes:</b> capability: str, decision: str, granted_tier: str, reason: str, scope_type: str, scope_id: str, session_id: str | None, expires_at: float | None, budget_limit_usd: float | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.actions import GrantRequest
+
+obj = GrantRequest(...)</pre></div>
+<div class='card' id='cls-RememberRequest'><h3><code class='inline'>RememberRequest</code></h3><p>How long an &quot;always allow here&quot; choice should last.
+
+Deliberately carries no capability, tier or scope: those are read off the
+approved action so the caller cannot widen what it is being granted.</p><p class='small'><b>Attributes:</b> expires_at: float | None, session_only: bool</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.actions import RememberRequest
+
+obj = RememberRequest(...)</pre></div>
+<div class='card' id='cls-ApproveRequest'><h3><code class='inline'>ApproveRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> remember: RememberRequest | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.actions import ApproveRequest
+
+obj = ApproveRequest(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li><li><a href='gateway_routes_chats.py.html'><code class='inline'>gateway.routes.chats</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

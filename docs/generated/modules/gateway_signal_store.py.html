@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.signal_store — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.signal_store</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.signal_store</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/signal_store.py</code> &middot; Python &middot; 10 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Signal store — one append table for connector and system events (P1).
+
+A signal is a timestamped event from a connector or internal system:
+&quot;mail received&quot;, &quot;PR check failed&quot;, &quot;monitor tripped&quot;, &quot;nudge fired&quot;.
+Connectors emit signals; consumers (triage, the state composer, the
+brief) read them. A signal is never mutated except to be marked
+processed.
+
+Payloads carry summaries and pointers, not blobs — anything over
+MAX_PAYLOAD_BYTES is rejected so the table cannot silently absorb
+message bodies or documents.
+
+Public API:
+  emit(source, kind, payload=None, dedupe_key=None, ts=None) -&gt; dict | None
+      Append one signal. Returns the stored record, or None when
+      dedupe_key already exists (a duplicate from a re-polling
+      connector is expected behaviour, not an error).
+  list_recent(limit=50, source=None) -&gt; list[dict]
+  list_unprocessed(limit=50) -&gt; list[dict]
+  list_since(ts, limit=50) -&gt; list[dict]
+  count_unprocessed() -&gt; int
+  mark_processed(signal_id) -&gt; bool</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.sse</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Apply pending migrations. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-emit'><code class='inline'>emit</code></a></td><td>Append one signal. Returns the record, or None on a dedupe hit.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-list_recent'><code class='inline'>list_recent</code></a></td><td>Return signals, newest first. Optional source filter.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-list_unprocessed'><code class='inline'>list_unprocessed</code></a></td><td>Return signals not yet marked processed, oldest first.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_since'><code class='inline'>list_since</code></a></td><td>Return signals with ts strictly after `ts`, newest first.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-count_unprocessed'><code class='inline'>count_unprocessed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-mark_processed'><code class='inline'>mark_processed</code></a></td><td>Mark one signal processed. True if a row changed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_signal'><code class='inline'>get_signal</code></a></td><td>Return a single signal by ID, or None if not found.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-delete'><code class='inline'>delete</code></a></td><td>Delete a signal entirely (for tests/cleanup).</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_row_to_signal'><code class='inline'>_row_to_signal</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Apply pending migrations. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-emit'><h3><code class='inline'>emit</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def emit(source: str, kind: str, payload: dict | None = None, dedupe_key: str | None = None, ts: float | None = None) -&gt; dict | None</code></div><p>Append one signal. Returns the record, or None on a dedupe hit.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import emit
+
+result = emit(source=&quot;source_example&quot;, kind=&quot;kind_example&quot;, payload={}  # default: None, dedupe_key=&quot;dedupe_key_example&quot;  # default: None, ts=0.0  # default: None)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_recent'><h3><code class='inline'>list_recent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def list_recent(limit: int = 50, source: str | None = None) -&gt; list[dict]</code></div><p>Return signals, newest first. Optional source filter.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import list_recent
+
+result = list_recent(limit=0  # default: 50, source=&quot;source_example&quot;  # default: None)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_unprocessed'><h3><code class='inline'>list_unprocessed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_unprocessed(limit: int = 50) -&gt; list[dict]</code></div><p>Return signals not yet marked processed, oldest first.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import list_unprocessed
+
+result = list_unprocessed(limit=0  # default: 50)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_since'><h3><code class='inline'>list_since</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_since(ts: float, limit: int = 50) -&gt; list[dict]</code></div><p>Return signals with ts strictly after `ts`, newest first.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import list_since
+
+result = list_since(ts=0.0, limit=0  # default: 50)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-count_unprocessed'><h3><code class='inline'>count_unprocessed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def count_unprocessed() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import count_unprocessed
+
+result = count_unprocessed()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-mark_processed'><h3><code class='inline'>mark_processed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def mark_processed(signal_id: int) -&gt; bool</code></div><p>Mark one signal processed. True if a row changed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import mark_processed
+
+result = mark_processed(signal_id=0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_signal'><h3><code class='inline'>get_signal</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_signal(signal_id: int) -&gt; dict | None</code></div><p>Return a single signal by ID, or None if not found.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import get_signal
+
+result = get_signal(signal_id=0)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete'><h3><code class='inline'>delete</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def delete(signal_id: int) -&gt; None</code></div><p>Delete a signal entirely (for tests/cleanup).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import delete
+
+result = delete(signal_id=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_signal'><h3><code class='inline'>_row_to_signal</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _row_to_signal(row: sqlite3.Row) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.signal_store import _row_to_signal
+
+result = _row_to_signal(row=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SIGNALS_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>MAX_PAYLOAD_BYTES</code></td><td><code class='inline'>16384</code></td></tr><tr><td><code class='inline'>_COLUMNS</code></td><td><code class='inline'>&#x27;id, ts, source, kind, payload, dedupe_key, processed_at, created_at&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

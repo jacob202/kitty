@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.builder.context — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.builder.context</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.builder.context</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/builder/context.py</code> &middot; Python &middot; 12 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Read-only Kitty/Builder projections for conversational MCP clients.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>.repo_tools</code>, <code class='inline'>.schemas</code>, <code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_queue</code>, <code class='inline'>gateway.builder_status_readonly</code>, <code class='inline'>gateway.context_receipt</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_builder_db_path'><code class='inline'>_builder_db_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_status_snapshot'><code class='inline'>_status_snapshot</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-kitty_context'><code class='inline'>kitty_context</code></a></td><td>Return Kitty&#x27;s existing cold-start receipt without reinterpreting it.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_find_work'><code class='inline'>_find_work</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-work_status'><code class='inline'>work_status</code></a></td><td>Read the current durable Builder projection through a non-mutating DB view.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_latest_attempt'><code class='inline'>_latest_attempt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_mission_acceptance'><code class='inline'>_mission_acceptance</code></a></td><td>Report the outcome-acceptance fact, separately from Builder&#x27;s task.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr><tr><td><a href='#fn-_awaiting_acceptance'><code class='inline'>_awaiting_acceptance</code></a></td><td>Say whether finished Builder work is still waiting on an outcome decision.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-work_result'><code class='inline'>work_result</code></a></td><td>Return durable result evidence; narration alone can never mark work done.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_artifact_refs'><code class='inline'>_artifact_refs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_select_current_packet'><code class='inline'>_select_current_packet</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-resume_context'><code class='inline'>resume_context</code></a></td><td>Build a compact durable handoff that does not depend on chat history.</td><td><span class='pill'>complex</span><span class='muted small'>(61)</span></td></tr></table></div>
+<div class='card' id='fn-_builder_db_path'><h3><code class='inline'>_builder_db_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _builder_db_path() -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import _builder_db_path
+
+result = _builder_db_path()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_status_snapshot'><h3><code class='inline'>_status_snapshot</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _status_snapshot() -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import _status_snapshot
+
+result = _status_snapshot()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-kitty_context'><h3><code class='inline'>kitty_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def kitty_context() -&gt; dict[str, Any]</code></div><p>Return Kitty&#x27;s existing cold-start receipt without reinterpreting it.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import kitty_context
+
+result = kitty_context()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_find_work'><h3><code class='inline'>_find_work</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _find_work(snapshot: dict[str, Any], mission_id: str | None, task_id: str | None) -&gt; tuple[dict[str, Any] | None, str | None]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import _find_work
+
+result = _find_work(snapshot=&quot;snapshot_example&quot;, mission_id=&quot;mission_id_example&quot;, task_id=&quot;task_id_example&quot;)
+# result: tuple[dict[str, Any] | None, str | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-work_status'><h3><code class='inline'>work_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def work_status(mission_id: str | None = None, task_id: str | None = None) -&gt; dict[str, Any]</code></div><p>Read the current durable Builder projection through a non-mutating DB view.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import work_status
+
+result = work_status(mission_id=&quot;mission_id_example&quot;  # default: None, task_id=&quot;task_id_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_latest_attempt'><h3><code class='inline'>_latest_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _latest_attempt(packet: dict[str, Any]) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import _latest_attempt
+
+result = _latest_attempt(packet=&quot;packet_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mission_acceptance'><h3><code class='inline'>_mission_acceptance</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>def _mission_acceptance(initiative_id: str | None, expect_binding: bool = False, expected_task_id: str | None = None) -&gt; dict[str, Any]</code></div><p>Report the outcome-acceptance fact, separately from Builder&#x27;s task.
+
+Three answers, deliberately distinct:
+
+- a state from the bound Mission (``unreviewed`` / ``accepted`` / ...);
+- ``none`` — no Mission is bound to direct Builder work, so acceptance
+  does not apply to it;
+- ``unavailable`` with a binding error — a conversation-backed job was
+  expected to have a Gateway Mission, but that durable binding is missing;
+- ``unavailable`` — the Mission store could not be read. That is an outage
+  with a cause, not the same statement as &quot;there is nothing recorded&quot;, and
+  it is reported with the error rather than swallowed.
+
+Never reports ``accepted`` without having read it.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import _mission_acceptance
+
+result = _mission_acceptance(initiative_id=&quot;initiative_id_example&quot;, expect_binding=True  # default: False, expected_task_id=&quot;expected_task_id_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_awaiting_acceptance'><h3><code class='inline'>_awaiting_acceptance</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _awaiting_acceptance(builder_done: bool, acceptance: dict[str, Any]) -&gt; tuple[bool, str | None]</code></div><p>Say whether finished Builder work is still waiting on an outcome decision.
+
+Deliberately *not* folded into ``complete``. Nothing in production records
+an acceptance today, so gating ``complete`` on it would make that field
+permanently false — trading a claim that overstates progress for one that
+can never be satisfied. Instead the two facts are reported side by side and
+the caller says the true sentence: Builder finished, nobody has accepted
+the outcome yet.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import _awaiting_acceptance
+
+result = _awaiting_acceptance(builder_done=True, acceptance=&quot;acceptance_example&quot;)
+# result: tuple[bool, str | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-work_result'><h3><code class='inline'>work_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def work_result(mission_id: str | None = None, task_id: str | None = None) -&gt; dict[str, Any]</code></div><p>Return durable result evidence; narration alone can never mark work done.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import work_result
+
+result = work_result(mission_id=&quot;mission_id_example&quot;  # default: None, task_id=&quot;task_id_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_artifact_refs'><h3><code class='inline'>_artifact_refs</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _artifact_refs(initiative: dict[str, Any] | None) -&gt; tuple[dict[str, str], list[dict[str, str]]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import _artifact_refs
+
+result = _artifact_refs(initiative=&quot;initiative_example&quot;)
+# result: tuple[dict[str, str], list[dict[str, str]]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_select_current_packet'><h3><code class='inline'>_select_current_packet</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _select_current_packet(work: dict[str, Any]) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import _select_current_packet
+
+result = _select_current_packet(work=&quot;work_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resume_context'><h3><code class='inline'>resume_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (61)</span></h3><div class='sig'><code>def resume_context(mission_id: str | None = None, task_id: str | None = None, expect_mission_binding: bool = False) -&gt; dict[str, Any]</code></div><p>Build a compact durable handoff that does not depend on chat history.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.context import resume_context
+
+result = resume_context(mission_id=&quot;mission_id_example&quot;  # default: None, task_id=&quot;task_id_example&quot;  # default: None, expect_mission_binding=True  # default: False)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ACCEPTANCE_NONE</code></td><td><code class='inline'>&#x27;none&#x27;</code></td></tr><tr><td><code class='inline'>ACCEPTANCE_UNAVAILABLE</code></td><td><code class='inline'>&#x27;unavailable&#x27;</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_builder_commands.py.html'><code class='inline'>mcp.builder.commands</code></a></li><li><a href='mcp_builder_repo_tools.py.html'><code class='inline'>mcp.builder.repo_tools</code></a></li><li><a href='mcp_builder_schemas.py.html'><code class='inline'>mcp.builder.schemas</code></a></li><li><a href='mcp_builder_server.py.html'><code class='inline'>mcp.builder.server</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

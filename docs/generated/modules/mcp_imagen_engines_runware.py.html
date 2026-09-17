@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.engines.runware — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.engines.runware</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.engines.runware</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/engines/runware.py</code> &middot; Python &middot; 5 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Runware engine — REST image generation with FLUX + PuLID identity conditioning.
+
+Runware&#x27;s REST API (``https://api.runware.ai/v1``) takes a JSON array of
+tasks (each with its own ``taskUUID``) and returns a JSON array of results
+under ``data``. FLUX PuLID identity conditioning here is intentionally
+restricted to exactly one reference image — the character-locked pipeline
+this engine feeds never has more than one approved reference, and silently
+accepting several would let unlocked photos leak into conditioning.
+
+The request shape follows the live Runware REST validator. In particular,
+PuLID currently requires ``inputImages`` in live requests even though the
+public FLUX.1 [dev] model page still shows the older ``images`` spelling.
+Runtime validation wins here. URL output is used to avoid large inline base64
+responses; returned URLs are downloaded immediately and only bytes leave the engine.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>base64</code>, <code class='inline'>httpx</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.retry</code>, <code class='inline'>mimetypes</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_api_key'><code class='inline'>_api_key</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_to_data_uri'><code class='inline'>_to_data_uri</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_is_refusal'><code class='inline'>_is_refusal</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_download_image'><code class='inline'>_download_image</code></a></td><td>Fetch a Runware output URL without regenerating the paid image on download errors.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_aspect_to_wh'><code class='inline'>_aspect_to_wh</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_api_key'><h3><code class='inline'>_api_key</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _api_key() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines.runware import _api_key
+
+result = _api_key()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_to_data_uri'><h3><code class='inline'>_to_data_uri</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _to_data_uri(path: Path | str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines.runware import _to_data_uri
+
+result = _to_data_uri(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_refusal'><h3><code class='inline'>_is_refusal</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _is_refusal(message: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines.runware import _is_refusal
+
+result = _is_refusal(message=&quot;message_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_download_image'><h3><code class='inline'>_download_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _download_image(url: str, attempts: int = 3) -&gt; bytes</code></div><p>Fetch a Runware output URL without regenerating the paid image on download errors.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines.runware import _download_image
+
+result = _download_image(url=&quot;url_example&quot;, attempts=0  # default: 3)
+# result: bytes</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_aspect_to_wh'><h3><code class='inline'>_aspect_to_wh</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _aspect_to_wh(aspect_ratio: str, width: int | None, height: int | None) -&gt; tuple[int, int]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.engines.runware import _aspect_to_wh
+
+result = _aspect_to_wh(aspect_ratio=&quot;aspect_ratio_example&quot;, width=0, height=0)
+# result: tuple[int, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RunwareEngine'><code class='inline'>RunwareEngine</code></a></td><td></td><td>6 methods</td></tr></table></div>
+<div class='card' id='cls-RunwareEngine'><h3><code class='inline'>RunwareEngine</code></h3><p>Runware REST backend — FLUX with optional single-image PuLID identity lock.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>model_name</code></td><td><code class='inline'>def model_name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>generate</code></td><td><code class='inline'>def generate(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = None, negativ</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>generate_async</code></td><td><code class='inline'>async def generate_async(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = N</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>edit</code></td><td><code class='inline'>def edit(self, image_path: Path, edit_prompt: str) -&gt; bytes</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_post</code></td><td><code class='inline'>def _post(self, tasks: list[dict[str, object]]) -&gt; list[dict[str, object]]</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>from mcp.imagen.engines.runware import RunwareEngine
+
+obj = RunwareEngine(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>RUNWARE_API_URL</code></td><td><code class='inline'>&#x27;https://api.runware.ai/v1&#x27;</code></td></tr><tr><td><code class='inline'>_REFUSAL_MARKERS</code></td><td><code class='inline'>(&#x27;nsfw&#x27;, &#x27;flagged&#x27;, &#x27;safety&#x27;, &#x27;blocked&#x27;, &#x27;policy&#x27;, &#x27;refus&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_engines_adapters.py.html'><code class='inline'>mcp.imagen.engines.adapters</code></a></li><li><a href='mcp_imagen_engines_airforce.py.html'><code class='inline'>mcp.imagen.engines.airforce</code></a></li><li><a href='mcp_imagen_engines_base.py.html'><code class='inline'>mcp.imagen.engines.base</code></a></li><li><a href='mcp_imagen_engines_comfyui.py.html'><code class='inline'>mcp.imagen.engines.comfyui</code></a></li><li><a href='mcp_imagen_engines_dalle.py.html'><code class='inline'>mcp.imagen.engines.dalle</code></a></li><li><a href='mcp_imagen_engines_drawthings.py.html'><code class='inline'>mcp.imagen.engines.drawthings</code></a></li><li><a href='mcp_imagen_engines_fal.py.html'><code class='inline'>mcp.imagen.engines.fal</code></a></li><li><a href='mcp_imagen_engines_imagen4.py.html'><code class='inline'>mcp.imagen.engines.imagen4</code></a></li><li><a href='mcp_imagen_engines_nano_banana.py.html'><code class='inline'>mcp.imagen.engines.nano_banana</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

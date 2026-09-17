@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/components/HomeState — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/components/HomeState</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/components/HomeState</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/components/HomeState.tsx</code> &middot; TypeScript &middot; 27 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>@/components/BuilderSurface</code>, <code class='inline'>@/components/CapturePanel</code>, <code class='inline'>@/components/HomeIntelligence</code>, <code class='inline'>@/components/InsightReturnCard</code>, <code class='inline'>@/hooks/useDashboardConfig</code>, <code class='inline'>@/lib/failure-copy</code>, <code class='inline'>@/lib/gateway</code>, <code class='inline'>@/lib/project-copy</code>, <code class='inline'>@/lib/queries</code>, <code class='inline'>@/lib/ui</code>, <code class='inline'>@tanstack/react-query</code>, <code class='inline'>react</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-friendlyLabel'><code class='inline'>friendlyLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-KidCatDoodle'><code class='inline'>KidCatDoodle</code></a></td><td>function</td><td>Tiny crude white-doodle Kitty (see public/cat-assets/kid-cat.svg) used as</td></tr><tr><td><a href='#ex-SectionCard'><code class='inline'>SectionCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-ErrorCard'><code class='inline'>ErrorCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-repairTitle'><code class='inline'>repairTitle</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-repairDetail'><code class='inline'>repairDetail</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-RepairsCard'><code class='inline'>RepairsCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-SignalsCard'><code class='inline'>SignalsCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-HealthDot'><code class='inline'>HealthDot</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-HealthStrip'><code class='inline'>HealthStrip</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-healthReasonCopy'><code class='inline'>healthReasonCopy</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-HealthSurfaceCard'><code class='inline'>HealthSurfaceCard</code></a></td><td>function</td><td>One operator-facing surface for &quot;is Kitty working, and if not exactly what</td></tr><tr><td><a href='#ex-approveAndExecuteAction'><code class='inline'>approveAndExecuteAction</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-greeting'><code class='inline'>greeting</code></a></td><td>function</td><td>Local time, not UTC — this only ever renders client-side (Home is behind</td></tr><tr><td><a href='#ex-WhatsNext'><code class='inline'>WhatsNext</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-ActiveProjects'><code class='inline'>ActiveProjects</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-ExpertStrip'><code class='inline'>ExpertStrip</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-daysUntil'><code class='inline'>daysUntil</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-dueLabel'><code class='inline'>dueLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-dueTone'><code class='inline'>dueTone</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-PhoneAccessCard'><code class='inline'>PhoneAccessCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-Deadlines'><code class='inline'>Deadlines</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-WhatChanged'><code class='inline'>WhatChanged</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-NeedsYou'><code class='inline'>NeedsYou</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-TodayPanel'><code class='inline'>TodayPanel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-CaptureSection'><code class='inline'>CaptureSection</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-HomeState'><code class='inline'>HomeState</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-friendlyLabel'><h3><code class='inline'>friendlyLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function friendlyLabel(raw: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { friendlyLabel } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = friendlyLabel;</pre></div>
+<div class='card' id='ex-KidCatDoodle'><h3><code class='inline'>KidCatDoodle</code> <span class='pill'>function</span></h3><div class='sig'><code>function KidCatDoodle({ size = 36, opacity = 0.5 }: { size?: number; opacity?: number })</code></div><p>Tiny crude white-doodle Kitty (see public/cat-assets/kid-cat.svg) used as
+small dashboard decoration under the cosmic theme. Intentionally rough.</p><h3>Code Example</h3><pre>import { KidCatDoodle } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = KidCatDoodle;</pre></div>
+<div class='card' id='ex-SectionCard'><h3><code class='inline'>SectionCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function SectionCard({
+  title,
+  count,
+  action,
+  span,
+  children,
+}: {
+  title: string;
+  count?: number | string;
+  action?: React.ReactNode;
+  span?: boolean;
+  children: React.ReactNode;
+})</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { SectionCard } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = SectionCard;</pre></div>
+<div class='card' id='ex-ErrorCard'><h3><code class='inline'>ErrorCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function ErrorCard({ message, onRetry }: { message: string; onRetry?: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ErrorCard } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ErrorCard;</pre></div>
+<div class='card' id='ex-repairTitle'><h3><code class='inline'>repairTitle</code> <span class='pill'>function</span></h3><div class='sig'><code>function repairTitle(title: string, detail?: string | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { repairTitle } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = repairTitle;</pre></div>
+<div class='card' id='ex-repairDetail'><h3><code class='inline'>repairDetail</code> <span class='pill'>function</span></h3><div class='sig'><code>function repairDetail(title: string, detail?: string | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { repairDetail } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = repairDetail;</pre></div>
+<div class='card' id='ex-RepairsCard'><h3><code class='inline'>RepairsCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function RepairsCard()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { RepairsCard } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = RepairsCard;</pre></div>
+<div class='card' id='ex-SignalsCard'><h3><code class='inline'>SignalsCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function SignalsCard()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { SignalsCard } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = SignalsCard;</pre></div>
+<div class='card' id='ex-HealthDot'><h3><code class='inline'>HealthDot</code> <span class='pill'>function</span></h3><div class='sig'><code>function HealthDot({ tone, label }: { tone: &#x27;ok&#x27; | &#x27;warn&#x27; | &#x27;bad&#x27;; label: string })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { HealthDot } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = HealthDot;</pre></div>
+<div class='card' id='ex-HealthStrip'><h3><code class='inline'>HealthStrip</code> <span class='pill'>function</span></h3><div class='sig'><code>function HealthStrip()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { HealthStrip } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = HealthStrip;</pre></div>
+<div class='card' id='ex-healthReasonCopy'><h3><code class='inline'>healthReasonCopy</code> <span class='pill'>function</span></h3><div class='sig'><code>function healthReasonCopy(status: string, reason?: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { healthReasonCopy } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = healthReasonCopy;</pre></div>
+<div class='card' id='ex-HealthSurfaceCard'><h3><code class='inline'>HealthSurfaceCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function HealthSurfaceCard()</code></div><p>One operator-facing surface for &quot;is Kitty working, and if not exactly what
+is wrong&quot;. Rows for every domain, a degraded section that expands the reason
+on click, and a &quot;still functional&quot; section so a partial outage is honest.</p><h3>Code Example</h3><pre>import { HealthSurfaceCard } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = HealthSurfaceCard;</pre></div>
+<div class='card' id='ex-approveAndExecuteAction'><h3><code class='inline'>approveAndExecuteAction</code> <span class='pill'>function</span></h3><div class='sig'><code>async function approveAndExecuteAction(
+  action: GatewayAction,
+  approve: { mutateAsync: (id: number)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { approveAndExecuteAction } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = approveAndExecuteAction;</pre></div>
+<div class='card' id='ex-greeting'><h3><code class='inline'>greeting</code> <span class='pill'>function</span></h3><div class='sig'><code>function greeting(hour: number)</code></div><p>Local time, not UTC — this only ever renders client-side (Home is behind
+the app&#x27;s post-mount gate), so there&#x27;s no SSR/hydration mismatch to guard.</p><h3>Code Example</h3><pre>import { greeting } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = greeting;</pre></div>
+<div class='card' id='ex-WhatsNext'><h3><code class='inline'>WhatsNext</code> <span class='pill'>function</span></h3><div class='sig'><code>function WhatsNext({
+  onDecideInChat,
+  onNavigate,
+  preferredName = &#x27;&#x27;,
+}: {
+  onDecideInChat: (entry: GatewayTriageEntry)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { WhatsNext } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = WhatsNext;</pre></div>
+<div class='card' id='ex-ActiveProjects'><h3><code class='inline'>ActiveProjects</code> <span class='pill'>function</span></h3><div class='sig'><code>function ActiveProjects({ onNavigate }: { onNavigate: (view: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ActiveProjects } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ActiveProjects;</pre></div>
+<div class='card' id='ex-ExpertStrip'><h3><code class='inline'>ExpertStrip</code> <span class='pill'>function</span></h3><div class='sig'><code>function ExpertStrip({ onExpertClick }: { onExpertClick: (expert: ExpertProfile)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ExpertStrip } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ExpertStrip;</pre></div>
+<div class='card' id='ex-daysUntil'><h3><code class='inline'>daysUntil</code> <span class='pill'>function</span></h3><div class='sig'><code>function daysUntil(dueDate: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { daysUntil } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = daysUntil;</pre></div>
+<div class='card' id='ex-dueLabel'><h3><code class='inline'>dueLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function dueLabel(dueDate: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { dueLabel } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = dueLabel;</pre></div>
+<div class='card' id='ex-dueTone'><h3><code class='inline'>dueTone</code> <span class='pill'>function</span></h3><div class='sig'><code>function dueTone(dueDate: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { dueTone } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = dueTone;</pre></div>
+<div class='card' id='ex-PhoneAccessCard'><h3><code class='inline'>PhoneAccessCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function PhoneAccessCard()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { PhoneAccessCard } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = PhoneAccessCard;</pre></div>
+<div class='card' id='ex-Deadlines'><h3><code class='inline'>Deadlines</code> <span class='pill'>function</span></h3><div class='sig'><code>function Deadlines()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { Deadlines } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = Deadlines;</pre></div>
+<div class='card' id='ex-WhatChanged'><h3><code class='inline'>WhatChanged</code> <span class='pill'>function</span></h3><div class='sig'><code>function WhatChanged()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { WhatChanged } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = WhatChanged;</pre></div>
+<div class='card' id='ex-NeedsYou'><h3><code class='inline'>NeedsYou</code> <span class='pill'>function</span></h3><div class='sig'><code>function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEntry)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { NeedsYou } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = NeedsYou;</pre></div>
+<div class='card' id='ex-TodayPanel'><h3><code class='inline'>TodayPanel</code> <span class='pill'>function</span></h3><div class='sig'><code>function TodayPanel({
+  onNavigate,
+}: {
+  onNavigate: (view: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { TodayPanel } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = TodayPanel;</pre></div>
+<div class='card' id='ex-CaptureSection'><h3><code class='inline'>CaptureSection</code> <span class='pill'>function</span></h3><div class='sig'><code>function CaptureSection()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { CaptureSection } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = CaptureSection;</pre></div>
+<div class='card' id='ex-HomeState'><h3><code class='inline'>HomeState</code> <span class='pill'>function</span></h3><div class='sig'><code>export function HomeState({
+  compact = false,
+  preferredName = &#x27;&#x27;,
+  onDecideInChat = ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { HomeState } from &#x27;@/gateway/kitty-chat/src/components/HomeState&#x27;;
+
+// TODO: wire real props; see component signature
+const result = HomeState;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.provider_prefs — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.provider_prefs</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.provider_prefs</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/provider_prefs.py</code> &middot; Python &middot; 5 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Which provider Kitty tries first, and which ones it skips entirely.
+
+The fallback chain used to be a hardcoded tuple, so changing it meant editing
+Python. This stores Jacob&#x27;s preference in ``config/providers.json`` and merges
+it against the live provider table on every read — a provider that disappears
+from the table drops out of the saved order rather than breaking the chain, and
+a newly added one lands at the end instead of vanishing.
+
+Public API:
+  load_preferences() -&gt; dict
+  save_preferences(order, disabled, *, known, active=&quot;auto&quot;) -&gt; dict
+  resolve_order(known, default_order) -&gt; list[str]
+  active_provider() -&gt; str | None
+  is_disabled(name) -&gt; bool</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-load_preferences'><code class='inline'>load_preferences</code></a></td><td>Read the saved preference. A missing or corrupt file means &#x27;no preference&#x27;.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-save_preferences'><code class='inline'>save_preferences</code></a></td><td>Persist a preference, rejecting provider names that don&#x27;t exist.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-resolve_order'><code class='inline'>resolve_order</code></a></td><td>Effective try-order: saved preference first, then anything it didn&#x27;t mention.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-active_provider'><code class='inline'>active_provider</code></a></td><td>Exact provider selected by Jacob, or None for normal LiteLLM + fallback routing.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-is_disabled'><code class='inline'>is_disabled</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-load_preferences'><h3><code class='inline'>load_preferences</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def load_preferences() -&gt; dict[str, Any]</code></div><p>Read the saved preference. A missing or corrupt file means &#x27;no preference&#x27;.
+
+Corruption is logged rather than raised: a bad preference file must not be
+able to take the whole LLM chain down.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.provider_prefs import load_preferences
+
+result = load_preferences()
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-save_preferences'><h3><code class='inline'>save_preferences</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def save_preferences(order: Iterable[str], disabled: Iterable[str], known: Iterable[str], active: str = &#x27;auto&#x27;) -&gt; dict[str, Any]</code></div><p>Persist a preference, rejecting provider names that don&#x27;t exist.
+
+Silently dropping an unknown name would let a typo disable routing with no
+signal, so this raises instead.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.provider_prefs import save_preferences
+
+result = save_preferences(order=&quot;order_example&quot;, disabled=&quot;disabled_example&quot;, known=&quot;known_example&quot;, active=&quot;active_example&quot;  # default: &#x27;auto&#x27;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-resolve_order'><h3><code class='inline'>resolve_order</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def resolve_order(known: Sequence[str], default_order: Sequence[str]) -&gt; list[str]</code></div><p>Effective try-order: saved preference first, then anything it didn&#x27;t mention.
+
+Disabled providers are excluded. Names in the saved order that are no longer
+in the table are dropped.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.provider_prefs import resolve_order
+
+result = resolve_order(known=&quot;known_example&quot;, default_order=&quot;default_order_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-active_provider'><h3><code class='inline'>active_provider</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def active_provider() -&gt; str | None</code></div><p>Exact provider selected by Jacob, or None for normal LiteLLM + fallback routing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.provider_prefs import active_provider
+
+result = active_provider()
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_disabled'><h3><code class='inline'>is_disabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def is_disabled(name: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.provider_prefs import is_disabled
+
+result = is_disabled(name=&quot;name_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>PROVIDER_PREFS_FILE</code></td><td><code class='inline'>CONFIG_DIR / &#x27;providers.json&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/kitty-chat/tests/support/hermetic_gateway.py</code></li><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/conftest.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

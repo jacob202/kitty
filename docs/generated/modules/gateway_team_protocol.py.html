@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.team_protocol — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.team_protocol</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.team_protocol</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/team_protocol.py</code> &middot; Python &middot; 1 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Team Protocol — Claim, discover, challenge protocol for multi-agent coordination.
+
+This module implements the Claude Code Agent Teams style protocol where agents
+claim tasks, share discoveries, and challenge each other&#x27;s findings.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_team_protocol'><code class='inline'>get_team_protocol</code></a></td><td>Get or create the global TeamProtocol instance.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-get_team_protocol'><h3><code class='inline'>get_team_protocol</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_team_protocol(task_list = None) -&gt; TeamProtocol</code></div><p>Get or create the global TeamProtocol instance.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.team_protocol import get_team_protocol
+
+result = get_team_protocol(task_list=...  # default: None)
+# result: TeamProtocol</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-TeamProtocol'><code class='inline'>TeamProtocol</code></a></td><td></td><td>8 methods</td></tr></table></div>
+<div class='card' id='cls-TeamProtocol'><h3><code class='inline'>TeamProtocol</code></h3><p>Claim, discover, challenge protocol — multi-agent coordination.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, task_list = None)</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>claim_task</code></td><td><code class='inline'>def claim_task(self, agent_name: str) -&gt; str | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>share_discovery</code></td><td><code class='inline'>def share_discovery(self, agent_name: str, discovery: str, tags: list[str] | None = None)</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get_discoveries</code></td><td><code class='inline'>def get_discoveries(self, agent_filter: str | None = None, tags: list[str] | None = None) -&gt; list[dict]</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>challenge</code></td><td><code class='inline'>def challenge(self, agent_name: str, target_agent: str, challenge_text: str, artifact_path: str | None = None)</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get_challenges</code></td><td><code class='inline'>def get_challenges(self, target_agent: str) -&gt; list[dict]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>resolve_challenge</code></td><td><code class='inline'>def resolve_challenge(self, challenge_file: Path, resolution: str, success: bool = True)</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get_active_challenges</code></td><td><code class='inline'>def get_active_challenges(self) -&gt; List[dict]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+t
+e
+a
+m
+_
+p
+r
+o
+t
+o
+c
+o
+l
+ 
+i
+m
+p
+o
+r
+t
+ 
+T
+e
+a
+m
+P
+r
+o
+t
+o
+c
+o
+l
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+T
+e
+a
+m
+P
+r
+o
+t
+o
+c
+o
+l
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>KITTY_DIR</code></td><td><code class='inline'>DATA_DIR</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

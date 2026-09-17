@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.ops.kitty_task — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.ops.kitty_task</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.ops.kitty_task</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/ops/kitty_task.py</code> &middot; Python &middot; 10 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Kitty Orca/Antigravity CLI - Ghostty Integration
+
+This script provides command-line access to the Orca/Antigravity features
+for integration with Ghostty terminal.
+
+Usage:
+    kitty-task summary                  - Show all task boundaries
+    kitty-task open &quot;Task Name&quot;         - Open new task
+    kitty-task update &lt;id&gt; &quot;status&quot;     - Update task
+    kitty-task close &lt;id&gt;               - Close task
+    kitty-notify &quot;Message&quot;              - Send notification
+    kitty-discover &quot;Discovery text&quot;     - Share discovery
+    kitty-discoveries                   - Get all discoveries
+    kitty-search &quot;query&quot;                - Search codebase</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>asyncio</code>, <code class='inline'>gateway.antigravity_tools</code>, <code class='inline'>gateway.task_boundary</code>, <code class='inline'>sys</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-task_summary'><code class='inline'>task_summary</code></a></td><td>Show all task boundaries.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-task_open'><code class='inline'>task_open</code></a></td><td>Open a new task boundary.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-task_update'><code class='inline'>task_update</code></a></td><td>Update a task.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-task_close'><code class='inline'>task_close</code></a></td><td>Close a task.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-notify'><code class='inline'>notify</code></a></td><td>Send a notification.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-share_discovery'><code class='inline'>share_discovery</code></a></td><td>Share a discovery.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_discoveries'><code class='inline'>get_discoveries</code></a></td><td>Get all discoveries.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-check_feedback'><code class='inline'>check_feedback</code></a></td><td>Check feedback for an artifact.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-search_codebase'><code class='inline'>search_codebase</code></a></td><td>Search the codebase.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Main CLI entry point.</td><td><span class='pill'>complex</span><span class='muted small'>(24)</span></td></tr></table></div>
+<div class='card' id='fn-task_summary'><h3><code class='inline'>task_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def task_summary()</code></div><p>Show all task boundaries.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import task_summary
+
+result = task_summary()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-task_open'><h3><code class='inline'>task_open</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def task_open(name, summary = &#x27;&#x27;)</code></div><p>Open a new task boundary.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import task_open
+
+result = task_open(name=..., summary=...  # default: &#x27;&#x27;)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-task_update'><h3><code class='inline'>task_update</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def task_update(task_id, status = &#x27;in_progress&#x27;, summary = &#x27;&#x27;)</code></div><p>Update a task.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import task_update
+
+result = task_update(task_id=..., status=...  # default: &#x27;in_progress&#x27;, summary=...  # default: &#x27;&#x27;)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-task_close'><h3><code class='inline'>task_close</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def task_close(task_id, summary = &#x27;Complete&#x27;)</code></div><p>Close a task.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import task_close
+
+result = task_close(task_id=..., summary=...  # default: &#x27;Complete&#x27;)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-notify'><h3><code class='inline'>notify</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def notify(message, priority = &#x27;info&#x27;)</code></div><p>Send a notification.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import notify
+
+result = notify(message=..., priority=...  # default: &#x27;info&#x27;)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-share_discovery'><h3><code class='inline'>share_discovery</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def share_discovery(discovery, tags = None)</code></div><p>Share a discovery.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import share_discovery
+
+result = share_discovery(discovery=..., tags=...  # default: None)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_discoveries'><h3><code class='inline'>get_discoveries</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_discoveries()</code></div><p>Get all discoveries.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import get_discoveries
+
+result = get_discoveries()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_feedback'><h3><code class='inline'>check_feedback</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def check_feedback(artifact_path)</code></div><p>Check feedback for an artifact.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import check_feedback
+
+result = check_feedback(artifact_path=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search_codebase'><h3><code class='inline'>search_codebase</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def search_codebase(query, top_k = 5)</code></div><p>Search the codebase.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import search_codebase
+
+result = search_codebase(query=..., top_k=...  # default: 5)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (24)</span></h3><div class='sig'><code>def main()</code></div><p>Main CLI entry point.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.ops.kitty_task import main
+
+result = main()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_ops_council_audit.py.html'><code class='inline'>scripts.ops.council_audit</code></a></li><li><a href='scripts_ops_reviewer.py.html'><code class='inline'>scripts.ops.reviewer</code></a></li><li><a href='scripts_ops_spend_report.py.html'><code class='inline'>scripts.ops.spend_report</code></a></li><li><a href='scripts_ops_test_real_search.py.html'><code class='inline'>scripts.ops.test_real_search</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>
