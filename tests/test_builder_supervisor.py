@@ -334,7 +334,7 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     # outside the route helper.
     from gateway.builder_cli import build_parser
 
-    parsed = build_parser().parse_args(argv[1:])
+    parsed = build_parser().parse_args(argv[2:])
     assert parsed.id == "test-init-1"
     assert parsed.packet == "p1"
     assert popen.call_args.kwargs["start_new_session"] is True
