@@ -168,21 +168,14 @@ def evaluate_review_gate(
             "no-findings sentinel nor the rubric's Failure Mode / Corrective Action "
             "fields, so any claim in it is unverified."
         )
-    # Only the most recent trusted Builder verdict for this exact head counts:
-    # comments arrive in creation order, so a later "approve" must supersede
-    # an earlier "request_changes"/"reject" for the same commit instead of
-    # being permanently outvoted by it.
-    latest_builder_verdict = next(
-        (
-            verdict
-            for verdict in (
-                builder_review_verdict(comment, head_sha, trusted)
-                for comment in reversed(comments)
-            )
-            if verdict is not None
-        ),
-        None,
-    )
+    # Recency: comments arrive oldest-first, so the LAST same-head Builder
+    # verdict is the reviewer's current position. A reject-then-approve must
+    # not stay blocked forever (and approve-then-reject must stay blocked).
+    latest_builder_verdict: str | None = None
+    for comment in comments:
+        verdict = builder_review_verdict(comment, head_sha, trusted)
+        if verdict is not None:
+            latest_builder_verdict = verdict
     if latest_builder_verdict in {"request_changes", "reject"}:
         return False, f"Blocking Builder review verdict exists for exact head {head_sha}."
 
