@@ -258,3 +258,49 @@ def test_automation_update_undo_restores_previous_schedule(_db):
     restored = next(row for row in cron.list_schedules() if row["id"] == sid)
     assert restored["name"] == "Morning"
     assert restored["schedule_value"] == "07:00"
+
+
+def test_concurrent_undo_of_the_same_entry_has_exactly_one_winner(_db):
+    # Reproduces: undo() previously spanned four separate unlocked
+    # connections with no atomic claim, so two concurrent undo() calls on
+    # the same journal_id could both pass the checks and both execute
+    # _restore()'s side effects before either marked the row undone.
+    import threading
+
+    from gateway import image_characters, undo_journal
+
+    char = image_characters.create_character(
+        "Aria", description="a musician", identity_preset="balanced"
+    )
+    journal_id = undo_journal.update_character_with_undo(
+        char.character_id, name="Aria v2", description="a painter"
+    )
+
+    barrier = threading.Barrier(2)
+    results: list[object] = []
+    errors: list[BaseException] = []
+    lock = threading.Lock()
+
+    def run_undo() -> None:
+        try:
+            barrier.wait(timeout=5)
+            result = undo_journal.undo(journal_id)
+            with lock:
+                results.append(result)
+        except BaseException as exc:  # noqa: BLE001 - asserted below
+            with lock:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=run_undo) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+
+    assert len(results) == 1, f"expected exactly one winner, got {len(results)}"
+    assert len(errors) == 1
+    assert isinstance(errors[0], undo_journal.UndoError)
+
+    restored = image_characters.get_character(char.character_id)
+    assert restored.name == "Aria"
+    assert restored.description == "a musician"
