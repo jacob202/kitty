@@ -1,0 +1,64 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-companion-r6-v2",
+  "title": "R-6: companion and automation behaviour Kitty can be trusted to run on its own",
+  "description": "Supersedes kitty-companion-r6-v1, which was applied on 2026-09-17 and is paused. Review of the authoring PR found that the malformed-reply criterion only covered replies with no [Headline] line, so a reply containing a [Headline] line with no parsed text could still reach the signal store with missing fields — contrary to the objective — and that the schedule-edit packet assumed the stored metadata column is a dict when both writers store JSON text. v2 adds the incomplete-reply criterion and requires the stored JSON text to be decoded before it is merged; every other packet and criterion is unchanged. The canonical direction is the deleted `docs/frontend/KITTY_STUDIO_EXPERIENCE.md` as of `3bc3c9e2` (`git show 3bc3c9e2:docs/frontend/KITTY_STUDIO_EXPERIENCE.md`); it was removed from the tree afterwards, not superseded here; companion docs are docs/packets/R6-00.md and R6-01.md.",
+  "packets": [
+    {
+      "id": "kitty-companion-r6-experts",
+      "title": "A garbled expert answer stops cleanly instead of eating the file",
+      "objective": "Make the expert evaluation path end cleanly when a model reply does not match the agreed reply format: no exception, no signal with missing fields, no dead-letter move of a watched file, and no inbox capture returned to a state that is re-polled forever. This packet edits existing files only and creates no new production files.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "a model reply that contains no [Headline] line ends the evaluation without raising, asserted by a test that calls the evaluation function directly",
+        "such a reply emits no expert.suggestion signal, asserted over the signal store",
+        "a reply that parses to an empty headline, or to no action and no analysis, is treated as unparseable and emits no signal, so an incomplete answer cannot reach the signal store with missing fields",
+        "a watched CSV file whose reply is unparseable stays in its directory and is never moved to the dead-letter queue by a formatting failure",
+        "an inbox capture whose reply is unparseable is marked triaged instead of returning to a state that is claimed again on the next poll",
+        "a formatting-only failure produces no user-visible error signal, and the recorded log warning does not contain the model reply text",
+        "the existing expert regression test passes unchanged, so the formatted path still emits exactly the signals it emitted before"
+      ],
+      "allowed_paths": [
+        "gateway/expert_proactive.py",
+        "tests/test_expert_proactive.py",
+        "tests/test_expert_proactive_replies.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q tests/test_expert_proactive.py tests/test_expert_proactive_replies.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 10
+      }
+    },
+    {
+      "id": "kitty-companion-r6-schedule-edit",
+      "title": "Editing a schedule stops deleting the fields the editor never sent",
+      "objective": "Make a schedule edit that does not supply a timezone keep the schedule's stored metadata instead of replacing it with an empty object, so editing the morning brief or a loop from Automations cannot silently drop its stored timezone or description. This packet edits existing files only and creates no new production files.",
+      "depends_on": [
+        "kitty-companion-r6-experts"
+      ],
+      "acceptance_criteria": [
+        "a schedule edit that does not supply a timezone keeps the schedule's stored timezone, asserted through the route against a schedule holding America/Regina",
+        "a schedule edit that does not supply a timezone keeps every other stored metadata key, including a loop description",
+        "an edit that does not supply a timezone persists metadata that is still a JSON object — the stored value decodes to a dict and the loops projection stays readable — asserted at the route level against the persisted row",
+        "a stored value that is malformed JSON or decodes to a non-object (including null or false) makes PATCH return HTTP 409 before the update path runs, and the raw stored metadata remains byte-for-byte unchanged",
+        "a schedule edit that does supply a timezone still replaces it, asserted by the existing replacement test passing unchanged",
+        "creating a schedule with no timezone still stores no timezone metadata, asserted by the existing create test passing unchanged",
+        "a missing schedule still returns the existing 404 message, so the Automations surface's error text does not change"
+      ],
+      "allowed_paths": [
+        "gateway/routes/cron.py",
+        "tests/test_cron_run_routes.py",
+        "tests/test_cron_schedule_edit.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q tests/test_cron_run_routes.py tests/test_cron_schedule_edit.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      }
+    }
+  ]
+}
