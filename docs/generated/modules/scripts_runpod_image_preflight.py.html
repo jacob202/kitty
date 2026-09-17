@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.runpod_image_preflight — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.runpod_image_preflight</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.runpod_image_preflight</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/runpod_image_preflight.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>No-GPU preflight for the immutable Kitty ComfyUI worker image.
+
+Runs the exact GHCR image that RunPod will deploy (by digest), maps port
+8000, and proves the diagnostic contract:
+
+  * the container remains running;
+  * /health becomes reachable and reports a known stage;
+  * the image reaches ready (preflight mode) OR reports a structured
+    failure with status/stage/exit_code/error;
+  * the worker module imports and the packaged workflow files exist.
+
+On any broken contract it exits non-zero with the structured evidence, so
+the paid RunPod run is gated on this exact image having booted.
+
+Usage:
+  python scripts/runpod_image_preflight.py ghcr.io/jacob202/kitty/comfy-worker@sha256:...</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>json</code>, <code class='inline'>secrets</code>, <code class='inline'>subprocess</code>, <code class='inline'>time</code>, <code class='inline'>urllib.request</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_run'><code class='inline'>_run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-inspect_health_probe'><code class='inline'>inspect_health_probe</code></a></td><td>Python source executed inside the container.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_wait_health'><code class='inline'>_wait_health</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_assert_ready_contract'><code class='inline'>_assert_ready_contract</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_assert_failure_contract'><code class='inline'>_assert_failure_contract</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-preflight'><code class='inline'>preflight</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_run'><h3><code class='inline'>_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _run(args: list[str], check: bool = True) -&gt; subprocess.CompletedProcess</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_image_preflight import _run
+
+result = _run(args=&quot;args_example&quot;, check=True  # default: True)
+# result: subprocess.CompletedProcess</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-inspect_health_probe'><h3><code class='inline'>inspect_health_probe</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def inspect_health_probe() -&gt; str</code></div><p>Python source executed inside the container.
+
+Polls /health until ready, keeps polling through the expected bootstrap
+503s, fails immediately on a structured failed body, and prints the final
+state on timeout.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_image_preflight import inspect_health_probe
+
+result = inspect_health_probe()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wait_health'><h3><code class='inline'>_wait_health</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _wait_health(base_url: str, timeout: int) -&gt; tuple[int, dict]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_image_preflight import _wait_health
+
+result = _wait_health(base_url=&quot;base_url_example&quot;, timeout=0)
+# result: tuple[int, dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_assert_ready_contract'><h3><code class='inline'>_assert_ready_contract</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _assert_ready_contract(container: str, image: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_image_preflight import _assert_ready_contract
+
+result = _assert_ready_contract(container=&quot;container_example&quot;, image=&quot;image_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_assert_failure_contract'><h3><code class='inline'>_assert_failure_contract</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _assert_failure_contract(container: str, image: str, port: int) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_image_preflight import _assert_failure_contract
+
+result = _assert_failure_contract(container=&quot;container_example&quot;, image=&quot;image_example&quot;, port=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-preflight'><h3><code class='inline'>preflight</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def preflight(image: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_image_preflight import preflight
+
+result = preflight(image=&quot;image_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.runpod_image_preflight import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>HEALTH_TIMEOUT_SECONDS</code></td><td><code class='inline'>180</code></td></tr><tr><td><code class='inline'>KNOWN_STAGES</code></td><td><code class='inline'>frozenset({&#x27;bootstrap-starting&#x27;, &#x27;base-validating&#x27;, &#x27;checkpoint-resolving&#x27;, &#x27;comfy-booting&#x27;, &#x27;comfy-ready&#x27;, &#x27;worker-boot</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.automation_supervisor — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.automation_supervisor</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.automation_supervisor</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/automation_supervisor.py</code> &middot; Python &middot; 1 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Central lifecycle/status seam for Gateway background services.
+
+Packet 05 (QoL) adds supervised self-recovery: a recoverable service is
+launched through a factory and, on a retryable failure, restarted with bounded
+exponential backoff up to a retry budget. Recovery produces evidence and never
+silently restarts forever; a permanent failure or an exhausted budget lands the
+service in ``degraded`` with a cooldown instead of an invisible restart loop.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>inspect</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-backoff_for'><code class='inline'>backoff_for</code></a></td><td>Backoff (seconds) to wait after the given failed launch attempt.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-backoff_for'><h3><code class='inline'>backoff_for</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def backoff_for(policy: RecoveryPolicy, attempt: int) -&gt; float</code></div><p>Backoff (seconds) to wait after the given failed launch attempt.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.automation_supervisor import backoff_for
+
+result = backoff_for(policy=..., attempt=0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RecoveryPolicy'><code class='inline'>RecoveryPolicy</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-_Service'><code class='inline'>_Service</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-AutomationSupervisor'><code class='inline'>AutomationSupervisor</code></a></td><td></td><td>12 methods</td></tr></table></div>
+<div class='card' id='cls-RecoveryPolicy'><h3><code class='inline'>RecoveryPolicy</code></h3><p>Bounded, classified restart policy for a supervised background service.
+
+On each retryable failure the service is relaunched after a backoff of
+``backoff_seconds * backoff_factor ** (attempt - 1)`` seconds, capped at
+``backoff_max``. After ``max_attempts`` failed launches the service is left
+``degraded`` for at least ``cooldown_seconds`` instead of being restarted
+forever. An error is retryable unless it matches ``non_retryable_errors``;
+when ``retryable_errors`` is non-empty only those types are retryable.</p><p class='small'><b>Attributes:</b> max_attempts: int, backoff_seconds: float, backoff_factor: float, backoff_max: float, retryable_errors: tuple[type[BaseException], ...], non_retryable_errors: tuple[type[BaseException], ...], cooldown_seconds: float</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.automation_supervisor import RecoveryPolicy
+
+obj = RecoveryPolicy(...)</pre></div>
+<div class='card' id='cls-_Service'><h3><code class='inline'>_Service</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> name: str, status: str, reason: str, updated_at: float, last_heartbeat: float | None, stale_after: float | None, task: Any, stop: StopCallable | None, policy: RecoveryPolicy | None, current: Any, cooldown_until: float | None, recovery_events: list[dict[str, Any]]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.automation_supervisor import _Service
+
+obj = _Service(...)</pre></div>
+<div class='card' id='cls-AutomationSupervisor'><h3><code class='inline'>AutomationSupervisor</code></h3><p>Undocumented class.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>mark</code></td><td><code class='inline'>def mark(self, name: str, status: str, reason: str, stale_after: float | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>heartbeat</code></td><td><code class='inline'>def heartbeat(self, name: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>track_task</code></td><td><code class='inline'>def track_task(self, name: str, task: Any, stop: StopCallable | None = None, stale_after: float | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>track_recoverable</code></td><td><code class='inline'>def track_recoverable(self, name: str, factory: ServiceFactory, policy: RecoveryPolicy, stop: StopCallable | None = None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_recovery_loop</code></td><td><code class='inline'>async def _recovery_loop(self, name: str, factory: ServiceFactory, policy: RecoveryPolicy) -&gt; None</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>_recover_from</code></td><td><code class='inline'>def _recover_from(self, name: str, attempt: int, exc: BaseException, policy: RecoveryPolicy, factory_failed: bool) -&gt; bo</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>_is_retryable</code></td><td><code class='inline'>def _is_retryable(exc: BaseException, policy: RecoveryPolicy) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get_status</code></td><td><code class='inline'>def get_status(self, name: str) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>recovery_evidence</code></td><td><code class='inline'>def recovery_evidence(self, name: str) -&gt; list[dict[str, Any]]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>snapshot</code></td><td><code class='inline'>def snapshot(self) -&gt; list[dict[str, Any]]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>stop_all</code></td><td><code class='inline'>async def stop_all(self) -&gt; None</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+a
+u
+t
+o
+m
+a
+t
+i
+o
+n
+_
+s
+u
+p
+e
+r
+v
+i
+s
+o
+r
+ 
+i
+m
+p
+o
+r
+t
+ 
+A
+u
+t
+o
+m
+a
+t
+i
+o
+n
+S
+u
+p
+e
+r
+v
+i
+s
+o
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+A
+u
+t
+o
+m
+a
+t
+i
+o
+n
+S
+u
+p
+e
+r
+v
+i
+s
+o
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>VALID_STATUSES</code></td><td><code class='inline'>{&#x27;available&#x27;, &#x27;degraded&#x27;, &#x27;stale&#x27;, &#x27;unavailable&#x27;, &#x27;unknown&#x27;}</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

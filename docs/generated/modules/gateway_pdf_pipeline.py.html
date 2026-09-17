@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.pdf_pipeline — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.pdf_pipeline</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.pdf_pipeline</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/pdf_pipeline.py</code> &middot; Python &middot; 5 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Phase 9 PDF pipeline — LlamaCloud primary, PyMuPDF fallback.
+
+Inline image vision is opt-in because the main knowledge pipeline already has a
+separate vision-enrichment stage for manuals and other high-value PDFs.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>contracts.pdf_chunk</code>, <code class='inline'>fitz</code>, <code class='inline'>gateway.vision</code>, <code class='inline'>llama_cloud</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>pdfplumber</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-extract_pdf_enhanced'><code class='inline'>extract_pdf_enhanced</code></a></td><td>Extract text and images from a PDF. Returns one PdfChunk per logical page/section.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_extract_text_llamacloud'><code class='inline'>_extract_text_llamacloud</code></a></td><td>Extract text via LlamaCloud parsing API (returns structured markdown).</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_extract_text_fallback'><code class='inline'>_extract_text_fallback</code></a></td><td>Extract plain text using PyMuPDF, then pdfplumber as secondary fallback.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_get_pdf_images'><code class='inline'>_get_pdf_images</code></a></td><td>Return list of (image_bytes, mime_type) for all embedded images in the PDF.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_extract_images_with_vision'><code class='inline'>_extract_images_with_vision</code></a></td><td>Describe each embedded image using Claude Sonnet vision. Skips tiny images.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr></table></div>
+<div class='card' id='fn-extract_pdf_enhanced'><h3><code class='inline'>extract_pdf_enhanced</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def extract_pdf_enhanced(path: Path) -&gt; list[PdfChunk]</code></div><p>Extract text and images from a PDF. Returns one PdfChunk per logical page/section.
+
+Strategy:
+1. Try LlamaCloud parsing (if LLAMA_CLOUD_API_KEY set) — structured markdown output
+2. Fall back to PyMuPDF → pdfplumber for plain text
+3. Inline image vision is off by default; use the knowledge pipeline&#x27;s
+   separate vision enrichment stage for manuals / high-value scans.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.pdf_pipeline import extract_pdf_enhanced
+
+result = extract_pdf_enhanced(path=&quot;path_example&quot;)
+# result: list[PdfChunk]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_extract_text_llamacloud'><h3><code class='inline'>_extract_text_llamacloud</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _extract_text_llamacloud(path: Path, api_key: str) -&gt; str</code></div><p>Extract text via LlamaCloud parsing API (returns structured markdown).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.pdf_pipeline import _extract_text_llamacloud
+
+result = _extract_text_llamacloud(path=&quot;path_example&quot;, api_key=&quot;api_key_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_extract_text_fallback'><h3><code class='inline'>_extract_text_fallback</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _extract_text_fallback(path: Path) -&gt; str</code></div><p>Extract plain text using PyMuPDF, then pdfplumber as secondary fallback.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.pdf_pipeline import _extract_text_fallback
+
+result = _extract_text_fallback(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_get_pdf_images'><h3><code class='inline'>_get_pdf_images</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _get_pdf_images(path: Path) -&gt; list[tuple[bytes, str]]</code></div><p>Return list of (image_bytes, mime_type) for all embedded images in the PDF.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.pdf_pipeline import _get_pdf_images
+
+result = _get_pdf_images(path=&quot;path_example&quot;)
+# result: list[tuple[bytes, str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_extract_images_with_vision'><h3><code class='inline'>_extract_images_with_vision</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _extract_images_with_vision(path: Path) -&gt; list[str]</code></div><p>Describe each embedded image using Claude Sonnet vision. Skips tiny images.
+
+This is opt-in because bulk ingest should stay text-first by default.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.pdf_pipeline import _extract_images_with_vision
+
+result = _extract_images_with_vision(path=&quot;path_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>MIN_IMAGE_BYTES</code></td><td><code class='inline'>1024</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

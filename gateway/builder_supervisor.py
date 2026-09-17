@@ -45,6 +45,7 @@ from gateway import builder_attempt as ba
 from gateway import builder_autonomy as bau
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
+from gateway import builder_status as bstatus
 from gateway.builder_brief import default_branch_name
 from gateway.builder_queue_runs import RUN_ACTIVE_STATES
 from gateway.paths import BUILDER_QUEUE_DB
@@ -66,6 +67,8 @@ RUNWAY_TARGET_ENV = "KITTY_BUILDER_RUNWAY_TARGET"
 SLATE_AUTHOR_ARGV_ENV = "KITTY_BUILDER_SLATE_AUTHOR_ARGV_JSON"
 REPLENISHER_RECEIPT_FILE = "replenisher-status.json"
 REPLENISHER_LOG_FILE = "replenisher.log"
+LAUNCH_LOG_READ_BYTES = 16_384
+LAUNCH_LOG_DIAGNOSTIC_CAP = 2_000
 
 # The canonical run is the DSH adapter pair; it is the only executable the
 # supervisor may dispatch. Paid routes use these *same* scripts — only the
@@ -107,17 +110,19 @@ def _supervisor_route_argv() -> list[str]:
     return ["--paid", "--tier", route]
 
 
-# Unattended dispatch publishes each succeeded packet as its own branch and pull
-# request, and stops there. Jacob authorized publication on 2026-09-16 and
+# Unattended dispatch publishes each succeeded packet as its own branch and
+# pull request, and stops there. Jacob authorized publication on 2026-09-16 and
 # docs/ACTIVE_MISSION.md records the scope: opening a pull request, never
 # merging one.
 #
 # 'manual' is the load-bearing word. The auto gate is a real capability under
 # ADRs 0018 and 0021 — evidence-gated auto-merge with auto-revert — and it is
-# deliberately not used here. Without publication a finished packet produced a
-# branch nobody saw; with the auto gate it would merge itself. Parking each PR
-# at awaiting_review is the only shape that makes the work visible while leaving
-# the merge decision where it belongs.
+# deliberately not used here. PR #889 dispatched these flags before the CLI
+# accepted them, and every unattended launch died at argument parsing; the
+# dispatch/CLI contract now lives in PR #895 (run-packet --publish attaches the
+# succeeded packet's final report under its lease fence, then publishes), and
+# the parser regression in tests/test_builder_supervisor.py parses this argv
+# through the real CLI parser so the seam cannot drift silently again.
 SUPERVISOR_PUBLISH_ARGV = ["--publish", "--gate", "manual"]
 
 
@@ -383,9 +388,57 @@ def _scheduler_enabled() -> bool | None:
     return None
 
 
+def _launch_log_tail(
+    log_path: Path | None, *, start_offset: int = 0, limit: int = 12
+) -> str:
+    """Return a bounded, redacted tail written by this launch only."""
+    if log_path is None:
+        return ""
+    try:
+        path = Path(log_path)
+        with path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            end_offset = handle.tell()
+            launch_offset = max(0, int(start_offset))
+            if end_offset <= launch_offset:
+                return ""
+            read_offset = max(launch_offset, end_offset - LAUNCH_LOG_READ_BYTES)
+            handle.seek(read_offset)
+            raw = handle.read(end_offset - read_offset)
+    except OSError as exc:
+        detail = bstatus.safe_operator_message(
+            f"{type(exc).__name__}: {exc}", cap=500
+        ) or type(exc).__name__
+        return f"launch log unavailable: {detail}"
+
+    text = raw.decode("utf-8", errors="replace")
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    selected = "\n".join(lines[-limit:])
+    safe = bstatus.safe_operator_message(
+        selected, cap=LAUNCH_LOG_READ_BYTES * 2
+    ) or ""
+    if len(safe) > LAUNCH_LOG_DIAGNOSTIC_CAP:
+        safe = "…" + safe[-(LAUNCH_LOG_DIAGNOSTIC_CAP - 1):]
+    return safe
+
+
+def _claim_failure(
+    base: str, log_path: Path | None, *, log_start_offset: int = 0
+) -> str:
+    """Attach only this child's bounded, sanitized output to the failure."""
+    tail = _launch_log_tail(log_path, start_offset=log_start_offset)
+    if not tail:
+        return base
+    return f"{base}; child output (last lines):\n{tail}"
+
+
 def _wait_for_durable_claim(
     task_id: str, process: subprocess.Popen[Any], *, initial_claim_version: int,
     db_path: Path | None, timeout_seconds: float = 60.0,
+    log_path: Path | None = None,
+    log_start_offset: int = 0,
 ) -> dict[str, Any]:
     """Wait until the detached child has durably claimed its queue task."""
     deadline = time.monotonic() + timeout_seconds
@@ -394,7 +447,14 @@ def _wait_for_durable_claim(
         if task is not None and int(task.get("claim_version") or 0) > initial_claim_version:
             return task
         if process.poll() is not None:
-            raise SupervisorError(f"Builder child {process.pid} exited before durably claiming task {task_id}")
+            raise SupervisorError(
+                _claim_failure(
+                    f"Builder child {process.pid} exited before durably claiming "
+                    f"task {task_id}",
+                    log_path,
+                    log_start_offset=log_start_offset,
+                )
+            )
         time.sleep(0.05)
     # Final re-check: the child can land its durable claim in the instant
     # between the last loop iteration and here. Killing it in that gap would
@@ -416,7 +476,14 @@ def _wait_for_durable_claim(
             except ProcessLookupError:
                 pass
             process.wait(timeout=2.0)
-    raise SupervisorError(f"Builder child {process.pid} did not durably claim task {task_id} within {timeout_seconds:g}s")
+    raise SupervisorError(
+        _claim_failure(
+            f"Builder child {process.pid} did not durably claim task {task_id} "
+            f"within {timeout_seconds:g}s",
+            log_path,
+            log_start_offset=log_start_offset,
+        )
+    )
 
 
 class SupervisorLock:
@@ -796,6 +863,7 @@ def _launch_run(
                 f"task {task_id} already has a supervisor dispatch in progress"
             )
         with log_path.open("ab") as log_handle:
+            log_start_offset = os.fstat(log_handle.fileno()).st_size
             process = subprocess.Popen(
                 command,
                 cwd=str(root),
@@ -810,7 +878,8 @@ def _launch_run(
             )
         dispatch_lock.handoff_to_child()
     claimed = _wait_for_durable_claim(
-        task_id, process, initial_claim_version=initial_claim_version, db_path=db_path
+        task_id, process, initial_claim_version=initial_claim_version,
+        db_path=db_path, log_path=log_path, log_start_offset=log_start_offset,
     )
     return {
         "status": "dispatched",

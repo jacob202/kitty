@@ -1602,3 +1602,8 @@ def _safe_message(value: Any, *, cap: int = _MESSAGE_CAP) -> str | None:
     if len(redacted) <= cap:
         return redacted
     return f"{redacted[:cap - 1]}…"
+
+
+def safe_operator_message(value: Any, *, cap: int = _MESSAGE_CAP) -> str | None:
+    """Sanitize bounded operator-facing diagnostic text with the shared policy."""
+    return _safe_message(value, cap=cap)

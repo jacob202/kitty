@@ -5,7 +5,7 @@
 **Approved by:** Jacob on 2026-08-29
 **Base SHA:** `e2b7a061e87b159f535e37b021d9c6a2955647c4`
 **Spend ceiling:** CAD 6.00 per week, enforced by `config/compute_governor.json`
-**Last reconciled against live evidence:** 2026-09-14
+**Last reconciled against live evidence:** 2026-09-17
 
 <!-- kitty-mission
 {
@@ -31,6 +31,18 @@ defines what "done" looks like in the long run; it is not a second queue.
 Everything under `docs/plans/`, `docs/packets/`, `docs/initiatives/`,
 `docs/phases/` and `docs/superpowers/` is candidate evidence and never activates
 work by existing. Agents update *this* file rather than writing a new plan.
+
+**But it is authority over intent, never over live state.** This file owns the
+objective, the sequence, priority, constraints, acceptance criteria, and why a
+step exists. It does **not** own whether a PR is open or merged, the current SHA,
+CI status, what is running, queue depth, lease ownership, or provider
+availability. Those are owned by Git, GitHub, Builder's projections and the
+runtime, and must be read from them at the moment of use. Any copy written here
+is a dated quotation, not a fact — stamp it with the date it was observed and
+never let it outrank its owner. This rule exists because it was broken: on
+2026-09-17 this table still called PR #870 open and blocked on six reviewer
+threads, a full day after GitHub recorded it merged, and that stale row was the
+stated reason BUILDER-001 "could not" be driven.
 
 ## Objective
 
@@ -66,7 +78,7 @@ are kept only because open PRs and GAR handoffs reference them.
 | **REC-001** — one trustworthy baseline | — | **Partially done** | Build provenance is provable: `kitty status` reports `build source == HEAD`, `freshness checkout-current`, gateway-truth PASS (verified 2026-09-14). Every build path now records its own source revision — `npm run build` chains `gateway/kitty-chat/scripts/stamp-source-sha.mjs`, stamping the commit on a clean tree and `dirty:<sha>` otherwise, so no build can leave provenance `unknown` (2026-09-14). Self-healing on a *stale* build is still not implemented; it reports truthfully and waits for a human. |
 | **WORK-001** — repair Work | R-1 | **Done on main** | PR #852 / `8ba172ad` — truthful resume and route state. |
 | **RESULT-001** — durable results reach Work and Library | R-2 | **Done on main** | PR #855 / `12d49e39` — reuse durable Builder results. |
-| **BUILDER-001** — chat → packet → result | **R-3** | **Blocked; never driven** | PR #870 open at `2417f82a`, all 12 checks green, blocked on **6 unresolved reviewer threads** (4×P1 + 1×P2 on `gateway/mission_runtime.py`, 1×P1 on `gateway/routes/missions.py`, 1×P1 on the acceptance test). The end-to-end journey has **never been run** — see `~/kb/handoffs/2026-09-13-kitty-r3-acceptance-record.md`: "the bounded product journey has NOT been run." |
+| **BUILDER-001** — chat → packet → result | **R-3** | **Unblocked; never driven** | Construction is finished. PR #870 merged 2026-09-16 and `kitty accept status \| template \| record` runs on `main` (verified 2026-09-17). What remains is not a build: the end-to-end journey has **never been run** — see `~/kb/handoffs/2026-09-13-kitty-r3-acceptance-record.md`: "the bounded product journey has NOT been run." `data/kitty.db` still has no `missions` table, so the Mission control plane has never touched real data. Driving it needs a fresh packet against current HEAD (see below) — a decision, not a repair. |
 | **VALUE-001** — is Kitty worth operating? | return-program checkpoint | **Not started; gates everything below** | Three representative jobs vs Jacob's current tools: resume a project after interruption, request and recover a bounded result, find and reuse a past result. Continue / narrow / shrink decision. |
 | **HOME-001** — repair Home and Chat | R-4 | **Not started** | No commit on `origin/main` references it. |
 | **IMAGE-001 + LIBRARY-001** | R-5 | **Not started** | Screens pre-date the mission. Image Lab planning is complete and parked at `~/kb/handoffs/2026-09-09-image-lab-character-fidelity-planning-closeout.md`. |
@@ -76,12 +88,12 @@ are kept only because open PRs and GAR handoffs reference them.
 **Merging PR #870 is not BUILDER-001.** Driving the journey is. Implementation
 evidence is not user-outcome completion.
 
-Driving it was also impossible until 2026-09-14: PR #870 built the trusted local
-acceptance boundary (`record_running_product_acceptance`) but nothing could call
-it — no command, no route, only tests. `kitty accept status | template | record`
-now exists on `fix/r3-acceptance-operator-20260914`, stacked on #870. Jacob's
-live database also has no `missions` table at all, which is the plainest
-available proof that the Mission control plane has never run against real data.
+Driving it was genuinely impossible until 2026-09-16, and is no longer. PR #870
+built the trusted local acceptance boundary (`record_running_product_acceptance`)
+but nothing could call it — no command, no route, only tests. That gap is closed:
+#870 merged 2026-09-16 and `kitty accept status | template | record` answers on
+`main`. **Every remaining excuse for not driving R-3 is now a scheduling choice,
+not a missing part.**
 
 ## Built but switched off — 2026-09-14
 
@@ -149,7 +161,10 @@ cancelled tasks were cancelled on 2026-09-01 as a deliberate curation, and
   Builder may not merge, provision paid infrastructure, or alter credentials,
   and the ADR 0018 / ADR 0021 evidence-gated auto-merge capability remains
   unused by unattended dispatch. Opening a pull request is how the work becomes
-  visible; merging it stays a human decision.
+  visible; merging it stays a human decision. The unattended publish path was
+  wired on 2026-09-17 (PR #895): `run-packet --publish --gate manual` attaches
+  the succeeded packet's final report under its lease fence, then publishes; a
+  publication failure keeps the worktree and never reclassifies the packet.
 - User-facing copy carries no packet IDs, ports, env vars, raw HTTP status,
   stack traces, or internal service names.
 - Pending, skipped, stale, or self-authored review evidence is unverified.

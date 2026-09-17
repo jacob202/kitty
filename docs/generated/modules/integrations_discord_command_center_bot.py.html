@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>integrations.discord_command_center.bot — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">integrations.discord_command_center.bot</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>integrations.discord_command_center.bot</code></h1>
+<p class='muted small'>Source: <code class='inline'>integrations/discord_command_center/bot.py</code> &middot; Python &middot; 6 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>.adapters.codex</code>, <code class='inline'>.config</code>, <code class='inline'>.runner</code>, <code class='inline'>.scrub</code>, <code class='inline'>.service</code>, <code class='inline'>.tasks</code>, <code class='inline'>.workspace</code>, <code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>collections.abc</code>, <code class='inline'>contextlib</code>, <code class='inline'>discord</code>, <code class='inline'>discord.ext</code>, <code class='inline'>os</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_bounded_text'><code class='inline'>_bounded_text</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_status_card'><code class='inline'>_status_card</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_result_card'><code class='inline'>_result_card</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-split_discord_message'><code class='inline'>split_discord_message</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-create_bot'><code class='inline'>create_bot</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_bounded_text'><h3><code class='inline'>_bounded_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _bounded_text(text: str, limit: int) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.bot import _bounded_text
+
+result = _bounded_text(text=&quot;text_example&quot;, limit=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_status_card'><h3><code class='inline'>_status_card</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _status_card(state: str, detail: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.bot import _status_card
+
+result = _status_card(state=&quot;state_example&quot;, detail=&quot;detail_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_result_card'><h3><code class='inline'>_result_card</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _result_card(event_kind: str, message: str, answer: str | None = None) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.bot import _result_card
+
+result = _result_card(event_kind=&quot;event_kind_example&quot;, message=&quot;message_example&quot;, answer=&quot;answer_example&quot;  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-split_discord_message'><h3><code class='inline'>split_discord_message</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def split_discord_message(text: str, limit: int = DISCORD_MESSAGE_LIMIT) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.bot import split_discord_message
+
+result = split_discord_message(text=&quot;text_example&quot;, limit=0  # default: DISCORD_MESSAGE_LIMIT)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_bot'><h3><code class='inline'>create_bot</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def create_bot(config: CommandCenterConfig) -&gt; commands.Bot</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.bot import create_bot
+
+result = create_bot(config=...)
+# result: commands.Bot</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from integrations.discord_command_center.bot import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-VibeController'><code class='inline'>VibeController</code></a></td><td></td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-VibeController'><h3><code class='inline'>VibeController</code></h3><p>Undocumented class.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, service: VibeService, war_room_channel_id: int | None = None, allowed_user_ids: Collection[int] | Non</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>handle</code></td><td><code class='inline'>async def handle(self, interaction: Any, request: str) -&gt; None</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>cancel</code></td><td><code class='inline'>async def cancel(self, interaction: Any, task_id: str | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>status</code></td><td><code class='inline'>async def status(self, interaction: Any, task_id: str | None = None) -&gt; None</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>_authorized</code></td><td><code class='inline'>def _authorized(self, interaction: Any) -&gt; bool</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+i
+n
+t
+e
+g
+r
+a
+t
+i
+o
+n
+s
+.
+d
+i
+s
+c
+o
+r
+d
+_
+c
+o
+m
+m
+a
+n
+d
+_
+c
+e
+n
+t
+e
+r
+.
+b
+o
+t
+ 
+i
+m
+p
+o
+r
+t
+ 
+V
+i
+b
+e
+C
+o
+n
+t
+r
+o
+l
+l
+e
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+V
+i
+b
+e
+C
+o
+n
+t
+r
+o
+l
+l
+e
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DISCORD_MESSAGE_LIMIT</code></td><td><code class='inline'>1900</code></td></tr><tr><td><code class='inline'>_NO_MENTIONS</code></td><td><code class='inline'>discord.AllowedMentions.none()</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='integrations_discord_command_center_adapters.py.html'><code class='inline'>integrations.discord_command_center.adapters</code></a></li><li><a href='integrations_discord_command_center_config.py.html'><code class='inline'>integrations.discord_command_center.config</code></a></li><li><a href='integrations_discord_command_center_models.py.html'><code class='inline'>integrations.discord_command_center.models</code></a></li><li><a href='integrations_discord_command_center_runner.py.html'><code class='inline'>integrations.discord_command_center.runner</code></a></li><li><a href='integrations_discord_command_center_runtime.py.html'><code class='inline'>integrations.discord_command_center.runtime</code></a></li><li><a href='integrations_discord_command_center_scrub.py.html'><code class='inline'>integrations.discord_command_center.scrub</code></a></li><li><a href='integrations_discord_command_center_service.py.html'><code class='inline'>integrations.discord_command_center.service</code></a></li><li><a href='integrations_discord_command_center_smoke.py.html'><code class='inline'>integrations.discord_command_center.smoke</code></a></li><li><a href='integrations_discord_command_center_tasks.py.html'><code class='inline'>integrations.discord_command_center.tasks</code></a></li><li><a href='integrations_discord_command_center_workspace.py.html'><code class='inline'>integrations.discord_command_center.workspace</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

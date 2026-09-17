@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.health_surface — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.health_surface</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.health_surface</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/health_surface.py</code> &middot; Python &middot; 16 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Kitty Health surface — read-only projection answering &quot;is Kitty working?&quot;.
+
+Composes existing lifecycle/readiness primitives (automation supervisor,
+cron, image provider probes, image jobs, memory probe, grant store) into a
+single glanceable snapshot. Does NOT introduce a second health database and
+does NOT mutate any source of truth.
+
+The supervisor status vocabulary is reused verbatim:
+``available / degraded / stale / unavailable / unknown``.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.automation_supervisor</code>, <code class='inline'>gateway.http_client</code>, <code class='inline'>gateway.image_jobs</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>httpx</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_now_iso'><code class='inline'>_now_iso</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_gateway_source'><code class='inline'>_gateway_source</code></a></td><td>Gateway is serving (this projection is served by it); LiteLLM is the</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_database_source'><code class='inline'>_database_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_memory_source'><code class='inline'>_memory_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_supervisor_source'><code class='inline'>_supervisor_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_cron_source'><code class='inline'>_cron_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_telegram_source'><code class='inline'>_telegram_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_image_lab_source'><code class='inline'>_image_lab_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_image_providers_source'><code class='inline'>_image_providers_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_image_queue_source'><code class='inline'>_image_queue_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_ollama_source'><code class='inline'>_ollama_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_mcp_tools_source'><code class='inline'>_mcp_tools_source</code></a></td><td>Project MCP cutoff truth without pretending configured servers are live.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_pending_grants_source'><code class='inline'>_pending_grants_source</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_worst_status'><code class='inline'>_worst_status</code></a></td><td>Return the most-severe supervisor status from an iterable.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-default_sources'><code class='inline'>default_sources</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-build_health_surface'><code class='inline'>build_health_surface</code></a></td><td>Build the KittyHealth snapshot from the given (or default) domain sources.</td><td><span class='pill'>complex</span><span class='muted small'>(15)</span></td></tr></table></div>
+<div class='card' id='fn-_now_iso'><h3><code class='inline'>_now_iso</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _now_iso() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.health_surface import _now_iso
+
+result = _now_iso()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_gateway_source'><h3><code class='inline'>_gateway_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _gateway_source() -&gt; HealthDomain</code></div><p>Gateway is serving (this projection is served by it); LiteLLM is the
+real dependency, probed exactly like GET /health does.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _gateway_source
+
+    result = await _gateway_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_database_source'><h3><code class='inline'>_database_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _database_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _database_source
+
+    result = await _database_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_memory_source'><h3><code class='inline'>_memory_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _memory_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _memory_source
+
+    result = await _memory_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_supervisor_source'><h3><code class='inline'>_supervisor_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def _supervisor_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _supervisor_source
+
+    result = await _supervisor_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cron_source'><h3><code class='inline'>_cron_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _cron_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _cron_source
+
+    result = await _cron_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_telegram_source'><h3><code class='inline'>_telegram_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def _telegram_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _telegram_source
+
+    result = await _telegram_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_image_lab_source'><h3><code class='inline'>_image_lab_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def _image_lab_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _image_lab_source
+
+    result = await _image_lab_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_image_providers_source'><h3><code class='inline'>_image_providers_source</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>async def _image_providers_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _image_providers_source
+
+    result = await _image_providers_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_image_queue_source'><h3><code class='inline'>_image_queue_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def _image_queue_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _image_queue_source
+
+    result = await _image_queue_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ollama_source'><h3><code class='inline'>_ollama_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _ollama_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _ollama_source
+
+    result = await _ollama_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mcp_tools_source'><h3><code class='inline'>_mcp_tools_source</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def _mcp_tools_source() -&gt; HealthDomain</code></div><p>Project MCP cutoff truth without pretending configured servers are live.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _mcp_tools_source
+
+    result = await _mcp_tools_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_pending_grants_source'><h3><code class='inline'>_pending_grants_source</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _pending_grants_source() -&gt; HealthDomain</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import _pending_grants_source
+
+    result = await _pending_grants_source()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_worst_status'><h3><code class='inline'>_worst_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _worst_status(statuses) -&gt; str</code></div><p>Return the most-severe supervisor status from an iterable.
+
+Order: available &lt; degraded &lt; stale &lt; unavailable &lt; unknown.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.health_surface import _worst_status
+
+result = _worst_status(statuses=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-default_sources'><h3><code class='inline'>default_sources</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def default_sources() -&gt; dict[str, HealthSource]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.health_surface import default_sources
+
+result = default_sources()
+# result: dict[str, HealthSource]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_health_surface'><h3><code class='inline'>build_health_surface</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (15)</span></h3><div class='sig'><code>async def build_health_surface(sources: dict[str, HealthSource] | None = None) -&gt; dict[str, Any]</code></div><p>Build the KittyHealth snapshot from the given (or default) domain sources.
+
+Domain probes are independent read-only checks, so they run concurrently.
+Exceptions still propagate rather than silently collapsing a broken source
+into a green result, preserving the existing fail-loud contract.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.health_surface import build_health_surface
+
+    result = await build_health_surface()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-HealthDomain'><code class='inline'>HealthDomain</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-HealthDomain'><h3><code class='inline'>HealthDomain</code></h3><p>One domain&#x27;s truthful lifecycle state for the projection.</p><p class='small'><b>Attributes:</b> name: str, status: str, reason: str, detail: dict[str, Any]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.health_surface import HealthDomain
+
+obj = HealthDomain(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_PROBLEM_STATUSES</code></td><td><code class='inline'>frozenset({&#x27;degraded&#x27;, &#x27;stale&#x27;, &#x27;unavailable&#x27;, &#x27;unknown&#x27;})</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

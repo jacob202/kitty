@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.memory_weave — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.memory_weave</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.memory_weave</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/memory_weave.py</code> &middot; Python &middot; 1 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Memory Weave — temporal knowledge graph for Kitty.
+
+Ported from ``~/Projects/kitty-salvage/memory/memory_weave.py`` (the
+abandoned ``src/*`` architecture, 737 lines) onto the current
+``gateway/storage_router`` + ``memory_graph`` substrate. See
+``docs/plans/chore-master-fix-and-deepen.md`` (C-track) and the salvage
+dig verdict at ``~/Projects/kitty-salvage/README.md``.
+
+The MemoryWeave is a temporal knowledge graph that tracks facts with
+provenance, confidence decay, and conflict resolution. It learns from:
+  1. User corrections (&quot;No, it&#x27;s 47Ω not 470Ω&quot;)
+  2. Tool failures (DeepSeek timeout at 2am)
+  3. Source conflicts (web says X, manual says Y)
+
+Core operations:
+  - ``weave.fact(entity, relation, value, source=...)`` — add a fact
+  - ``weave.query(entity, relation)`` — get the best fact (with decay)
+  - ``weave.correct(entity, relation, new_value, reason=...)`` — deprecate old, add new
+  - ``weave.event(event_type, description)`` — log an event
+  - ``weave.get_reliability(resource)`` — temporal reliability score
+
+Status (2026-08-21):
+  - Schema landed as migration 013 (``gateway/migrations/013_memory_weave.sql``).
+  - Core operations and temporal/conflict/correction helpers are implemented.
+  - Retrieval remains the main improvement target: benchmark current search,
+    then add hybrid lexical/vector fusion without changing MemoryWeave authority.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>enum</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>math</code>, <code class='inline'>re</code>, <code class='inline'>sqlite3</code>, <code class='inline'>threading</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_weave'><code class='inline'>get_weave</code></a></td><td>Return the process-wide MemoryWeave singleton.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-get_weave'><h3><code class='inline'>get_weave</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_weave() -&gt; MemoryWeave</code></div><p>Return the process-wide MemoryWeave singleton.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.memory_weave import get_weave
+
+result = get_weave()
+# result: MemoryWeave</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-SourceType'><code class='inline'>SourceType</code></a></td><td>(Enum)</td><td>0 methods</td></tr><tr><td><a href='#cls-WeaveEdge'><code class='inline'>WeaveEdge</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-WeaveQuery'><code class='inline'>WeaveQuery</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-MemoryWeave'><code class='inline'>MemoryWeave</code></a></td><td></td><td>18 methods</td></tr></table></div>
+<div class='card' id='cls-SourceType'><h3><code class='inline'>SourceType</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> USER_CORRECTION, USER_MANUAL, VERBAL_CONFIRMATION, WEB_SEARCH, DOCUMENT, KITTYP_GUESS, KITTYP_CORRECTED, TRAINING_DATA, UNKNOWN</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.memory_weave import SourceType
+
+obj = SourceType(...)</pre></div>
+<div class='card' id='cls-WeaveEdge'><h3><code class='inline'>WeaveEdge</code></h3><p>A fact edge in the knowledge graph.</p><p class='small'><b>Attributes:</b> id: Optional[int], entity: str, relation: str, value: str, confidence: float, source: str, source_type: str, timestamp: str, last_verified: Optional[str], deprecated: bool, deprecated_by: Optional[int], deprecated_reason: Optional[str]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>age_days</code></td><td><code class='inline'>def age_days(self) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_weave import WeaveEdge
+
+obj = WeaveEdge(...)</pre></div>
+<div class='card' id='cls-WeaveQuery'><h3><code class='inline'>WeaveQuery</code></h3><p>Result of a knowledge graph query, with provenance + confidence.</p><p class='small'><b>Attributes:</b> fact: str, confidence: float, last_verified: Optional[str], source_chain: list[str], related_failures: list[str], is_stale: bool</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.memory_weave import WeaveQuery
+
+obj = WeaveQuery(...)</pre></div>
+<div class='card' id='cls-MemoryWeave'><h3><code class='inline'>MemoryWeave</code></h3><p>Temporal knowledge graph with confidence decay and conflict resolution.
+
+Core operations:
+  - ``fact(entity, relation, value, source=...)`` — add a fact
+  - ``query(entity, relation)`` — get best fact
+  - ``correct(entity, relation, new_value, reason=...)`` — deprecate old, add new
+  - ``event(event_type, description)`` — log an event
+  - ``get_reliability(resource)`` — temporal reliability score</p><p class='small'><b>Attributes:</b> DECAY_LAMBDA, STALE_THRESHOLD_DAYS, CORRECTION_BOOST</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fact</code></td><td><code class='inline'>def fact(self, entity: str, relation: str, value: str, source: str, source_type: str = &#x27;unknown&#x27;, confidence: float = 0.</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>correct</code></td><td><code class='inline'>def correct(self, entity: str, relation: str, new_value: str, source: str, source_type: str = &#x27;user_correction&#x27;, reason:</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>event</code></td><td><code class='inline'>def event(self, event_type: str, entity: Optional[str] = None, description: Optional[str] = None, severity: str = &#x27;info&#x27;</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get_recent_events</code></td><td><code class='inline'>def get_recent_events(self, event_type: Optional[str] = None, hours: int = 24, limit: int = 50) -&gt; list[dict]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>query</code></td><td><code class='inline'>def query(self, entity: str, relation: str) -&gt; Optional[WeaveQuery]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>search</code></td><td><code class='inline'>def search(self, query: str, limit: int = 10) -&gt; list[WeaveQuery]</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>_load_edges</code></td><td><code class='inline'>def _load_edges(self, entity: str, relation: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_calculate_score</code></td><td><code class='inline'>def _calculate_score(self, edge: WeaveEdge) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_build_source_chain</code></td><td><code class='inline'>def _build_source_chain(self, edge: WeaveEdge) -&gt; list[str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_get_related_failures</code></td><td><code class='inline'>def _get_related_failures(self, entity: str, relation: str) -&gt; list[str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_source_weight</code></td><td><code class='inline'>def _source_weight(self, source_type: str) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>get_reliability</code></td><td><code class='inline'>def get_reliability(self, resource: str, current_time: Optional[datetime] = None) -&gt; dict</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>get_conflicts</code></td><td><code class='inline'>def get_conflicts(self, entity: str, relation: str) -&gt; list[WeaveQuery]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>surface_conflict</code></td><td><code class='inline'>def surface_conflict(self, entity: str, relation: str) -&gt; dict</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>log_conversation</code></td><td><code class='inline'>def log_conversation(self, role: str, content: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>detect_corrections</code></td><td><code class='inline'>def detect_corrections(self, hours: int = 24) -&gt; list[dict]</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>get_stale_facts</code></td><td><code class='inline'>def get_stale_facts(self, days: int = 30) -&gt; list[WeaveEdge]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+m
+e
+m
+o
+r
+y
+_
+w
+e
+a
+v
+e
+ 
+i
+m
+p
+o
+r
+t
+ 
+M
+e
+m
+o
+r
+y
+W
+e
+a
+v
+e
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+M
+e
+m
+o
+r
+y
+W
+e
+a
+v
+e
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_CACHE_MAX_SIZE</code></td><td><code class='inline'>500</code></td></tr><tr><td><code class='inline'>_CACHE_TTL_SECONDS</code></td><td><code class='inline'>1800</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

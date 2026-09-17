@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.mempalace_preflight — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.mempalace_preflight</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.mempalace_preflight</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/mempalace_preflight.py</code> &middot; Python &middot; 6 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>MemPalace preflight — prove the installed package before you trust it.
+
+The MemPalace adapter (`gateway/mempalace_adapter.py`) and the migration script
+were written WITHOUT a MemPalace package available to test against. This script
+is the safety net: run it first, on your machine, with `mempalace` installed.
+It confirms the read path the adapter depends on and surfaces the real CLI
+subcommand names you&#x27;ll need for ingestion — so nothing downstream is a guess.
+
+Read-only by default (never writes to your store). Usage:
+
+    pip install mempalace
+    python scripts/mempalace_preflight.py
+
+Exit code 0 = the search/read path is verified. Non-zero = fix before migrating.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>mempalace</code>, <code class='inline'>os</code>, <code class='inline'>shutil</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_print'><code class='inline'>_print</code></a></td><td>Emit a colored status line to stdout AND the log.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-check_python_import'><code class='inline'>check_python_import</code></a></td><td>Is the Python package importable? (Informational — adapter uses the CLI.)</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-check_cli_present'><code class='inline'>check_cli_present</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-dump_subcommands'><code class='inline'>dump_subcommands</code></a></td><td>Print the real CLI surface so the ingest subcommand name is never a guess.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-check_search_shape'><code class='inline'>check_search_shape</code></a></td><td>Run a real search and validate it against what `MemPalaceAdapter._parse` expects.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_print'><h3><code class='inline'>_print</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _print(symbol: str, msg_or_level: object, msg: str | None = None) -&gt; None</code></div><p>Emit a colored status line to stdout AND the log.
+
+Backwards-compatible: ``_print(OK, &quot;msg&quot;)`` still works (defaults the
+level from ``_DEFAULT_LEVEL_FOR_SYMBOL``), and the explicit
+``_print(OK, logging.INFO, &quot;msg&quot;)`` form is preferred for new call sites.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.mempalace_preflight import _print
+
+result = _print(symbol=&quot;symbol_example&quot;, msg_or_level=..., msg=&quot;msg_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_python_import'><h3><code class='inline'>check_python_import</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def check_python_import() -&gt; bool</code></div><p>Is the Python package importable? (Informational — adapter uses the CLI.)</p><h3>Example Usage (synthetic)</h3><pre>from scripts.mempalace_preflight import check_python_import
+
+result = check_python_import()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_cli_present'><h3><code class='inline'>check_cli_present</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def check_cli_present() -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.mempalace_preflight import check_cli_present
+
+result = check_cli_present()
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-dump_subcommands'><h3><code class='inline'>dump_subcommands</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def dump_subcommands(exe: str) -&gt; None</code></div><p>Print the real CLI surface so the ingest subcommand name is never a guess.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.mempalace_preflight import dump_subcommands
+
+result = dump_subcommands(exe=&quot;exe_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-check_search_shape'><h3><code class='inline'>check_search_shape</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def check_search_shape(exe: str) -&gt; bool</code></div><p>Run a real search and validate it against what `MemPalaceAdapter._parse` expects.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.mempalace_preflight import check_search_shape
+
+result = check_search_shape(exe=&quot;exe_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.mempalace_preflight import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ROOT</code></td><td><code class='inline'>os.path.dirname(os.path.dirname(os.path.abspath(__file__)))</code></td></tr><tr><td><code class='inline'>CANARY_QUERY</code></td><td><code class='inline'>&#x27;kitty mempalace preflight canary&#x27;</code></td></tr><tr><td><code class='inline'>OK</code></td><td><code class='inline'>&#x27;\x1b[32m✓\x1b[0m&#x27;</code></td></tr><tr><td><code class='inline'>NO</code></td><td><code class='inline'>&#x27;\x1b[31m✗\x1b[0m&#x27;</code></td></tr><tr><td><code class='inline'>WARN</code></td><td><code class='inline'>&#x27;\x1b[33m!\x1b[0m&#x27;</code></td></tr><tr><td><code class='inline'>_DEFAULT_LEVEL_FOR_SYMBOL</code></td><td><code class='inline'>dict[str, int]</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

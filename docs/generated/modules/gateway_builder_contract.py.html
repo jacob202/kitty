@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_contract — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_contract</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_contract</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_contract.py</code> &middot; Python &middot; 6 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Builder contract — validate and run Ideal-State-Criteria (ISC) checks.
+
+A contract is a goal + a list of binary success criteria + optional
+validation commands. This module validates a contract&#x27;s structure and
+optionally runs it against the canonical ISC machinery in
+:mod:`gateway.builder_isc`.
+
+Layer 1A: contract validate is safe, read-only coordination.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>subprocess</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-validate_contract'><code class='inline'>validate_contract</code></a></td><td>Return a list of validation errors; empty list means the contract is valid.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_workflow_string_list'><code class='inline'>_workflow_string_list</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-compile_workflow'><code class='inline'>compile_workflow</code></a></td><td>Compile a Builder contract into explicit artifact/control-flow steps.</td><td><span class='pill'>complex</span><span class='muted small'>(28)</span></td></tr><tr><td><a href='#fn-_run_command'><code class='inline'>_run_command</code></a></td><td>Run one shell command and return structured results.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-run_contract'><code class='inline'>run_contract</code></a></td><td>Validate and run a builder contract.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-load_contract'><code class='inline'>load_contract</code></a></td><td>Load a contract from a JSON or markdown file.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-validate_contract'><h3><code class='inline'>validate_contract</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def validate_contract(spec: dict[str, Any]) -&gt; list[str]</code></div><p>Return a list of validation errors; empty list means the contract is valid.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_contract import validate_contract
+
+result = validate_contract(spec=&quot;spec_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_workflow_string_list'><h3><code class='inline'>_workflow_string_list</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _workflow_string_list(value: Any, label: str) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_contract import _workflow_string_list
+
+result = _workflow_string_list(value=..., label=&quot;label_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compile_workflow'><h3><code class='inline'>compile_workflow</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (28)</span></h3><div class='sig'><code>def compile_workflow(spec: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Compile a Builder contract into explicit artifact/control-flow steps.
+
+The compiler is deliberately deterministic. It does not ask a model to
+invent a workflow: authored steps are normalized and checked, while legacy
+contracts become one explicit ``execute`` step for incremental adoption.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_contract import compile_workflow
+
+result = compile_workflow(spec=&quot;spec_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_command'><h3><code class='inline'>_run_command</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _run_command(cmd: str, cwd: Path | None = None, timeout: float = 60.0) -&gt; dict[str, Any]</code></div><p>Run one shell command and return structured results.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_contract import _run_command
+
+result = _run_command(cmd=&quot;cmd_example&quot;, cwd=&quot;cwd_example&quot;  # default: None, timeout=0.0  # default: 60.0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_contract'><h3><code class='inline'>run_contract</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def run_contract(spec: dict[str, Any], cwd: Path | None = None, evidence: str | None = None) -&gt; dict[str, Any]</code></div><p>Validate and run a builder contract.
+
+Returns a dict with:
+  - valid: bool
+  - goal: str
+  - criteria: list[dict] (checked results)
+  - command_results: list[dict]
+  - passed: bool</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_contract import run_contract
+
+result = run_contract(spec=&quot;spec_example&quot;, cwd=&quot;cwd_example&quot;  # default: None, evidence=&quot;evidence_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-load_contract'><h3><code class='inline'>load_contract</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def load_contract(path: Path) -&gt; dict[str, Any]</code></div><p>Load a contract from a JSON or markdown file.
+
+For markdown, looks for a fenced JSON block under a ``## Contract`` header.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_contract import load_contract
+
+result = load_contract(path=&quot;path_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ContractError'><code class='inline'>ContractError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ContractError'><h3><code class='inline'>ContractError</code></h3><p>Malformed or un-runnable builder contract.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_contract import ContractError
+
+obj = ContractError(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

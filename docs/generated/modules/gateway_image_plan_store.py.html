@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_plan_store — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_plan_store</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_plan_store</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_plan_store.py</code> &middot; Python &middot; 19 functions &middot; 7 classes</p>
+<div class='card'><h2>Overview</h2><p>Durable, session-owned image plans (issue #336, slice A2).
+
+A1 made the Image Studio session durable but the plan was still an ephemeral
+preview: /studio/generate re-derived everything from mutable form state, so a
+field edited after the user approved the plan silently changed what rendered.
+This module persists the approved ``ImagePlan`` under a stable ``plan_id`` owned
+by the session that created it, and A2&#x27;s dispatch path reads the render inputs
+from the stored plan — never from the live form.
+
+This module now imports ``ALLOWED_REFERENCE_ROLES`` from ``gateway.image_plan_types``
+instead of ``gateway.image_plan``, reflecting the module rename.
+
+Boundaries:
+- This module owns plan persistence only. ``image_jobs`` remains the record of
+  what was rendered, and ``image_runner`` remains the only dispatch path.
+  Nothing here submits work to a renderer.
+- A plan is owned by exactly one session. Dispatching a plan under a different
+  session is rejected at load time, so a plan id leaked between conversations
+  cannot cross session boundaries.
+- Every mutation and load validates and raises. There are no silent fallbacks:
+  an unknown, malformed, unapproved, or cross-session plan fails loud at load
+  time instead of silently dispatching form state.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>enum</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.image_plan_types</code>, <code class='inline'>gateway.image_policy</code>, <code class='inline'>gateway.image_sessions</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>math</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_now_iso'><code class='inline'>_now_iso</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_new_plan_id'><code class='inline'>_new_plan_id</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_check_json_bounded'><code class='inline'>_check_json_bounded</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_check_text_bounded'><code class='inline'>_check_text_bounded</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_encode_list'><code class='inline'>_encode_list</code></a></td><td>Serialise a list, rejecting entries that are blank or not strings.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_decode_list'><code class='inline'>_decode_list</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_ensure_plan_operation_columns'><code class='inline'>_ensure_plan_operation_columns</code></a></td><td>Add image_plans.operation/anchor_job_id if absent (migration 035).</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_ensure_plan_intent_column'><code class='inline'>_ensure_plan_intent_column</code></a></td><td>Add the versioned provider-neutral intent payload to persisted plans.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_ensure_plan_policy_columns'><code class='inline'>_ensure_plan_policy_columns</code></a></td><td>Add image_plans content-lane columns if absent (IL-02 migration).</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_ensure_db'><code class='inline'>_ensure_db</code></a></td><td>Apply this module&#x27;s migration, plus the session schema it references.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_legacy_intent_from_row'><code class='inline'>_legacy_intent_from_row</code></a></td><td>Project a pre-ImageIntent row into the v1 provider-neutral contract.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_validate_intent_payload'><code class='inline'>_validate_intent_payload</code></a></td><td>Validate ImageIntent v1 as durable executable intent, not advisory JSON.</td><td><span class='pill'>complex</span><span class='muted small'>(60)</span></td></tr><tr><td><a href='#fn-_decode_intent'><code class='inline'>_decode_intent</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_row_to_plan'><code class='inline'>_row_to_plan</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_decode_refs'><code class='inline'>_decode_refs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-persist_plan'><code class='inline'>persist_plan</code></a></td><td>Persist an approved ``ImagePlan`` under a stable, session-owned id.</td><td><span class='pill'>complex</span><span class='muted small'>(32)</span></td></tr><tr><td><a href='#fn-get_plan'><code class='inline'>get_plan</code></a></td><td>Retrieve a persisted plan, or None if it does not exist.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-require_plan'><code class='inline'>require_plan</code></a></td><td>Retrieve a plan, raising if it is missing or malformed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-require_approved_plan'><code class='inline'>require_approved_plan</code></a></td><td>Load the plan a session may dispatch: owned, approved, and renderable.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr></table></div>
+<div class='card' id='fn-_now_iso'><h3><code class='inline'>_now_iso</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _now_iso() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _now_iso
+
+result = _now_iso()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_new_plan_id'><h3><code class='inline'>_new_plan_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _new_plan_id() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _new_plan_id
+
+result = _new_plan_id()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_json_bounded'><h3><code class='inline'>_check_json_bounded</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_json_bounded(value: str, field_name: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _check_json_bounded
+
+result = _check_json_bounded(value=&quot;value_example&quot;, field_name=&quot;field_name_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_text_bounded'><h3><code class='inline'>_check_text_bounded</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _check_text_bounded(value: str, field_name: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _check_text_bounded
+
+result = _check_text_bounded(value=&quot;value_example&quot;, field_name=&quot;field_name_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_encode_list'><h3><code class='inline'>_encode_list</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _encode_list(values: list[str] | None, field_name: str) -&gt; str</code></div><p>Serialise a list, rejecting entries that are blank or not strings.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _encode_list
+
+result = _encode_list(values=&quot;values_example&quot;, field_name=&quot;field_name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decode_list'><h3><code class='inline'>_decode_list</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _decode_list(raw: str | None, field_name: str) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _decode_list
+
+result = _decode_list(raw=&quot;raw_example&quot;, field_name=&quot;field_name_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_plan_operation_columns'><h3><code class='inline'>_ensure_plan_operation_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _ensure_plan_operation_columns(conn: Any) -&gt; None</code></div><p>Add image_plans.operation/anchor_job_id if absent (migration 035).
+
+Deferred rather than folded into 030&#x27;s script: ALTER TABLE has no
+IF NOT EXISTS form in SQLite and this function must stay re-runnable, so
+it mirrors image_jobs._ensure_queue_columns and
+image_sessions._ensure_session_column.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _ensure_plan_operation_columns
+
+result = _ensure_plan_operation_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_plan_intent_column'><h3><code class='inline'>_ensure_plan_intent_column</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _ensure_plan_intent_column(conn: Any) -&gt; None</code></div><p>Add the versioned provider-neutral intent payload to persisted plans.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _ensure_plan_intent_column
+
+result = _ensure_plan_intent_column(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_plan_policy_columns'><h3><code class='inline'>_ensure_plan_policy_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _ensure_plan_policy_columns(conn: Any) -&gt; None</code></div><p>Add image_plans content-lane columns if absent (IL-02 migration).
+
+Additive-only per IL-02: pre-IL-02 plans backfill to the safe lane with
+null consent and no adult confirmation — never to private_adult. Columns
+are re-runnable identically to _ensure_plan_operation_columns.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _ensure_plan_policy_columns
+
+result = _ensure_plan_policy_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_db'><h3><code class='inline'>_ensure_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _ensure_db(conn: Any = None) -&gt; None</code></div><p>Apply this module&#x27;s migration, plus the session schema it references.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _ensure_db
+
+result = _ensure_db(conn=...  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_legacy_intent_from_row'><h3><code class='inline'>_legacy_intent_from_row</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _legacy_intent_from_row(row: Any) -&gt; dict[str, Any]</code></div><p>Project a pre-ImageIntent row into the v1 provider-neutral contract.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _legacy_intent_from_row
+
+result = _legacy_intent_from_row(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_intent_payload'><h3><code class='inline'>_validate_intent_payload</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (60)</span></h3><div class='sig'><code>def _validate_intent_payload(intent: dict[str, Any], operation: str, content_lane: str, consent_basis: str | None, adult_confirmed: bool, reference_provenance: list[dict[str, Any]] | None = None) -&gt; dict[str, Any]</code></div><p>Validate ImageIntent v1 as durable executable intent, not advisory JSON.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _validate_intent_payload
+
+result = _validate_intent_payload(intent=&quot;intent_example&quot;, operation=&quot;operation_example&quot;, content_lane=&quot;content_lane_example&quot;, consent_basis=&quot;consent_basis_example&quot;, adult_confirmed=True, reference_provenance=&quot;reference_provenance_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decode_intent'><h3><code class='inline'>_decode_intent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _decode_intent(raw: str | None, row: Any) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _decode_intent
+
+result = _decode_intent(raw=&quot;raw_example&quot;, row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_plan'><h3><code class='inline'>_row_to_plan</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _row_to_plan(row: Any) -&gt; StoredPlan</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _row_to_plan
+
+result = _row_to_plan(row=...)
+# result: StoredPlan</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decode_refs'><h3><code class='inline'>_decode_refs</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _decode_refs(raw: str | None) -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import _decode_refs
+
+result = _decode_refs(raw=&quot;raw_example&quot;)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-persist_plan'><h3><code class='inline'>persist_plan</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (32)</span></h3><div class='sig'><code>def persist_plan(session_id: str, plan: Any, status: PlanStatus = PlanStatus.APPROVED, operation: str | None = None, anchor_job_id: str | None = None, db_path: Any = None) -&gt; StoredPlan</code></div><p>Persist an approved ``ImagePlan`` under a stable, session-owned id.
+
+*operation* and *anchor_job_id* may be passed explicitly, or carried on
+*plan* itself (``plan.to_dict()``/``dict(plan)``); an explicit argument
+wins. *operation* defaults to ``&quot;txt2img&quot;`` for callers that predate the
+edit-vs-generate distinction. An ``img2img`` plan must carry a non-empty
+``anchor_job_id`` identifying the image being edited; a ``txt2img`` plan
+must never carry an anchor. These are the fields ``/studio/generate`` later
+trusts over any mutable request body.
+
+Raises ``PlanStoreError`` if the session does not exist, the operation is
+not one of ``ALLOWED_OPERATIONS``, operation/anchor state is inconsistent,
+or the plan cannot be serialised safely.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import persist_plan
+
+result = persist_plan(session_id=&quot;session_id_example&quot;, plan=..., status=...  # default: PlanStatus.APPROVED, operation=&quot;operation_example&quot;  # default: None, anchor_job_id=&quot;anchor_job_id_example&quot;  # default: None, db_path=...  # default: None)
+# result: StoredPlan</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_plan'><h3><code class='inline'>get_plan</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def get_plan(plan_id: str, db_path: Any = None) -&gt; StoredPlan | None</code></div><p>Retrieve a persisted plan, or None if it does not exist.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import get_plan
+
+result = get_plan(plan_id=&quot;plan_id_example&quot;, db_path=...  # default: None)
+# result: StoredPlan | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-require_plan'><h3><code class='inline'>require_plan</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def require_plan(plan_id: str, db_path: Any = None) -&gt; StoredPlan</code></div><p>Retrieve a plan, raising if it is missing or malformed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import require_plan
+
+result = require_plan(plan_id=&quot;plan_id_example&quot;, db_path=...  # default: None)
+# result: StoredPlan</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-require_approved_plan'><h3><code class='inline'>require_approved_plan</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def require_approved_plan(plan_id: str, session_id: str, db_path: Any = None) -&gt; StoredPlan</code></div><p>Load the plan a session may dispatch: owned, approved, and renderable.
+
+This is the single gate A2&#x27;s dispatch path calls. It fails loud on every
+way a caller can misuse a plan id: unknown, malformed, owned by a different
+session, not approved, or (for img2img) bound to an anchor job that has not
+successfully produced an artifact yet. Rejecting here — before recipe
+routing, spend reservation, or worker startup — prevents mutable request
+state and transient renderer state from changing what an approved plan does.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_plan_store import require_approved_plan
+
+result = require_approved_plan(plan_id=&quot;plan_id_example&quot;, session_id=&quot;session_id_example&quot;, db_path=...  # default: None)
+# result: StoredPlan</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-PlanStatus'><code class='inline'>PlanStatus</code></a></td><td>(str, Enum)</td><td>1 methods</td></tr><tr><td><a href='#cls-PlanStoreError'><code class='inline'>PlanStoreError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-PlanNotFoundError'><code class='inline'>PlanNotFoundError</code></a></td><td>(PlanStoreError)</td><td>0 methods</td></tr><tr><td><a href='#cls-PlanMalformedError'><code class='inline'>PlanMalformedError</code></a></td><td>(PlanStoreError)</td><td>0 methods</td></tr><tr><td><a href='#cls-PlanNotApprovedError'><code class='inline'>PlanNotApprovedError</code></a></td><td>(PlanStoreError)</td><td>0 methods</td></tr><tr><td><a href='#cls-PlanSessionMismatchError'><code class='inline'>PlanSessionMismatchError</code></a></td><td>(PlanStoreError)</td><td>0 methods</td></tr><tr><td><a href='#cls-StoredPlan'><code class='inline'>StoredPlan</code></a></td><td></td><td>2 methods</td></tr></table></div>
+<div class='card' id='cls-PlanStatus'><h3><code class='inline'>PlanStatus</code></h3><p>Lifecycle of a persisted image plan.</p><p class='small'><b>Attributes:</b> APPROVED, REJECTED</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>is_dispatchable</code></td><td><code class='inline'>def is_dispatchable(self) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_plan_store import PlanStatus
+
+obj = PlanStatus(...)</pre></div>
+<div class='card' id='cls-PlanStoreError'><h3><code class='inline'>PlanStoreError</code></h3><p>Raised when a plan store operation cannot complete safely.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_plan_store import PlanStoreError
+
+obj = PlanStoreError(...)</pre></div>
+<div class='card' id='cls-PlanNotFoundError'><h3><code class='inline'>PlanNotFoundError</code></h3><p>Raised when a plan id does not exist.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_plan_store import PlanNotFoundError
+
+obj = PlanNotFoundError(...)</pre></div>
+<div class='card' id='cls-PlanMalformedError'><h3><code class='inline'>PlanMalformedError</code></h3><p>Raised when a persisted plan row cannot be parsed back into a plan.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_plan_store import PlanMalformedError
+
+obj = PlanMalformedError(...)</pre></div>
+<div class='card' id='cls-PlanNotApprovedError'><h3><code class='inline'>PlanNotApprovedError</code></h3><p>Raised when dispatch targets a plan that is not approved.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_plan_store import PlanNotApprovedError
+
+obj = PlanNotApprovedError(...)</pre></div>
+<div class='card' id='cls-PlanSessionMismatchError'><h3><code class='inline'>PlanSessionMismatchError</code></h3><p>Raised when a plan is dispatched under a different session than its owner.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_plan_store import PlanSessionMismatchError
+
+obj = PlanSessionMismatchError(...)</pre></div>
+<div class='card' id='cls-StoredPlan'><h3><code class='inline'>StoredPlan</code></h3><p>A persisted, session-owned image plan ready for dispatch.</p><p class='small'><b>Attributes:</b> plan_id: str, session_id: str, status: PlanStatus, original_prompt: str, refined_prompt: str, character_id: str | None, character_ref_path: str | None, recipe_id: str | None, operation: str, anchor_job_id: str | None, guidance_tags: list[str], references: list[dict[str, Any]], intent: dict[str, Any], content_lane: str, consent_basis: str | None, adult_confirmed: bool, created_at: str, updated_at: str</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>validate_operation_consistency</code></td><td><code class='inline'>def validate_operation_consistency(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_plan_store import StoredPlan
+
+obj = StoredPlan(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_MIGRATION_FILE</code></td><td><code class='inline'>DB_MIGRATIONS_DIR / &#x27;030_image_plans.sql&#x27;</code></td></tr><tr><td><code class='inline'>_MAX_JSON_BYTES</code></td><td><code class='inline'>65536</code></td></tr><tr><td><code class='inline'>_MAX_TEXT_BYTES</code></td><td><code class='inline'>10240</code></td></tr><tr><td><code class='inline'>ALLOWED_OPERATIONS</code></td><td><code class='inline'>{&#x27;txt2img&#x27;, &#x27;img2img&#x27;}</code></td></tr><tr><td><code class='inline'>_VALID_LANES</code></td><td><code class='inline'>frozenset((lane.value for lane in ContentLane))</code></td></tr><tr><td><code class='inline'>_VALID_CONSENT</code></td><td><code class='inline'>frozenset((basis.value for basis in ConsentBasis))</code></td></tr><tr><td><code class='inline'>_DEFAULT_LANE</code></td><td><code class='inline'>ContentLane.SAFE.value</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

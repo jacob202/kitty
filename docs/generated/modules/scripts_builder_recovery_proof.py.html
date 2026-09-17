@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.builder_recovery_proof — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.builder_recovery_proof</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.builder_recovery_proof</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/builder_recovery_proof.py</code> &middot; Python &middot; 4 functions &middot; 4 classes</p>
+<div class='card'><h2>Overview</h2><p>Live Builder recovery proof for roadmap outcome 1.1.
+
+Drives the real Builder queue through five induced failure modes, an operator
+grant + closeout, and a clean completion, using deterministic local worker
+fixtures instead of a model provider. Every assertion reads the
+operator-visible ``./kitty builder`` JSON surfaces, so a passing run is
+evidence an operator can reproduce by hand.
+
+The harness never contacts a provider, never pushes, and never opens a PR. It
+applies its manifest under a per-run initiative id so repeat runs stay
+isolated, and it archives its tasks and removes its worktrees on the way out.
+
+Usage:
+    python3.12 scripts/builder_recovery_proof.py [--json] [--keep]
+                                                 [--report PATH]</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>datetime</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>shutil</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code>, <code class='inline'>tempfile</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-utc_now'><code class='inline'>utc_now</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-kitty'><code class='inline'>kitty</code></a></td><td>Run a ``./kitty`` subcommand from the repository root.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-kitty_json'><code class='inline'>kitty_json</code></a></td><td>Run a ``./kitty`` subcommand and parse its JSON payload.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr></table></div>
+<div class='card' id='fn-utc_now'><h3><code class='inline'>utc_now</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def utc_now() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.builder_recovery_proof import utc_now
+
+result = utc_now()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-kitty'><h3><code class='inline'>kitty</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def kitty(*args, check: bool = True) -&gt; subprocess.CompletedProcess[str]</code></div><p>Run a ``./kitty`` subcommand from the repository root.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.builder_recovery_proof import kitty
+
+result = kitty(check=True  # default: True)
+# result: subprocess.CompletedProcess[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-kitty_json'><h3><code class='inline'>kitty_json</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def kitty_json(*args, check: bool = True) -&gt; Any</code></div><p>Run a ``./kitty`` subcommand and parse its JSON payload.
+
+The CLI prefixes some commands with human warnings on stdout, so this
+parses from the first ``{`` or ``[`` rather than the first byte.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.builder_recovery_proof import kitty_json
+
+result = kitty_json(check=True  # default: True)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.builder_recovery_proof import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ProofError'><code class='inline'>ProofError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-Fixtures'><code class='inline'>Fixtures</code></a></td><td></td><td>8 methods</td></tr><tr><td><a href='#cls-Scenario'><code class='inline'>Scenario</code></a></td><td></td><td>4 methods</td></tr><tr><td><a href='#cls-RecoveryProof'><code class='inline'>RecoveryProof</code></a></td><td></td><td>18 methods</td></tr></table></div>
+<div class='card' id='cls-ProofError'><h3><code class='inline'>ProofError</code></h3><p>A harness precondition failed; the proof could not be run at all.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from scripts.builder_recovery_proof import ProofError
+
+obj = ProofError(...)</pre></div>
+<div class='card' id='cls-Fixtures'><h3><code class='inline'>Fixtures</code></h3><p>Deterministic worker/reviewer scripts standing in for a model.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, directory: Path) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_write</code></td><td><code class='inline'>def _write(self, name: str, body: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>completing_worker</code></td><td><code class='inline'>def completing_worker(self, marker: str, text: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>crashing_worker</code></td><td><code class='inline'>def crashing_worker(self, marker: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>debris_worker</code></td><td><code class='inline'>def debris_worker(self, debris_path: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>exhausted_worker</code></td><td><code class='inline'>def exhausted_worker(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>failing_worker</code></td><td><code class='inline'>def failing_worker(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>crashing_reviewer</code></td><td><code class='inline'>def crashing_reviewer(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+s
+c
+r
+i
+p
+t
+s
+.
+b
+u
+i
+l
+d
+e
+r
+_
+r
+e
+c
+o
+v
+e
+r
+y
+_
+p
+r
+o
+o
+f
+ 
+i
+m
+p
+o
+r
+t
+ 
+F
+i
+x
+t
+u
+r
+e
+s
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+F
+i
+x
+t
+u
+r
+e
+s
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-Scenario'><h3><code class='inline'>Scenario</code></h3><p>One induced failure and the facts Builder must record about it.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, packet_id: str, name: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>check</code></td><td><code class='inline'>def check(self, claim: str, passed: bool, observed: Any) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>passed</code></td><td><code class='inline'>def passed(self) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+s
+c
+r
+i
+p
+t
+s
+.
+b
+u
+i
+l
+d
+e
+r
+_
+r
+e
+c
+o
+v
+e
+r
+y
+_
+p
+r
+o
+o
+f
+ 
+i
+m
+p
+o
+r
+t
+ 
+S
+c
+e
+n
+a
+r
+i
+o
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+S
+c
+e
+n
+a
+r
+i
+o
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-RecoveryProof'><h3><code class='inline'>RecoveryProof</code></h3><p>Undocumented class.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, keep: bool) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>pid</code></td><td><code class='inline'>def pid(self, base_packet_id: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>apply_manifest</code></td><td><code class='inline'>def apply_manifest(self, workdir: Path) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>doctor</code></td><td><code class='inline'>def doctor(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>run_packet</code></td><td><code class='inline'>def run_packet(self, packet_id: str, worker: str, reviewer: str | None = None)</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>task_events</code></td><td><code class='inline'>def task_events(self, packet_id: str) -&gt; list[dict[str, Any]]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>packet_status</code></td><td><code class='inline'>def packet_status(self, packet_id: str) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>scenario_crash</code></td><td><code class='inline'>def scenario_crash(self, fx: Fixtures) -&gt; Scenario</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>scenario_stale_lease</code></td><td><code class='inline'>def scenario_stale_lease(self, fx: Fixtures) -&gt; Scenario</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>scenario_dirty_worktree</code></td><td><code class='inline'>def scenario_dirty_worktree(self, fx: Fixtures) -&gt; Scenario</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>scenario_interrupted_review</code></td><td><code class='inline'>def scenario_interrupted_review(self, fx: Fixtures) -&gt; Scenario</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>scenario_provider_exhausted</code></td><td><code class='inline'>def scenario_provider_exhausted(self, fx: Fixtures) -&gt; Scenario</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>scenario_operator_closeout</code></td><td><code class='inline'>def scenario_operator_closeout(self, fx: Fixtures) -&gt; Scenario</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>scenario_clean_completion</code></td><td><code class='inline'>def scenario_clean_completion(self, fx: Fixtures) -&gt; Scenario</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>run</code></td><td><code class='inline'>def run(self) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>cleanup</code></td><td><code class='inline'>def cleanup(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>to_markdown</code></td><td><code class='inline'>def to_markdown(self) -&gt; str</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+s
+c
+r
+i
+p
+t
+s
+.
+b
+u
+i
+l
+d
+e
+r
+_
+r
+e
+c
+o
+v
+e
+r
+y
+_
+p
+r
+o
+o
+f
+ 
+i
+m
+p
+o
+r
+t
+ 
+R
+e
+c
+o
+v
+e
+r
+y
+P
+r
+o
+o
+f
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+R
+e
+c
+o
+v
+e
+r
+y
+P
+r
+o
+o
+f
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>REPO_ROOT</code></td><td><code class='inline'>Path(__file__).resolve().parent.parent</code></td></tr><tr><td><code class='inline'>MANIFEST_TEMPLATE</code></td><td><code class='inline'>REPO_ROOT / &#x27;docs/initiatives/phase1-1-recovery-proof-v1.json&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_REPORT</code></td><td><code class='inline'>REPO_ROOT / &#x27;docs/research/phase1-1-builder-recovery-proof.md&#x27;</code></td></tr><tr><td><code class='inline'>PROVIDER_EXHAUSTED_EXIT_CODE</code></td><td><code class='inline'>75</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li><li><a href='scripts_generate_image.py.html'><code class='inline'>scripts.generate_image</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

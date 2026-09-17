@@ -64,6 +64,16 @@ defaults follow.
 - After a non-trivial code change, run the narrowest tests that cover it and
   report exact pass/fail counts. Full suite, lint, typecheck, and build are `/qg`
   or CI unless Jacob explicitly requests them. `AGENTS.md` states the same rule.
+- `pytest.ini` sets `addopts = -m "not integration and not controlled_live"`, so
+  naming a file whose tests are all integration-marked **collects nothing and
+  exits 0** — it reports green having run none of them. Confirm with
+  `python -m pytest -q --collect-only <file>`; if it says "no tests collected (N
+  deselected)", add `-m integration` or `-m "integration or not integration"`.
+  `tests/test_builder_runner.py` is entirely integration-marked: 89 tests, zero
+  run by default.
+- Do not commit or push while a test run or push is in flight. The gate proves
+  the suite ran against the commit being pushed, so moving HEAD underneath it
+  invalidates the run and the push is refused.
 - Local commits are expected.
 - Push requires explicit authorization from Jacob — never push autonomously.
   Once authorized, the path is branch, push, open a PR, then handle CI and
@@ -76,6 +86,16 @@ Reviewer routing is shared doctrine; `AGENTS.md` owns the OpenRouter
 price-first rule, the single clean different-model fallback, model-family
 independence, and the `--free` no-paid-fallback guarantee. Apply it for
 merge-blocking, product-acceptance, and other independent review.
+
+Packet execution keeps its free default — that fence is enforced in code and is
+not what this is about. What is banned is *interactive time* spent plumbing
+local or free-tier models: Ollama, MLX, and free-ladder debugging have been
+tried repeatedly and failed, and paid calls are pre-authorized under the CAD 6
+weekly ceiling. If a free route is failing, say so and take the governed paid
+route rather than working the fallback chain. Before concluding a model is
+unavailable, check it is registered in the `openrouter` provider block of
+`opencode.jsonc`: an unregistered model fails as `UNKNOWN_MODEL` before billing,
+so it looks like an idle Builder rather than a broken one.
 
 
 ## Auth and environment
@@ -107,6 +127,33 @@ failing, and a thing nobody ever turned on is a third. Both mistakes have
 already been made here — a staged lint-config deletion was reported as breaking
 when the config was dead, and Builder's real fault was that no scheduled tick
 had ever existed.
+
+Do not report a root cause or a landed fix until the command that proves it has
+run and its output is in front of you. "I think X because Y — verifying now"
+costs a sentence; a retraction costs the session. When confidence is below about
+80, run the cheapest experiment that would falsify the theory before saying
+anything. Two retractions on 2026-09-16 came from skipping that: a full-suite
+failure was blamed on a shared test data root when the real cause was a launcher
+resolving no virtualenv in a worktree, and a dead Builder model was "fixed" by
+editing the route down when the registration was the missing half — three tests
+pinning the upgrade caught it.
+
+A test that asserts the shape of a thing is not evidence the thing works. The
+supervisor test that compared a constructed argument list passed while every
+unattended launch died at argument parsing; the assertion had to parse the argv
+through the real CLI parser to catch it. Prefer proving behaviour over
+confirming structure.
+
+### Read-only work stays read-only
+
+When the request says read-only, audit, review, critique, or diagnose: create,
+edit and delete nothing. That includes plan documents, handoff files, findings
+reports, and scratch notes — the artifacts that feel like deliverables are
+exactly the ones that break the constraint. Deliver the whole verdict in the
+reply. If the finding genuinely needs a file, ask first and say why.
+
+Claiming a resource, posting to the room, and running a formatter are also
+writes. A read-only audit that leaves a claim behind was not read-only.
 
 ### Fix it; never hand him a list
 

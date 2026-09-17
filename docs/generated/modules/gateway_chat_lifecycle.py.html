@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.chat_lifecycle — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.chat_lifecycle</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.chat_lifecycle</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/chat_lifecycle.py</code> &middot; Python &middot; 10 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Durable normalized chat turns and generation attempts.
+
+The legacy ``chats`` JSON blob remains the UI compatibility record. This
+ledger records the lifecycle facts needed for restart recovery and honest
+status without forcing a client migration in the same packet.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.chat_search</code>, <code class='inline'>gateway.memory_graph</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_validate_memory_items'><code class='inline'>_validate_memory_items</code></a></td><td>Validate the exact structured evidence that reached the client.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_validate_evidence_items'><code class='inline'>_validate_evidence_items</code></a></td><td>Validate the exact source receipts delivered to the client.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-start_turn'><code class='inline'>start_turn</code></a></td><td>Persist the user message and running attempt before provider dispatch.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-finish_turn'><code class='inline'>finish_turn</code></a></td><td>Atomically finalize an attempt, assistant message, and parent turn.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-list_running_conversations'><code class='inline'>list_running_conversations</code></a></td><td>Return conversation shells that currently own at least one running turn.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-reconcile_interrupted_turns'><code class='inline'>reconcile_interrupted_turns</code></a></td><td>Mark chat work left running by a previous Gateway process interrupted.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-get_turn'><code class='inline'>get_turn</code></a></td><td>Return a turn with its attempts and messages for recovery/read paths.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-list_project_conversations'><code class='inline'>list_project_conversations</code></a></td><td>Return recent conversation descriptors owned by one Project.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-list_conversation'><code class='inline'>list_conversation</code></a></td><td>Return normalized conversation state and all ordered turns in bulk.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr></table></div>
+<div class='card' id='fn-_validate_memory_items'><h3><code class='inline'>_validate_memory_items</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _validate_memory_items(memory_items: list[MemoryEvidence] | None) -&gt; list[MemoryEvidence] | None</code></div><p>Validate the exact structured evidence that reached the client.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import _validate_memory_items
+
+result = _validate_memory_items(memory_items=[])
+# result: list[MemoryEvidence] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_evidence_items'><h3><code class='inline'>_validate_evidence_items</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _validate_evidence_items(evidence_items: list[dict[str, str]] | None) -&gt; list[dict[str, str]] | None</code></div><p>Validate the exact source receipts delivered to the client.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import _validate_evidence_items
+
+result = _validate_evidence_items(evidence_items=&quot;evidence_items_example&quot;)
+# result: list[dict[str, str]] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-start_turn'><h3><code class='inline'>start_turn</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def start_turn(conversation_id: str, project_id: int | None, title: str, user_message_id: str | None, user_text: str, manifest_revision: str, requested_model: str, attachment_ids: list[str] | None = None, objective: str | None = None) -&gt; TurnHandle</code></div><p>Persist the user message and running attempt before provider dispatch.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import start_turn
+
+result = start_turn(conversation_id=&quot;conversation_id_example&quot;, project_id=0, title=&quot;title_example&quot;, user_message_id=&quot;user_message_id_example&quot;, user_text=&quot;user_text_example&quot;, manifest_revision=&quot;manifest_revision_example&quot;, requested_model=&quot;requested_model_example&quot;, attachment_ids=&quot;attachment_ids_example&quot;  # default: None, objective=&quot;objective_example&quot;  # default: None)
+# result: TurnHandle</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-finish_turn'><h3><code class='inline'>finish_turn</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def finish_turn(handle: TurnHandle, status: str, assistant_text: str, resolved_model: str | None = None, error: str | None = None, memory_items: list[MemoryEvidence] | None = None, evidence_items: list[dict[str, str]] | None = None) -&gt; None</code></div><p>Atomically finalize an attempt, assistant message, and parent turn.
+
+``memory_items`` is the CR-04 memory evidence actually delivered to the
+client for this reply; ``evidence_items`` is the separate source-receipt
+record delivered with the same reply. Both are stored on the assistant
+message so ledger recovery can restore the exact user-visible evidence.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import finish_turn
+
+result = finish_turn(handle=..., status=&quot;status_example&quot;, assistant_text=&quot;assistant_text_example&quot;, resolved_model=&quot;resolved_model_example&quot;  # default: None, error=&quot;error_example&quot;  # default: None, memory_items=[]  # default: None, evidence_items=&quot;evidence_items_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_running_conversations'><h3><code class='inline'>list_running_conversations</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_running_conversations() -&gt; list[dict[str, Any]]</code></div><p>Return conversation shells that currently own at least one running turn.
+
+``requested_model`` reports the actual model of the most recent running
+turn so restart recovery can record what the user really asked for
+instead of inventing a default.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import list_running_conversations
+
+result = list_running_conversations()
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reconcile_interrupted_turns'><h3><code class='inline'>reconcile_interrupted_turns</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def reconcile_interrupted_turns() -&gt; int</code></div><p>Mark chat work left running by a previous Gateway process interrupted.
+
+A newly-started process cannot own an in-flight coroutine from the previous
+process. Leaving those rows as ``running`` makes restart recovery lie, so
+close them atomically and persist one plain-language assistant record that
+the UI can restore with its normal retry affordance.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import reconcile_interrupted_turns
+
+result = reconcile_interrupted_turns()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_turn'><h3><code class='inline'>get_turn</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def get_turn(turn_id: str) -&gt; dict[str, Any] | None</code></div><p>Return a turn with its attempts and messages for recovery/read paths.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import get_turn
+
+result = get_turn(turn_id=&quot;turn_id_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_project_conversations'><h3><code class='inline'>list_project_conversations</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def list_project_conversations(project_id: int, limit: int = 10) -&gt; list[dict[str, Any]]</code></div><p>Return recent conversation descriptors owned by one Project.
+
+This is a read-side projection from the canonical chat lifecycle store. It
+deliberately does not load turns/messages; Project Resume needs context,
+not a second copy of conversation contents.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import list_project_conversations
+
+result = list_project_conversations(project_id=0, limit=0  # default: 10)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_conversation'><h3><code class='inline'>list_conversation</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def list_conversation(conversation_id: str) -&gt; dict[str, Any]</code></div><p>Return normalized conversation state and all ordered turns in bulk.
+
+Recovery used to call ``get_turn`` once per turn, opening a new SQLite
+connection and issuing additional queries for every turn. Fetch all turns,
+attempts, and messages with the same connection instead. This keeps the
+read cost bounded by the number of lifecycle tables rather than the number
+of turns in the conversation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.chat_lifecycle import list_conversation
+
+result = list_conversation(conversation_id=&quot;conversation_id_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ChatLifecycleError'><code class='inline'>ChatLifecycleError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-TurnHandle'><code class='inline'>TurnHandle</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ChatLifecycleError'><h3><code class='inline'>ChatLifecycleError</code></h3><p>Raised when a durable chat lifecycle transition cannot be recorded.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.chat_lifecycle import ChatLifecycleError
+
+obj = ChatLifecycleError(...)</pre></div>
+<div class='card' id='cls-TurnHandle'><h3><code class='inline'>TurnHandle</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> conversation_id: str, turn_id: str, attempt_id: str, sequence: int</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.chat_lifecycle import TurnHandle
+
+obj = TurnHandle(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>LIFECYCLE_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>_TURN_STATUSES</code></td><td><code class='inline'>{&#x27;running&#x27;, &#x27;succeeded&#x27;, &#x27;failed&#x27;, &#x27;interrupted&#x27;, &#x27;cancelled&#x27;}</code></td></tr><tr><td><code class='inline'>_EVIDENCE_ITEM_FIELDS</code></td><td><code class='inline'>{&#x27;evidence_id&#x27;, &#x27;text&#x27;, &#x27;source_id&#x27;, &#x27;source_sha256&#x27;, &#x27;logical_unit_id&#x27;, &#x27;work_id&#x27;, &#x27;series_id&#x27;, &#x27;title&#x27;, &#x27;locator_start</code></td></tr><tr><td><code class='inline'>RESTART_INTERRUPTED_ERROR</code></td><td><code class='inline'>&#x27;Gateway restarted before the chat turn finished&#x27;</code></td></tr><tr><td><code class='inline'>RESTART_INTERRUPTED_MESSAGE</code></td><td><code class='inline'>&#x27;Kitty restarted before this reply finished. Tap retry to try again.&#x27;</code></td></tr><tr><td><code class='inline'>RESTART_INTERRUPTED_NO_RETRY_MESSAGE</code></td><td><code class='inline'>&#x27;Kitty restarted before this reply finished.&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

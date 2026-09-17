@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.chats — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.chats</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.chats</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/chats.py</code> &middot; Python &middot; 14 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Kitty-chat session persistence — backed by kitty.db via chats_store.
+
+Phase C C3: the route reads and writes through chats_store instead of
+data/kitty/chats.json. The wire contract (paths, request/response
+shapes) is unchanged.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>base64</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_recover_memory_items'><code class='inline'>_recover_memory_items</code></a></td><td>Normalize legacy strings and current records from durable ledger JSON.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-_recover_evidence_items'><code class='inline'>_recover_evidence_items</code></a></td><td>Recover validated source receipts from durable ledger JSON.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-get_chats'><code class='inline'>get_chats</code></a></td><td>Return all saved chat sessions.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-upsert_chat'><code class='inline'>upsert_chat</code></a></td><td>Create or update a chat session by id.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-delete_chat'><code class='inline'>delete_chat</code></a></td><td>Delete a chat session.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-patch_chat_objective'><code class='inline'>patch_chat_objective</code></a></td><td>Set or clear a chat&#x27;s per-thread objective.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-get_chat_lifecycle'><code class='inline'>get_chat_lifecycle</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-compact_chat'><code class='inline'>compact_chat</code></a></td><td>Trigger context compaction for a chat session.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_recover_messages'><code class='inline'>_recover_messages</code></a></td><td>Rebuild an ordered UI message list from the durable lifecycle ledger.</td><td><span class='pill'>complex</span><span class='muted small'>(41)</span></td></tr><tr><td><a href='#fn-_resolve_chat_image_attachment'><code class='inline'>_resolve_chat_image_attachment</code></a></td><td>Resolve a stored artifact to a chat-ready image attachment.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr><tr><td><a href='#fn-_resolve_chat_builder_result_attachment'><code class='inline'>_resolve_chat_builder_result_attachment</code></a></td><td>Resolve one durable Builder result without trusting mutable disk state.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-_format_bytes'><code class='inline'>_format_bytes</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-use_in_chat'><code class='inline'>use_in_chat</code></a></td><td>Resolve a saved artifact into a chat-ready image attachment.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-get_chat_messages'><code class='inline'>get_chat_messages</code></a></td><td>Recover ordered chat history from the normalized lifecycle ledger.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_recover_memory_items'><h3><code class='inline'>_recover_memory_items</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def _recover_memory_items(raw_memory: object) -&gt; list[dict[str, str]]</code></div><p>Normalize legacy strings and current records from durable ledger JSON.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.chats import _recover_memory_items
+
+result = _recover_memory_items(raw_memory=...)
+# result: list[dict[str, str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_recover_evidence_items'><h3><code class='inline'>_recover_evidence_items</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _recover_evidence_items(raw_evidence: object) -&gt; list[dict[str, str]]</code></div><p>Recover validated source receipts from durable ledger JSON.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.chats import _recover_evidence_items
+
+result = _recover_evidence_items(raw_evidence=...)
+# result: list[dict[str, str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_chats'><h3><code class='inline'>get_chats</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def get_chats()</code></div><p>Return all saved chat sessions.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.chats import get_chats
+
+    result = await get_chats()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-upsert_chat'><h3><code class='inline'>upsert_chat</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def upsert_chat(request: Request)</code></div><p>Create or update a chat session by id.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.chats import upsert_chat
+
+    result = await upsert_chat()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_chat'><h3><code class='inline'>delete_chat</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def delete_chat(chat_id: str)</code></div><p>Delete a chat session.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.chats import delete_chat
+
+    result = await delete_chat()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-patch_chat_objective'><h3><code class='inline'>patch_chat_objective</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>async def patch_chat_objective(chat_id: str, request: Request)</code></div><p>Set or clear a chat&#x27;s per-thread objective.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.chats import patch_chat_objective
+
+    result = await patch_chat_objective()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_chat_lifecycle'><h3><code class='inline'>get_chat_lifecycle</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_chat_lifecycle(chat_id: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.chats import get_chat_lifecycle
+
+result = get_chat_lifecycle(chat_id=&quot;chat_id_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-compact_chat'><h3><code class='inline'>compact_chat</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def compact_chat(chat_id: str) -&gt; dict</code></div><p>Trigger context compaction for a chat session.
+
+Summarises older messages into a memory checkpoint, stores it via
+explicit_memory, and replaces the compacted messages with a single
+&quot;Previously...&quot; summary message. Returns checkpoint metadata.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.chats import compact_chat
+
+    result = await compact_chat()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_recover_messages'><h3><code class='inline'>_recover_messages</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (41)</span></h3><div class='sig'><code>def _recover_messages(conversation_id: str) -&gt; list[dict]</code></div><p>Rebuild an ordered UI message list from the durable lifecycle ledger.
+
+Falls back gracefully: a missing conversation (no ledger entry yet) yields
+an empty list so the caller can keep using the legacy chat blob.
+
+Deduplication: when the same user message is retried (same
+source_message_id across turns), only the most recent turn&#x27;s messages are
+retained so restarts never show duplicated user text.
+
+Artifact metadata is collected first and loaded with one batched store
+lookup instead of opening a database connection for every attachment.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.chats import _recover_messages
+
+result = _recover_messages(conversation_id=&quot;conversation_id_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_chat_image_attachment'><h3><code class='inline'>_resolve_chat_image_attachment</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>def _resolve_chat_image_attachment(artifact_id: str, include_data_url: bool = True) -&gt; dict</code></div><p>Resolve a stored artifact to a chat-ready image attachment.
+
+Raises a plain-language HTTPException for any artifact that cannot be used
+in chat: unknown id, not an image, unsupported image type, not ready, or
+over the 5 MiB pilot limit. The caller decides whether the artifact also
+needs to exist as a registered attachment before dispatch.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.chats import _resolve_chat_image_attachment
+
+result = _resolve_chat_image_attachment(artifact_id=&quot;artifact_id_example&quot;, include_data_url=True  # default: True)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_chat_builder_result_attachment'><h3><code class='inline'>_resolve_chat_builder_result_attachment</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def _resolve_chat_builder_result_attachment(artifact_id: str, include_text: bool = False) -&gt; dict</code></div><p>Resolve one durable Builder result without trusting mutable disk state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.chats import _resolve_chat_builder_result_attachment
+
+result = _resolve_chat_builder_result_attachment(artifact_id=&quot;artifact_id_example&quot;, include_text=True  # default: False)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_format_bytes'><h3><code class='inline'>_format_bytes</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _format_bytes(size: int) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.chats import _format_bytes
+
+result = _format_bytes(size=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-use_in_chat'><h3><code class='inline'>use_in_chat</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def use_in_chat(request: Request) -&gt; dict</code></div><p>Resolve a saved artifact into a chat-ready image attachment.
+
+This is the Library → Chat bridge for LIBRARY-CHAT-001. It validates type
+and size before any network dispatch and returns only the attachment
+metadata the composer renders. The durable artifact id is resolved to image
+bytes later, inside the trusted completions route, so the model receives the
+image exactly once. Errors are plain language with no internal paths, ids,
+or status codes.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.chats import use_in_chat
+
+    result = await use_in_chat()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_chat_messages'><h3><code class='inline'>get_chat_messages</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_chat_messages(chat_id: str) -&gt; dict</code></div><p>Recover ordered chat history from the normalized lifecycle ledger.
+
+The legacy chat blob stays the compatibility record; this endpoint is the
+honest durable read surface for restart/recovery when the in-memory UI state
+is gone but the ledger survived.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.chats import get_chat_messages
+
+result = get_chat_messages(chat_id=&quot;chat_id_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>CHAT_IMAGE_MIME_TYPES</code></td><td><code class='inline'>{&#x27;image/png&#x27;, &#x27;image/jpeg&#x27;, &#x27;image/webp&#x27;}</code></td></tr><tr><td><code class='inline'>CHAT_IMAGE_MAX_BYTES</code></td><td><code class='inline'>5 * 1024 * 1024</code></td></tr><tr><td><code class='inline'>CHAT_BUILDER_RESULT_KIND</code></td><td><code class='inline'>&#x27;builder_result&#x27;</code></td></tr><tr><td><code class='inline'>CHAT_BUILDER_RESULT_MIME_TYPE</code></td><td><code class='inline'>&#x27;text/plain&#x27;</code></td></tr><tr><td><code class='inline'>CHAT_BUILDER_RESULT_MAX_BYTES</code></td><td><code class='inline'>256 * 1024</code></td></tr><tr><td><code class='inline'>_EVIDENCE_ITEM_FIELDS</code></td><td><code class='inline'>{&#x27;evidence_id&#x27;, &#x27;text&#x27;, &#x27;source_id&#x27;, &#x27;source_sha256&#x27;, &#x27;logical_unit_id&#x27;, &#x27;work_id&#x27;, &#x27;series_id&#x27;, &#x27;title&#x27;, &#x27;locator_start</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/kitty-chat/tests/support/hermetic_gateway.py</code></li><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.reasoning — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.reasoning</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.reasoning</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/reasoning.py</code> &middot; Python &middot; 2 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Reasoning engine — complexity classifier, model routing, execution receipts.
+
+Part C of packet 028: the per-message optimization layer. Classification
+is a pure heuristic (&lt;1ms), never a model call. Routing selects only among
+existing LiteLLM aliases — no new aliases, no provider changes.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.token_usage_log</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-classify_complexity'><code class='inline'>classify_complexity</code></a></td><td>Classify a user message without calling a model.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-log_receipt'><code class='inline'>log_receipt</code></a></td><td>Append a receipt row to the existing token-log via log_llm_usage.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-classify_complexity'><h3><code class='inline'>classify_complexity</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def classify_complexity(message: str, domain: str | None = None) -&gt; Classification</code></div><p>Classify a user message without calling a model.
+
+Pure heuristic, &lt;1ms. The keyword sets absorbed from
+``gateway/llm_client.py`` are one signal among several.
+
+Returns ``Classification(tier, trigger)`` where ``trigger`` names the
+signal that decided.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.reasoning import classify_complexity
+
+result = classify_complexity(message=&quot;message_example&quot;, domain=&quot;domain_example&quot;  # default: None)
+# result: Classification</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-log_receipt'><h3><code class='inline'>log_receipt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def log_receipt(receipt: Receipt, usage: dict[str, int] | None = None) -&gt; None</code></div><p>Append a receipt row to the existing token-log via log_llm_usage.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.reasoning import log_receipt
+
+result = log_receipt(receipt=..., usage=&quot;usage_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Classification'><code class='inline'>Classification</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-Receipt'><code class='inline'>Receipt</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-Classification'><h3><code class='inline'>Classification</code></h3><p>Result of classifying a message&#x27;s complexity.
+
+Attributes:
+    tier: ``trivial`` | ``standard`` | ``deep``
+    trigger: The signal that decided the tier (always non-empty).</p><p class='small'><b>Attributes:</b> tier: str, trigger: str</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__post_init__</code></td><td><code class='inline'>def __post_init__(self)</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.reasoning import Classification
+
+obj = Classification(...)</pre></div>
+<div class='card' id='cls-Receipt'><h3><code class='inline'>Receipt</code></h3><p>Metadata stitched into the existing log_llm_usage() call at every turn.
+
+Fields are nullable so an incomplete receipt never breaks the log.
+The privacy rule: no raw message, response, or reasoning-content bodies.</p><p class='small'><b>Attributes:</b> mode: str | None, tier: str | None, trigger: str | None, resolved_model: str | None, correlation_id: str | None, prompt_tokens: int | None, completion_tokens: int | None, cap_hit: bool | None, escalation: bool | None, confidence_flag: str | None, _METADATA_FIELDS</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>as_metadata</code></td><td><code class='inline'>def as_metadata(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.reasoning import Receipt
+
+obj = Receipt(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_REASONING_KEYWORDS</code></td><td><code class='inline'>frozenset({&#x27;explain&#x27;, &#x27;why&#x27;, &#x27;analyze&#x27;, &#x27;analyse&#x27;, &#x27;reason&#x27;, &#x27;think through&#x27;, &#x27;break down&#x27;, &#x27;compare&#x27;, &#x27;pros and cons&#x27;, </code></td></tr><tr><td><code class='inline'>_BEST_TRIGGERS</code></td><td><code class='inline'>frozenset({&#x27;best model&#x27;, &#x27;use claude&#x27;, &#x27;use sonnet&#x27;, &#x27;use your best&#x27;, &#x27;most capable&#x27;, &#x27;smartest model&#x27;})</code></td></tr><tr><td><code class='inline'>_DEEP_DOMAINS</code></td><td><code class='inline'>frozenset({&#x27;health&#x27;})</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

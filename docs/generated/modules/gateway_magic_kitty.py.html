@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.magic_kitty — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.magic_kitty</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.magic_kitty</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/magic_kitty.py</code> &middot; Python &middot; 3 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Magic Kitty — cross-project insight discovery (DOCS ADR-0014 / packet 022).
+
+Walks all active projects, composes their resume state, and feeds them
+to an LLM to surface non-obvious connections between projects — the
+&quot;huh, these are actually related&quot; moment.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.project_resume</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-cached_connections'><code class='inline'>cached_connections</code></a></td><td>Return recent cached connections without triggering an LLM call.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-discover_connections'><code class='inline'>discover_connections</code></a></td><td>Return cross-project connection insights.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_call_llm_for_connections'><code class='inline'>_call_llm_for_connections</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr></table></div>
+<div class='card' id='fn-cached_connections'><h3><code class='inline'>cached_connections</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def cached_connections(max_age_seconds: float = 21600) -&gt; list[dict[str, Any]]</code></div><p>Return recent cached connections without triggering an LLM call.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.magic_kitty import cached_connections
+
+result = cached_connections(max_age_seconds=0.0  # default: 21600)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-discover_connections'><h3><code class='inline'>discover_connections</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def discover_connections(force: bool = False) -&gt; dict[str, Any]</code></div><p>Return cross-project connection insights.
+
+Caches results for 5 minutes unless ``force=True``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.magic_kitty import discover_connections
+
+result = discover_connections(force=True  # default: False)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_call_llm_for_connections'><h3><code class='inline'>_call_llm_for_connections</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _call_llm_for_connections(resumes: list[dict[str, Any]]) -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.magic_kitty import _call_llm_for_connections
+
+result = _call_llm_for_connections(resumes=&quot;resumes_example&quot;)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_LAST_CONNECTIONS_CACHE</code></td><td><code class='inline'>dict[str, Any]</code></td></tr><tr><td><code class='inline'>_CONNECTION_PROMPT</code></td><td><code class='inline'>&#x27;You are Magic Kitty, a cross-project insight engine.\nLook at the following active project resumes and find non-obvious</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

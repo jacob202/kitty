@@ -317,7 +317,9 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     # default; the free route was too slow to be worth waiting for. It also
     # publishes each succeeded packet as its own branch and pull request, parked
     # at awaiting_review — authorized 2026-09-16 and scoped in
-    # docs/ACTIVE_MISSION.md to opening a PR, never merging one.
+    # docs/ACTIVE_MISSION.md to opening a PR, never merging one. The parser
+    # regression below keeps the dispatch/CLI contract honest; #889 dispatched
+    # these flags before the CLI accepted them and every launch died on argv.
     assert argv == [
         str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1",
         "--paid", "--tier", "cheap", "--publish", "--gate", "manual", "--json",
@@ -325,12 +327,125 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     # The merge decision stays human. The auto gate is a real capability under
     # ADRs 0018/0021 and is deliberately not what unattended dispatch uses.
     assert "auto" not in argv
+    # The argv the launch actually builds must parse on the real CLI: PR #889
+    # dispatched flags run-packet did not accept, and every unattended launch
+    # died at argument parsing. Parsing the captured argv (minus the launcher
+    # path) keeps the whole seam honest, including literals _launch_run adds
+    # outside the route helper.
+    from gateway.builder_cli import build_parser
+
+    parsed = build_parser().parse_args(argv[2:])
+    assert parsed.id == "test-init-1"
+    assert parsed.packet == "p1"
     assert popen.call_args.kwargs["start_new_session"] is True
     assert popen.call_args.kwargs["shell"] is False
     assert len(popen.call_args.kwargs["pass_fds"]) == 1
     assert result["status"] == "dispatched"
     assert result["launcher_pid"] == 4321
     assert result["task_id"] == task_id
+
+
+def test_dead_launch_reports_the_childs_own_output(repo: Path, db_path: Path) -> None:
+    """A dispatch that dies in the launcher must name its cause, not just its exit.
+
+    The supervisor raised only "Builder child N exited before durably claiming
+    task X" while the child's own account of the failure sat unread in the
+    launch log. On 2026-09-17 that pairing let every unattended dispatch fail
+    for two days: the queue stayed at zero claimed, the receipt said only that a
+    child exited, and the operator had no way to tell a stale checkout from a
+    transient fault. The child had been printing the real reason (a rejected
+    argv) the whole time, so a dead launch now carries it.
+    """
+    kitty = repo / "kitty"
+    kitty.write_text(
+        "#!/bin/sh\n"
+        "echo 'kitty builder: error: unrecognized arguments: --publish --gate manual' >&2\n"
+        "exit 2\n",
+        encoding="utf-8",
+    )
+    kitty.chmod(0o755)
+    result_apply = _apply(db_path, "test-init-1", [_packet("p1")], repo_root=repo)
+    task_id = result_apply["packets"][0]["task_id"]
+    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": task_id}
+
+    with pytest.raises(bs.SupervisorError) as excinfo:
+        bs._launch_run(packet, repo_root=repo, db_path=db_path)
+
+    message = str(excinfo.value)
+    assert "exited before durably claiming" in message
+    assert "child output" in message
+    assert "unrecognized arguments: --publish --gate manual" in message
+
+
+
+def test_dead_launch_ignores_output_from_a_prior_attempt(repo: Path, db_path: Path) -> None:
+    """A retry must never attribute an earlier launch's output to the new child."""
+    kitty = repo / "kitty"
+    kitty.write_text("#!/bin/sh\nexit 2\n", encoding="utf-8")
+    kitty.chmod(0o755)
+    result_apply = _apply(db_path, "test-init-1", [_packet("p1")], repo_root=repo)
+    task_id = result_apply["packets"][0]["task_id"]
+    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": task_id}
+    log_path = repo / "data" / "kittybuilder" / "supervisor-launch" / "test-init-1-p1.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("STALE FAILURE FROM AN EARLIER CHILD\n", encoding="utf-8")
+
+    with pytest.raises(bs.SupervisorError) as excinfo:
+        bs._launch_run(packet, repo_root=repo, db_path=db_path)
+
+    message = str(excinfo.value)
+    assert "exited before durably claiming" in message
+    assert "STALE FAILURE" not in message
+
+
+def test_launch_log_tail_reports_unavailable_log_safely(monkeypatch, tmp_path: Path) -> None:
+    log_path = tmp_path / "launch.log"
+    original_open = Path.open
+
+    def denied(self: Path, *args, **kwargs):
+        if self == log_path:
+            raise PermissionError("denied API_KEY=sk-supersecret123 at /vault/private/log")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", denied)
+    tail = bs._launch_log_tail(log_path, start_offset=0)
+
+    assert "launch log unavailable" in tail
+    assert "PermissionError" in tail
+    assert "sk-supersecret123" not in tail
+    assert "/vault/private/log" not in tail
+
+
+def test_launch_log_tail_redacts_child_credentials(tmp_path: Path) -> None:
+    log_path = tmp_path / "launch.log"
+    log_path.write_text(
+        "OPENAI_API_KEY=sk-supersecret123\n"
+        "Authorization: Bearer ghp_abcdefghijk12345\n"
+        "launcher rejected --publish --gate manual\n",
+        encoding="utf-8",
+    )
+
+    tail = bs._launch_log_tail(log_path, start_offset=0)
+
+    assert "launcher rejected --publish --gate manual" in tail
+    assert "sk-supersecret123" not in tail
+    assert "ghp_abcdefghijk12345" not in tail
+    assert "[redacted]" in tail or "[secret]" in tail
+
+
+def test_launch_log_tail_is_bounded_to_current_launch(tmp_path: Path) -> None:
+    log_path = tmp_path / "launch.log"
+    old = ("OLD-LAUNCH\n" * 100_000).encode()
+    log_path.write_bytes(old)
+    start_offset = len(old)
+    with log_path.open("ab") as handle:
+        handle.write(("X" * 100_000 + "\nCURRENT FAILURE\n").encode())
+
+    tail = bs._launch_log_tail(log_path, start_offset=start_offset)
+
+    assert "OLD-LAUNCH" not in tail
+    assert "CURRENT FAILURE" in tail
+    assert len(tail) <= 2_000
 
 
 def test_launch_run_refuses_when_task_already_claimed(repo: Path, db_path: Path) -> None:

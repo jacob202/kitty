@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.repairs — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.repairs</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.repairs</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/repairs.py</code> &middot; Python &middot; 9 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Self-repairs endpoint — actionable diagnosis for chat and Home cards.
+
+Every repair item has a plain-English title, severity, and optional fix button
+that dispatches through the action queue at T0 (auto-execute, logged).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.action_queue</code>, <code class='inline'>gateway.builder_queue</code>, <code class='inline'>gateway.doctor</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>sys</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-list_repairs'><code class='inline'>list_repairs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_public_detail'><code class='inline'>_public_detail</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-_to_repair'><code class='inline'>_to_repair</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_pass_title'><code class='inline'>_pass_title</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_fix_action'><code class='inline'>_fix_action</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_check_builder_health'><code class='inline'>_check_builder_health</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_check_queue_backup_age'><code class='inline'>_check_queue_backup_age</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-dismiss_repair'><code class='inline'>dismiss_repair</code></a></td><td>Record a dismissed repair through the action queue. Signal-* IDs mark</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-run_repair_check'><code class='inline'>run_repair_check</code></a></td><td>Re-run a specific health check through the action queue.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-list_repairs'><h3><code class='inline'>list_repairs</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def list_repairs()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.repairs import list_repairs
+
+result = list_repairs()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_public_detail'><h3><code class='inline'>_public_detail</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def _public_detail(check) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.repairs import _public_detail
+
+result = _public_detail(check=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_to_repair'><h3><code class='inline'>_to_repair</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _to_repair(check) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.repairs import _to_repair
+
+result = _to_repair(check=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_pass_title'><h3><code class='inline'>_pass_title</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _pass_title(name: str, detail: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.repairs import _pass_title
+
+result = _pass_title(name=&quot;name_example&quot;, detail=&quot;detail_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fix_action'><h3><code class='inline'>_fix_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def _fix_action(check) -&gt; dict | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.repairs import _fix_action
+
+result = _fix_action(check=...)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_builder_health'><h3><code class='inline'>_check_builder_health</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_builder_health() -&gt; list</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.repairs import _check_builder_health
+
+result = _check_builder_health()
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_queue_backup_age'><h3><code class='inline'>_check_queue_backup_age</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_queue_backup_age() -&gt; list</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.repairs import _check_queue_backup_age
+
+result = _check_queue_backup_age()
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-dismiss_repair'><h3><code class='inline'>dismiss_repair</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def dismiss_repair(body: dict)</code></div><p>Record a dismissed repair through the action queue. Signal-* IDs mark
+the signal processed so it doesn&#x27;t reappear on next poll.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.repairs import dismiss_repair
+
+    result = await dismiss_repair()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_repair_check'><h3><code class='inline'>run_repair_check</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def run_repair_check(body: dict)</code></div><p>Re-run a specific health check through the action queue.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.repairs import run_repair_check
+
+    result = await run_repair_check()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_FIXABLE_THRESHOLD</code></td><td><code class='inline'>7 * 86400</code></td></tr><tr><td><code class='inline'>_PLAIN_ENGLISH</code></td><td><code class='inline'>dict[str, str]</code></td></tr><tr><td><code class='inline'>_INTERNAL_DETAIL_MARKERS</code></td><td><code class='inline'>(&#x27;.env&#x27;, &#x27;/Users/&#x27;, &#x27;/private/&#x27;, &#x27;http://&#x27;, &#x27;https://&#x27;, &#x27;127.0.0.1&#x27;, &#x27;API_KEY&#x27;, &#x27;TOKEN&#x27;, &#x27;SECRET&#x27;, &#x27;python3&#x27;, &#x27;pip insta</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/kitty-chat/tests/support/hermetic_gateway.py</code></li><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,90 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-release-r7-v2",
+  "title": "R-7: reliability, degraded states and provable owner-data backup",
+  "description": "Supersedes kitty-release-r7-v1, which was applied on 2026-09-17 and is paused. Review of the authoring PR found three defects. The proof-drill criterion overstated what the drill verifies: SQLite files are compared by schema and rows (sqlite3 backup does not preserve bytes), not byte-for-byte. A failed schedule read could report a better status than a supervisor already reporting stale, unavailable, or unknown. And the backup reused an implementation that assumes the Builder queue lives under the data root instead of resolving its supported override. v2 states the comparison precisely, combines the read failure with the surface's severity order, narrows the backup outcome to backend API availability, and requires the queue path to resolve through gateway.paths.BUILDER_QUEUE_DB; every other packet and criterion is unchanged. Companion docs are docs/packets/R7-00.md, R7-01.md and R7-02.md.",
+  "packets": [
+    {
+      "id": "kitty-release-r7-degraded",
+      "title": "The health surface stops hiding a broken scheduler read",
+      "objective": "Make the cron health domain report a failed schedule read as degraded — or the supervisor's own more severe status when it reports stale, unavailable, or unknown — with a reason that names the failure, instead of leaving the supervisor's status in place with a schedule count of zero that was never measured. This packet edits existing files only and creates no new production files.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "when the schedule list cannot be read, the cron domain reports a status no better than the supervisor's — degraded when the supervisor reports available — with a reason naming the read failure, asserted by a test that makes the read raise",
+        "a failed schedule read never improves a more severe supervisor status: stale, unavailable, and unknown are each retained with a reason naming the read failure and the retained status, asserted per state",
+        "a failed schedule read never reports a schedule count, asserted by the domain's detail carrying no measured-looking zero",
+        "when the schedule list reads successfully, the cron domain keeps the supervisor's status and the measured count, asserted by a test with a fixed schedule list",
+        "a failed schedule read does not raise out of the health surface",
+        "the existing health surface tests pass unchanged"
+      ],
+      "allowed_paths": [
+        "gateway/health_surface.py",
+        "tests/test_health_surface.py",
+        "tests/test_health_surface_degraded.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q tests/test_health_surface.py tests/test_health_surface_degraded.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 10
+      }
+    },
+    {
+      "id": "kitty-release-r7-backup",
+      "title": "The gateway can create, list, and verify owner-data backups",
+      "objective": "Add owner-data backup routes that create, list and verify a backup, reusing the existing backup implementation and refusing with a plain reason when there is nothing to protect. The surface that makes the journey terminal-free is separate interactive work; this packet's outcome is backend API availability. Restore is deliberately not part of this packet.",
+      "depends_on": [
+        "kitty-release-r7-degraded"
+      ],
+      "acceptance_criteria": [
+        "a backup created through the gateway appears in the archive list with its creation time and copied file count read from its manifest",
+        "a backup request with no canonical personal database is refused with a plain-language reason and publishes nothing",
+        "verifying an intact archive restores it into a scratch directory, passes SQLite integrity_check and reports success, and verifying a damaged archive reports failure with a reason",
+        "an archive id that is not present in the archive list is rejected with a 404 before it can be used to build a filesystem path",
+        "the existing backup tests pass with their existing cases unchanged, and their new coverage includes the Builder queue when KITTY_BUILDER_DATA_DIR points outside the data root",
+        "a refused or failed backup request returns one plain sentence as its primary message; no stack trace, port, environment variable name or absolute file path is the text a person reads",
+        "a verify result says pass only after the named archive was actually restored and its SQLite files passed integrity check"
+      ],
+      "allowed_paths": [
+        "gateway/routes/",
+        "scripts/kitty_backup.py",
+        "tests/test_backup_routes.py",
+        "tests/test_kitty_backup.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q tests/test_kitty_backup.py tests/test_backup_routes.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      }
+    },
+    {
+      "id": "kitty-release-r7-prove",
+      "title": "The backup proof drill runs as documented and proves the path the product uses",
+      "objective": "Make scripts/kitty_backup_proof.py run under its documented invocation and make its drill exercise the owner-data create and restore path that the ./kitty backup command uses, so its PASS verdict is evidence for the path the product actually writes. This packet edits existing files only and creates no new production files.",
+      "depends_on": [
+        "kitty-release-r7-backup",
+        "kitty-release-r7-degraded"
+      ],
+      "acceptance_criteria": [
+        "the script runs successfully under the invocation its own docstring documents and prints the owner-data mode it proved, asserted by the packet's gate",
+        "the drill compares the pre-backup replica with the restored replica — byte-for-byte for ordinary files and by logical schema and rows for SQLite files — and reports every mismatch",
+        "the drill still runs entirely inside a temp directory and never reads or writes the live data root",
+        "a restore with a mismatch still exits 1 with every difference printed"
+      ],
+      "allowed_paths": [
+        "scripts/kitty_backup_proof.py",
+        "tests/test_backup_proof_script.py"
+      ],
+      "validation_commands": [
+        "python -m pytest -q tests/test_backup_proof_script.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 8
+      }
+    }
+  ]
+}

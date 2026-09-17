@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>integrations.discord_command_center.tasks — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">integrations.discord_command_center.tasks</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>integrations.discord_command_center.tasks</code></h1>
+<p class='muted small'>Source: <code class='inline'>integrations/discord_command_center/tasks.py</code> &middot; Python &middot; 0 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>dataclasses</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-TaskEntry'><code class='inline'>TaskEntry</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-TaskRegistry'><code class='inline'>TaskRegistry</code></a></td><td></td><td>7 methods</td></tr></table></div>
+<div class='card' id='cls-TaskEntry'><h3><code class='inline'>TaskEntry</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> task_id: str, owner_id: int | None, created_at: float, thread_id: int | None, task: asyncio.Task[object] | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from integrations.discord_command_center.tasks import TaskEntry
+
+obj = TaskEntry(...)</pre></div>
+<div class='card' id='cls-TaskRegistry'><h3><code class='inline'>TaskRegistry</code></h3><p>Bounded, process-local registry for live Discord task callbacks.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, max_concurrent_runs: int = 2, max_runs_per_user: int = 1, clock: Callable[[], float] = time.monotonic</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>reserve</code></td><td><code class='inline'>def reserve(self, owner_id: int | None) -&gt; TaskEntry | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>register</code></td><td><code class='inline'>def register(self, entry: TaskEntry, task: asyncio.Task[object], thread_id: int | None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>release</code></td><td><code class='inline'>def release(self, task_id: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>find</code></td><td><code class='inline'>def find(self, owner_id: int | None, task_id: str | None = None, thread_id: int | None = None) -&gt; TaskEntry | None</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>for_owner</code></td><td><code class='inline'>def for_owner(self, owner_id: int | None) -&gt; tuple[TaskEntry, ...]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_reap_finished</code></td><td><code class='inline'>def _reap_finished(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+i
+n
+t
+e
+g
+r
+a
+t
+i
+o
+n
+s
+.
+d
+i
+s
+c
+o
+r
+d
+_
+c
+o
+m
+m
+a
+n
+d
+_
+c
+e
+n
+t
+e
+r
+.
+t
+a
+s
+k
+s
+ 
+i
+m
+p
+o
+r
+t
+ 
+T
+a
+s
+k
+R
+e
+g
+i
+s
+t
+r
+y
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+T
+a
+s
+k
+R
+e
+g
+i
+s
+t
+r
+y
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='integrations_discord_command_center_adapters.py.html'><code class='inline'>integrations.discord_command_center.adapters</code></a></li><li><a href='integrations_discord_command_center_bot.py.html'><code class='inline'>integrations.discord_command_center.bot</code></a></li><li><a href='integrations_discord_command_center_config.py.html'><code class='inline'>integrations.discord_command_center.config</code></a></li><li><a href='integrations_discord_command_center_models.py.html'><code class='inline'>integrations.discord_command_center.models</code></a></li><li><a href='integrations_discord_command_center_runner.py.html'><code class='inline'>integrations.discord_command_center.runner</code></a></li><li><a href='integrations_discord_command_center_runtime.py.html'><code class='inline'>integrations.discord_command_center.runtime</code></a></li><li><a href='integrations_discord_command_center_scrub.py.html'><code class='inline'>integrations.discord_command_center.scrub</code></a></li><li><a href='integrations_discord_command_center_service.py.html'><code class='inline'>integrations.discord_command_center.service</code></a></li><li><a href='integrations_discord_command_center_smoke.py.html'><code class='inline'>integrations.discord_command_center.smoke</code></a></li><li><a href='integrations_discord_command_center_workspace.py.html'><code class='inline'>integrations.discord_command_center.workspace</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

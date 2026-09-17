@@ -161,7 +161,9 @@ def _new_job_id() -> str:
 def _ensure_queue_columns(conn: Any) -> None:
     """Add queue columns if they don't exist (deferred migration)."""
     try:
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()}
+        cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()
+        }
     except Exception:
         cols = set()
     if "priority" not in cols:
@@ -986,17 +988,27 @@ def cancel_queued(character_id: str | None = None, provider: str | None = None) 
     """Cancel locally active jobs without erasing unknown provider outcomes."""
     conditions = ["status IN ('created', 'submitted', 'running')"]
     params: list[Any] = []
-    if character_id:
-        conditions.append("character_id = ?")
-        params.append(character_id)
-    if provider:
-        conditions.append("provider = ?")
-        params.append(provider)
 
-    now = _now_iso()
-    where = " AND ".join(conditions)
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
+        if character_id:
+            cols = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()
+            }
+            if "character_id" not in cols:
+                # character_id is introduced by migration 026. Before that
+                # migration there cannot be character-tagged jobs, so this
+                # filter is truthfully an empty result without mutating schema.
+                return 0
+            conditions.append("character_id = ?")
+            params.append(character_id)
+        if provider:
+            conditions.append("provider = ?")
+            params.append(provider)
+
+        now = _now_iso()
+        where = " AND ".join(conditions)
         cur = conn.execute(
             f"UPDATE image_jobs SET status = ?, updated_at = ?, finished_at = ? "
             f"WHERE {where}",

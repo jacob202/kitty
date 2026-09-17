@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.automation_actions — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.automation_actions</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.automation_actions</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/automation_actions.py</code> &middot; Python &middot; 8 functions &middot; 6 classes</p>
+<div class='card'><h2>Overview</h2><p>One named Automation action registry and execution path.
+
+Time, signal, monitor, and manual triggers all dispatch through this module.
+Authorization is delegated to the existing action_grants policy engine; callers
+cannot supply their own tier or approval outcome.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway</code>, <code class='inline'>inspect</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-register_action'><code class='inline'>register_action</code></a></td><td>Register one server-owned action definition.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-clear_registry'><code class='inline'>clear_registry</code></a></td><td>Clear in-process registrations; primarily used by isolated tests.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_actions'><code class='inline'>get_actions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_definition'><code class='inline'>get_definition</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_policy_evidence'><code class='inline'>_policy_evidence</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_invoke'><code class='inline'>_invoke</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_normalize_result'><code class='inline'>_normalize_result</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-run_action'><code class='inline'>run_action</code></a></td><td>Execute one registered action and return its durable run evidence.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr></table></div>
+<div class='card' id='fn-register_action'><h3><code class='inline'>register_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def register_action(name: str, fn: ActionCallable, policy: ActionPolicy | None = None) -&gt; None</code></div><p>Register one server-owned action definition.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.automation_actions import register_action
+
+result = register_action(name=&quot;name_example&quot;, fn=..., policy=...  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-clear_registry'><h3><code class='inline'>clear_registry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def clear_registry() -&gt; None</code></div><p>Clear in-process registrations; primarily used by isolated tests.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.automation_actions import clear_registry
+
+result = clear_registry()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_actions'><h3><code class='inline'>get_actions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_actions() -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.automation_actions import get_actions
+
+result = get_actions()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_definition'><h3><code class='inline'>get_definition</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_definition(name: str) -&gt; ActionDefinition | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.automation_actions import get_definition
+
+result = get_definition(name=&quot;name_example&quot;)
+# result: ActionDefinition | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_policy_evidence'><h3><code class='inline'>_policy_evidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _policy_evidence(policy: ActionPolicy, scope_type: str | None = None, scope_id: str | None = None) -&gt; tuple[dict[str, Any], action_grants.Decision]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.automation_actions import _policy_evidence
+
+result = _policy_evidence(policy=..., scope_type=&quot;scope_type_example&quot;  # default: None, scope_id=&quot;scope_id_example&quot;  # default: None)
+# result: tuple[dict[str, Any], action_grants.Decision]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_invoke'><h3><code class='inline'>_invoke</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _invoke(fn: ActionCallable, payload: dict[str, Any]) -&gt; Any</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.automation_actions import _invoke
+
+    result = await _invoke()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_normalize_result'><h3><code class='inline'>_normalize_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _normalize_result(value: Any) -&gt; ActionResult</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.automation_actions import _normalize_result
+
+result = _normalize_result(value=...)
+# result: ActionResult</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_action'><h3><code class='inline'>run_action</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>async def run_action(name: str, trigger_kind: str, automation_id: str, trigger_ref: str | None = None, schedule_id: str | None = None, payload: dict[str, Any] | None = None, run_id: str | None = None, policy_scope_type: str | None = None, policy_scope_id: str | None = None) -&gt; dict[str, Any]</code></div><p>Execute one registered action and return its durable run evidence.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.automation_actions import run_action
+
+    result = await run_action()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-AutomationActionError'><code class='inline'>AutomationActionError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-SourceUnavailable'><code class='inline'>SourceUnavailable</code></a></td><td>(AutomationActionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ConditionFalse'><code class='inline'>ConditionFalse</code></a></td><td>(AutomationActionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ActionPolicy'><code class='inline'>ActionPolicy</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-ActionResult'><code class='inline'>ActionResult</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-ActionDefinition'><code class='inline'>ActionDefinition</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-AutomationActionError'><h3><code class='inline'>AutomationActionError</code></h3><p>Base error for Automation action registration/execution.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.automation_actions import AutomationActionError
+
+obj = AutomationActionError(...)</pre></div>
+<div class='card' id='cls-SourceUnavailable'><h3><code class='inline'>SourceUnavailable</code></h3><p>An action could not run because its source/integration is unavailable.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.automation_actions import SourceUnavailable
+
+obj = SourceUnavailable(...)</pre></div>
+<div class='card' id='cls-ConditionFalse'><h3><code class='inline'>ConditionFalse</code></h3><p>The trigger occurred but the action condition did not match.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.automation_actions import ConditionFalse
+
+obj = ConditionFalse(...)</pre></div>
+<div class='card' id='cls-ActionPolicy'><h3><code class='inline'>ActionPolicy</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> capability: str, tier: str, scope_type: str, scope_id: str, session_id: str | None, estimated_cost_usd: float | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.automation_actions import ActionPolicy
+
+obj = ActionPolicy(...)</pre></div>
+<div class='card' id='cls-ActionResult'><h3><code class='inline'>ActionResult</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> status: str, result_pointer: str | None, error: str | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.automation_actions import ActionResult
+
+obj = ActionResult(...)</pre></div>
+<div class='card' id='cls-ActionDefinition'><h3><code class='inline'>ActionDefinition</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> fn: ActionCallable, policy: ActionPolicy</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.automation_actions import ActionDefinition
+
+obj = ActionDefinition(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>VALID_TRIGGER_KINDS</code></td><td><code class='inline'>frozenset({&#x27;time&#x27;, &#x27;signal&#x27;, &#x27;monitor&#x27;, &#x27;manual&#x27;})</code></td></tr><tr><td><code class='inline'>ACTION_RESULT_STATUSES</code></td><td><code class='inline'>frozenset({&#x27;completed&#x27;, &#x27;source_unavailable&#x27;, &#x27;condition_false&#x27;})</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

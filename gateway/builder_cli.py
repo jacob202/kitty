@@ -1520,6 +1520,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             # money, so the receipt check is opt-out, not opt-in.
             governor_db=None if args.no_governor else _governor_db_path(args),
             governor_override=args.governor_override,
+            publish=args.publish,
         )
     except (LoopError, RunnerError, AttemptError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -2071,13 +2072,15 @@ COMMANDS: list[CommandSpec] = [
                  _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-run-packet", "initiative", "run-packet",
                 "drive one packet through the bounded implement/validate/review "
-                "repair loop (shadow mode: no push, no PR)",
+                "repair loop (shadow mode: no push, no PR, unless --publish)",
                 _cmd_initiative_run_packet,
                 [_a("id", "initiative ID"),
                  _a("packet", "packet ID"),
                  _a("--free", "use the free DSH adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
                  _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
                  _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
+                 _a("--publish", "after a succeeded packet, attach its final report under the task lease fence and push its branch + PR; a publication failure keeps the worktree and never reclassifies the packet", action="store_true"),
+                 _a("--gate", "with --publish: 'manual' only — the PR parks at awaiting_review for a human merge; auto-merge is available on the operator 'initiative run' path, not this one", choices=["manual"], default="manual"),
                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
                  _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
                  _a("--worker", "worker name", default="packet-loop"),

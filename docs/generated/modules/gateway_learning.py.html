@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.learning — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.learning</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.learning</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/learning.py</code> &middot; Python &middot; 5 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Socratic Layer for Kitty.
+
+Tracks user absorption and triggers &#x27;Knowledge Gates&#x27; to ensure
+Jacob is actually learning from the technical materials.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>gateway.knowledge</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_stats'><code class='inline'>init_stats</code></a></td><td>Initialize or load user learning stats.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-update_stats'><code class='inline'>update_stats</code></a></td><td>Update user stats atomically.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-record_interaction'><code class='inline'>record_interaction</code></a></td><td>Record an interaction and check if a Knowledge Gate should be triggered.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-generate_knowledge_gate_question'><code class='inline'>generate_knowledge_gate_question</code></a></td><td>Generate a quiz question based on recently ingested technical data.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-process_gate_answer'><code class='inline'>process_gate_answer</code></a></td><td>Assess Jacob&#x27;s answer to a knowledge gate question.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-init_stats'><h3><code class='inline'>init_stats</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def init_stats()</code></div><p>Initialize or load user learning stats.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.learning import init_stats
+
+result = init_stats()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update_stats'><h3><code class='inline'>update_stats</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def update_stats(updates: Dict)</code></div><p>Update user stats atomically.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.learning import update_stats
+
+result = update_stats(updates={})</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_interaction'><h3><code class='inline'>record_interaction</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def record_interaction(was_educational: bool = False, tool_used: bool = False)</code></div><p>Record an interaction and check if a Knowledge Gate should be triggered.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.learning import record_interaction
+
+result = record_interaction(was_educational=True  # default: False, tool_used=True  # default: False)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-generate_knowledge_gate_question'><h3><code class='inline'>generate_knowledge_gate_question</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def generate_knowledge_gate_question(topic: str = &#x27;general&#x27;) -&gt; str</code></div><p>Generate a quiz question based on recently ingested technical data.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.learning import generate_knowledge_gate_question
+
+    result = await generate_knowledge_gate_question()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-process_gate_answer'><h3><code class='inline'>process_gate_answer</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def process_gate_answer(answer: str, question: str) -&gt; dict[str, Any]</code></div><p>Assess Jacob&#x27;s answer to a knowledge gate question.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.learning import process_gate_answer
+
+result = process_gate_answer(answer=&quot;answer_example&quot;, question=&quot;question_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>STATS_FILE</code></td><td><code class='inline'>DATA_DIR / &#x27;user_learning_stats.json&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

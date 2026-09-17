@@ -79,19 +79,20 @@ rejects `--worker-command`/`--review-command`/`--model`/`--provider`. A custom
 - **long / free** — `initiative run <init> --free --max-attempts 12` (prototype-gated if authored with one)
 - **long / paid** — `initiative run <init> --paid --max-attempts 12`
 
-`initiative run-packet` and `initiative run` are **non-publishing (shadow)**
-unless `--publish` is present — no push, no PR, no merge. With `--publish`,
-`--gate auto` (the default) enables Builder's ADR 0018 / ADR 0021
-evidence-gated low-risk auto-merge; `--gate manual` parks each packet at
-`awaiting_review` for a human merge decision.
+`initiative run-packet` is **non-publishing (shadow)** unless `--publish` is
+present — no push, no PR, no merge. With `--publish`, `--gate manual` (the
+only gate this path accepts) attaches the succeeded packet's final report under
+its lease fence, pushes the task branch, and parks the PR at `awaiting_review`
+for a human merge. `--gate auto` remains the capability of the operator
+`initiative run` path only.
 
-That ADR auto-merge is a *capability*, and unattended dispatch does not use it.
-Jacob authorized publication on 2026-09-16, so the scheduled supervisor now runs
-`--publish --gate manual`: every succeeded packet pushes its own branch and
-opens its own pull request, parked at `awaiting_review`. The authorization
-covers opening a pull request and stops there — Builder still may not merge, and
-`--gate auto` stays off the unattended path. `docs/ACTIVE_MISSION.md` records the
-scope.
+Unattended dispatch runs `--publish --gate manual`: every succeeded packet
+pushes its own branch and opens its own pull request, parked at
+`awaiting_review` — authorized 2026-09-16 and scoped in `docs/ACTIVE_MISSION.md`
+to opening a PR, never merging one. A publication failure never reclassifies
+the succeeded packet: it is recorded in the run result and the worktree is kept
+for the operator. PR #895 wired this end to end; #889 had dispatched the flags
+before the CLI accepted them, which made every unattended launch die on argv.
 
 Full detail and negative tests: `docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md` §3.
 

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.face_match — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.face_match</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.face_match</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/face_match.py</code> &middot; Python &middot; 2 functions &middot; 8 classes</p>
+<div class='card'><h2>Overview</h2><p>Reusable exact-reference face matcher for the character benchmark.
+
+Unlike ``verify.score_face_match`` (which globs an entire reference
+directory and re-initializes InsightFace per call), this matcher scores a
+generated image against exactly one reference embedding — the character&#x27;s
+locked reference — and initializes InsightFace once per benchmark run.
+
+Fails closed: any missing dependency, undecodable reference, or reference
+with no detectable face raises ``FaceScorerUnavailable`` rather than
+returning a neutral or passing score.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>cv2</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.image_identity_assignment</code>, <code class='inline'>importlib.util</code>, <code class='inline'>insightface.app</code>, <code class='inline'>math</code>, <code class='inline'>numpy</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_embedding_values'><code class='inline'>_embedding_values</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_cosine'><code class='inline'>_cosine</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-_embedding_values'><h3><code class='inline'>_embedding_values</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _embedding_values(value: Sequence[float], field: str) -&gt; tuple[float, ...]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.face_match import _embedding_values
+
+result = _embedding_values(value=0.0, field=&quot;field_example&quot;)
+# result: tuple[float, ...]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cosine'><h3><code class='inline'>_cosine</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _cosine(left: Sequence[float], right: Sequence[float]) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.face_match import _cosine
+
+result = _cosine(left=0.0, right=0.0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-FaceScorerUnavailable'><code class='inline'>FaceScorerUnavailable</code></a></td><td>(Exception)</td><td>0 methods</td></tr><tr><td><a href='#cls-FaceScore'><code class='inline'>FaceScore</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-FaceMatcher'><code class='inline'>FaceMatcher</code></a></td><td></td><td>4 methods</td></tr><tr><td><a href='#cls-CharacterFaceReference'><code class='inline'>CharacterFaceReference</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-FaceDetection'><code class='inline'>FaceDetection</code></a></td><td></td><td>2 methods</td></tr><tr><td><a href='#cls-MultiFaceAssignmentEvidence'><code class='inline'>MultiFaceAssignmentEvidence</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-_InsightFaceMultiBackend'><code class='inline'>_InsightFaceMultiBackend</code></a></td><td></td><td>5 methods</td></tr><tr><td><a href='#cls-MultiFaceMatcher'><code class='inline'>MultiFaceMatcher</code></a></td><td></td><td>6 methods</td></tr></table></div>
+<div class='card' id='cls-FaceScorerUnavailable'><h3><code class='inline'>FaceScorerUnavailable</code></h3><p>InsightFace/opencv missing, or the locked reference has no usable face.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.face_match import FaceScorerUnavailable
+
+obj = FaceScorerUnavailable(...)</pre></div>
+<div class='card' id='cls-FaceScore'><h3><code class='inline'>FaceScore</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> similarity: float, reference_faces: int, candidate_faces: int</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.face_match import FaceScore
+
+obj = FaceScore(...)</pre></div>
+<div class='card' id='cls-FaceMatcher'><h3><code class='inline'>FaceMatcher</code></h3><p>Loads InsightFace once, embeds the locked reference once, scores N candidates.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, reference_path: Path | str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>ensure_ready</code></td><td><code class='inline'>def ensure_ready(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>score</code></td><td><code class='inline'>def score(self, image_data: bytes) -&gt; FaceScore</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_load</code></td><td><code class='inline'>def _load(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+m
+c
+p
+.
+i
+m
+a
+g
+e
+n
+.
+f
+a
+c
+e
+_
+m
+a
+t
+c
+h
+ 
+i
+m
+p
+o
+r
+t
+ 
+F
+a
+c
+e
+M
+a
+t
+c
+h
+e
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+F
+a
+c
+e
+M
+a
+t
+c
+h
+e
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-CharacterFaceReference'><h3><code class='inline'>CharacterFaceReference</code></h3><p>One face reference bound to an expected cast slot and Character.</p><p class='small'><b>Attributes:</b> cast_slot: str, character_id: str, path: Path | str, position: str | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.face_match import CharacterFaceReference
+
+obj = CharacterFaceReference(...)</pre></div>
+<div class='card' id='cls-FaceDetection'><h3><code class='inline'>FaceDetection</code></h3><p>One detected candidate face with geometry and embedding evidence.</p><p class='small'><b>Attributes:</b> detection_id: str, bbox: tuple[float, float, float, float], embedding: Sequence[float]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>center_x</code></td><td><code class='inline'>def center_x(self) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>center_y</code></td><td><code class='inline'>def center_y(self) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from mcp.imagen.face_match import FaceDetection
+
+obj = FaceDetection(...)</pre></div>
+<div class='card' id='cls-MultiFaceAssignmentEvidence'><h3><code class='inline'>MultiFaceAssignmentEvidence</code></h3><p>Raw face evidence plus canonical identity-assignment result.</p><p class='small'><b>Attributes:</b> character_ids: tuple[str, ...], detected: tuple[FaceDetection, ...], detected_cast_slots: tuple[str, ...], reference_similarity_matrix: tuple[tuple[float, ...], ...], character_similarity_matrix: tuple[tuple[float, ...], ...], assignment: Any</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.face_match import MultiFaceAssignmentEvidence
+
+obj = MultiFaceAssignmentEvidence(...)</pre></div>
+<div class='card' id='cls-_InsightFaceMultiBackend'><h3><code class='inline'>_InsightFaceMultiBackend</code></h3><p>Lazy production backend for the multi-reference evidence path.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_ensure_ready</code></td><td><code class='inline'>def _ensure_ready(self) -&gt; Any</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_decode</code></td><td><code class='inline'>def _decode(data: bytes, label: str) -&gt; Any</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>embed_reference</code></td><td><code class='inline'>def embed_reference(self, path: Path | str) -&gt; Sequence[float]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>detect</code></td><td><code class='inline'>def detect(self, image_data: bytes) -&gt; list[FaceDetection]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+m
+c
+p
+.
+i
+m
+a
+g
+e
+n
+.
+f
+a
+c
+e
+_
+m
+a
+t
+c
+h
+ 
+i
+m
+p
+o
+r
+t
+ 
+_
+I
+n
+s
+i
+g
+h
+t
+F
+a
+c
+e
+M
+u
+l
+t
+i
+B
+a
+c
+k
+e
+n
+d
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+_
+I
+n
+s
+i
+g
+h
+t
+F
+a
+c
+e
+M
+u
+l
+t
+i
+B
+a
+c
+k
+e
+n
+d
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-MultiFaceMatcher'><h3><code class='inline'>MultiFaceMatcher</code></h3><p>Build all-reference/all-face evidence and score cast identity assignment.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, references: Sequence[CharacterFaceReference], backend: Any | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_validate_references</code></td><td><code class='inline'>def _validate_references(self) -&gt; None</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>_load_reference_embeddings</code></td><td><code class='inline'>def _load_reference_embeddings(self) -&gt; tuple[tuple[float, ...], ...]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_character_groups</code></td><td><code class='inline'>def _character_groups(self) -&gt; tuple[tuple[str, str, str | None, tuple[int, ...]], ...]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_detected_slots</code></td><td><code class='inline'>def _detected_slots(detected: Sequence[FaceDetection], groups: Sequence[tuple[str, str, str | None, tuple[int, ...]]]) -</code></td><td><span class='pill'>moderate</span></td></tr><tr><td><code class='inline'>score_assignment</code></td><td><code class='inline'>def score_assignment(self, image_data: bytes, min_similarity: float = 0.45, min_margin: float = 0.05) -&gt; MultiFaceAssign</code></td><td><span class='pill'>complex</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+m
+c
+p
+.
+i
+m
+a
+g
+e
+n
+.
+f
+a
+c
+e
+_
+m
+a
+t
+c
+h
+ 
+i
+m
+p
+o
+r
+t
+ 
+M
+u
+l
+t
+i
+F
+a
+c
+e
+M
+a
+t
+c
+h
+e
+r
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+M
+u
+l
+t
+i
+F
+a
+c
+e
+M
+a
+t
+c
+h
+e
+r
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_benchmark.py.html'><code class='inline'>mcp.imagen.benchmark</code></a></li><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_character_lock.py.html'><code class='inline'>mcp.imagen.character_lock</code></a></li><li><a href='mcp_imagen_config.py.html'><code class='inline'>mcp.imagen.config</code></a></li><li><a href='mcp_imagen_engines.py.html'><code class='inline'>mcp.imagen.engines</code></a></li><li><a href='mcp_imagen_io.py.html'><code class='inline'>mcp.imagen.io</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_retry.py.html'><code class='inline'>mcp.imagen.retry</code></a></li><li><a href='mcp_imagen_server.py.html'><code class='inline'>mcp.imagen.server</code></a></li><li><a href='mcp_imagen_tools.py.html'><code class='inline'>mcp.imagen.tools</code></a></li><li><a href='mcp_imagen_verify.py.html'><code class='inline'>mcp.imagen.verify</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

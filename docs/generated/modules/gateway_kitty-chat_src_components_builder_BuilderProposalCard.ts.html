@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/components/builder/BuilderProposalCard — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/components/builder/BuilderProposalCard</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/components/builder/BuilderProposalCard</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/components/builder/BuilderProposalCard.tsx</code> &middot; TypeScript &middot; 16 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>@/lib/gateway</code>, <code class='inline'>@/lib/queries</code>, <code class='inline'>lucide-react</code>, <code class='inline'>react</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-BuilderProposalTask'><code class='inline'>BuilderProposalTask</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-friendlyMutationError'><code class='inline'>friendlyMutationError</code></a></td><td>function</td><td>gateway.ts&#x27;s describeFetchError already turns an HTTP error status into</td></tr><tr><td><a href='#ex-friendlyAcceptanceUnavailable'><code class='inline'>friendlyAcceptanceUnavailable</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-friendlyResultUnavailable'><code class='inline'>friendlyResultUnavailable</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-missingMissionBinding'><code class='inline'>missingMissionBinding</code></a></td><td>function</td><td>Resume found Builder&#x27;s durable job but its Gateway Mission binding is still</td></tr><tr><td><a href='#ex-missionBindingConfirmed'><code class='inline'>missionBindingConfirmed</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isBuilderProposalTask'><code class='inline'>isBuilderProposalTask</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-readStoredApproval'><code class='inline'>readStoredApproval</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-readPendingBuilderProposalTask'><code class='inline'>readPendingBuilderProposalTask</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-proposalIdentityValue'><code class='inline'>proposalIdentityValue</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-preparedProposalValue'><code class='inline'>preparedProposalValue</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-createProposalInitiativeId'><code class='inline'>createProposalInitiativeId</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-pendingApprovalValue'><code class='inline'>pendingApprovalValue</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderProposalCard'><code class='inline'>BuilderProposalCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-PendingApprovalRecovery'><code class='inline'>PendingApprovalRecovery</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-ResumedBuilderJob'><code class='inline'>ResumedBuilderJob</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-BuilderProposalTask'><h3><code class='inline'>BuilderProposalTask</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface BuilderProposalTask</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderProposalTask } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderProposalTask;</pre></div>
+<div class='card' id='ex-friendlyMutationError'><h3><code class='inline'>friendlyMutationError</code> <span class='pill'>function</span></h3><div class='sig'><code>function friendlyMutationError(err: unknown, fallback: string)</code></div><p>gateway.ts&#x27;s describeFetchError already turns an HTTP error status into
+&quot;Gateway returned &lt;status&gt; &lt;statusText&gt;&quot;, but when the browser can&#x27;t reach
+the gateway at all (connection refused, DNS failure), fetch() itself
+throws with the browser&#x27;s own message — Chromium&#x27;s is the literal string
+&quot;Failed to fetch&quot;, which is not something a non-technical user can act on.</p><h3>Code Example</h3><pre>import { friendlyMutationError } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = friendlyMutationError;</pre></div>
+<div class='card' id='ex-friendlyAcceptanceUnavailable'><h3><code class='inline'>friendlyAcceptanceUnavailable</code> <span class='pill'>function</span></h3><div class='sig'><code>function friendlyAcceptanceUnavailable(error: string | null | undefined)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { friendlyAcceptanceUnavailable } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = friendlyAcceptanceUnavailable;</pre></div>
+<div class='card' id='ex-friendlyResultUnavailable'><h3><code class='inline'>friendlyResultUnavailable</code> <span class='pill'>function</span></h3><div class='sig'><code>function friendlyResultUnavailable(error: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { friendlyResultUnavailable } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = friendlyResultUnavailable;</pre></div>
+<div class='card' id='ex-missingMissionBinding'><h3><code class='inline'>missingMissionBinding</code> <span class='pill'>function</span></h3><div class='sig'><code>function missingMissionBinding(
+  data: { mission_acceptance?: { state?: string | null; error?: string | null } | null } | undefined,
+)</code></div><p>Resume found Builder&#x27;s durable job but its Gateway Mission binding is still
+missing. That is not &quot;resolved&quot;: the pending approval checkpoint is the only
+way to reconcile it, so it must survive this reload.</p><h3>Code Example</h3><pre>import { missingMissionBinding } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = missingMissionBinding;</pre></div>
+<div class='card' id='ex-missionBindingConfirmed'><h3><code class='inline'>missionBindingConfirmed</code> <span class='pill'>function</span></h3><div class='sig'><code>function missionBindingConfirmed(
+  data: { mission_acceptance?: { state?: string | null } | null } | undefined,
+)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { missionBindingConfirmed } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = missionBindingConfirmed;</pre></div>
+<div class='card' id='ex-isBuilderProposalTask'><h3><code class='inline'>isBuilderProposalTask</code> <span class='pill'>function</span></h3><div class='sig'><code>function isBuilderProposalTask(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isBuilderProposalTask } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isBuilderProposalTask;</pre></div>
+<div class='card' id='ex-readStoredApproval'><h3><code class='inline'>readStoredApproval</code> <span class='pill'>function</span></h3><div class='sig'><code>function readStoredApproval(raw: string | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { readStoredApproval } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = readStoredApproval;</pre></div>
+<div class='card' id='ex-readPendingBuilderProposalTask'><h3><code class='inline'>readPendingBuilderProposalTask</code> <span class='pill'>function</span></h3><div class='sig'><code>export function readPendingBuilderProposalTask(raw: string | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { readPendingBuilderProposalTask } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = readPendingBuilderProposalTask;</pre></div>
+<div class='card' id='ex-proposalIdentityValue'><h3><code class='inline'>proposalIdentityValue</code> <span class='pill'>function</span></h3><div class='sig'><code>function proposalIdentityValue(initiativeId: string, task: BuilderProposalTask)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { proposalIdentityValue } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = proposalIdentityValue;</pre></div>
+<div class='card' id='ex-preparedProposalValue'><h3><code class='inline'>preparedProposalValue</code> <span class='pill'>function</span></h3><div class='sig'><code>function preparedProposalValue(proposal: ConversationProposal, task: BuilderProposalTask)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { preparedProposalValue } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = preparedProposalValue;</pre></div>
+<div class='card' id='ex-createProposalInitiativeId'><h3><code class='inline'>createProposalInitiativeId</code> <span class='pill'>function</span></h3><div class='sig'><code>function createProposalInitiativeId()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { createProposalInitiativeId } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = createProposalInitiativeId;</pre></div>
+<div class='card' id='ex-pendingApprovalValue'><h3><code class='inline'>pendingApprovalValue</code> <span class='pill'>function</span></h3><div class='sig'><code>function pendingApprovalValue(missionId: string, approval: ConversationApproveRequest, task: BuilderProposalTask)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { pendingApprovalValue } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = pendingApprovalValue;</pre></div>
+<div class='card' id='ex-BuilderProposalCard'><h3><code class='inline'>BuilderProposalCard</code> <span class='pill'>function</span></h3><div class='sig'><code>export function BuilderProposalCard({
+  task,
+  chatId,
+  messageIndex,
+  onOpenWork,
+  recoveryStorageKey,
+  persistResolvedMission = true,
+}: Props)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderProposalCard } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderProposalCard;</pre></div>
+<div class='card' id='ex-PendingApprovalRecovery'><h3><code class='inline'>PendingApprovalRecovery</code> <span class='pill'>function</span></h3><div class='sig'><code>function PendingApprovalRecovery({
+  task,
+  missionId,
+  approve,
+  onRetry,
+  bindingMissing = false,
+}: {
+  task: BuilderProposalTask
+  missionId: string
+  approve: ReturnType&lt;typeof useApproveBuil</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { PendingApprovalRecovery } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = PendingApprovalRecovery;</pre></div>
+<div class='card' id='ex-ResumedBuilderJob'><h3><code class='inline'>ResumedBuilderJob</code> <span class='pill'>function</span></h3><div class='sig'><code>function ResumedBuilderJob({
+  task,
+  resume,
+  onOpenWork,
+}: {
+  task: BuilderProposalTask
+  resume: ReturnType&lt;typeof useResumeBuilderJob&gt;
+  onOpenWork?: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ResumedBuilderJob } from &#x27;@/gateway/kitty-chat/src/components/builder/BuilderProposalCard&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ResumedBuilderJob;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

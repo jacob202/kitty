@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.ingestion_queue — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.ingestion_queue</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.ingestion_queue</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/ingestion_queue.py</code> &middot; Python &middot; 12 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>SQLite-backed ingestion queue for Kitty.
+
+Moves document processing from a fragile synchronous loop to a robust background
+worker that can handle crashes, restarts, disk-full scenarios, and cascading
+failures gracefully.
+
+Error Break Loop
+================
+The worker tracks errors in two dimensions:
+
+1. Per-task errors  — a single file fails up to MAX_ATTEMPTS (3) times before
+                      being marked permanently failed.
+2. Global circuit   — if GLOBAL_ERROR_THRESHOLD (3) consecutive tasks fail
+                      (regardless of file), the worker HALTs and writes a
+                      sentinel file so an external watchdog or operator can
+                      inspect before restart.
+
+Backoff strategy:
+  - Exponential backoff starting at BASE_DELAY, capped at MAX_DELAY.
+  - Successful task resets the backoff counter.
+  - On circuit-open, the worker stops entirely and logs a clear diagnostic.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>gateway.db</code>, <code class='inline'>gateway.knowledge</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_classify_error'><code class='inline'>_classify_error</code></a></td><td>Return (category, short_label) for an exception.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Initialize the queue database.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-clear_queue'><code class='inline'>clear_queue</code></a></td><td>Delete every row in the ingestion queue. Returns how many rows were removed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-enqueue_file'><code class='inline'>enqueue_file</code></a></td><td>Add a file to the ingestion queue if not already present.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_next_task'><code class='inline'>get_next_task</code></a></td><td>Fetch the next pending or retryable task.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-update_task_status'><code class='inline'>update_task_status</code></a></td><td>Update the status of a task.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_error_summary'><code class='inline'>get_error_summary</code></a></td><td>Return a diagnostic dict with queue error statistics.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_write_halt_sentinel'><code class='inline'>_write_halt_sentinel</code></a></td><td>Write a JSON sentinel file so watchdogs / operators see why we stopped.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_is_halted'><code class='inline'>_is_halted</code></a></td><td>Return True if a halt sentinel file exists on disk.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-clear_halt_flag'><code class='inline'>clear_halt_flag</code></a></td><td>Remove the halt sentinel to allow the worker to resume.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_backoff'><code class='inline'>_backoff</code></a></td><td>Return sleep seconds for a given consecutive-failure attempt (1-indexed).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-process_queue'><code class='inline'>process_queue</code></a></td><td>Worker loop with error break / circuit-breaker logic.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-_classify_error'><h3><code class='inline'>_classify_error</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _classify_error(exc: BaseException) -&gt; Tuple[str, str]</code></div><p>Return (category, short_label) for an exception.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import _classify_error
+
+result = _classify_error(exc=...)
+# result: Tuple[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Initialize the queue database.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-clear_queue'><h3><code class='inline'>clear_queue</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def clear_queue() -&gt; int</code></div><p>Delete every row in the ingestion queue. Returns how many rows were removed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import clear_queue
+
+result = clear_queue()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-enqueue_file'><h3><code class='inline'>enqueue_file</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def enqueue_file(file_path: str | Path, doc_type: Optional[str] = None, sensitivity: str = &#x27;low&#x27;) -&gt; None</code></div><p>Add a file to the ingestion queue if not already present.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import enqueue_file
+
+result = enqueue_file(file_path=&quot;file_path_example&quot;, doc_type=&quot;doc_type_example&quot;  # default: None, sensitivity=&quot;sensitivity_example&quot;  # default: &#x27;low&#x27;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_next_task'><h3><code class='inline'>get_next_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_next_task() -&gt; Optional[Dict]</code></div><p>Fetch the next pending or retryable task.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import get_next_task
+
+result = get_next_task()
+# result: Optional[Dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update_task_status'><h3><code class='inline'>update_task_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def update_task_status(task_id: int, status: str, error: Optional[str] = None) -&gt; None</code></div><p>Update the status of a task.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import update_task_status
+
+result = update_task_status(task_id=0, status=&quot;status_example&quot;, error=&quot;error_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_error_summary'><h3><code class='inline'>get_error_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def get_error_summary() -&gt; Dict</code></div><p>Return a diagnostic dict with queue error statistics.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import get_error_summary
+
+result = get_error_summary()
+# result: Dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_write_halt_sentinel'><h3><code class='inline'>_write_halt_sentinel</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _write_halt_sentinel(error_summary: Dict) -&gt; None</code></div><p>Write a JSON sentinel file so watchdogs / operators see why we stopped.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import _write_halt_sentinel
+
+result = _write_halt_sentinel(error_summary={})
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_halted'><h3><code class='inline'>_is_halted</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _is_halted() -&gt; bool</code></div><p>Return True if a halt sentinel file exists on disk.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import _is_halted
+
+result = _is_halted()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-clear_halt_flag'><h3><code class='inline'>clear_halt_flag</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def clear_halt_flag() -&gt; None</code></div><p>Remove the halt sentinel to allow the worker to resume.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import clear_halt_flag
+
+result = clear_halt_flag()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_backoff'><h3><code class='inline'>_backoff</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _backoff(attempt: int) -&gt; float</code></div><p>Return sleep seconds for a given consecutive-failure attempt (1-indexed).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.ingestion_queue import _backoff
+
+result = _backoff(attempt=0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-process_queue'><h3><code class='inline'>process_queue</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def process_queue() -&gt; None</code></div><p>Worker loop with error break / circuit-breaker logic.
+
+The loop exits cleanly when:
+  - A global error threshold of consecutive task failures is hit (circuit
+    opens).  A halt sentinel is written and the worker stops.
+  - The queue is empty for an extended idle period (implicit via sleep).
+
+To resume after a halt, call ``clear_halt_flag()`` or delete the sentinel
+file, then restart the worker.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.ingestion_queue import process_queue
+
+    result = await process_queue()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>QUEUE_DB</code></td><td><code class='inline'>DATA_DIR / &#x27;ingestion_queue.db&#x27;</code></td></tr><tr><td><code class='inline'>MAX_ATTEMPTS</code></td><td><code class='inline'>3</code></td></tr><tr><td><code class='inline'>GLOBAL_ERROR_THRESHOLD</code></td><td><code class='inline'>3</code></td></tr><tr><td><code class='inline'>BASE_DELAY</code></td><td><code class='inline'>2.0</code></td></tr><tr><td><code class='inline'>MAX_DELAY</code></td><td><code class='inline'>60.0</code></td></tr><tr><td><code class='inline'>BACKOFF_MULTIPLIER</code></td><td><code class='inline'>2.0</code></td></tr><tr><td><code class='inline'>HALT_SENTINEL</code></td><td><code class='inline'>DATA_DIR / &#x27;ingestion_halted&#x27;</code></td></tr><tr><td><code class='inline'>_ERROR_CATEGORIES</code></td><td><code class='inline'>Dict[str, str]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

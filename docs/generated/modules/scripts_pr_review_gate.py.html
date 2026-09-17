@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.pr_review_gate — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.pr_review_gate</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.pr_review_gate</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/pr_review_gate.py</code> &middot; Python &middot; 14 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Deterministic exact-head review-evidence gate for pull requests.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>re</code>, <code class='inline'>scripts</code>, <code class='inline'>sys</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_login'><code class='inline'>_login</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_agent_exact_head_body'><code class='inline'>_agent_exact_head_body</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_agent_body_has_rubric_fields'><code class='inline'>_agent_body_has_rubric_fields</code></a></td><td>True when the body carries the rubric&#x27;s explicit finding fields.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-agent_review_confirmed_finding'><code class='inline'>agent_review_confirmed_finding</code></a></td><td>A marker-bound exact-head review carrying the rubric&#x27;s explicit finding fields.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_agent_body_has_no_findings'><code class='inline'>_agent_body_has_no_findings</code></a></td><td>Accept a no-findings sentinel unless the same evidence contains a real finding block.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-agent_review_approved'><code class='inline'>agent_review_approved</code></a></td><td>Accept only workflow-owned no-findings evidence for the exact full SHA.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-agent_review_blocked'><code class='inline'>agent_review_blocked</code></a></td><td>Treat any exact-head workflow verdict other than no-findings as blocking.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-agent_review_unusable'><code class='inline'>agent_review_unusable</code></a></td><td>A marker-bound exact-head review that is neither a verdict nor a finding.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-builder_review_verdict'><code class='inline'>builder_review_verdict</code></a></td><td>Return a trusted Builder verdict only when it is bound to the exact full SHA.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-builder_review_approved'><code class='inline'>builder_review_approved</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_trusted_builder_actors'><code class='inline'>_trusted_builder_actors</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-evaluate_review_gate'><code class='inline'>evaluate_review_gate</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(19)</span></td></tr><tr><td><a href='#fn-_github_json'><code class='inline'>_github_json</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr></table></div>
+<div class='card' id='fn-_login'><h3><code class='inline'>_login</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _login(comment: dict[str, Any]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import _login
+
+result = _login(comment=&quot;comment_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_agent_exact_head_body'><h3><code class='inline'>_agent_exact_head_body</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _agent_exact_head_body(comment: dict[str, Any], head_sha: str) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import _agent_exact_head_body
+
+result = _agent_exact_head_body(comment=&quot;comment_example&quot;, head_sha=&quot;head_sha_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_agent_body_has_rubric_fields'><h3><code class='inline'>_agent_body_has_rubric_fields</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _agent_body_has_rubric_fields(body: str) -&gt; bool</code></div><p>True when the body carries the rubric&#x27;s explicit finding fields.
+
+This is the only signal that may affect the decision. A clean verdict is allowed
+to mention file paths while explaining why an observation was *not* promoted to a
+finding, so a path mention must never veto a sentinel.
+
+Delegates to pr_review, which owns the definition, so the workflow that produces
+a verdict and the gate that reads it cannot drift apart.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import _agent_body_has_rubric_fields
+
+result = _agent_body_has_rubric_fields(body=&quot;body_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-agent_review_confirmed_finding'><h3><code class='inline'>agent_review_confirmed_finding</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def agent_review_confirmed_finding(comment: dict[str, Any], head_sha: str) -&gt; bool</code></div><p>A marker-bound exact-head review carrying the rubric&#x27;s explicit finding fields.
+
+Used ONLY to choose the failure message; it never decides whether to block. A
+path mention is deliberately NOT sufficient: stalled process narration routinely
+names a file (&quot;I need to inspect scripts/pr_review_gate.py before deciding&quot;), and
+treating that as a finding reproduces the misdiagnosis this change exists to
+remove.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import agent_review_confirmed_finding
+
+result = agent_review_confirmed_finding(comment=&quot;comment_example&quot;, head_sha=&quot;head_sha_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_agent_body_has_no_findings'><h3><code class='inline'>_agent_body_has_no_findings</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _agent_body_has_no_findings(body: str) -&gt; bool</code></div><p>Accept a no-findings sentinel unless the same evidence contains a real finding block.
+
+Review models occasionally explain why an observation was *not* promoted to a
+finding before emitting the required sentinel. That prose is harmless. A
+contradictory response that also contains the rubric&#x27;s structured finding
+fields remains blocking, so this does not turn the sentinel into an escape hatch.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import _agent_body_has_no_findings
+
+result = _agent_body_has_no_findings(body=&quot;body_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-agent_review_approved'><h3><code class='inline'>agent_review_approved</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def agent_review_approved(comment: dict[str, Any], head_sha: str) -&gt; bool</code></div><p>Accept only workflow-owned no-findings evidence for the exact full SHA.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import agent_review_approved
+
+result = agent_review_approved(comment=&quot;comment_example&quot;, head_sha=&quot;head_sha_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-agent_review_blocked'><h3><code class='inline'>agent_review_blocked</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def agent_review_blocked(comment: dict[str, Any], head_sha: str) -&gt; bool</code></div><p>Treat any exact-head workflow verdict other than no-findings as blocking.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import agent_review_blocked
+
+result = agent_review_blocked(comment=&quot;comment_example&quot;, head_sha=&quot;head_sha_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-agent_review_unusable'><h3><code class='inline'>agent_review_unusable</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def agent_review_unusable(comment: dict[str, Any], head_sha: str) -&gt; bool</code></div><p>A marker-bound exact-head review that is neither a verdict nor a finding.
+
+A stalled or truncated review can post the marker and the `Reviewed commit` line
+without the no-findings sentinel and without any structured finding. That is not
+evidence of a defect, and reporting it as one sends an operator looking for a
+finding that was never produced. It still fails the gate -- an unusable review is
+not an approval -- but it is reported as what it is.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import agent_review_unusable
+
+result = agent_review_unusable(comment=&quot;comment_example&quot;, head_sha=&quot;head_sha_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-builder_review_verdict'><h3><code class='inline'>builder_review_verdict</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def builder_review_verdict(comment: dict[str, Any], head_sha: str, trusted_actors: set[str]) -&gt; str | None</code></div><p>Return a trusted Builder verdict only when it is bound to the exact full SHA.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import builder_review_verdict
+
+result = builder_review_verdict(comment=&quot;comment_example&quot;, head_sha=&quot;head_sha_example&quot;, trusted_actors=&quot;trusted_actors_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-builder_review_approved'><h3><code class='inline'>builder_review_approved</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def builder_review_approved(comment: dict[str, Any], head_sha: str, trusted_actors: set[str]) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import builder_review_approved
+
+result = builder_review_approved(comment=&quot;comment_example&quot;, head_sha=&quot;head_sha_example&quot;, trusted_actors=&quot;trusted_actors_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_trusted_builder_actors'><h3><code class='inline'>_trusted_builder_actors</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _trusted_builder_actors(repo_owner: str) -&gt; set[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import _trusted_builder_actors
+
+result = _trusted_builder_actors(repo_owner=&quot;repo_owner_example&quot;)
+# result: set[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-evaluate_review_gate'><h3><code class='inline'>evaluate_review_gate</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (19)</span></h3><div class='sig'><code>def evaluate_review_gate(pr: dict[str, Any], comments: list[dict[str, Any]], repo_owner: str) -&gt; tuple[bool, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import evaluate_review_gate
+
+result = evaluate_review_gate(pr=&quot;pr_example&quot;, comments=&quot;comments_example&quot;, repo_owner=&quot;repo_owner_example&quot;)
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_github_json'><h3><code class='inline'>_github_json</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _github_json(url: str, token: str) -&gt; Any</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import _github_json
+
+result = _github_json(url=&quot;url_example&quot;, token=&quot;token_example&quot;)
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def main() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.pr_review_gate import main
+
+result = main()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>BUILDER_REVIEW_MARKER</code></td><td><code class='inline'>&#x27;&lt;!-- kitty-builder-independent-review --&gt;&#x27;</code></td></tr><tr><td><code class='inline'>AGENT_ACTOR</code></td><td><code class='inline'>&#x27;github-actions[bot]&#x27;</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_worker_session — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_worker_session</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_worker_session</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_worker_session.py</code> &middot; Python &middot; 0 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Canonical Builder worker event and runtime-state vocabulary.
+
+The abandoned WorkerSession backend abstraction was removed; production worker
+execution is owned directly by builder_runner/builder_runtime. This module keeps
+only the shared event/state types consumed by the cockpit and runtime projection.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>enum</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-WorkerEventType'><code class='inline'>WorkerEventType</code></a></td><td>(enum.StrEnum)</td><td>0 methods</td></tr><tr><td><a href='#cls-WorkerEvent'><code class='inline'>WorkerEvent</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-WorkerState'><code class='inline'>WorkerState</code></a></td><td>(enum.StrEnum)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-WorkerEventType'><h3><code class='inline'>WorkerEventType</code></h3><p>Normalised lifecycle/event types emitted to Builder observers.</p><p class='small'><b>Attributes:</b> SESSION_STARTED, SESSION_RESUMED, BRIEF_DELIVERED, INSTRUCTION_SENT, TEXT_DELTA, MESSAGE_COMPLETE, TOOL_START, TOOL_END, COMMAND_START, COMMAND_END, FILE_CHANGE, COMMIT, MODEL_SWITCH, PROVIDER_SWITCH, USAGE, ATTENTION_REQUEST, PERMISSION_REQUEST, HEARTBEAT, IDLE, ERROR, CANCELLED, SESSION_ENDED, RAW</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_worker_session import WorkerEventType
+
+obj = WorkerEventType(...)</pre></div>
+<div class='card' id='cls-WorkerEvent'><h3><code class='inline'>WorkerEvent</code></h3><p>One normalised worker event for replay/cockpit delivery.</p><p class='small'><b>Attributes:</b> event_id: str, seq: int, timestamp: float, session_id: str, packet_id: str, attempt_id: str, type: WorkerEventType, data: dict[str, Any], raw_payload: Any</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_worker_session import WorkerEvent
+
+obj = WorkerEvent(...)</pre></div>
+<div class='card' id='cls-WorkerState'><h3><code class='inline'>WorkerState</code></h3><p>Runtime projection states used by Builder status/cockpit surfaces.</p><p class='small'><b>Attributes:</b> STARTING, RUNNING, IDLE, COMPLETED, CANCELLED, FAILED, DISPOSED</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_worker_session import WorkerState
+
+obj = WorkerState(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

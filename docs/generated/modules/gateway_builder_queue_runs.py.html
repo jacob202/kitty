@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_queue_runs — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_queue_runs</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_queue_runs</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_queue_runs.py</code> &middot; Python &middot; 12 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Builder queue runs — Phase 1C-alpha run-record lifecycle.
+
+Extracted from :mod:`gateway.builder_queue` as the third cut of audit §2.2
+(the DB-layer cut was §2.2 first cut, into :mod:`gateway.builder_queue_db`; the
+lease lifecycle cut was §2.2 second cut, into :mod:`gateway.builder_queue_leases`).
+
+Owns the lifecycle of execution attempts against claimed tasks: create run,
+heartbeat / progress updates, finalize with fence-aware report attachment,
+PID-reuse fencing via ``capture_process_identity`` plus immutable process
+start-time comparison, and the
+``recover_interrupted_runs`` operator-side crash-recovery scan. Also owns
+the run-state machine constants and lifecycle exception classes.
+
+Public symbols are re-exported from :mod:`gateway.builder_queue` via the
+façade so callers (``gateway.builder_runner``, ``gateway.builder_attempt``,
+``gateway.builder_initiative``, CLI, tests) work unchanged.
+
+Active-mission note (:file:`.claude/STATE.md`): the chat-recovery work
+``CR-02-thread-goals-ui`` is independent of this module.
+
+Dependency resolution: imports from ``gateway.builder_queue`` are
+performed lazily inside functions to break the parent-imports-child /
+child-imports-parent cycle at module-import time (the parent loads this
+module, and any cross-module call from a run function picks up the
+parent&#x27;s fully-loaded namespace at call time).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway._id_helpers</code>, <code class='inline'>gateway.builder_queue</code>, <code class='inline'>gateway.builder_queue_db</code>, <code class='inline'>gateway.query_builder</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>subprocess</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-generate_run_id'><code class='inline'>generate_run_id</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_row_to_run'><code class='inline'>_row_to_run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_validate_run_transition'><code class='inline'>_validate_run_transition</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-create_run'><code class='inline'>create_run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-get_run'><code class='inline'>get_run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-list_runs'><code class='inline'>list_runs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-update_run'><code class='inline'>update_run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-finalize_run'><code class='inline'>finalize_run</code></a></td><td>Atomically finish a run and, while still fenced, block its task.</td><td><span class='pill'>complex</span><span class='muted small'>(19)</span></td></tr><tr><td><a href='#fn-capture_process_identity'><code class='inline'>capture_process_identity</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_process_start_stamp'><code class='inline'>_process_start_stamp</code></a></td><td>Extract the immutable ``ps lstart`` prefix from a stored identity.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-process_identity_matches'><code class='inline'>process_identity_matches</code></a></td><td>Match one PID across ``exec`` while still fencing ordinary PID reuse.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-recover_interrupted_runs'><code class='inline'>recover_interrupted_runs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(25)</span></td></tr></table></div>
+<div class='card' id='fn-generate_run_id'><h3><code class='inline'>generate_run_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def generate_run_id() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import generate_run_id
+
+result = generate_run_id()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_run'><h3><code class='inline'>_row_to_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _row_to_run(row: sqlite3.Row) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import _row_to_run
+
+result = _row_to_run(row=...)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_run_transition'><h3><code class='inline'>_validate_run_transition</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _validate_run_transition(current_state: str, new_state: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import _validate_run_transition
+
+result = _validate_run_transition(current_state=&quot;current_state_example&quot;, new_state=&quot;new_state_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_run'><h3><code class='inline'>create_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def create_run(task_id: str, command: list[str], lease_token: str, claim_version: int, worker: str | None = None, model: str | None = None, provider: str | None = None, branch: str | None = None, worktree_path: str | None = None, start_sha: str | None = None, log_path: str | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import create_run
+
+result = create_run(task_id=&quot;task_id_example&quot;, command=&quot;command_example&quot;, lease_token=&quot;lease_token_example&quot;, claim_version=0, worker=&quot;worker_example&quot;  # default: None, model=&quot;model_example&quot;  # default: None, provider=&quot;provider_example&quot;  # default: None, branch=&quot;branch_example&quot;  # default: None, worktree_path=&quot;worktree_path_example&quot;  # default: None, start_sha=&quot;start_sha_example&quot;  # default: None, log_path=&quot;log_path_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_run'><h3><code class='inline'>get_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_run(run_id: str, db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import get_run
+
+result = get_run(run_id=&quot;run_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_runs'><h3><code class='inline'>list_runs</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def list_runs(task_id: str | None = None, state: str | None = None, db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import list_runs
+
+result = list_runs(task_id=&quot;task_id_example&quot;  # default: None, state=&quot;state_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update_run'><h3><code class='inline'>update_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def update_run(run_id: str, state: str | None = None, pid: int | None = None, process_identity: str | None = None, exit_code: int | None = None, log_path: str | None = None, mark_started: bool = False, mark_ended: bool = False, mark_heartbeat: bool = False, expected_states: frozenset[str] | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import update_run
+
+result = update_run(run_id=&quot;run_id_example&quot;, state=&quot;state_example&quot;  # default: None, pid=0  # default: None, process_identity=&quot;process_identity_example&quot;  # default: None, exit_code=0  # default: None, log_path=&quot;log_path_example&quot;  # default: None, mark_started=True  # default: False, mark_ended=True  # default: False, mark_heartbeat=True  # default: False, expected_states=&quot;expected_states_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-finalize_run'><h3><code class='inline'>finalize_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (19)</span></h3><div class='sig'><code>def finalize_run(run_id: str, outcome: str, exit_code: int | None, report: dict[str, Any], lease_token: str, claim_version: int, block_reason: str | None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Atomically finish a run and, while still fenced, block its task.
+
+Lease-clear sequencing (audit §1.3 reliability): the BLOCKED transition
+needs lease_token + claim_version to STILL be present on the task row
+so the fence clause in `_apply_transition` can verify them. So the
+lease-clear UPDATE happens AFTER the transition in the same
+transaction, not before (a previous attempt that combined the
+final_report + lease-clear into one UPDATE wiped lease_token and tripped
+the fence). The transition&#x27;s `extra_where` checks the fence.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import finalize_run
+
+result = finalize_run(run_id=&quot;run_id_example&quot;, outcome=&quot;outcome_example&quot;, exit_code=0, report=&quot;report_example&quot;, lease_token=&quot;lease_token_example&quot;, claim_version=0, block_reason=&quot;block_reason_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-capture_process_identity'><h3><code class='inline'>capture_process_identity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def capture_process_identity(pid: int) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import capture_process_identity
+
+result = capture_process_identity(pid=0)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_process_start_stamp'><h3><code class='inline'>_process_start_stamp</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _process_start_stamp(identity: str | None) -&gt; str | None</code></div><p>Extract the immutable ``ps lstart`` prefix from a stored identity.
+
+macOS ``sandbox-exec`` commonly ``exec(2)``s the requested command in the
+same PID. The command text therefore changes while the process is still the
+same process. ``lstart`` survives exec and remains the PID-reuse fence.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import _process_start_stamp
+
+result = _process_start_stamp(identity=&quot;identity_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-process_identity_matches'><h3><code class='inline'>process_identity_matches</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def process_identity_matches(expected: str | None, current: str | None) -&gt; bool</code></div><p>Match one PID across ``exec`` while still fencing ordinary PID reuse.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import process_identity_matches
+
+result = process_identity_matches(expected=&quot;expected_example&quot;, current=&quot;current_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-recover_interrupted_runs'><h3><code class='inline'>recover_interrupted_runs</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (25)</span></h3><div class='sig'><code>def recover_interrupted_runs(db_path: Path | None = None, starting_grace_seconds: int = 30) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_runs import recover_interrupted_runs
+
+result = recover_interrupted_runs(db_path=&quot;db_path_example&quot;  # default: None, starting_grace_seconds=0  # default: 30)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RunNotFoundError'><code class='inline'>RunNotFoundError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ActiveRunConflictError'><code class='inline'>ActiveRunConflictError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunStateConflictError'><code class='inline'>RunStateConflictError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-RunNotFoundError'><h3><code class='inline'>RunNotFoundError</code></h3><p>Raised when a run ID does not exist.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_queue_runs import RunNotFoundError
+
+obj = RunNotFoundError(...)</pre></div>
+<div class='card' id='cls-ActiveRunConflictError'><h3><code class='inline'>ActiveRunConflictError</code></h3><p>Raised when a task already has an active execution attempt.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_queue_runs import ActiveRunConflictError
+
+obj = ActiveRunConflictError(...)</pre></div>
+<div class='card' id='cls-RunStateConflictError'><h3><code class='inline'>RunStateConflictError</code></h3><p>Raised when a run lifecycle transition is illegal or stale.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_queue_runs import RunStateConflictError
+
+obj = RunStateConflictError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>RUN_STARTING</code></td><td><code class='inline'>&#x27;starting&#x27;</code></td></tr><tr><td><code class='inline'>RUN_RUNNING</code></td><td><code class='inline'>&#x27;running&#x27;</code></td></tr><tr><td><code class='inline'>RUN_CANCEL_REQUESTED</code></td><td><code class='inline'>&#x27;cancel_requested&#x27;</code></td></tr><tr><td><code class='inline'>RUN_EXITED</code></td><td><code class='inline'>&#x27;exited&#x27;</code></td></tr><tr><td><code class='inline'>RUN_FAILED</code></td><td><code class='inline'>&#x27;failed&#x27;</code></td></tr><tr><td><code class='inline'>RUN_TIMEOUT</code></td><td><code class='inline'>&#x27;timeout&#x27;</code></td></tr><tr><td><code class='inline'>RUN_CANCELLED</code></td><td><code class='inline'>&#x27;cancelled&#x27;</code></td></tr><tr><td><code class='inline'>RUN_INTERRUPTED</code></td><td><code class='inline'>&#x27;interrupted&#x27;</code></td></tr><tr><td><code class='inline'>RUN_LEASE_LOST</code></td><td><code class='inline'>&#x27;lease_lost&#x27;</code></td></tr><tr><td><code class='inline'>RUN_SCOPE_VIOLATION</code></td><td><code class='inline'>&#x27;scope_violation&#x27;</code></td></tr><tr><td><code class='inline'>RUN_ACTIVE_STATES</code></td><td><code class='inline'>frozenset({RUN_STARTING, RUN_RUNNING, RUN_CANCEL_REQUESTED})</code></td></tr><tr><td><code class='inline'>RUN_TERMINAL_STATES</code></td><td><code class='inline'>frozenset({RUN_EXITED, RUN_FAILED, RUN_TIMEOUT, RUN_CANCELLED, RUN_INTERRUPTED, RUN_LEASE_LOST, RUN_SCOPE_VIOLATION})</code></td></tr><tr><td><code class='inline'>RUN_TRANSITIONS</code></td><td><code class='inline'>dict[str, frozenset[str]]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

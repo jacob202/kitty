@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.image_studio — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.image_studio</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.image_studio</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/image_studio.py</code> &middot; Python &middot; 20 functions &middot; 9 classes</p>
+<div class='card'><h2>Overview</h2><p>Image Studio routes.
+
+Split from the former routes/extended.py on 2026-09-16 so each route module
+owns one domain (architecture claim: &quot;Routes should remain thin&quot;).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.flux2_compiler</code>, <code class='inline'>gateway.flux2_targets</code>, <code class='inline'>gateway.image_agent</code>, <code class='inline'>gateway.image_characters</code>, <code class='inline'>gateway.image_guidance_bank</code>, <code class='inline'>gateway.image_plan_store</code>, <code class='inline'>gateway.image_plan_types</code>, <code class='inline'>gateway.image_policy</code>, <code class='inline'>gateway.image_quality</code>, <code class='inline'>gateway.image_recipes</code>, <code class='inline'>gateway.image_reference_selector</code>, <code class='inline'>gateway.image_runner</code>, <code class='inline'>gateway.image_sessions</code>, <code class='inline'>gateway.routes.image_studio_jobs</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>pydantic</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-studio_list_characters'><code class='inline'>studio_list_characters</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_create_character'><code class='inline'>studio_create_character</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_get_character'><code class='inline'>studio_get_character</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-studio_update_character'><code class='inline'>studio_update_character</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-studio_delete_character'><code class='inline'>studio_delete_character</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_add_character_ref'><code class='inline'>studio_add_character_ref</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-studio_character_quality'><code class='inline'>studio_character_quality</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-studio_delete_character_ref'><code class='inline'>studio_delete_character_ref</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-studio_list_recipes'><code class='inline'>studio_list_recipes</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_update_recipe'><code class='inline'>studio_update_recipe</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_plan'><code class='inline'>studio_plan</code></a></td><td>Preview a validated generation plan before committing.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_session_payload'><code class='inline'>_session_payload</code></a></td><td>A session plus the turns and jobs a resumed conversation replays.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-studio_create_session'><code class='inline'>studio_create_session</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_list_sessions'><code class='inline'>studio_list_sessions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_get_session'><code class='inline'>studio_get_session</code></a></td><td>Resume: everything needed to rebuild the conversation after a restart.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-studio_update_session'><code class='inline'>studio_update_session</code></a></td><td>Bind or refresh a character/references on an active session.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-studio_set_anchor'><code class='inline'>studio_set_anchor</code></a></td><td>&quot;Use this&quot; — select a rendered result as the base for follow-up edits.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-studio_end_session'><code class='inline'>studio_end_session</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-studio_agent_turn'><code class='inline'>studio_agent_turn</code></a></td><td>Decide what one natural request means, without dispatching it.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-studio_generate'><code class='inline'>studio_generate</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(105)</span></td></tr></table></div>
+<div class='card' id='fn-studio_list_characters'><h3><code class='inline'>studio_list_characters</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_list_characters()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_list_characters
+
+    result = await studio_list_characters()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_create_character'><h3><code class='inline'>studio_create_character</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_create_character(req: CharacterCreate)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_create_character
+
+    result = await studio_create_character()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_get_character'><h3><code class='inline'>studio_get_character</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def studio_get_character(character_id: str)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_get_character
+
+    result = await studio_get_character()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_update_character'><h3><code class='inline'>studio_update_character</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def studio_update_character(character_id: str, req: CharacterUpdate)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_update_character
+
+    result = await studio_update_character()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_delete_character'><h3><code class='inline'>studio_delete_character</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_delete_character(character_id: str)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_delete_character
+
+    result = await studio_delete_character()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_add_character_ref'><h3><code class='inline'>studio_add_character_ref</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def studio_add_character_ref(character_id: str, file: UploadFile)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_add_character_ref
+
+    result = await studio_add_character_ref()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_character_quality'><h3><code class='inline'>studio_character_quality</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def studio_character_quality(character_id: str)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_character_quality
+
+    result = await studio_character_quality()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_delete_character_ref'><h3><code class='inline'>studio_delete_character_ref</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def studio_delete_character_ref(character_id: str, ref_id: str)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_delete_character_ref
+
+    result = await studio_delete_character_ref()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_list_recipes'><h3><code class='inline'>studio_list_recipes</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_list_recipes(available_only: bool = False)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_list_recipes
+
+    result = await studio_list_recipes()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_update_recipe'><h3><code class='inline'>studio_update_recipe</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_update_recipe(recipe_id: str, req: RecipeUpdate)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_update_recipe
+
+    result = await studio_update_recipe()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_plan'><h3><code class='inline'>studio_plan</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>async def studio_plan(req: PlanPreviewRequest)</code></div><p>Preview a validated generation plan before committing.
+
+Returns the resolved plan with provenance so the user can inspect
+references and guidance before calling ``/studio/generate``.
+
+When *session_id* is supplied, the plan is persisted under a stable
+``plan_id`` owned by that session, so ``/studio/generate`` can later
+dispatch from the approved plan instead of mutable form state.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_plan
+
+    result = await studio_plan()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_session_payload'><h3><code class='inline'>_session_payload</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _session_payload(session) -&gt; dict</code></div><p>A session plus the turns and jobs a resumed conversation replays.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.image_studio import _session_payload
+
+result = _session_payload(session=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_create_session'><h3><code class='inline'>studio_create_session</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_create_session(req: SessionCreateRequest)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_create_session
+
+    result = await studio_create_session()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_list_sessions'><h3><code class='inline'>studio_list_sessions</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_list_sessions(limit: int = 50)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_list_sessions
+
+    result = await studio_list_sessions()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_get_session'><h3><code class='inline'>studio_get_session</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def studio_get_session(session_id: str)</code></div><p>Resume: everything needed to rebuild the conversation after a restart.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_get_session
+
+    result = await studio_get_session()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_update_session'><h3><code class='inline'>studio_update_session</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def studio_update_session(session_id: str, req: SessionUpdateRequest)</code></div><p>Bind or refresh a character/references on an active session.
+
+Only supplied fields change; the agent&#x27;s session registry reads these on
+the next turn, so attaching a character here is how a reference image is
+wired into an already-open conversation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_update_session
+
+    result = await studio_update_session()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_set_anchor'><h3><code class='inline'>studio_set_anchor</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def studio_set_anchor(session_id: str, req: AnchorRequest)</code></div><p>&quot;Use this&quot; — select a rendered result as the base for follow-up edits.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_set_anchor
+
+    result = await studio_set_anchor()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_end_session'><h3><code class='inline'>studio_end_session</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def studio_end_session(session_id: str)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_end_session
+
+    result = await studio_end_session()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_agent_turn'><h3><code class='inline'>studio_agent_turn</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def studio_agent_turn(req: AgentTurnRequest)</code></div><p>Decide what one natural request means, without dispatching it.
+
+The controller returns a validated decision plus, for a render, the
+``plan_id`` the caller passes to ``/studio/generate``. Splitting decision
+from dispatch is what lets the UI show what will change before any GPU
+starts billing.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_agent_turn
+
+    result = await studio_agent_turn()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-studio_generate'><h3><code class='inline'>studio_generate</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (105)</span></h3><div class='sig'><code>async def studio_generate(req: StudioGenerateRequest)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.image_studio import studio_generate
+
+    result = await studio_generate()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-CharacterCreate'><code class='inline'>CharacterCreate</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-CharacterUpdate'><code class='inline'>CharacterUpdate</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-RecipeUpdate'><code class='inline'>RecipeUpdate</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-StudioGenerateRequest'><code class='inline'>StudioGenerateRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-PlanPreviewRequest'><code class='inline'>PlanPreviewRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-SessionCreateRequest'><code class='inline'>SessionCreateRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-SessionUpdateRequest'><code class='inline'>SessionUpdateRequest</code></a></td><td>(SessionCreateRequest)</td><td>0 methods</td></tr><tr><td><a href='#cls-AgentTurnRequest'><code class='inline'>AgentTurnRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-AnchorRequest'><code class='inline'>AnchorRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-CharacterCreate'><h3><code class='inline'>CharacterCreate</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> name: str, description: Optional[str], preferred_recipe: Optional[str], identity_preset: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio import CharacterCreate
+
+obj = CharacterCreate(...)</pre></div>
+<div class='card' id='cls-CharacterUpdate'><h3><code class='inline'>CharacterUpdate</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> name: Optional[str], description: Optional[str], preferred_recipe: Optional[str], identity_preset: Optional[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio import CharacterUpdate
+
+obj = CharacterUpdate(...)</pre></div>
+<div class='card' id='cls-RecipeUpdate'><h3><code class='inline'>RecipeUpdate</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> available: bool</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio import RecipeUpdate
+
+obj = RecipeUpdate(...)</pre></div>
+<div class='card' id='cls-StudioGenerateRequest'><h3><code class='inline'>StudioGenerateRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> prompt: str, quality: str, identity: str, character_id: Optional[str], recipe_id: Optional[str], negative_prompt: Optional[str], plan_id: Optional[str], session_id: Optional[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio import StudioGenerateRequest
+
+obj = StudioGenerateRequest(...)</pre></div>
+<div class='card' id='cls-PlanPreviewRequest'><h3><code class='inline'>PlanPreviewRequest</code></h3><p>Preview a generation plan before committing to generation.
+
+*content_lane*/*consent_basis*/*adult_confirmed* are the trusted policy
+declaration (ADR 0040 #8) persisted with the approved plan. They default
+to the safe lane, and private_adult cannot be inferred from prompt text.</p><p class='small'><b>Attributes:</b> prompt: str, character_id: Optional[str], recipe_id: Optional[str], guidance_tags: Optional[List[str]], session_id: Optional[str], content_lane: Optional[str], consent_basis: Optional[str], adult_confirmed: bool</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio import PlanPreviewRequest
+
+obj = PlanPreviewRequest(...)</pre></div>
+<div class='card' id='cls-SessionCreateRequest'><h3><code class='inline'>SessionCreateRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> title: Optional[str], project_id: Optional[int], character_id: Optional[str], reference_ids: Optional[List[str]], protected_traits: Optional[List[str]]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio import SessionCreateRequest
+
+obj = SessionCreateRequest(...)</pre></div>
+<div class='card' id='cls-SessionUpdateRequest'><h3><code class='inline'>SessionUpdateRequest</code></h3><p>PATCH body for an active session. Only supplied fields change.</p><p class='small'><b>Attributes:</b> clear_character: Optional[bool]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio import SessionUpdateRequest
+
+obj = SessionUpdateRequest(...)</pre></div>
+<div class='card' id='cls-AgentTurnRequest'><h3><code class='inline'>AgentTurnRequest</code></h3><p>One natural-language turn for the bounded image-specialist controller.</p><p class='small'><b>Attributes:</b> session_id: str, request: str, recipe_id: Optional[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio import AgentTurnRequest
+
+obj = AgentTurnRequest(...)</pre></div>
+<div class='card' id='cls-AnchorRequest'><h3><code class='inline'>AnchorRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> job_id: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.image_studio import AnchorRequest
+
+obj = AnchorRequest(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

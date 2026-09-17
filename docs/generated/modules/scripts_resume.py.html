@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.resume — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.resume</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.resume</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/resume.py</code> &middot; Python &middot; 12 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Print a one-screen orientation block for the current Kitty worktree.
+
+Gathers branch state, open PRs, test-collection count, service health,
+the current blocking packet, local-only branches, and the most recent
+session note. No deps beyond the stdlib plus the `gh` and `git` CLIs.
+
+Run: `python3.12 scripts/resume.py` or `./kitty resume`.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>concurrent.futures</code>, <code class='inline'>datetime</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>re</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-run'><code class='inline'>run</code></a></td><td>Run a command, returning a CompletedProcess even on timeout or a missing binary.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-open_prs'><code class='inline'>open_prs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-test_count'><code class='inline'>test_count</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-doctor_summary'><code class='inline'>doctor_summary</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-packet_state'><code class='inline'>packet_state</code></a></td><td>Return (active_packet, blocked_packets).</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-branch_state'><code class='inline'>branch_state</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-local_only_branches'><code class='inline'>local_only_branches</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-last_session_note'><code class='inline'>last_session_note</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-section'><code class='inline'>section</code></a></td><td>Print a bold cyan section header with an underline.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-status_badge'><code class='inline'>status_badge</code></a></td><td>Return a green ✓ or red ✗ badge, optionally with a label.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-format_table'><code class='inline'>format_table</code></a></td><td>Print a left-aligned two-column table with the first column padded.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr></table></div>
+<div class='card' id='fn-run'><h3><code class='inline'>run</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def run(cmd: list[str], timeout: int) -&gt; sp.CompletedProcess</code></div><p>Run a command, returning a CompletedProcess even on timeout or a missing binary.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import run
+
+result = run(cmd=&quot;cmd_example&quot;, timeout=0)
+# result: sp.CompletedProcess</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-open_prs'><h3><code class='inline'>open_prs</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def open_prs() -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import open_prs
+
+result = open_prs()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-test_count'><h3><code class='inline'>test_count</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def test_count() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import test_count
+
+result = test_count()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-doctor_summary'><h3><code class='inline'>doctor_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def doctor_summary() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import doctor_summary
+
+result = doctor_summary()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-packet_state'><h3><code class='inline'>packet_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def packet_state() -&gt; tuple[str, list[str]]</code></div><p>Return (active_packet, blocked_packets).
+
+The packet registry uses ✓/📋/⛔/✏️ rather than a literal 🔄. We treat
+the first non-shipped, non-blocked row as &quot;active&quot; and any ⛔ row as
+&quot;blocked&quot;. Falls back to &quot;(none)&quot; and [] when the file is missing.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import packet_state
+
+result = packet_state()
+# result: tuple[str, list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-branch_state'><h3><code class='inline'>branch_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def branch_state() -&gt; tuple[str, bool]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import branch_state
+
+result = branch_state()
+# result: tuple[str, bool]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-local_only_branches'><h3><code class='inline'>local_only_branches</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def local_only_branches(current: str) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import local_only_branches
+
+result = local_only_branches(current=&quot;current_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-last_session_note'><h3><code class='inline'>last_session_note</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def last_session_note() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import last_session_note
+
+result = last_session_note()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-section'><h3><code class='inline'>section</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def section(title: str) -&gt; None</code></div><p>Print a bold cyan section header with an underline.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import section
+
+result = section(title=&quot;title_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-status_badge'><h3><code class='inline'>status_badge</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def status_badge(ok: bool, label: str = &#x27;&#x27;) -&gt; str</code></div><p>Return a green ✓ or red ✗ badge, optionally with a label.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import status_badge
+
+result = status_badge(ok=True, label=&quot;label_example&quot;  # default: &#x27;&#x27;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-format_table'><h3><code class='inline'>format_table</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def format_table(rows: list[tuple[str, str]], indent: int = 2) -&gt; None</code></div><p>Print a left-aligned two-column table with the first column padded.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import format_table
+
+result = format_table(rows=&quot;rows_example&quot;, indent=0  # default: 2)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.resume import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ROOT</code></td><td><code class='inline'>Path(__file__).resolve().parent.parent</code></td></tr><tr><td><code class='inline'>GREEN</code></td><td><code class='inline'>&#x27;\x1b[92m&#x27;</code></td></tr><tr><td><code class='inline'>RED</code></td><td><code class='inline'>&#x27;\x1b[91m&#x27;</code></td></tr><tr><td><code class='inline'>YELLOW</code></td><td><code class='inline'>&#x27;\x1b[93m&#x27;</code></td></tr><tr><td><code class='inline'>CYAN</code></td><td><code class='inline'>&#x27;\x1b[96m&#x27;</code></td></tr><tr><td><code class='inline'>BOLD</code></td><td><code class='inline'>&#x27;\x1b[1m&#x27;</code></td></tr><tr><td><code class='inline'>RESET</code></td><td><code class='inline'>&#x27;\x1b[0m&#x27;</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

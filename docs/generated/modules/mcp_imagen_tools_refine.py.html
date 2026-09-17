@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.tools.refine — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.tools.refine</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.tools.refine</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/tools/refine.py</code> &middot; Python &middot; 2 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Refine tool — autonomous generate → critique → edit loop.
+
+Generates an image, then a vision model checks it against the target and
+either approves it or hands back one concrete edit, which is applied before
+the next check.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>google</code>, <code class='inline'>google.genai</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.engines.nano_banana</code>, <code class='inline'>mcp.imagen.io</code>, <code class='inline'>mcp.server.fastmcp</code>, <code class='inline'>os</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_gemini_client'><code class='inline'>_gemini_client</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-refine_image'><code class='inline'>refine_image</code></a></td><td>Generate an image, then automatically critique and re-edit it until it matches.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr></table></div>
+<div class='card' id='fn-_gemini_client'><h3><code class='inline'>_gemini_client</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _gemini_client()</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.tools.refine import _gemini_client
+
+result = _gemini_client()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-refine_image'><h3><code class='inline'>refine_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def refine_image(prompt: str, target: str = &#x27;&#x27;, max_rounds: int = 3) -&gt; list</code></div><p>Generate an image, then automatically critique and re-edit it until it matches.
+
+Args:
+    prompt: What to generate initially.
+    target: The success criteria to judge against. Defaults to ``prompt``.
+    max_rounds: Max critique/edit rounds (1-5). Default 3.
+
+Returns:
+    The final image (inline), the saved path, and the round-by-round critique trail.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.tools.refine import refine_image
+
+result = refine_image(prompt=&quot;prompt_example&quot;, target=&quot;target_example&quot;  # default: &#x27;&#x27;, max_rounds=0  # default: 3)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_tools_batch.py.html'><code class='inline'>mcp.imagen.tools.batch</code></a></li><li><a href='mcp_imagen_tools_gallery.py.html'><code class='inline'>mcp.imagen.tools.gallery</code></a></li><li><a href='mcp_imagen_tools_generate.py.html'><code class='inline'>mcp.imagen.tools.generate</code></a></li><li><a href='mcp_imagen_tools_generate_until.py.html'><code class='inline'>mcp.imagen.tools.generate_until</code></a></li><li><a href='mcp_imagen_tools_reference.py.html'><code class='inline'>mcp.imagen.tools.reference</code></a></li><li><a href='mcp_imagen_tools_variations.py.html'><code class='inline'>mcp.imagen.tools.variations</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

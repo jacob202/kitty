@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/state/KittyContext — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/state/KittyContext</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/state/KittyContext</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/state/KittyContext.tsx</code> &middot; TypeScript &middot; 11 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>@/components/CrayonCat</code>, <code class='inline'>@/hooks/useKittyState</code>, <code class='inline'>@/lib/attachment-validation</code>, <code class='inline'>@/lib/chat-client</code>, <code class='inline'>@/lib/context-references</code>, <code class='inline'>@/lib/gateway</code>, <code class='inline'>@/lib/model-availability</code>, <code class='inline'>@/lib/mood</code>, <code class='inline'>@/lib/pwa</code>, <code class='inline'>@/lib/queries</code>, <code class='inline'>@/lib/types</code>, <code class='inline'>@/lib/views</code>, <code class='inline'>@tanstack/react-query</code>, <code class='inline'>react</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-canonicalActiveView'><code class='inline'>canonicalActiveView</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-clientUuid'><code class='inline'>clientUuid</code></a></td><td>function</td><td>UUID-based ids so a page reload cannot collide with an earlier chat id.</td></tr><tr><td><a href='#ex-newChatId'><code class='inline'>newChatId</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-newMsgId'><code class='inline'>newMsgId</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-makeChat'><code class='inline'>makeChat</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-legacyChat'><code class='inline'>legacyChat</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isSmalltalk'><code class='inline'>isSmalltalk</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-getInitials'><code class='inline'>getInitials</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-latestSearchQuery'><code class='inline'>latestSearchQuery</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-useKitty'><code class='inline'>useKitty</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-KittyProvider'><code class='inline'>KittyProvider</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-canonicalActiveView'><h3><code class='inline'>canonicalActiveView</code> <span class='pill'>function</span></h3><div class='sig'><code>function canonicalActiveView(view: string | null | undefined)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { canonicalActiveView } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = canonicalActiveView;</pre></div>
+<div class='card' id='ex-clientUuid'><h3><code class='inline'>clientUuid</code> <span class='pill'>function</span></h3><div class='sig'><code>function clientUuid()</code></div><p>UUID-based ids so a page reload cannot collide with an earlier chat id.
+randomUUID is unavailable on non-secure LAN/Tailnet HTTP origins;
+getRandomValues remains available there and preserves collision resistance.</p><h3>Code Example</h3><pre>import { clientUuid } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = clientUuid;</pre></div>
+<div class='card' id='ex-newChatId'><h3><code class='inline'>newChatId</code> <span class='pill'>function</span></h3><div class='sig'><code>function newChatId()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { newChatId } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = newChatId;</pre></div>
+<div class='card' id='ex-newMsgId'><h3><code class='inline'>newMsgId</code> <span class='pill'>function</span></h3><div class='sig'><code>function newMsgId()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { newMsgId } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = newMsgId;</pre></div>
+<div class='card' id='ex-makeChat'><h3><code class='inline'>makeChat</code> <span class='pill'>function</span></h3><div class='sig'><code>function makeChat(color: ChatColor)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { makeChat } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = makeChat;</pre></div>
+<div class='card' id='ex-legacyChat'><h3><code class='inline'>legacyChat</code> <span class='pill'>function</span></h3><div class='sig'><code>function legacyChat(c: Chat)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { legacyChat } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = legacyChat;</pre></div>
+<div class='card' id='ex-isSmalltalk'><h3><code class='inline'>isSmalltalk</code> <span class='pill'>function</span></h3><div class='sig'><code>function isSmalltalk(text: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isSmalltalk } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isSmalltalk;</pre></div>
+<div class='card' id='ex-getInitials'><h3><code class='inline'>getInitials</code> <span class='pill'>function</span></h3><div class='sig'><code>function getInitials(email?: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { getInitials } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = getInitials;</pre></div>
+<div class='card' id='ex-latestSearchQuery'><h3><code class='inline'>latestSearchQuery</code> <span class='pill'>function</span></h3><div class='sig'><code>function latestSearchQuery(chat: Chat | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { latestSearchQuery } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = latestSearchQuery;</pre></div>
+<div class='card' id='ex-useKitty'><h3><code class='inline'>useKitty</code> <span class='pill'>function</span></h3><div class='sig'><code>export function useKitty()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { useKitty } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = useKitty;</pre></div>
+<div class='card' id='ex-KittyProvider'><h3><code class='inline'>KittyProvider</code> <span class='pill'>function</span></h3><div class='sig'><code>export function KittyProvider({ children }: { children: ReactNode })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { KittyProvider } from &#x27;@/gateway/kitty-chat/src/state/KittyContext&#x27;;
+
+// TODO: wire real props; see component signature
+const result = KittyProvider;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_supervisor — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_supervisor</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_supervisor</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_supervisor.py</code> &middot; Python &middot; 47 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Autonomous campaign supervisor — stateless tick/status control plane.
+
+The supervisor is a thin, stateless dispatcher for the existing KittyBuilder
+machinery. It does not own a second state machine: eligibility, initiative
+rollups, packet selection, leases, worktrees, attempts, validation, review and
+publication all stay in their existing durable owners (``builder_initiative``,
+``builder_queue``, ``builder_attempt``, ``builder_runner``). The supervisor
+only decides *when* to dispatch canonical runs and returns truthful receipts
+about what it did.
+
+Walking-skeleton contract:
+
+- A ``tick()`` holds exactly one OS lock (``fcntl.flock`` on a lockfile next
+  to the queue DB) for the whole pass, deterministically scans operator-active
+  initiatives (stored state ``active``, ordered by initiative id), then asks
+  ``builder_initiative.next_packet`` for each initiative&#x27;s canonical runnable
+  or fenced recovery candidate and detaches **no more than**
+  :data:`MAX_RUNS_PER_TICK` canonical ``initiative run-packet`` loops.
+- Duplicate ticks do nothing: a concurrent tick cannot acquire the lock and
+  returns a ``locked`` receipt with no launches; a sequential re-tick finds
+  the already-claimed tasks no longer ``queued`` and launches nothing.
+- The launchd service never installs itself: :func:`render_supervisor_plist`
+  is a pure renderer and the launcher only prints the plist to stdout.
+
+Only two CLI verbs exist on the ``supervisor`` group (``tick``, ``status``).
+launchd generation lives in the launcher script (``scripts/start_builder_supervisor.sh``),
+not in the CLI, so the CLI surface stays fixed.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>errno</code>, <code class='inline'>fcntl</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_brief</code>, <code class='inline'>gateway.builder_queue_runs</code>, <code class='inline'>gateway.builder_runner</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>plistlib</code>, <code class='inline'>signal</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_supervisor_route'><code class='inline'>_supervisor_route</code></a></td><td>The governed route for unattended dispatch: free, cheap, or frontier.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_supervisor_route_argv'><code class='inline'>_supervisor_route_argv</code></a></td><td>Route selection as run-packet CLI flags.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_supervisor_dispatch_argv'><code class='inline'>_supervisor_dispatch_argv</code></a></td><td>Every run-packet flag unattended dispatch uses: route, then publication.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-default_db_path'><code class='inline'>default_db_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_lock_path'><code class='inline'>_lock_path</code></a></td><td>One OS lock per Builder data dir, alongside the queue DB.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-replenisher_receipt_path'><code class='inline'>replenisher_receipt_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_replenisher_log_path'><code class='inline'>_replenisher_log_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_runway_target'><code class='inline'>_runway_target</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_pid_alive'><code class='inline'>_pid_alive</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_read_replenisher_receipt'><code class='inline'>_read_replenisher_receipt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_write_replenisher_receipt'><code class='inline'>_write_replenisher_receipt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_trusted_slate_author_argv'><code class='inline'>_trusted_slate_author_argv</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-replenishment_projection'><code class='inline'>replenishment_projection</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-replenish_runway_if_needed'><code class='inline'>replenish_runway_if_needed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_task_dispatch_lock_path'><code class='inline'>_task_dispatch_lock_path</code></a></td><td>Stable per-task lock path used only to fence duplicate supervisor spawns.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_task_dispatch_is_locked'><code class='inline'>_task_dispatch_is_locked</code></a></td><td>Return whether another live supervisor child owns this task fence.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_scheduler_enabled'><code class='inline'>_scheduler_enabled</code></a></td><td>Return launchd scheduler truth: loaded, absent/disabled, or unknown.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_wait_for_durable_claim'><code class='inline'>_wait_for_durable_claim</code></a></td><td>Wait until the detached child has durably claimed its queue task.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-canonical_worker_command'><code class='inline'>canonical_worker_command</code></a></td><td>The single canonical worker command the supervisor may launch.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-canonical_reviewer_command'><code class='inline'>canonical_reviewer_command</code></a></td><td>The canonical free reviewer command used by the packet loop.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-canonical_adapter_env'><code class='inline'>canonical_adapter_env</code></a></td><td>Child-only adapter env for the canonical free DSH worker.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-repo_root_default'><code class='inline'>repo_root_default</code></a></td><td>Canonical repo root: gateway/ -&gt; kitty/.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-active_initiatives'><code class='inline'>active_initiatives</code></a></td><td>Deterministically ordered initiatives whose operator state is ``active``.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_validate_max_runs'><code class='inline'>_validate_max_runs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_dispatch_candidate'><code class='inline'>_dispatch_candidate</code></a></td><td>The one packet a tick would dispatch for this initiative, or why not.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_admission_skip'><code class='inline'>_admission_skip</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr><tr><td><a href='#fn-_select_packets'><code class='inline'>_select_packets</code></a></td><td>Pick admitted packets by queue priority, with deterministic tie-breaking.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-dispatchable_counts'><code class='inline'>dispatchable_counts</code></a></td><td>How much work is admitted now, optionally using fresh external truth.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_launch_run'><code class='inline'>_launch_run</code></a></td><td>Detach one packet through the canonical Builder run-packet CLI.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_reconcile_merged_work'><code class='inline'>_reconcile_merged_work</code></a></td><td>Promote merged Builder tasks and retire only clean task worktrees.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-tick'><code class='inline'>tick</code></a></td><td>Run one supervisor tick under a single OS lock and return a receipt.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-active_runs_summary'><code class='inline'>active_runs_summary</code></a></td><td>Return only currently-active run facts without scanning initiatives.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-budget_summary'><code class='inline'>budget_summary</code></a></td><td>Expose the existing compute-governor weekly ledger for Builder UI.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_repo_head'><code class='inline'>_repo_head</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_packet_route'><code class='inline'>_packet_route</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_fresh_main_sha'><code class='inline'>_fresh_main_sha</code></a></td><td>Return fresh origin/main when configured, otherwise local HEAD.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_paths_overlap'><code class='inline'>_paths_overlap</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_changed_paths'><code class='inline'>_changed_paths</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-github_truth_snapshot'><code class='inline'>github_truth_snapshot</code></a></td><td>One read-only GitHub snapshot keyed by head branch; never mutates Builder.</td><td><span class='pill'>complex</span><span class='muted small'>(22)</span></td></tr><tr><td><a href='#fn-preflight_packet'><code class='inline'>preflight_packet</code></a></td><td>Read-only packet review before Builder creates an attempt or run.</td><td><span class='pill'>complex</span><span class='muted small'>(47)</span></td></tr><tr><td><a href='#fn-scheduler_status'><code class='inline'>scheduler_status</code></a></td><td>Read the supported macOS LaunchAgent state without mutating it.</td><td><span class='pill'>complex</span><span class='muted small'>(17)</span></td></tr><tr><td><a href='#fn-control_plane_summary'><code class='inline'>control_plane_summary</code></a></td><td>Cheap-enough Work poll projection without the full initiative rollup.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-status'><code class='inline'>status</code></a></td><td>Read-only projection: Builder state plus truthful autonomy runway.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-render_supervisor_plist'><code class='inline'>render_supervisor_plist</code></a></td><td>Render the launchd plist dict for the periodic supervisor tick.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-render_supervisor_plist_bytes'><code class='inline'>render_supervisor_plist_bytes</code></a></td><td>Serialize the supervisor plist to XML bytes (never writes a file).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Internal launcher entrypoint (used by start_builder_supervisor.sh).</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_build_parser'><code class='inline'>_build_parser</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_supervisor_route'><h3><code class='inline'>_supervisor_route</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _supervisor_route() -&gt; str</code></div><p>The governed route for unattended dispatch: free, cheap, or frontier.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _supervisor_route
+
+result = _supervisor_route()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_supervisor_route_argv'><h3><code class='inline'>_supervisor_route_argv</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _supervisor_route_argv() -&gt; list[str]</code></div><p>Route selection as run-packet CLI flags.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _supervisor_route_argv
+
+result = _supervisor_route_argv()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_supervisor_dispatch_argv'><h3><code class='inline'>_supervisor_dispatch_argv</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _supervisor_dispatch_argv() -&gt; list[str]</code></div><p>Every run-packet flag unattended dispatch uses: route, then publication.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _supervisor_dispatch_argv
+
+result = _supervisor_dispatch_argv()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-default_db_path'><h3><code class='inline'>default_db_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def default_db_path() -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import default_db_path
+
+result = default_db_path()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_lock_path'><h3><code class='inline'>_lock_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _lock_path(db_path: Path | None) -&gt; Path</code></div><p>One OS lock per Builder data dir, alongside the queue DB.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _lock_path
+
+result = _lock_path(db_path=&quot;db_path_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-replenisher_receipt_path'><h3><code class='inline'>replenisher_receipt_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def replenisher_receipt_path(db_path: Path | None = None) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import replenisher_receipt_path
+
+result = replenisher_receipt_path(db_path=&quot;db_path_example&quot;  # default: None)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_replenisher_log_path'><h3><code class='inline'>_replenisher_log_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _replenisher_log_path(db_path: Path | None = None) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _replenisher_log_path
+
+result = _replenisher_log_path(db_path=&quot;db_path_example&quot;  # default: None)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_runway_target'><h3><code class='inline'>_runway_target</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _runway_target() -&gt; tuple[int, str | None]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _runway_target
+
+result = _runway_target()
+# result: tuple[int, str | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_pid_alive'><h3><code class='inline'>_pid_alive</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _pid_alive(pid: object) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _pid_alive
+
+result = _pid_alive(pid=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_replenisher_receipt'><h3><code class='inline'>_read_replenisher_receipt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _read_replenisher_receipt(db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _read_replenisher_receipt
+
+result = _read_replenisher_receipt(db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_write_replenisher_receipt'><h3><code class='inline'>_write_replenisher_receipt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _write_replenisher_receipt(receipt: dict[str, Any], db_path: Path | None = None) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _write_replenisher_receipt
+
+result = _write_replenisher_receipt(receipt=&quot;receipt_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_trusted_slate_author_argv'><h3><code class='inline'>_trusted_slate_author_argv</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _trusted_slate_author_argv(repo_root: Path) -&gt; tuple[list[str], str] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _trusted_slate_author_argv
+
+result = _trusted_slate_author_argv(repo_root=&quot;repo_root_example&quot;)
+# result: tuple[list[str], str] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-replenishment_projection'><h3><code class='inline'>replenishment_projection</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def replenishment_projection(usable_runway: int, target: int, repo_root: Path, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import replenishment_projection
+
+result = replenishment_projection(usable_runway=0, target=0, repo_root=&quot;repo_root_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-replenish_runway_if_needed'><h3><code class='inline'>replenish_runway_if_needed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def replenish_runway_if_needed(usable_runway: int, target: int, repo_root: Path, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import replenish_runway_if_needed
+
+result = replenish_runway_if_needed(usable_runway=0, target=0, repo_root=&quot;repo_root_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_task_dispatch_lock_path'><h3><code class='inline'>_task_dispatch_lock_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _task_dispatch_lock_path(task_id: str, db_path: Path | None) -&gt; Path</code></div><p>Stable per-task lock path used only to fence duplicate supervisor spawns.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _task_dispatch_lock_path
+
+result = _task_dispatch_lock_path(task_id=&quot;task_id_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_task_dispatch_is_locked'><h3><code class='inline'>_task_dispatch_is_locked</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _task_dispatch_is_locked(task_id: str, db_path: Path | None) -&gt; bool</code></div><p>Return whether another live supervisor child owns this task fence.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _task_dispatch_is_locked
+
+result = _task_dispatch_is_locked(task_id=&quot;task_id_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_scheduler_enabled'><h3><code class='inline'>_scheduler_enabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _scheduler_enabled() -&gt; bool | None</code></div><p>Return launchd scheduler truth: loaded, absent/disabled, or unknown.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _scheduler_enabled
+
+result = _scheduler_enabled()
+# result: bool | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_wait_for_durable_claim'><h3><code class='inline'>_wait_for_durable_claim</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _wait_for_durable_claim(task_id: str, process: subprocess.Popen[Any], initial_claim_version: int, db_path: Path | None, timeout_seconds: float = 60.0) -&gt; dict[str, Any]</code></div><p>Wait until the detached child has durably claimed its queue task.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _wait_for_durable_claim
+
+result = _wait_for_durable_claim(task_id=&quot;task_id_example&quot;, process=..., initial_claim_version=0, db_path=&quot;db_path_example&quot;, timeout_seconds=0.0  # default: 60.0)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-canonical_worker_command'><h3><code class='inline'>canonical_worker_command</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def canonical_worker_command(repo_root: Path | None = None) -&gt; list[str]</code></div><p>The single canonical worker command the supervisor may launch.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import canonical_worker_command
+
+result = canonical_worker_command(repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-canonical_reviewer_command'><h3><code class='inline'>canonical_reviewer_command</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def canonical_reviewer_command(repo_root: Path | None = None) -&gt; list[str]</code></div><p>The canonical free reviewer command used by the packet loop.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import canonical_reviewer_command
+
+result = canonical_reviewer_command(repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-canonical_adapter_env'><h3><code class='inline'>canonical_adapter_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def canonical_adapter_env(model: str | None = None) -&gt; dict[str, str]</code></div><p>Child-only adapter env for the canonical free DSH worker.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import canonical_adapter_env
+
+result = canonical_adapter_env(model=&quot;model_example&quot;  # default: None)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-repo_root_default'><h3><code class='inline'>repo_root_default</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def repo_root_default() -&gt; Path</code></div><p>Canonical repo root: gateway/ -&gt; kitty/.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import repo_root_default
+
+result = repo_root_default()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-active_initiatives'><h3><code class='inline'>active_initiatives</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def active_initiatives(db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Deterministically ordered initiatives whose operator state is ``active``.
+
+Stored initiative state is the operator-owned execution gate. Derived
+health is intentionally not a dispatch gate: it can be ``paused`` when
+ordinary eligibility is empty even though ``next_packet`` exposes a fenced
+recovery candidate. Packet runnability stays owned by ``next_packet``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import active_initiatives
+
+result = active_initiatives(db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_max_runs'><h3><code class='inline'>_validate_max_runs</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _validate_max_runs(max_runs: int) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _validate_max_runs
+
+result = _validate_max_runs(max_runs=0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_dispatch_candidate'><h3><code class='inline'>_dispatch_candidate</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _dispatch_candidate(initiative_id: str, db_path: Path | None) -&gt; tuple[dict[str, Any] | None, dict[str, Any] | None]</code></div><p>The one packet a tick would dispatch for this initiative, or why not.
+
+Single definition of &quot;dispatchable&quot;, shared by the launching path and by
+the read-only projection. Two definitions drift, and a projection that
+disagrees with the launcher tells the operator one number while the tick
+does something else — which is exactly what a supervisor must never do.
+
+Note that ``BLOCKED`` is dispatchable: ``next_packet`` returns fenced
+recovery candidates, and re-running them is how blocked work recovers.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _dispatch_candidate
+
+result = _dispatch_candidate(initiative_id=&quot;initiative_id_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: tuple[dict[str, Any] | None, dict[str, Any] | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_admission_skip'><h3><code class='inline'>_admission_skip</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>def _admission_skip(packet: dict[str, Any], db_path: Path | None = None, repo_root: Path | None = None, github_truth: dict[str, Any] | None = None, current_main_sha: str | None = None, current_main_error: str | None = None) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _admission_skip
+
+result = _admission_skip(packet=&quot;packet_example&quot;, db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None, github_truth=&quot;github_truth_example&quot;  # default: None, current_main_sha=&quot;current_main_sha_example&quot;  # default: None, current_main_error=&quot;current_main_error_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_select_packets'><h3><code class='inline'>_select_packets</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _select_packets(db_path: Path | None = None, max_runs: int = MAX_RUNS_PER_TICK, repo_root: Path | None = None, github_truth: dict[str, Any] | None = None, current_main_sha: str | None = None, current_main_error: str | None = None) -&gt; tuple[list[dict[str, Any]], list[dict[str, Any]]]</code></div><p>Pick admitted packets by queue priority, with deterministic tie-breaking.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _select_packets
+
+result = _select_packets(db_path=&quot;db_path_example&quot;  # default: None, max_runs=0  # default: MAX_RUNS_PER_TICK, repo_root=&quot;repo_root_example&quot;  # default: None, github_truth=&quot;github_truth_example&quot;  # default: None, current_main_sha=&quot;current_main_sha_example&quot;  # default: None, current_main_error=&quot;current_main_error_example&quot;  # default: None)
+# result: tuple[list[dict[str, Any]], list[dict[str, Any]]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-dispatchable_counts'><h3><code class='inline'>dispatchable_counts</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def dispatchable_counts(db_path: Path | None = None, repo_root: Path | None = None, github_truth: dict[str, Any] | None = None, current_main_sha: str | None = None, current_main_error: str | None = None) -&gt; dict[str, int]</code></div><p>How much work is admitted now, optionally using fresh external truth.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import dispatchable_counts
+
+result = dispatchable_counts(db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None, github_truth=&quot;github_truth_example&quot;  # default: None, current_main_sha=&quot;current_main_sha_example&quot;  # default: None, current_main_error=&quot;current_main_error_example&quot;  # default: None)
+# result: dict[str, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_launch_run'><h3><code class='inline'>_launch_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _launch_run(packet: dict[str, Any], repo_root: Path | None = None, db_path: Path | None = None, worker: str = SUPERVISOR_WORKER, model: str | None = None) -&gt; dict[str, Any]</code></div><p>Detach one packet through the canonical Builder run-packet CLI.
+
+The detached child owns ``builder_loop.run_packet`` and therefore creates
+the attempt bundle, validation evidence, reviewer binding, and durable run
+state. The supervisor owns only dispatch and returns promptly.
+
+Before launching, verifies the task is still in a dispatchable state.
+The supervisor holds an exclusive lock during this check-and-launch
+window, so no other tick can change the task state concurrently.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _launch_run
+
+result = _launch_run(packet=&quot;packet_example&quot;, repo_root=&quot;repo_root_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None, worker=&quot;worker_example&quot;  # default: SUPERVISOR_WORKER, model=&quot;model_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_merged_work'><h3><code class='inline'>_reconcile_merged_work</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _reconcile_merged_work(db_path: Path | None = None, repo_root: Path | None = None) -&gt; dict[str, Any]</code></div><p>Promote merged Builder tasks and retire only clean task worktrees.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _reconcile_merged_work
+
+result = _reconcile_merged_work(db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tick'><h3><code class='inline'>tick</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def tick(db_path: Path | None = None, repo_root: Path | None = None, worker: str = SUPERVISOR_WORKER, model: str | None = None, max_runs: int = MAX_RUNS_PER_TICK) -&gt; dict[str, Any]</code></div><p>Run one supervisor tick under a single OS lock and return a receipt.
+
+The receipt is truthful about the lock, every scanned initiative, every
+launched run, and every skipped candidate with its reason. A duplicate
+concurrent tick returns ``status: &quot;locked&quot;`` with no launches.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import tick
+
+result = tick(db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None, worker=&quot;worker_example&quot;  # default: SUPERVISOR_WORKER, model=&quot;model_example&quot;  # default: None, max_runs=0  # default: MAX_RUNS_PER_TICK)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-active_runs_summary'><h3><code class='inline'>active_runs_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def active_runs_summary(db_path: Path | None = None) -&gt; list[dict[str, Any]]</code></div><p>Return only currently-active run facts without scanning initiatives.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import active_runs_summary
+
+result = active_runs_summary(db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-budget_summary'><h3><code class='inline'>budget_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def budget_summary(ledger_db_path: Path | str | None = None) -&gt; dict[str, Any]</code></div><p>Expose the existing compute-governor weekly ledger for Builder UI.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import budget_summary
+
+result = budget_summary(ledger_db_path=&quot;ledger_db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_repo_head'><h3><code class='inline'>_repo_head</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _repo_head(repo_root: Path) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _repo_head
+
+result = _repo_head(repo_root=&quot;repo_root_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_packet_route'><h3><code class='inline'>_packet_route</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _packet_route(packet: dict[str, Any], cg: Any) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _packet_route
+
+result = _packet_route(packet=&quot;packet_example&quot;, cg=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fresh_main_sha'><h3><code class='inline'>_fresh_main_sha</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _fresh_main_sha(repo_root: Path) -&gt; str</code></div><p>Return fresh origin/main when configured, otherwise local HEAD.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _fresh_main_sha
+
+result = _fresh_main_sha(repo_root=&quot;repo_root_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_paths_overlap'><h3><code class='inline'>_paths_overlap</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _paths_overlap(path_a: str, path_b: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _paths_overlap
+
+result = _paths_overlap(path_a=&quot;path_a_example&quot;, path_b=&quot;path_b_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_changed_paths'><h3><code class='inline'>_changed_paths</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _changed_paths(repo_root: Path, base_sha: str, current_sha: str) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _changed_paths
+
+result = _changed_paths(repo_root=&quot;repo_root_example&quot;, base_sha=&quot;base_sha_example&quot;, current_sha=&quot;current_sha_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-github_truth_snapshot'><h3><code class='inline'>github_truth_snapshot</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (22)</span></h3><div class='sig'><code>def github_truth_snapshot(repo_root: Path, run_cmd: Any | None = None) -&gt; dict[str, Any]</code></div><p>One read-only GitHub snapshot keyed by head branch; never mutates Builder.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import github_truth_snapshot
+
+result = github_truth_snapshot(repo_root=&quot;repo_root_example&quot;, run_cmd=...  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-preflight_packet'><h3><code class='inline'>preflight_packet</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (47)</span></h3><div class='sig'><code>def preflight_packet(initiative_id: str, packet_id: str, db_path: Path | None = None, repo_root: Path | None = None, ledger_db_path: Path | str | None = None, current_main_sha: str | None = None, requested_route: str | None = None) -&gt; dict[str, Any]</code></div><p>Read-only packet review before Builder creates an attempt or run.
+
+This deliberately reuses the durable initiative packet, manifest validator,
+eligibility derivation, retry accounting, and compute governor. It never
+changes task/run/attempt state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import preflight_packet
+
+result = preflight_packet(initiative_id=&quot;initiative_id_example&quot;, packet_id=&quot;packet_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None, ledger_db_path=&quot;ledger_db_path_example&quot;  # default: None, current_main_sha=&quot;current_main_sha_example&quot;  # default: None, requested_route=&quot;requested_route_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-scheduler_status'><h3><code class='inline'>scheduler_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (17)</span></h3><div class='sig'><code>def scheduler_status(repo_root: Path | None = None, plist_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Read the supported macOS LaunchAgent state without mutating it.
+
+``installed`` means the expected plist exists. ``loaded`` comes from
+``launchctl print`` for the current GUI session. ``healthy`` additionally
+requires the installed plist to match Kitty&#x27;s canonical scheduler contract.
+We intentionally do not invent last-tick or next-run timestamps: launchd
+does not provide either as durable Kitty evidence.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import scheduler_status
+
+result = scheduler_status(repo_root=&quot;repo_root_example&quot;  # default: None, plist_path=&quot;plist_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-control_plane_summary'><h3><code class='inline'>control_plane_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def control_plane_summary(db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Cheap-enough Work poll projection without the full initiative rollup.
+
+The old HTTP route called ``status()`` and then ``dispatchable_counts()``,
+performing two independent per-initiative scans every ten seconds. Work only
+needs active runs, launchable counts, lock identity, and budget truth.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import control_plane_summary
+
+result = control_plane_summary(db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-status'><h3><code class='inline'>status</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def status(db_path: Path | None = None, repo_root: Path | None = None, initiative_prefix: str | None = None) -&gt; dict[str, Any]</code></div><p>Read-only projection: Builder state plus truthful autonomy runway.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import status
+
+result = status(db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None, initiative_prefix=&quot;initiative_prefix_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-render_supervisor_plist'><h3><code class='inline'>render_supervisor_plist</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def render_supervisor_plist(repo_root: Path | None = None) -&gt; dict</code></div><p>Render the launchd plist dict for the periodic supervisor tick.
+
+Contract (matches the walking-skeleton criteria):
+
+- ``RunAtLoad`` True, ``StartInterval`` 900, and **no** ``KeepAlive``.
+- ``PATH`` is a fixed login-safe value; no secrets and no env passthrough.
+- ``WorkingDirectory`` is the canonical repo root.
+- stdout/stderr go to fixed logs under ``logs/builder/``.
+- ``ProgramArguments`` is the fixed launcher: ``start_builder_supervisor.sh tick``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import render_supervisor_plist
+
+result = render_supervisor_plist(repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-render_supervisor_plist_bytes'><h3><code class='inline'>render_supervisor_plist_bytes</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def render_supervisor_plist_bytes(repo_root: Path | None = None) -&gt; bytes</code></div><p>Serialize the supervisor plist to XML bytes (never writes a file).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import render_supervisor_plist_bytes
+
+result = render_supervisor_plist_bytes(repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: bytes</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def main(argv: list[str] | None = None) -&gt; int</code></div><p>Internal launcher entrypoint (used by start_builder_supervisor.sh).
+
+Only ``launchd-plist`` prints the rendered plist to stdout; there is no
+install/bootout/status launchctl surface here — the tests and the design
+both forbid the service from installing itself.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_parser'><h3><code class='inline'>_build_parser</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _build_parser() -&gt; Any</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_supervisor import _build_parser
+
+result = _build_parser()
+# result: Any</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-SupervisorError'><code class='inline'>SupervisorError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-TaskDispatchLock'><code class='inline'>TaskDispatchLock</code></a></td><td></td><td>6 methods</td></tr><tr><td><a href='#cls-SupervisorLock'><code class='inline'>SupervisorLock</code></a></td><td></td><td>4 methods</td></tr></table></div>
+<div class='card' id='cls-SupervisorError'><h3><code class='inline'>SupervisorError</code></h3><p>Raised when a supervisor operation cannot run safely.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_supervisor import SupervisorError
+
+obj = SupervisorError(...)</pre></div>
+<div class='card' id='cls-TaskDispatchLock'><h3><code class='inline'>TaskDispatchLock</code></h3><p>Process-lifetime fence for one supervisor-dispatched task.
+
+The parent acquires this before Popen and passes the descriptor to the
+detached Kitty process. The parent then closes its copy; the child keeps
+the lock until the packet CLI exits. This prevents a later supervisor tick
+from spawning the same task while durable Builder startup is still in
+progress, without inventing a second queue state machine.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, task_id: str, db_path: Path | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>path</code></td><td><code class='inline'>def path(self) -&gt; Path</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>fileno</code></td><td><code class='inline'>def fileno(self) -&gt; int</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__enter__</code></td><td><code class='inline'>def __enter__(self) -&gt; &#x27;TaskDispatchLock&#x27;</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>handoff_to_child</code></td><td><code class='inline'>def handoff_to_child(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__exit__</code></td><td><code class='inline'>def __exit__(self, *_exc_info) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+b
+u
+i
+l
+d
+e
+r
+_
+s
+u
+p
+e
+r
+v
+i
+s
+o
+r
+ 
+i
+m
+p
+o
+r
+t
+ 
+T
+a
+s
+k
+D
+i
+s
+p
+a
+t
+c
+h
+L
+o
+c
+k
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+T
+a
+s
+k
+D
+i
+s
+p
+a
+t
+c
+h
+L
+o
+c
+k
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card' id='cls-SupervisorLock'><h3><code class='inline'>SupervisorLock</code></h3><p>Non-blocking exclusive flock over the supervisor lockfile.
+
+Exactly one OS lock per tick: acquiring it fails fast when another tick
+(or a test-held lock) is already running, which is what makes duplicate
+concurrent ticks a truthful no-op.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, db_path: Path | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>path</code></td><td><code class='inline'>def path(self) -&gt; Path</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__enter__</code></td><td><code class='inline'>def __enter__(self) -&gt; &#x27;SupervisorLock&#x27;</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>__exit__</code></td><td><code class='inline'>def __exit__(self, *_exc_info) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+g
+a
+t
+e
+w
+a
+y
+.
+b
+u
+i
+l
+d
+e
+r
+_
+s
+u
+p
+e
+r
+v
+i
+s
+o
+r
+ 
+i
+m
+p
+o
+r
+t
+ 
+S
+u
+p
+e
+r
+v
+i
+s
+o
+r
+L
+o
+c
+k
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+S
+u
+p
+e
+r
+v
+i
+s
+o
+r
+L
+o
+c
+k
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>MAX_RUNS_PER_TICK</code></td><td><code class='inline'>2</code></td></tr><tr><td><code class='inline'>SUPERVISOR_WORKER</code></td><td><code class='inline'>&#x27;autonomous-supervisor&#x27;</code></td></tr><tr><td><code class='inline'>SUPERVISOR_LABEL</code></td><td><code class='inline'>&#x27;com.kitty.builder.supervisor&#x27;</code></td></tr><tr><td><code class='inline'>SUPERVISOR_START_INTERVAL</code></td><td><code class='inline'>900</code></td></tr><tr><td><code class='inline'>GITHUB_PR_SNAPSHOT_LIMIT</code></td><td><code class='inline'>1000</code></td></tr><tr><td><code class='inline'>LOGIN_SAFE_PATH</code></td><td><code class='inline'>&#x27;/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin&#x27;</code></td></tr><tr><td><code class='inline'>RUNWAY_TARGET_DEFAULT</code></td><td><code class='inline'>6</code></td></tr><tr><td><code class='inline'>RUNWAY_TARGET_ENV</code></td><td><code class='inline'>&#x27;KITTY_BUILDER_RUNWAY_TARGET&#x27;</code></td></tr><tr><td><code class='inline'>SLATE_AUTHOR_ARGV_ENV</code></td><td><code class='inline'>&#x27;KITTY_BUILDER_SLATE_AUTHOR_ARGV_JSON&#x27;</code></td></tr><tr><td><code class='inline'>REPLENISHER_RECEIPT_FILE</code></td><td><code class='inline'>&#x27;replenisher-status.json&#x27;</code></td></tr><tr><td><code class='inline'>REPLENISHER_LOG_FILE</code></td><td><code class='inline'>&#x27;replenisher.log&#x27;</code></td></tr><tr><td><code class='inline'>_FREE_ADAPTER_SCRIPT</code></td><td><code class='inline'>&#x27;scripts/kittybuilder_dsh_worker.sh&#x27;</code></td></tr><tr><td><code class='inline'>_FREE_REVIEWER_SCRIPT</code></td><td><code class='inline'>&#x27;scripts/kittybuilder_dsh_reviewer.sh&#x27;</code></td></tr><tr><td><code class='inline'>SUPERVISOR_ROUTE_ENV</code></td><td><code class='inline'>&#x27;KITTY_BUILDER_SUPERVISOR_ROUTE&#x27;</code></td></tr><tr><td><code class='inline'>SUPERVISOR_ROUTE_DEFAULT</code></td><td><code class='inline'>&#x27;cheap&#x27;</code></td></tr><tr><td><code class='inline'>SUPERVISOR_PUBLISH_ARGV</code></td><td><code class='inline'>[&#x27;--publish&#x27;, &#x27;--gate&#x27;, &#x27;manual&#x27;]</code></td></tr><tr><td><code class='inline'>PREFLIGHT_RUN</code></td><td><code class='inline'>&#x27;run&#x27;</code></td></tr><tr><td><code class='inline'>PREFLIGHT_BLOCKED</code></td><td><code class='inline'>&#x27;blocked&#x27;</code></td></tr><tr><td><code class='inline'>PREFLIGHT_REFUSE</code></td><td><code class='inline'>&#x27;refuse&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.mission_accept_cli — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.mission_accept_cli</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.mission_accept_cli</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/mission_accept_cli.py</code> &middot; Python &middot; 8 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Local operator command for recording running-product Mission acceptance.
+
+`mission_runtime.record_running_product_acceptance` is deliberately not exposed
+over HTTP: reviewer identity, runtime checkout identity, data-root identity and
+artifact provenance are derived locally rather than asserted by a product
+client. This module is the operator&#x27;s way in.
+
+Three steps, in order:
+
+    kitty accept status                      what is waiting, and what blocks it
+    kitty accept template &lt;mission-id&gt; -o F  an evidence file to fill in
+    kitty accept record &lt;mission-id&gt; -e F    the verdict, bound to the candidate</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>gateway</code>, <code class='inline'>json</code>, <code class='inline'>pathlib</code>, <code class='inline'>sys</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_awaiting_missions'><code class='inline'>_awaiting_missions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_plain'><code class='inline'>_plain</code></a></td><td>Say what is missing, and the one command that clears it, when there is one.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_cmd_status'><code class='inline'>_cmd_status</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_template'><code class='inline'>_template</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_cmd_template'><code class='inline'>_cmd_template</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_cmd_record'><code class='inline'>_cmd_record</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(17)</span></td></tr><tr><td><a href='#fn-build_parser'><code class='inline'>build_parser</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_awaiting_missions'><h3><code class='inline'>_awaiting_missions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _awaiting_missions() -&gt; list[dict[str, Any]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_accept_cli import _awaiting_missions
+
+result = _awaiting_missions()
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_plain'><h3><code class='inline'>_plain</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _plain(blocker: str) -&gt; tuple[str, str | None]</code></div><p>Say what is missing, and the one command that clears it, when there is one.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_accept_cli import _plain
+
+result = _plain(blocker=&quot;blocker_example&quot;)
+# result: tuple[str, str | None]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cmd_status'><h3><code class='inline'>_cmd_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _cmd_status(args: argparse.Namespace) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_accept_cli import _cmd_status
+
+result = _cmd_status(args=...)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_template'><h3><code class='inline'>_template</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _template(mission: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_accept_cli import _template
+
+result = _template(mission=&quot;mission_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cmd_template'><h3><code class='inline'>_cmd_template</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _cmd_template(args: argparse.Namespace) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_accept_cli import _cmd_template
+
+result = _cmd_template(args=...)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cmd_record'><h3><code class='inline'>_cmd_record</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (17)</span></h3><div class='sig'><code>def _cmd_record(args: argparse.Namespace) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_accept_cli import _cmd_record
+
+result = _cmd_record(args=...)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_parser'><h3><code class='inline'>build_parser</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def build_parser() -&gt; argparse.ArgumentParser</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_accept_cli import build_parser
+
+result = build_parser()
+# result: argparse.ArgumentParser</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def main(argv: list[str] | None = None) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.mission_accept_cli import main
+
+result = main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_AWAITING_STATUSES</code></td><td><code class='inline'>(&#x27;VERIFYING&#x27;, &#x27;EXECUTING&#x27;, &#x27;REPAIRING&#x27;)</code></td></tr><tr><td><code class='inline'>_STATE_LABELS</code></td><td><code class='inline'>{&#x27;desktop&#x27;: &#x27;Desktop width&#x27;, &#x27;iphone_class&#x27;: &#x27;iPhone-class width&#x27;, &#x27;happy&#x27;: &#x27;The journey when nothing goes wrong&#x27;, &#x27;degr</code></td></tr><tr><td><code class='inline'>_PLAIN_BLOCKERS</code></td><td><code class='inline'>((&#x27;GATEWAY_SECRET&#x27;, &#x27;Kitty is not running, or this shell cannot reach it.&#x27;, &#x27;./kitty up&#x27;), (&#x27;Gateway runtime identity is</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

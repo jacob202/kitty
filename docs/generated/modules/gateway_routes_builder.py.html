@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.builder — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.builder</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.builder</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/builder.py</code> &middot; Python &middot; 6 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Builder-specific routes — event stream and control surface.
+
+KB-BRAIN-03: exposes the live EventStream with cursor replay and packet
+filtering. The cockpit polls /runtime/manifest for structure and subscribes
+here for live updates.
+
+KB-BRAIN-05: operator command endpoint dispatches typed commands with audit
+events and returns structured results.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>fastapi</code>, <code class='inline'>fastapi.responses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_commands</code>, <code class='inline'>gateway.builder_events</code>, <code class='inline'>gateway.models.builder</code>, <code class='inline'>logging</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-builder_event_stream'><code class='inline'>builder_event_stream</code></a></td><td>SSE endpoint for live Builder events.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-builder_operator_command'><code class='inline'>builder_operator_command</code></a></td><td>Dispatch an operator command through canonical Builder APIs.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-builder_supervisor_status'><code class='inline'>builder_supervisor_status</code></a></td><td>Read-only projection of the autonomous supervisor&#x27;s own state.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_translate_supervisor_error'><code class='inline'>_translate_supervisor_error</code></a></td><td>Map common supervisor internal errors to plain-language messages.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-builder_supervisor_tick'><code class='inline'>builder_supervisor_tick</code></a></td><td>Run exactly one supervisor tick and return a structured result.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-builder_preflight'><code class='inline'>builder_preflight</code></a></td><td>Read-only pre-flight review of a single packet before execution.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-builder_event_stream'><h3><code class='inline'>builder_event_stream</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def builder_event_stream(request: Request, session_id: str | None = Query(None), cursor: int | None = Query(None), packet_id: str | None = Query(None))</code></div><p>SSE endpoint for live Builder events.
+
+Query params:
+- ``session_id``: stable client identifier (auto-generated if absent)
+- ``cursor``: replay events from this sequence number onward
+- ``packet_id``: filter to a single packet&#x27;s events</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.builder import builder_event_stream
+
+    result = await builder_event_stream()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-builder_operator_command'><h3><code class='inline'>builder_operator_command</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def builder_operator_command(body: OperatorCommandRequest)</code></div><p>Dispatch an operator command through canonical Builder APIs.
+
+Each command is audited: the handler emits a ``command_completed`` event
+into the builder event stream and returns a structured result. The frontend
+must never mutate queue storage or infer success from HTTP 200 alone —
+inspect ``result.ok`` and ``result.error``.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.builder import builder_operator_command
+
+    result = await builder_operator_command()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-builder_supervisor_status'><h3><code class='inline'>builder_supervisor_status</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def builder_supervisor_status()</code></div><p>Read-only projection of the autonomous supervisor&#x27;s own state.
+
+Distinguishes work a tick would start right now (``eligible_now``, owning
+initiative active) from work that is dispatchable in every respect except
+that its initiative is paused (``on_hold``), which no tick will ever pick
+up. Both counts come from ``dispatchable_counts()``, which shares one
+predicate with the launching path — a projection that counted eligibility
+differently would promise the operator a number the tick does not honour.
+This route never queries queue storage itself.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.builder import builder_supervisor_status
+
+    result = await builder_supervisor_status()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_translate_supervisor_error'><h3><code class='inline'>_translate_supervisor_error</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _translate_supervisor_error(raw: str) -&gt; str</code></div><p>Map common supervisor internal errors to plain-language messages.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.builder import _translate_supervisor_error
+
+result = _translate_supervisor_error(raw=&quot;raw_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-builder_supervisor_tick'><h3><code class='inline'>builder_supervisor_tick</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def builder_supervisor_tick()</code></div><p>Run exactly one supervisor tick and return a structured result.
+
+Mirrors ``/builder/command``: never lets an exception escape as a 500,
+and the caller must inspect ``ok`` rather than infer success from HTTP
+200 alone. A concurrent tick is not an error — it is reported as
+``ok: true`` with an empty ``started`` list and the ``locked`` detail.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.builder import builder_supervisor_tick
+
+    result = await builder_supervisor_tick()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-builder_preflight'><h3><code class='inline'>builder_preflight</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def builder_preflight(initiative_id: str, packet_id: str)</code></div><p>Read-only pre-flight review of a single packet before execution.
+
+Returns a structured decision (``run`` | ``blocked`` | ``refuse``) with
+projected route, estimated CAD cost, eligibility, data quality, and
+plain-language reasons.  This endpoint never creates an attempt, changes
+task state, or launches a run.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.builder import builder_preflight
+
+    result = await builder_preflight()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_COMMAND_HANDLERS</code></td><td><code class='inline'>COMMAND_HANDLERS</code></td></tr><tr><td><code class='inline'>_SUPERVISOR_ERROR_TRANSLATIONS</code></td><td><code class='inline'>dict[str, str]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li><li><a href='gateway_routes_chats.py.html'><code class='inline'>gateway.routes.chats</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

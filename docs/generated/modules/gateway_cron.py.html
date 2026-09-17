@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.cron — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.cron</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.cron</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/cron.py</code> &middot; Python &middot; 18 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Cron Scheduler — runtime trigger system for recurring tasks.
+
+Replaces launchd plists with runtime-managed schedules. Supports:
+- Time-based: daily at 7am, every Monday, etc.
+- Interval-based: every N minutes
+- One-shot: fire once at a specific time
+
+Public API:
+  schedule(name, action, cron_expr, metadata) -&gt; str
+  list_schedules() -&gt; list[dict]
+  remove(name) -&gt; bool
+  start() -&gt; start background runner
+
+The cron schedules live in `data/kitty/kitty.db` (table `cron_schedules`)
+since the C3 consolidation. The legacy `data/cron_schedules.db` is
+imported once on first `init_db()` if the destination table is empty.
+The legacy DB is never deleted; rollback is a one-line change in
+this file. See `docs/phases/PHASE_C3_PLAN.md` for the full sequence.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.automation_supervisor</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>inspect</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code>, <code class='inline'>zoneinfo</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_default_timezone_name'><code class='inline'>_default_timezone_name</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_import_legacy_cron_once'><code class='inline'>_import_legacy_cron_once</code></a></td><td>One-shot import from the legacy `cron_schedules.db` into kitty.db.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Apply the legacy import shim. Schema is owned by migration 012.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-schedule'><code class='inline'>schedule</code></a></td><td>Schedule a recurring task. Returns schedule_id.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-ensure_schedule'><code class='inline'>ensure_schedule</code></a></td><td>Create or update one stable schedule identity keyed by ``name``.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-list_schedules'><code class='inline'>list_schedules</code></a></td><td>List all schedules.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-remove'><code class='inline'>remove</code></a></td><td>Remove a schedule by ID.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-toggle'><code class='inline'>toggle</code></a></td><td>Flip the enabled flag. Returns new state, or None if not found.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-update'><code class='inline'>update</code></a></td><td>Update a schedule by ID. Returns False when the schedule is missing.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_actions'><code class='inline'>get_actions</code></a></td><td>Return names from the canonical Automation action registry.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-register_action'><code class='inline'>register_action</code></a></td><td>Compatibility wrapper for no-payload cron actions.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-start'><code class='inline'>start</code></a></td><td>Start the background cron runner with restart reconciliation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-stop'><code class='inline'>stop</code></a></td><td>Stop the cron runner and clear its in-process task handle.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_run_due_once'><code class='inline'>_run_due_once</code></a></td><td>Claim and execute each due schedule at most once for this pass.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_runner'><code class='inline'>_runner</code></a></td><td>Background loop that checks schedules and fires actions.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_should_fire'><code class='inline'>_should_fire</code></a></td><td>Check if a schedule should fire now.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_due_at'><code class='inline'>_due_at</code></a></td><td>Return the due occurrence timestamp, or ``None`` when not due.</td><td><span class='pill'>complex</span><span class='muted small'>(17)</span></td></tr><tr><td><a href='#fn-explain_schedule'><code class='inline'>explain_schedule</code></a></td><td>Explain the schedule-level reason an automation has or has not run.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-_default_timezone_name'><h3><code class='inline'>_default_timezone_name</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _default_timezone_name() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import _default_timezone_name
+
+result = _default_timezone_name()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_import_legacy_cron_once'><h3><code class='inline'>_import_legacy_cron_once</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _import_legacy_cron_once() -&gt; None</code></div><p>One-shot import from the legacy `cron_schedules.db` into kitty.db.
+
+Pattern matches `todo_store`, `chats_store`, `journal_store`,
+`buddy_store`:
+  - If the destination `cron_schedules` table is non-empty, skip
+    and mark the setting (the live data is the source of truth).
+  - If the legacy DB does not exist, no-op.
+  - If the legacy DB exists and destination is empty, copy rows
+    verbatim, then mark the setting in `app_settings` with the
+    outcome.
+  - Never deletes the source file.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import _import_legacy_cron_once
+
+result = _import_legacy_cron_once()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Apply the legacy import shim. Schema is owned by migration 012.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-schedule'><h3><code class='inline'>schedule</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def schedule(name: str, action: str, schedule_type: str = &#x27;daily&#x27;, schedule_value: str = &#x27;07:00&#x27;, metadata: Optional[dict] = None) -&gt; str</code></div><p>Schedule a recurring task. Returns schedule_id.
+
+Reuses an existing row when EITHER:
+(A) the stable seed name is the same — preserves edited seeded schedules
+(B) the original complete tuple (action + schedule_type + schedule_value + metadata) is identical — exact-match idempotency</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import schedule
+
+result = schedule(name=&quot;name_example&quot;, action=&quot;action_example&quot;, schedule_type=&quot;schedule_type_example&quot;  # default: &#x27;daily&#x27;, schedule_value=&quot;schedule_value_example&quot;  # default: &#x27;07:00&#x27;, metadata={}  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-ensure_schedule'><h3><code class='inline'>ensure_schedule</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def ensure_schedule(name: str, action: str, schedule_type: str = &#x27;daily&#x27;, schedule_value: str = &#x27;07:00&#x27;, metadata: Optional[dict] = None) -&gt; str</code></div><p>Create or update one stable schedule identity keyed by ``name``.
+
+Reconfiguration preserves the existing row (including enabled/last_run) and
+removes accidental duplicate rows with the same automation name.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import ensure_schedule
+
+result = ensure_schedule(name=&quot;name_example&quot;, action=&quot;action_example&quot;, schedule_type=&quot;schedule_type_example&quot;  # default: &#x27;daily&#x27;, schedule_value=&quot;schedule_value_example&quot;  # default: &#x27;07:00&#x27;, metadata={}  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_schedules'><h3><code class='inline'>list_schedules</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_schedules() -&gt; list[dict]</code></div><p>List all schedules.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import list_schedules
+
+result = list_schedules()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-remove'><h3><code class='inline'>remove</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def remove(sid: str) -&gt; bool</code></div><p>Remove a schedule by ID.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import remove
+
+result = remove(sid=&quot;sid_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-toggle'><h3><code class='inline'>toggle</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def toggle(sid: str) -&gt; bool | None</code></div><p>Flip the enabled flag. Returns new state, or None if not found.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import toggle
+
+result = toggle(sid=&quot;sid_example&quot;)
+# result: bool | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update'><h3><code class='inline'>update</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def update(sid: str, name: str, action: str, schedule_type: str, schedule_value: str, metadata: Optional[dict] = None) -&gt; bool</code></div><p>Update a schedule by ID. Returns False when the schedule is missing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import update
+
+result = update(sid=&quot;sid_example&quot;, name=&quot;name_example&quot;, action=&quot;action_example&quot;, schedule_type=&quot;schedule_type_example&quot;, schedule_value=&quot;schedule_value_example&quot;, metadata={}  # default: None)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_actions'><h3><code class='inline'>get_actions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_actions() -&gt; list[str]</code></div><p>Return names from the canonical Automation action registry.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import get_actions
+
+result = get_actions()
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-register_action'><h3><code class='inline'>register_action</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def register_action(name: str, fn: Callable[[], Any | Awaitable[Any]], tier: str = &#x27;T0&#x27;, capability: str | None = None) -&gt; None</code></div><p>Compatibility wrapper for no-payload cron actions.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import register_action
+
+result = register_action(name=&quot;name_example&quot;, fn=..., tier=&quot;tier_example&quot;  # default: &#x27;T0&#x27;, capability=&quot;capability_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-start'><h3><code class='inline'>start</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def start() -&gt; asyncio.Task | None</code></div><p>Start the background cron runner with restart reconciliation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import start
+
+result = start()
+# result: asyncio.Task | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-stop'><h3><code class='inline'>stop</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def stop() -&gt; None</code></div><p>Stop the cron runner and clear its in-process task handle.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.cron import stop
+
+    result = await stop()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_due_once'><h3><code class='inline'>_run_due_once</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def _run_due_once(now: float | None = None) -&gt; None</code></div><p>Claim and execute each due schedule at most once for this pass.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.cron import _run_due_once
+
+    result = await _run_due_once()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_runner'><h3><code class='inline'>_runner</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def _runner() -&gt; None</code></div><p>Background loop that checks schedules and fires actions.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.cron import _runner
+
+    result = await _runner()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_should_fire'><h3><code class='inline'>_should_fire</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _should_fire(s: dict, now: float) -&gt; bool</code></div><p>Check if a schedule should fire now.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import _should_fire
+
+result = _should_fire(s={}, now=0.0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_due_at'><h3><code class='inline'>_due_at</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (17)</span></h3><div class='sig'><code>def _due_at(s: dict, now: float) -&gt; float | None</code></div><p>Return the due occurrence timestamp, or ``None`` when not due.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import _due_at
+
+result = _due_at(s={}, now=0.0)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-explain_schedule'><h3><code class='inline'>explain_schedule</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def explain_schedule(s: dict[str, Any], now: float | None = None) -&gt; dict[str, Any]</code></div><p>Explain the schedule-level reason an automation has or has not run.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.cron import explain_schedule
+
+result = explain_schedule(s=&quot;s_example&quot;, now=0.0  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>TABLE</code></td><td><code class='inline'>&#x27;cron_schedules&#x27;</code></td></tr><tr><td><code class='inline'>LEGACY_CRON_DB</code></td><td><code class='inline'>DATA_DIR / &#x27;cron_schedules.db&#x27;</code></td></tr><tr><td><code class='inline'>LEGACY_IMPORT_SETTING</code></td><td><code class='inline'>&#x27;cron_legacy_imported&#x27;</code></td></tr><tr><td><code class='inline'>USER_PROFILE_PATH</code></td><td><code class='inline'>CONFIG_DIR / &#x27;user_profile.json&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_TIMEZONE</code></td><td><code class='inline'>&#x27;America/Regina&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

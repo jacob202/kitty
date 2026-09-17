@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_iteration — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_iteration</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_iteration</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_iteration.py</code> &middot; Python &middot; 14 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Image Lab iteration helpers (QoL Packet 02).
+
+Makes generation iterative rather than disposable: retry (same intent, new
+attempt), duplicate (independent copy), and modify-one-parameter, while
+preserving provider/model/configuration provenance, character identity, and
+parent→child lineage.
+
+Protected-subsystem boundary: these helpers never re-route a provider, change
+content policy, or touch the private-adult lane. Provider and policy metadata
+are copied verbatim from the source job; ``modify`` can only change the listed
+render parameters, never provider, operation, plan, or intent. A job whose
+``content_lane`` is ``private_adult`` stays on its original provider with its
+policy metadata intact.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.image_jobs</code>, <code class='inline'>random</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_require_succeeded_job'><code class='inline'>_require_succeeded_job</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-build_generation_context'><code class='inline'>build_generation_context</code></a></td><td>Reconstruct a retry/duplicate payload from an existing job.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_create_from_context'><code class='inline'>_create_from_context</code></a></td><td>Persist a new job whose configuration matches ``ctx`` and link lineage.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_attach_to_source_session'><code class='inline'>_attach_to_source_session</code></a></td><td>Keep the child in the same character session so identity survives.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-duplicate_job'><code class='inline'>duplicate_job</code></a></td><td>Create an independent copy of a succeeded job with identical parameters.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_new_seed'><code class='inline'>_new_seed</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-retry_job'><code class='inline'>retry_job</code></a></td><td>Same generation intent, a new attempt. The child links the source as parent.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-apply_changes'><code class='inline'>apply_changes</code></a></td><td>Return a copy of ``ctx`` with only the supplied modifiable fields changed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-diff_context'><code class='inline'>diff_context</code></a></td><td>Changed-vs-unchanged report for the modifiable fields.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-modify_job'><code class='inline'>modify_job</code></a></td><td>Change one or more render parameters, keeping everything else.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_enqueue_plan_batch'><code class='inline'>_enqueue_plan_batch</code></a></td><td>Enqueue a one-image batch that re-runs the source job&#x27;s approved plan.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-enqueue_duplicate'><code class='inline'>enqueue_duplicate</code></a></td><td>Enqueue an independent re-run of a succeeded job&#x27;s approved plan.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-enqueue_retry'><code class='inline'>enqueue_retry</code></a></td><td>Enqueue a fresh attempt of a succeeded job&#x27;s generation intent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-enqueue_modify'><code class='inline'>enqueue_modify</code></a></td><td>Enqueue a re-run and report the changed-vs-unchanged diff.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_require_succeeded_job'><h3><code class='inline'>_require_succeeded_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _require_succeeded_job(job_id: str) -&gt; ImageJob</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import _require_succeeded_job
+
+result = _require_succeeded_job(job_id=&quot;job_id_example&quot;)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_generation_context'><h3><code class='inline'>build_generation_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def build_generation_context(job_id: str) -&gt; GenerationContext</code></div><p>Reconstruct a retry/duplicate payload from an existing job.
+
+Reads the job&#x27;s provider/model/configuration provenance and, when the job
+belongs to a character session, that session&#x27;s character identity and
+protected traits. Provider and policy metadata are copied, never derived.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import build_generation_context
+
+result = build_generation_context(job_id=&quot;job_id_example&quot;)
+# result: GenerationContext</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_create_from_context'><h3><code class='inline'>_create_from_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _create_from_context(ctx: GenerationContext, parent_id: str) -&gt; ImageJob</code></div><p>Persist a new job whose configuration matches ``ctx`` and link lineage.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import _create_from_context
+
+result = _create_from_context(ctx=..., parent_id=&quot;parent_id_example&quot;)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_attach_to_source_session'><h3><code class='inline'>_attach_to_source_session</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _attach_to_source_session(ctx: GenerationContext, child_id: str) -&gt; None</code></div><p>Keep the child in the same character session so identity survives.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import _attach_to_source_session
+
+result = _attach_to_source_session(ctx=..., child_id=&quot;child_id_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-duplicate_job'><h3><code class='inline'>duplicate_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def duplicate_job(job_id: str) -&gt; ImageJob</code></div><p>Create an independent copy of a succeeded job with identical parameters.
+
+The copy is a child of the source for lineage, and carries the same seed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import duplicate_job
+
+result = duplicate_job(job_id=&quot;job_id_example&quot;)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_new_seed'><h3><code class='inline'>_new_seed</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _new_seed() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import _new_seed
+
+result = _new_seed()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-retry_job'><h3><code class='inline'>retry_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def retry_job(job_id: str, vary_seed: bool = True) -&gt; ImageJob</code></div><p>Same generation intent, a new attempt. The child links the source as parent.
+
+``vary_seed=True`` (default) assigns a fresh seed when the source carried one
+(controlled variation); ``vary_seed=False`` is an exact retry that preserves
+the source seed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import retry_job
+
+result = retry_job(job_id=&quot;job_id_example&quot;, vary_seed=True  # default: True)
+# result: ImageJob</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-apply_changes'><h3><code class='inline'>apply_changes</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def apply_changes(ctx: GenerationContext, **changes) -&gt; GenerationContext</code></div><p>Return a copy of ``ctx`` with only the supplied modifiable fields changed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import apply_changes
+
+result = apply_changes(ctx=...)
+# result: GenerationContext</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-diff_context'><h3><code class='inline'>diff_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def diff_context(before: GenerationContext, after: GenerationContext) -&gt; dict[str, dict[str, Any]]</code></div><p>Changed-vs-unchanged report for the modifiable fields.
+
+Only changed fields appear, as ``{field: {&quot;before&quot;: x, &quot;after&quot;: y}}``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import diff_context
+
+result = diff_context(before=..., after=...)
+# result: dict[str, dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-modify_job'><h3><code class='inline'>modify_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def modify_job(job_id: str, **changes) -&gt; tuple[ImageJob, dict[str, dict[str, Any]]]</code></div><p>Change one or more render parameters, keeping everything else.
+
+Returns the new child job (parent-linked to the source) and the
+changed-vs-unchanged diff for display.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import modify_job
+
+result = modify_job(job_id=&quot;job_id_example&quot;)
+# result: tuple[ImageJob, dict[str, dict[str, Any]]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_enqueue_plan_batch'><h3><code class='inline'>_enqueue_plan_batch</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _enqueue_plan_batch(ctx: GenerationContext, parent_id: str) -&gt; dict</code></div><p>Enqueue a one-image batch that re-runs the source job&#x27;s approved plan.
+
+The plan is immutable and owns prompt/character/recipe/operation/lane, so
+re-dispatching it is the honest &quot;same intent, new attempt&quot;. Lineage is
+carried as ``lineage_parent_id`` in the request and attached to the child
+after generation, without ever altering operation semantics.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import _enqueue_plan_batch
+
+result = _enqueue_plan_batch(ctx=..., parent_id=&quot;parent_id_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-enqueue_duplicate'><h3><code class='inline'>enqueue_duplicate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def enqueue_duplicate(job_id: str) -&gt; dict</code></div><p>Enqueue an independent re-run of a succeeded job&#x27;s approved plan.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import enqueue_duplicate
+
+result = enqueue_duplicate(job_id=&quot;job_id_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-enqueue_retry'><h3><code class='inline'>enqueue_retry</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def enqueue_retry(job_id: str, vary_seed: bool = True) -&gt; dict</code></div><p>Enqueue a fresh attempt of a succeeded job&#x27;s generation intent.
+
+``vary_seed`` has no effect at the plan-dispatch level (the approved plan
+owns its inputs and the provider derives a new seed each run); it is kept
+for API symmetry with :func:`retry_job`.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import enqueue_retry
+
+result = enqueue_retry(job_id=&quot;job_id_example&quot;, vary_seed=True  # default: True)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-enqueue_modify'><h3><code class='inline'>enqueue_modify</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def enqueue_modify(job_id: str, **changes) -&gt; tuple[dict, dict[str, dict[str, Any]]]</code></div><p>Enqueue a re-run and report the changed-vs-unchanged diff.
+
+Returns the queued batch and the diff. Render-parameter changes are
+recorded for provenance, but the current dispatch path (StudioGenerate →
+image_runner) does not yet accept request-side seed/steps overrides, so the
+regenerated image re-runs the approved plan unchanged (deferred to IL-08).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_iteration import enqueue_modify
+
+result = enqueue_modify(job_id=&quot;job_id_example&quot;)
+# result: tuple[dict, dict[str, dict[str, Any]]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-IterationError'><code class='inline'>IterationError</code></a></td><td>(ImageJobError)</td><td>0 methods</td></tr><tr><td><a href='#cls-GenerationContext'><code class='inline'>GenerationContext</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-IterationError'><h3><code class='inline'>IterationError</code></h3><p>Raised when a job cannot be used as an iteration source.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_iteration import IterationError
+
+obj = IterationError(...)</pre></div>
+<div class='card' id='cls-GenerationContext'><h3><code class='inline'>GenerationContext</code></h3><p>Everything needed to reconstruct a generation intent from a job.</p><p class='small'><b>Attributes:</b> provider: str, model_id: str | None, operation: str, prompt: str | None, negative_prompt: str | None, seed: int | None, width: int | None, height: int | None, steps: int | None, guidance: float | None, sampler: str | None, scheduler: str | None, preset_id: str | None, provider_params_json: str | None, workflow_template_id: str | None, workflow_hash: str | None, compiler_version: str | None, compiler_params_json: str | None, plan_id: str | None, intent_json: str | None, session_id: str | None, character_id: str | None, reference_ids: list[str], protected_traits: list[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_iteration import GenerationContext
+
+obj = GenerationContext(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_MODIFIABLE_FIELDS</code></td><td><code class='inline'>frozenset({&#x27;prompt&#x27;, &#x27;negative_prompt&#x27;, &#x27;seed&#x27;, &#x27;width&#x27;, &#x27;height&#x27;, &#x27;steps&#x27;, &#x27;guidance&#x27;, &#x27;sampler&#x27;, &#x27;scheduler&#x27;, &#x27;model_i</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

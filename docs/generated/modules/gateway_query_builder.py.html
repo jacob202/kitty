@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.query_builder — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.query_builder</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.query_builder</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/query_builder.py</code> &middot; Python &middot; 3 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Typed where-clause builder for safe SQLite parameterisation (audit §2.3).
+
+Problem: many callers in :mod:`gateway.builder_queue` build SQL by
+string-concatenating caller-influenced clauses, e.g.
+``where_clause = &quot; AND &quot;.join(where_parts)``. Today the strings come
+from programmatic, type-checked dicts and parameterised via positional
+``?`` bindings, so SQL injection is not possible — but the *string-build
+pattern* itself is fragile and easy to break in a future refactor.
+
+Fix: callers pass already-typed :class:`WhereClause` objects (or
+:class:`OrderBy` for sorting) into :func:`build_where` and
+:func:`build_order_by`. The helpers below turn the typed clauses into a
+safe SQL fragment + positional-parameter list. Callers bind the parameters
+with ``cursor.execute(sql, params)`` exactly as before — the contract is
+unchanged for the DB layer.
+
+Scope: small, explicit, no fluent DSL. Each filter surface in
+``builder_queue.py`` migrates in turn. Sibling modules can opt in.
+
+Audit: §2.3 of ``docs/AUDIT_FULL_ENGINEERING_2026-07-20.md``.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-build_where'><code class='inline'>build_where</code></a></td><td>Turn a list of typed :class:`WhereClause` into a safe WHERE fragment.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-build_order_by'><code class='inline'>build_order_by</code></a></td><td>Return a safe ``ORDER BY ...`` fragment, or ``&quot;&quot;`` if input is empty.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_validate_column'><code class='inline'>_validate_column</code></a></td><td>Reject columns with whitespace, quotes, parentheses, or other SQL traps.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr></table></div>
+<div class='card' id='fn-build_where'><h3><code class='inline'>build_where</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def build_where(clauses: list[WhereClause]) -&gt; tuple[str, list[Any]]</code></div><p>Turn a list of typed :class:`WhereClause` into a safe WHERE fragment.
+
+Returns ``(where_sql, params)``. The caller composes::
+
+    where, params = build_where(clauses)
+    sql = f&quot;SELECT ... FROM tasks WHERE {where or &#x27;1 = 1&#x27;} ORDER BY ...&quot;
+    cursor.execute(sql, params if where else ())
+
+Empty input returns ``(&quot;&quot;, [])``. ``is_null=True`` short-circuits to
+``column IS NULL`` with no parameter binding. ``op=&quot;IN&quot;`` requires a
+``value`` that is a non-string sequence; the helper unrolls to
+``column IN (?, ?, ?)`` and binds each element.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.query_builder import build_where
+
+result = build_where(clauses=[])
+# result: tuple[str, list[Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_order_by'><h3><code class='inline'>build_order_by</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def build_order_by(order_by: list[OrderBy]) -&gt; str</code></div><p>Return a safe ``ORDER BY ...`` fragment, or ``&quot;&quot;`` if input is empty.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.query_builder import build_order_by
+
+result = build_order_by(order_by=[])
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_column'><h3><code class='inline'>_validate_column</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _validate_column(column: str) -&gt; None</code></div><p>Reject columns with whitespace, quotes, parentheses, or other SQL traps.
+
+The caller chooses columns (these are static, code-side names), but
+rogue edits (a future typo or a refactor that passes a runtime
+string) should fail loudly rather than smuggle SQL into a clause.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.query_builder import _validate_column
+
+result = _validate_column(column=&quot;column_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-WhereClause'><code class='inline'>WhereClause</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-OrderBy'><code class='inline'>OrderBy</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-WhereClause'><h3><code class='inline'>WhereClause</code></h3><p>A single ``column &lt;op&gt; value`` condition for :func:`build_where`.
+
+``column`` is the SQLite column name (caller responsibility — never
+user-controlled). ``op`` selects the comparison; ``value`` is the
+parameter to bind. ``is_null`` short-circuits any op to a NULL check
+(no parameter).</p><p class='small'><b>Attributes:</b> column: str, op: str, value: Any, is_null: bool</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.query_builder import WhereClause
+
+obj = WhereClause(...)</pre></div>
+<div class='card' id='cls-OrderBy'><h3><code class='inline'>OrderBy</code></h3><p>A single ``column DIRECTION`` clause for :func:`build_order_by`.</p><p class='small'><b>Attributes:</b> column: str, direction: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.query_builder import OrderBy
+
+obj = OrderBy(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_OPS_EQ</code></td><td><code class='inline'>&#x27;=&#x27;</code></td></tr><tr><td><code class='inline'>_OPS_NE</code></td><td><code class='inline'>&#x27;!=&#x27;</code></td></tr><tr><td><code class='inline'>_VALID_OPS</code></td><td><code class='inline'>frozenset({&#x27;=&#x27;, &#x27;!=&#x27;, &#x27;&lt;&#x27;, &#x27;&lt;=&#x27;, &#x27;&gt;&#x27;, &#x27;&gt;=&#x27;, &#x27;LIKE&#x27;, &#x27;IN&#x27;})</code></td></tr><tr><td><code class='inline'>_VALID_DIRECTIONS</code></td><td><code class='inline'>frozenset({&#x27;ASC&#x27;, &#x27;DESC&#x27;})</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

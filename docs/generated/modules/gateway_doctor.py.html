@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.doctor — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.doctor</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.doctor</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/doctor.py</code> &middot; Python &middot; 34 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Kitty preflight / health doctor.
+
+Checks the real stack: gateway, LiteLLM, ChromaDB, mem0, Telegram token,
+disk space, venv. Exits non-zero when any required check fails.
+
+Usage:
+  python gateway/doctor.py              # human-readable table
+  python gateway/doctor.py --json       # JSON output
+  python gateway/doctor.py --strict     # fail on WARN too</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>chromadb</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_supervisor</code>, <code class='inline'>gateway.connectors</code>, <code class='inline'>gateway.context_receipt</code>, <code class='inline'>gateway.token_spend_report</code>, <code class='inline'>json</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>shlex</code>, <code class='inline'>shutil</code>, <code class='inline'>ssl</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code>, <code class='inline'>time</code>, <code class='inline'>urllib.request</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_load_env'><code class='inline'>_load_env</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_http_ok'><code class='inline'>_http_ok</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_check_env'><code class='inline'>_check_env</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_check_env_parse'><code class='inline'>_check_env_parse</code></a></td><td>Flag .env lines that python-dotenv can&#x27;t parse.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_check_services'><code class='inline'>_check_services</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_check_chromadb'><code class='inline'>_check_chromadb</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_check_mem0'><code class='inline'>_check_mem0</code></a></td><td>Check Kitty&#x27;s configured semantic-memory path, not Mem0 defaults.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_check_disk'><code class='inline'>_check_disk</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_check_mail_connector'><code class='inline'>_check_mail_connector</code></a></td><td>Three states: PASS (token present and loadable), WARN (pre-OAuth),</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_gh_cli_authenticated'><code class='inline'>_gh_cli_authenticated</code></a></td><td>True when the gh CLI holds working credentials (keyring, not an env token).</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_check_github_connector'><code class='inline'>_check_github_connector</code></a></td><td>PASS if a usable credential exists. Does not validate token bounds.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_check_push_channel'><code class='inline'>_check_push_channel</code></a></td><td>PASS when a channel is configured and the last logged attempt (if any)</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_listener_process_info'><code class='inline'>_listener_process_info</code></a></td><td>Return process identity for one TCP listener without relying on /proc.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_is_gateway_process_command'><code class='inline'>_is_gateway_process_command</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_gateway_process_info'><code class='inline'>_gateway_process_info</code></a></td><td>Return listener identity only when the process is the real Uvicorn gateway.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_gateway_process_start_time'><code class='inline'>_gateway_process_start_time</code></a></td><td>Compatibility wrapper around the authoritative listener probe.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_gateway_source_mtime'><code class='inline'>_gateway_source_mtime</code></a></td><td>Return newest recursive gateway Python source mtime for a process checkout.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_git_text'><code class='inline'>_git_text</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_ui_build_provenance'><code class='inline'>_ui_build_provenance</code></a></td><td>Classify the UI build from recorded source identity, never directory mtimes.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_is_ui_runtime_process'><code class='inline'>_is_ui_runtime_process</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_ui_runtime_provenance'><code class='inline'>_ui_runtime_provenance</code></a></td><td>Classify the build actually served by the UI listener&#x27;s worktree.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_check_ui_build_provenance'><code class='inline'>_check_ui_build_provenance</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_check_gateway_freshness'><code class='inline'>_check_gateway_freshness</code></a></td><td>Classify Gateway freshness using the listener&#x27;s actual process checkout.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-runtime_provenance_status_line'><code class='inline'>runtime_provenance_status_line</code></a></td><td>Compact shared probe consumed by the shell launcher status surface.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_check_deadlines'><code class='inline'>_check_deadlines</code></a></td><td>PASS when deadlines are being watched and last push succeeded; WARN when none watched; FAIL on last push failure.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_codegraph_daemon_pid'><code class='inline'>_codegraph_daemon_pid</code></a></td><td>Read the daemon pid from either pid-file shape.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_check_codegraph'><code class='inline'>_check_codegraph</code></a></td><td>Check codegraph daemon health and index freshness.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_check_repository_continuity'><code class='inline'>_check_repository_continuity</code></a></td><td>Expose the same fail-loud continuity checks used by context receipts.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_launchd_disabled'><code class='inline'>_launchd_disabled</code></a></td><td>True when launchd holds a persistent `disabled` override for this label.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_check_builder_scheduler'><code class='inline'>_check_builder_scheduler</code></a></td><td>Surface the scheduler truth Builder already computes.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_check_venv'><code class='inline'>_check_venv</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_level_order'><code class='inline'>_level_order</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_spend_report'><code class='inline'>_spend_report</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr></table></div>
+<div class='card' id='fn-_load_env'><h3><code class='inline'>_load_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _load_env() -&gt; dict[str, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _load_env
+
+result = _load_env()
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_http_ok'><h3><code class='inline'>_http_ok</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _http_ok(url: str, timeout: float = 3.0, headers: dict | None = None) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _http_ok
+
+result = _http_ok(url=&quot;url_example&quot;, timeout=0.0  # default: 3.0, headers={}  # default: None)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_env'><h3><code class='inline'>_check_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _check_env(env: dict) -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_env
+
+result = _check_env(env={})
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_env_parse'><h3><code class='inline'>_check_env_parse</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _check_env_parse(dotenv: pathlib.Path) -&gt; list[Check]</code></div><p>Flag .env lines that python-dotenv can&#x27;t parse.
+
+Every python-dotenv consumer prints &quot;could not parse statement starting
+at line N&quot; per bad line per process — a stray quote on line 1 spammed
+nine warnings per `kitty` command live on 2026-07-05. This names the
+exact lines so the fix is a 10-second edit instead of a mystery.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_env_parse
+
+result = _check_env_parse(dotenv=&quot;dotenv_example&quot;)
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_services'><h3><code class='inline'>_check_services</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_services(env: dict) -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_services
+
+result = _check_services(env={})
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_chromadb'><h3><code class='inline'>_check_chromadb</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_chromadb() -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_chromadb
+
+result = _check_chromadb()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_mem0'><h3><code class='inline'>_check_mem0</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _check_mem0(env: dict) -&gt; list[Check]</code></div><p>Check Kitty&#x27;s configured semantic-memory path, not Mem0 defaults.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_mem0
+
+result = _check_mem0(env={})
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_disk'><h3><code class='inline'>_check_disk</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_disk() -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_disk
+
+result = _check_disk()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_mail_connector'><h3><code class='inline'>_check_mail_connector</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _check_mail_connector(env: dict) -&gt; list[Check]</code></div><p>Three states: PASS (token present and loadable), WARN (pre-OAuth),
+FAIL (configured but broken — token unreadable or refresh failed).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_mail_connector
+
+result = _check_mail_connector(env={})
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_gh_cli_authenticated'><h3><code class='inline'>_gh_cli_authenticated</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _gh_cli_authenticated() -&gt; bool</code></div><p>True when the gh CLI holds working credentials (keyring, not an env token).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _gh_cli_authenticated
+
+result = _gh_cli_authenticated()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_github_connector'><h3><code class='inline'>_check_github_connector</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_github_connector(env: dict) -&gt; list[Check]</code></div><p>PASS if a usable credential exists. Does not validate token bounds.
+
+Repository doctrine prefers gh&#x27;s keyring over an ambient GITHUB_TOKEN, so an
+absent token is the intended state whenever gh is signed in; reporting that
+as a warning taught the operator to ignore this line.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_github_connector
+
+result = _check_github_connector(env={})
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_push_channel'><h3><code class='inline'>_check_push_channel</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _check_push_channel(env: dict) -&gt; list[Check]</code></div><p>PASS when a channel is configured and the last logged attempt (if any)
+succeeded; WARN when nothing is configured; FAIL when the last attempt
+failed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_push_channel
+
+result = _check_push_channel(env={})
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_listener_process_info'><h3><code class='inline'>_listener_process_info</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def _listener_process_info(port: int) -&gt; dict[str, object]</code></div><p>Return process identity for one TCP listener without relying on /proc.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _listener_process_info
+
+result = _listener_process_info(port=0)
+# result: dict[str, object]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_gateway_process_command'><h3><code class='inline'>_is_gateway_process_command</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _is_gateway_process_command(command: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _is_gateway_process_command
+
+result = _is_gateway_process_command(command=&quot;command_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_gateway_process_info'><h3><code class='inline'>_gateway_process_info</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _gateway_process_info(port: int = 8000) -&gt; dict[str, object]</code></div><p>Return listener identity only when the process is the real Uvicorn gateway.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _gateway_process_info
+
+result = _gateway_process_info(port=0  # default: 8000)
+# result: dict[str, object]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_gateway_process_start_time'><h3><code class='inline'>_gateway_process_start_time</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _gateway_process_start_time() -&gt; float | None</code></div><p>Compatibility wrapper around the authoritative listener probe.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _gateway_process_start_time
+
+result = _gateway_process_start_time()
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_gateway_source_mtime'><h3><code class='inline'>_gateway_source_mtime</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _gateway_source_mtime(cwd: str) -&gt; float | None</code></div><p>Return newest recursive gateway Python source mtime for a process checkout.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _gateway_source_mtime
+
+result = _gateway_source_mtime(cwd=&quot;cwd_example&quot;)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_git_text'><h3><code class='inline'>_git_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _git_text(root: Path, *args) -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _git_text
+
+result = _git_text(root=&quot;root_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ui_build_provenance'><h3><code class='inline'>_ui_build_provenance</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _ui_build_provenance(root: Path = ROOT) -&gt; dict[str, str]</code></div><p>Classify the UI build from recorded source identity, never directory mtimes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _ui_build_provenance
+
+result = _ui_build_provenance(root=&quot;root_example&quot;  # default: ROOT)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_ui_runtime_process'><h3><code class='inline'>_is_ui_runtime_process</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _is_ui_runtime_process(process: dict[str, object]) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _is_ui_runtime_process
+
+result = _is_ui_runtime_process(process=&quot;process_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ui_runtime_provenance'><h3><code class='inline'>_ui_runtime_provenance</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def _ui_runtime_provenance(port: int = 4000) -&gt; dict[str, str]</code></div><p>Classify the build actually served by the UI listener&#x27;s worktree.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _ui_runtime_provenance
+
+result = _ui_runtime_provenance(port=0  # default: 4000)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_ui_build_provenance'><h3><code class='inline'>_check_ui_build_provenance</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _check_ui_build_provenance() -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_ui_build_provenance
+
+result = _check_ui_build_provenance()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_gateway_freshness'><h3><code class='inline'>_check_gateway_freshness</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _check_gateway_freshness(process_start: float | None | object = _PROCESS_START_UNSET, source_mtime: float | None = None) -&gt; list[Check]</code></div><p>Classify Gateway freshness using the listener&#x27;s actual process checkout.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_gateway_freshness
+
+result = _check_gateway_freshness(process_start=0.0  # default: _PROCESS_START_UNSET, source_mtime=0.0  # default: None)
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-runtime_provenance_status_line'><h3><code class='inline'>runtime_provenance_status_line</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def runtime_provenance_status_line() -&gt; str</code></div><p>Compact shared probe consumed by the shell launcher status surface.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import runtime_provenance_status_line
+
+result = runtime_provenance_status_line()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_deadlines'><h3><code class='inline'>_check_deadlines</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _check_deadlines() -&gt; list[Check]</code></div><p>PASS when deadlines are being watched and last push succeeded; WARN when none watched; FAIL on last push failure.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_deadlines
+
+result = _check_deadlines()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_codegraph_daemon_pid'><h3><code class='inline'>_codegraph_daemon_pid</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _codegraph_daemon_pid(pid_path: Path) -&gt; int</code></div><p>Read the daemon pid from either pid-file shape.
+
+Codegraph 1.6 writes a JSON object (`{&quot;pid&quot;: 14403, ...}`); older builds
+wrote a bare integer. Reading only the integer shape made a perfectly
+healthy daemon report as dead on every run.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _codegraph_daemon_pid
+
+result = _codegraph_daemon_pid(pid_path=&quot;pid_path_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_codegraph'><h3><code class='inline'>_check_codegraph</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _check_codegraph() -&gt; list[Check]</code></div><p>Check codegraph daemon health and index freshness.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_codegraph
+
+result = _check_codegraph()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_repository_continuity'><h3><code class='inline'>_check_repository_continuity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_repository_continuity() -&gt; list[Check]</code></div><p>Expose the same fail-loud continuity checks used by context receipts.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_repository_continuity
+
+result = _check_repository_continuity()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_launchd_disabled'><h3><code class='inline'>_launchd_disabled</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _launchd_disabled(label: str) -&gt; bool</code></div><p>True when launchd holds a persistent `disabled` override for this label.
+
+This override lives in the user domain, not in the plist, and survives
+reinstalling the plist. `launchctl print` cannot see it: a disabled service
+that is not loaded simply reports as not found.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _launchd_disabled
+
+result = _launchd_disabled(label=&quot;label_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_builder_scheduler'><h3><code class='inline'>_check_builder_scheduler</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _check_builder_scheduler() -&gt; list[Check]</code></div><p>Surface the scheduler truth Builder already computes.
+
+``builder_supervisor.scheduler_status`` is the one authority on whether the
+installed LaunchAgent matches Kitty&#x27;s supported scheduler contract. Doctor
+only projects it. The 2026-09-01 drift (plist pointing at a repo that does
+not exist) stayed invisible for two weeks because nothing read this.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_builder_scheduler
+
+result = _check_builder_scheduler()
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_venv'><h3><code class='inline'>_check_venv</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _check_venv(env: dict[str, str] | None = None) -&gt; list[Check]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _check_venv
+
+result = _check_venv(env=&quot;env_example&quot;  # default: None)
+# result: list[Check]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_level_order'><h3><code class='inline'>_level_order</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _level_order(level: str) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _level_order
+
+result = _level_order(level=&quot;level_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_spend_report'><h3><code class='inline'>_spend_report</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _spend_report(json_mode: bool) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import _spend_report
+
+result = _spend_report(json_mode=True)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.doctor import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Check'><code class='inline'>Check</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-Check'><h3><code class='inline'>Check</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> level: str, name: str, detail: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.doctor import Check
+
+obj = Check(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ROOT</code></td><td><code class='inline'>pathlib.Path(__file__).resolve().parent.parent</code></td></tr><tr><td><code class='inline'>_PROCESS_START_UNSET</code></td><td><code class='inline'>object()</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/kitty-chat/tests/support/hermetic_gateway.py</code></li><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>
