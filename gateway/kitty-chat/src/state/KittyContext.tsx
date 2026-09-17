@@ -527,6 +527,16 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
 
   // ── handlers ─────────────────────────────────────────────────────────────────
 
+  // Staged attachments are bound server-side to the active chat's conversation
+  // (see uploadCaptureFile), so they cannot outlive a change of chat: a file
+  // staged for one conversation would otherwise be sent attached to another
+  // conversation's message. Context refs were already cleared on every chat
+  // change; attachments were not, and leaked across.
+  const clearStagedAttachments = useCallback(() => {
+    setAttachments([])
+    setAttachmentErrors([])
+  }, [])
+
   const handleNewChat = useCallback(() => {
     const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]
     colorIndexRef.current++
@@ -536,7 +546,8 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     setActiveChatId(chat.id)
     setInput('')
     setContextRefs([])
-  }, [activeModel.id])
+    clearStagedAttachments()
+  }, [activeModel.id, clearStagedAttachments])
 
   const handleNewExpertChat = useCallback((expert: ExpertProfile) => {
     const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]
@@ -549,7 +560,8 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     setActiveChatId(chat.id)
     setInput('')
     setContextRefs([])
-  }, [activeModel.id])
+    clearStagedAttachments()
+  }, [activeModel.id, clearStagedAttachments])
 
   const handleToggleTheme = useCallback(() => {
     setTheme((t) => {
@@ -568,8 +580,9 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   const handleSelectChat = useCallback((id: string) => {
     setActiveChatId(id)
     setContextRefs([])
+    clearStagedAttachments()
     if (isMobile) setMobileSidebarOpen(false)
-  }, [isMobile])
+  }, [isMobile, clearStagedAttachments])
 
   const handleSidebarNewChat = useCallback(() => {
     handleNewChat()
@@ -577,7 +590,10 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   }, [handleNewChat, isMobile])
 
   const handleCloseChat = useCallback((id: string) => {
-    if (id === activeChatId) setContextRefs([])
+    if (id === activeChatId) {
+      setContextRefs([])
+      clearStagedAttachments()
+    }
     setChats((prev) => {
       const next = prev.filter((c) => c.id !== id)
       if (next.length === 0) {
@@ -592,7 +608,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       const remaining = chats.filter((c) => c.id !== id)
       return remaining[remaining.length - 1]?.id ?? null
     })
-  }, [chats, activeChatId])
+  }, [chats, activeChatId, clearStagedAttachments])
 
   const handleSelectModel = useCallback((m: Model) => {
     setActiveModel(m)
