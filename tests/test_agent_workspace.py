@@ -2857,3 +2857,18 @@ def test_awareness_vocabularies_match_their_owners():
             builder_attempt.ATTEMPT_CRASHED,
         }
     )
+
+
+class LeakyWorkspaceBackend:
+    def complete(self, agent_id, prompt, context):
+        raise RuntimeError("db blew up at /vault/secret-path/key")
+
+
+def test_failed_turn_hides_raw_error_from_room_message(workspace_db):
+    """Finding: the room message Jacob reads must not carry raw internals."""
+    room = agent_workspace.create_workspace(name="Kitty room", objective="x")
+    result = agent_workspace.run_turn(room["id"], "Do it.", backend=LeakyWorkspaceBackend())
+    assert result["status"] == "failed"
+    room_text = result["messages"][-1]["content"]
+    assert "/vault/secret-path" not in room_text
+    assert result["turn"]["error_message"] and "/vault/secret-path" in result["turn"]["error_message"]

@@ -1699,7 +1699,9 @@ def _record_turn_failure(
                 error_message = ?, finished_at = ?
             WHERE id = ? AND workspace_id = ? AND status = 'running'
             """,
-            (error_type, detail, now, turn_id, workspace_id),
+            # The turn record is the operator/debug copy: raw text stays here.
+            # Only the room message above goes generic.
+            (error_type, operator_detail, now, turn_id, workspace_id),
         ).rowcount
         if updated != 1:
             # Someone else (e.g. interrupt_running_turns after a Gateway
@@ -1775,6 +1777,10 @@ def _bounded_failure_detail(exc: Exception, *, user_facing: bool = True) -> str:
 
     if user_facing and isinstance(exc, ProviderChainExhausted):
         detail = exc.user_message
+    elif user_facing:
+        # Jacob reads the room message: never raw internals (paths, keys,
+        # provider diagnostics). The event log keeps the raw text instead.
+        detail = "Something went wrong on our side. The technical details are in the logs."
     else:
         detail = str(exc).strip() or "no error detail was provided"
     return detail[:1_000]
