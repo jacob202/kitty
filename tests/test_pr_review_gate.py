@@ -282,8 +282,8 @@ def test_later_exact_head_approve_supersedes_earlier_reject() -> None:
     """Group E #22: reject-then-approve at the same head must not stay blocked.
 
     A reviewer who re-reviews the exact head and approves has answered the
-    earlier rejection; the latest verdict wins. RED: currently any exact-head
-    reject blocks forever even when a later approve exists for the same head.
+    earlier rejection; the latest verdict wins. Before this regression fix, any
+    exact-head reject blocked forever even when a later approve existed.
     """
     pr = {"head": {"sha": SHA}, "body": "", "labels": []}
     earlier_reject = _builder_verdict_comment("request_changes", SHA)
