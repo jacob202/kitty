@@ -247,6 +247,7 @@ resources:
     - gateway/kitty-chat/tests/actionsContract.test.ts
     - gateway/kitty-chat/tests/chatClient.test.ts
     - gateway/kitty-chat/tests/smoke/**
+    - gateway/kitty-chat/tests/support/hermetic_gateway.py
     - gateway/routes/agents.py
     - gateway/routes/chats.py
     - gateway/routes/completions.py
