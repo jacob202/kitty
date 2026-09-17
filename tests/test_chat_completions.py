@@ -805,7 +805,7 @@ def test_message_text_reads_an_openai_multimodal_message():
     check — assumed a string, so any image upload raised
     "'list' object has no attribute 'strip'" and the chat returned 500.
     """
-    from gateway.routes.completions import _message_text
+    from gateway.completion_prep import _message_text
 
     content = [
         {"type": "text", "text": "What colour is this?"},
@@ -816,7 +816,7 @@ def test_message_text_reads_an_openai_multimodal_message():
 
 
 def test_message_text_joins_every_text_part():
-    from gateway.routes.completions import _message_text
+    from gateway.completion_prep import _message_text
 
     content = [
         {"type": "text", "text": "first"},
@@ -828,7 +828,7 @@ def test_message_text_joins_every_text_part():
 
 
 def test_message_text_survives_an_image_only_message():
-    from gateway.routes.completions import _message_text
+    from gateway.completion_prep import _message_text
 
     content = [{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]
 
@@ -836,7 +836,7 @@ def test_message_text_survives_an_image_only_message():
 
 
 def test_message_text_passes_plain_strings_through():
-    from gateway.routes.completions import _message_text
+    from gateway.completion_prep import _message_text
 
     assert _message_text("just text") == "just text"
     assert _message_text(None) == ""
