@@ -699,10 +699,10 @@ def test_models_endpoint_surfaces_litellm_http_failure() -> None:
 
     async def run_test() -> None:
         with patch(
-            "gateway.routes.completions.get_http_client",
+            "gateway.routes.models.get_http_client",
             new=AsyncMock(return_value=client),
         ):
-            from gateway.routes.completions import api_models
+            from gateway.routes.models import api_models
 
             try:
                 await api_models()
