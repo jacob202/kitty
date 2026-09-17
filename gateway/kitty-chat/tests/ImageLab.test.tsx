@@ -372,7 +372,8 @@ describe('ImageLab', () => {
     fireEvent.click(screen.getByTestId('image-lab-character-picker'))
     fireEvent.click(screen.getByText('Character B'))
 
-    await waitFor(() => expect(screen.getByText(/character bind failed/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Something went wrong.')).toBeInTheDocument())
+    expect(document.body.textContent).not.toContain('character bind failed')
     expect(screen.getByTestId('image-lab-character')).toHaveTextContent('Character A')
     expect(screen.getByTestId('image-lab-character')).not.toHaveTextContent('Character B')
     expect(screen.getByTestId('image-lab-character-picker')).toHaveAttribute('aria-expanded', 'true')
@@ -403,7 +404,8 @@ describe('ImageLab', () => {
     expect(await screen.findByTestId('image-lab-character')).toHaveTextContent('Character A')
     fireEvent.click(screen.getByRole('button', { name: 'clear reference character' }))
 
-    await waitFor(() => expect(screen.getByText(/character clear failed/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Something went wrong.')).toBeInTheDocument())
+    expect(document.body.textContent).not.toContain('character clear failed')
     expect(screen.getByTestId('image-lab-character')).toHaveTextContent('Character A')
     expect(screen.queryByText('No character bound')).not.toBeInTheDocument()
   })
@@ -534,4 +536,22 @@ describe('ImageLab', () => {
     expect(screen.getByRole('button', { name: /retry batch status/i })).toBeInTheDocument()
   })
 
+  it('never shows raw backend text when loading fails', async () => {
+    const mock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      const method = init?.method ?? 'GET'
+      if (target === '/proxy/studio/characters' && method === 'GET') {
+        return { ok: false, status: 500, text: async () => 'Traceback: File "/srv/secret-marker/inner.py" boom' }
+      }
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      if (target.startsWith('/proxy/studio/batches?')) return { ok: true, status: 200, json: async () => ({ batches: [] }) }
+      if (target.startsWith('/proxy/studio/sessions/')) return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', turns: [], jobs: [] }) }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', mock)
+    render(<ImageLab />)
+    fireEvent.click(screen.getByRole('button', { name: 'Choose or create character' }))
+    await screen.findByText(/Saved characters are unavailable\./)
+    expect(document.body.textContent).not.toContain('srv/secret-marker')
+  })
 })

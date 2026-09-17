@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import math
 import os
 import re
@@ -1091,8 +1092,15 @@ def _history_outputs(
         "error",
         "failed",
     }:
+        # Raw Comfy payloads carry tracebacks and internal paths: they go to
+        # the worker log, never into the job record served by the public API.
+        logging.getLogger(__name__).error(
+            "ComfyUI execution failed for %s: %s",
+            prompt_id,
+            raw_status.get("messages") or raw_status,
+        )
         raise WorkerConfigurationError(
-            f"ComfyUI execution failed: {raw_status.get('messages') or raw_status}"
+            "ComfyUI execution failed; see the worker log for details"
         )
     raw_outputs = raw_entry.get("outputs")
     if not isinstance(raw_outputs, Mapping):

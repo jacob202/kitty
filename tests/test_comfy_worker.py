@@ -399,3 +399,15 @@ async def test_worker_client_marks_submission_timeout_ambiguous():
                     guidance=5,
                     seed=42,
                 )
+
+
+def test_failed_execution_hides_raw_comfy_payload():
+    """Finding: tracebacks and internal paths must not reach the job record."""
+    from workers.comfy_worker.app import _history_outputs
+    payload = {"p1": {"status": {"status_str": "error",
+        "messages": [["Traceback (most recent call last):", " File /srv/secret/inner.py"]]},
+        "outputs": {}}}
+    with pytest.raises(WorkerConfigurationError) as exc_info:
+        _history_outputs(payload, "p1", frozenset())
+    assert "/srv/secret" not in str(exc_info.value)
+    assert "Traceback" not in str(exc_info.value)
