@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.benchmark — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.benchmark</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.benchmark</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/benchmark.py</code> &middot; Python &middot; 6 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Face-locked character benchmark — ten face-visible scenes scored against
+exactly one locked reference image.
+
+This benchmark proves facial identity conditioning only. A single portrait
+cannot establish ground truth for body shape, body hair, or anything outside
+the frame of that photo — no scene here tests for it, and none should be
+added that do.
+
+Every scene verdict, and the overall run verdict, is one of
+``PASS_AUTOMATED`` / ``FAIL`` / ``BLOCKED``. ``PASS_AUTOMATED`` means the
+automated checks passed; it is never final — ``final_review_required`` is
+always ``True`` and a human still has to look at the quarantined images.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>PIL</code>, <code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>io</code>, <code class='inline'>json</code>, <code class='inline'>mcp.imagen</code>, <code class='inline'>mcp.imagen.character_lock</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.face_match</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-run_character_benchmark'><code class='inline'>run_character_benchmark</code></a></td><td>Run the 10-scene face-locked benchmark for ``character`` on ``engine_name``.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_run_scene'><code class='inline'>_run_scene</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_mechanical_ok'><code class='inline'>_mechanical_ok</code></a></td><td>Real dimension decode via PIL — no byte-size guessing.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_blocked_report'><code class='inline'>_blocked_report</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_quarantine_dir'><code class='inline'>_quarantine_dir</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_write_report'><code class='inline'>_write_report</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-run_character_benchmark'><h3><code class='inline'>run_character_benchmark</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def run_character_benchmark(character: str, engine_name: str = &#x27;runware&#x27;, seed_base: int = 1000) -&gt; BenchmarkReport</code></div><p>Run the 10-scene face-locked benchmark for ``character`` on ``engine_name``.
+
+The reference is resolved exclusively via the character lock — there is
+no fallback to any other image in any directory.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.benchmark import run_character_benchmark
+
+result = run_character_benchmark(character=&quot;character_example&quot;, engine_name=&quot;engine_name_example&quot;  # default: &#x27;runware&#x27;, seed_base=0  # default: 1000)
+# result: BenchmarkReport</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_run_scene'><h3><code class='inline'>_run_scene</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _run_scene(eng: Any, matcher: FaceMatcher, locked_path: Path, scene: dict[str, str], seed: int, quarantine_dir: Path) -&gt; SceneResult</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.benchmark import _run_scene
+
+result = _run_scene(eng=..., matcher=..., locked_path=&quot;locked_path_example&quot;, scene=&quot;scene_example&quot;, seed=0, quarantine_dir=&quot;quarantine_dir_example&quot;)
+# result: SceneResult</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mechanical_ok'><h3><code class='inline'>_mechanical_ok</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _mechanical_ok(image_data: bytes) -&gt; bool</code></div><p>Real dimension decode via PIL — no byte-size guessing.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.benchmark import _mechanical_ok
+
+result = _mechanical_ok(image_data=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_blocked_report'><h3><code class='inline'>_blocked_report</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _blocked_report(character: str, engine_name: str, sha: str, run_id: str, quarantine_dir: Path, error: str) -&gt; BenchmarkReport</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.benchmark import _blocked_report
+
+result = _blocked_report(character=&quot;character_example&quot;, engine_name=&quot;engine_name_example&quot;, sha=&quot;sha_example&quot;, run_id=&quot;run_id_example&quot;, quarantine_dir=&quot;quarantine_dir_example&quot;, error=&quot;error_example&quot;)
+# result: BenchmarkReport</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_quarantine_dir'><h3><code class='inline'>_quarantine_dir</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _quarantine_dir(character: str, run_id: str) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.benchmark import _quarantine_dir
+
+result = _quarantine_dir(character=&quot;character_example&quot;, run_id=&quot;run_id_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_write_report'><h3><code class='inline'>_write_report</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _write_report(quarantine_dir: Path, report: BenchmarkReport) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.benchmark import _write_report
+
+result = _write_report(quarantine_dir=&quot;quarantine_dir_example&quot;, report=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-SceneResult'><code class='inline'>SceneResult</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-BenchmarkReport'><code class='inline'>BenchmarkReport</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-SceneResult'><h3><code class='inline'>SceneResult</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> scene: str, seed: int, prompt: str, result: str, mechanical_ok: bool | None, face_similarity: float | None, error: str | None, saved_path: str | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.benchmark import SceneResult
+
+obj = SceneResult(...)</pre></div>
+<div class='card' id='cls-BenchmarkReport'><h3><code class='inline'>BenchmarkReport</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> character: str, engine: str, locked_reference_sha256: str, run_id: str, scenes: list[SceneResult], automated_verdict: str, final_review_required: bool, quarantine_dir: str</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from mcp.imagen.benchmark import BenchmarkReport
+
+obj = BenchmarkReport(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SCENES</code></td><td><code class='inline'>list[dict[str, str]]</code></td></tr><tr><td><code class='inline'>FACE_MATCH_PASS_THRESHOLD</code></td><td><code class='inline'>0.45</code></td></tr><tr><td><code class='inline'>MIN_DIMENSION</code></td><td><code class='inline'>256</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_character_lock.py.html'><code class='inline'>mcp.imagen.character_lock</code></a></li><li><a href='mcp_imagen_config.py.html'><code class='inline'>mcp.imagen.config</code></a></li><li><a href='mcp_imagen_engines.py.html'><code class='inline'>mcp.imagen.engines</code></a></li><li><a href='mcp_imagen_face_match.py.html'><code class='inline'>mcp.imagen.face_match</code></a></li><li><a href='mcp_imagen_io.py.html'><code class='inline'>mcp.imagen.io</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_retry.py.html'><code class='inline'>mcp.imagen.retry</code></a></li><li><a href='mcp_imagen_server.py.html'><code class='inline'>mcp.imagen.server</code></a></li><li><a href='mcp_imagen_tools.py.html'><code class='inline'>mcp.imagen.tools</code></a></li><li><a href='mcp_imagen_verify.py.html'><code class='inline'>mcp.imagen.verify</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

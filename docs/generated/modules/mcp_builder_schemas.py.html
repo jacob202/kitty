@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.builder.schemas — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.builder.schemas</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.builder.schemas</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/builder/schemas.py</code> &middot; Python &middot; 2 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Shared public response helpers for the KittyBuilder MCP bridge.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>datetime</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-fresh_at'><code class='inline'>fresh_at</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-receipt'><code class='inline'>receipt</code></a></td><td>Build the common bounded MCP mutation/read receipt shape.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-fresh_at'><h3><code class='inline'>fresh_at</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def fresh_at() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.schemas import fresh_at
+
+result = fresh_at()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-receipt'><h3><code class='inline'>receipt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def receipt(operation: str, ok: bool, state: str | None = None, summary: str | None = None, error_code: str | None = None, error: str | None = None, next_action: str | None = None, **fields) -&gt; dict[str, Any]</code></div><p>Build the common bounded MCP mutation/read receipt shape.
+
+Transport success is never domain success: callers must inspect ``ok`` and
+``state``. Unknown values remain ``None`` rather than being converted to a
+fabricated success/zero value.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.builder.schemas import receipt
+
+result = receipt(operation=&quot;operation_example&quot;, ok=True, state=&quot;state_example&quot;  # default: None, summary=&quot;summary_example&quot;  # default: None, error_code=&quot;error_code_example&quot;  # default: None, error=&quot;error_example&quot;  # default: None, next_action=&quot;next_action_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>SCHEMA_VERSION</code></td><td><code class='inline'>1</code></td></tr><tr><td><code class='inline'>MCP_ARTIFACT_MARKER</code></td><td><code class='inline'>&#x27;\nKITTY_MCP_V1:&#x27;</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_builder_commands.py.html'><code class='inline'>mcp.builder.commands</code></a></li><li><a href='mcp_builder_context.py.html'><code class='inline'>mcp.builder.context</code></a></li><li><a href='mcp_builder_repo_tools.py.html'><code class='inline'>mcp.builder.repo_tools</code></a></li><li><a href='mcp_builder_server.py.html'><code class='inline'>mcp.builder.server</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>workers.comfy_worker.app — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">workers.comfy_worker.app</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>workers.comfy_worker.app</code></h1>
+<p class='muted small'>Source: <code class='inline'>workers/comfy_worker/app.py</code> &middot; Python &middot; 9 functions &middot; 8 classes</p>
+<div class='card'><h2>Overview</h2><p>Authenticated, allowlisted Kitty front-end for a private ComfyUI process.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>PIL</code>, <code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>copy</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>enum</code>, <code class='inline'>fastapi</code>, <code class='inline'>fastapi.responses</code>, <code class='inline'>hashlib</code>, <code class='inline'>hmac</code>, <code class='inline'>httpx</code>, <code class='inline'>io</code>, <code class='inline'>json</code>, <code class='inline'>math</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>pydantic</code>, <code class='inline'>re</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-create_app'><code class='inline'>create_app</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(32)</span></td></tr><tr><td><a href='#fn-_installed_bundles'><code class='inline'>_installed_bundles</code></a></td><td>Load every workflow bundle installed under *root*, in id order.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_env_int'><code class='inline'>_env_int</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_env_float'><code class='inline'>_env_float</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_utc_now'><code class='inline'>_utc_now</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_checkpoint_options'><code class='inline'>_checkpoint_options</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_history_outputs'><code class='inline'>_history_outputs</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-_validate_image_bytes'><code class='inline'>_validate_image_bytes</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_image_format_metadata'><code class='inline'>_image_format_metadata</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-create_app'><h3><code class='inline'>create_app</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (32)</span></h3><div class='sig'><code>def create_app(config: WorkerConfig | None = None, client: httpx.AsyncClient | None = None) -&gt; FastAPI</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from workers.comfy_worker.app import create_app
+
+result = create_app(config=...  # default: None, client=...  # default: None)
+# result: FastAPI</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_installed_bundles'><h3><code class='inline'>_installed_bundles</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _installed_bundles(root: Path) -&gt; list[WorkflowBundle]</code></div><p>Load every workflow bundle installed under *root*, in id order.
+
+A directory that looks like a bundle but fails to load raises rather than
+being skipped: a silently dropped bundle reads downstream as &quot;not
+installed&quot;, which is the same signal as a deliberate omission.</p><h3>Example Usage (synthetic)</h3><pre>from workers.comfy_worker.app import _installed_bundles
+
+result = _installed_bundles(root=&quot;root_example&quot;)
+# result: list[WorkflowBundle]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_env_int'><h3><code class='inline'>_env_int</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _env_int(name: str, default: int) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from workers.comfy_worker.app import _env_int
+
+result = _env_int(name=&quot;name_example&quot;, default=0)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_env_float'><h3><code class='inline'>_env_float</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _env_float(name: str, default: float) -&gt; float</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from workers.comfy_worker.app import _env_float
+
+result = _env_float(name=&quot;name_example&quot;, default=0.0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_utc_now'><h3><code class='inline'>_utc_now</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _utc_now() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from workers.comfy_worker.app import _utc_now
+
+result = _utc_now()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_checkpoint_options'><h3><code class='inline'>_checkpoint_options</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _checkpoint_options(value: object) -&gt; set[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from workers.comfy_worker.app import _checkpoint_options
+
+result = _checkpoint_options(value=...)
+# result: set[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_history_outputs'><h3><code class='inline'>_history_outputs</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def _history_outputs(payload: object, prompt_id: str, output_nodes: frozenset[str]) -&gt; list[dict[str, str]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from workers.comfy_worker.app import _history_outputs
+
+result = _history_outputs(payload=..., prompt_id=&quot;prompt_id_example&quot;, output_nodes=&quot;output_nodes_example&quot;)
+# result: list[dict[str, str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_image_bytes'><h3><code class='inline'>_validate_image_bytes</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _validate_image_bytes(image_bytes: bytes, source: str = &#x27;ComfyUI&#x27;) -&gt; tuple[str, int, int]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from workers.comfy_worker.app import _validate_image_bytes
+
+result = _validate_image_bytes(image_bytes=..., source=&quot;source_example&quot;  # default: &#x27;ComfyUI&#x27;)
+# result: tuple[str, int, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_image_format_metadata'><h3><code class='inline'>_image_format_metadata</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _image_format_metadata(image_format: str) -&gt; tuple[str, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from workers.comfy_worker.app import _image_format_metadata
+
+result = _image_format_metadata(image_format=&quot;image_format_example&quot;)
+# result: tuple[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-WorkerConfigurationError'><code class='inline'>WorkerConfigurationError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-JobStatus'><code class='inline'>JobStatus</code></a></td><td>(StrEnum)</td><td>0 methods</td></tr><tr><td><a href='#cls-JobRequest'><code class='inline'>JobRequest</code></a></td><td>(BaseModel)</td><td>6 methods</td></tr><tr><td><a href='#cls-WorkerConfig'><code class='inline'>WorkerConfig</code></a></td><td></td><td>2 methods</td></tr><tr><td><a href='#cls-OutputAsset'><code class='inline'>OutputAsset</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-JobRecord'><code class='inline'>JobRecord</code></a></td><td></td><td>1 methods</td></tr><tr><td><a href='#cls-WorkflowBundle'><code class='inline'>WorkflowBundle</code></a></td><td></td><td>3 methods</td></tr><tr><td><a href='#cls-WorkerRuntime'><code class='inline'>WorkerRuntime</code></a></td><td></td><td>14 methods</td></tr></table></div>
+<div class='card' id='cls-WorkerConfigurationError'><h3><code class='inline'>WorkerConfigurationError</code></h3><p>Worker runtime configuration or workflow bundle is invalid.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from workers.comfy_worker.app import WorkerConfigurationError
+
+obj = WorkerConfigurationError(...)</pre></div>
+<div class='card' id='cls-JobStatus'><h3><code class='inline'>JobStatus</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> QUEUED, RUNNING, CANCEL_REQUESTED, CANCELLED, SUCCEEDED, FAILED</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from workers.comfy_worker.app import JobStatus
+
+obj = JobStatus(...)</pre></div>
+<div class='card' id='cls-JobRequest'><h3><code class='inline'>JobRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> workflow_id: str, prompt: str, negative_prompt: str, checkpoint: str | None, width: int, height: int, steps: int, guidance: float, seed: int | None, count: int, source_image_id: str | None, denoise: float, client_action_id: str | None</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>source_image_is_a_worker_issued_id</code></td><td><code class='inline'>def source_image_is_a_worker_issued_id(cls, value: str | None) -&gt; str | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>denoise_is_finite</code></td><td><code class='inline'>def denoise_is_finite(cls, value: float) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>dimensions_are_divisible_by_eight</code></td><td><code class='inline'>def dimensions_are_divisible_by_eight(cls, value: int) -&gt; int</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>guidance_is_finite</code></td><td><code class='inline'>def guidance_is_finite(cls, value: float) -&gt; float</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>checkpoint_is_a_basename</code></td><td><code class='inline'>def checkpoint_is_a_basename(cls, value: str | None) -&gt; str | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>action_id_is_not_blank</code></td><td><code class='inline'>def action_id_is_not_blank(cls, value: str | None) -&gt; str | None</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from workers.comfy_worker.app import JobRequest
+
+obj = JobRequest(...)</pre></div>
+<div class='card' id='cls-WorkerConfig'><h3><code class='inline'>WorkerConfig</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> bearer_token: str, comfy_url: str, workflow_root: Path, job_root: Path, comfy_input_root: Path, default_checkpoint: str, allowed_checkpoints: frozenset[str], generation_timeout_seconds: int, poll_interval_seconds: float, max_request_bytes: int, max_image_bytes: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>from_env</code></td><td><code class='inline'>def from_env(cls) -&gt; &#x27;WorkerConfig&#x27;</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>validate</code></td><td><code class='inline'>def validate(self) -&gt; None</code></td><td><span class='pill'>moderate</span></td></tr></table><h3>Code Example</h3><pre>from workers.comfy_worker.app import WorkerConfig
+
+obj = WorkerConfig(...)</pre></div>
+<div class='card' id='cls-OutputAsset'><h3><code class='inline'>OutputAsset</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> asset_id: str, filename: str, media_type: str, size_bytes: int, sha256: str, path: str, width: int, height: int</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from workers.comfy_worker.app import OutputAsset
+
+obj = OutputAsset(...)</pre></div>
+<div class='card' id='cls-JobRecord'><h3><code class='inline'>JobRecord</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> job_id: str, status: JobStatus, request: dict[str, Any], workflow_sha256: str, created_at: str, updated_at: str, prompt_id: str | None, error: str | None, submission_state: str, outputs: list[OutputAsset]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>public_dict</code></td><td><code class='inline'>def public_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from workers.comfy_worker.app import JobRecord
+
+obj = JobRecord(...)</pre></div>
+<div class='card' id='cls-WorkflowBundle'><h3><code class='inline'>WorkflowBundle</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> workflow_id: str, workflow_version: int, workflow_sha256: str, workflow: dict[str, Any], bindings: dict[str, dict[str, str]], output_nodes: frozenset[str], required_node_types: frozenset[str]</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>load</code></td><td><code class='inline'>def load(cls, root: Path, workflow_id: str) -&gt; &#x27;WorkflowBundle&#x27;</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>consumes_source_image</code></td><td><code class='inline'>def consumes_source_image(self) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>compile</code></td><td><code class='inline'>def compile(self, request: JobRequest, checkpoint: str) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from workers.comfy_worker.app import WorkflowBundle
+
+obj = WorkflowBundle(...)</pre></div>
+<div class='card' id='cls-WorkerRuntime'><h3><code class='inline'>WorkerRuntime</code></h3><p>Undocumented class.</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>__init__</code></td><td><code class='inline'>def __init__(self, config: WorkerConfig, client: httpx.AsyncClient | None = None) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>close</code></td><td><code class='inline'>async def close(self) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_load_existing_jobs</code></td><td><code class='inline'>def _load_existing_jobs(self) -&gt; None</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>_persist</code></td><td><code class='inline'>def _persist(self, record: JobRecord) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>store_source_image</code></td><td><code class='inline'>def store_source_image(self, image_bytes: bytes) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>source_image_exists</code></td><td><code class='inline'>def source_image_exists(self, image_id: str) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>existing_for_action</code></td><td><code class='inline'>def existing_for_action(self, request: JobRequest) -&gt; JobRecord | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>register</code></td><td><code class='inline'>def register(self, record: JobRecord) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>update</code></td><td><code class='inline'>def update(self, record: JobRecord, job_status: JobStatus | None = None, error: str | None = None, prompt_id: str | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>assert_comfy_ready</code></td><td><code class='inline'>async def assert_comfy_ready(self, bundle: WorkflowBundle, checkpoint: str) -&gt; None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>execute</code></td><td><code class='inline'>async def execute(self, record: JobRecord, request: JobRequest, bundle: WorkflowBundle, checkpoint: str) -&gt; None</code></td><td><span class='pill'>complex</span></td></tr><tr><td><code class='inline'>_wait_and_collect</code></td><td><code class='inline'>async def _wait_and_collect(self, record: JobRecord, bundle: WorkflowBundle) -&gt; list[OutputAsset]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_download_outputs</code></td><td><code class='inline'>async def _download_outputs(self, record: JobRecord, outputs: Sequence[dict[str, str]]) -&gt; list[OutputAsset]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>cancel</code></td><td><code class='inline'>async def cancel(self, record: JobRecord) -&gt; JobRecord</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>f
+r
+o
+m
+ 
+w
+o
+r
+k
+e
+r
+s
+.
+c
+o
+m
+f
+y
+_
+w
+o
+r
+k
+e
+r
+.
+a
+p
+p
+ 
+i
+m
+p
+o
+r
+t
+ 
+W
+o
+r
+k
+e
+r
+R
+u
+n
+t
+i
+m
+e
+
+
+
+
+o
+b
+j
+ 
+=
+ 
+W
+o
+r
+k
+e
+r
+R
+u
+n
+t
+i
+m
+e
+(
+.
+.
+.
+)
+ 
+ 
+#
+ 
+s
+e
+e
+ 
+_
+_
+i
+n
+i
+t
+_
+_
+ 
+s
+i
+g
+n
+a
+t
+u
+r
+e</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DEFAULT_COMFY_URL</code></td><td><code class='inline'>&#x27;http://127.0.0.1:8188&#x27;</code></td></tr><tr><td><code class='inline'>DEFAULT_WORKFLOW_ROOT</code></td><td><code class='inline'>Path(&#x27;/opt/kitty/workflows&#x27;)</code></td></tr><tr><td><code class='inline'>DEFAULT_JOB_ROOT</code></td><td><code class='inline'>Path(&#x27;/workspace/jobs&#x27;)</code></td></tr><tr><td><code class='inline'>DEFAULT_COMFY_INPUT_ROOT</code></td><td><code class='inline'>Path(&#x27;/opt/ComfyUI/input&#x27;)</code></td></tr><tr><td><code class='inline'>MAX_REQUEST_BYTES</code></td><td><code class='inline'>128 * 1024</code></td></tr><tr><td><code class='inline'>MAX_IMAGE_BYTES</code></td><td><code class='inline'>20 * 1024 * 1024</code></td></tr><tr><td><code class='inline'>MAX_IMAGE_PIXELS</code></td><td><code class='inline'>100000000</code></td></tr><tr><td><code class='inline'>IMAGE_UPLOAD_PATH</code></td><td><code class='inline'>&#x27;/v1/images&#x27;</code></td></tr><tr><td><code class='inline'>SOURCE_IMAGE_ID_PATTERN</code></td><td><code class='inline'>re.compile(&#x27;^[0-9a-f]{64}\\.(?:png|jpg|webp)$&#x27;)</code></td></tr><tr><td><code class='inline'>TERMINAL_STATUSES</code></td><td><code class='inline'>frozenset({JobStatus.CANCELLED, JobStatus.SUCCEEDED, JobStatus.FAILED})</code></td></tr></table></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

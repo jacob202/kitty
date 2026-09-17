@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.antigravity_tools — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.antigravity_tools</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.antigravity_tools</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/antigravity_tools.py</code> &middot; Python &middot; 15 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Antigravity/Orca-style tools integration.
+
+This module provides tool definitions and handlers for:
+- task_boundary: Declare and track high-level task boundaries
+- notify_user: Async notifications to users
+- check_feedback: Poll for user feedback on artifacts
+- codebase_search: Semantic code search
+- agentic_mode: Three-phase mode switching
+- team_protocol: Multi-agent coordination
+
+Usage:
+    from gateway.antigravity_tools import get_tools, invoke_tool
+
+    tools = get_tools()
+    result = await invoke_tool(&quot;task_boundary&quot;, {&quot;action&quot;: &quot;open&quot;, &quot;name&quot;: &quot;My Task&quot;})</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>logging</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_task_boundary'><code class='inline'>get_task_boundary</code></a></td><td>Lazy load task_boundary module.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_async_feedback'><code class='inline'>get_async_feedback</code></a></td><td>Lazy load async_feedback module.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_codebase_search'><code class='inline'>get_codebase_search</code></a></td><td>Lazy load codebase_search module.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_web_tracker'><code class='inline'>get_web_tracker</code></a></td><td>Lazy load web_tracker module.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_team_protocol'><code class='inline'>get_team_protocol</code></a></td><td>Lazy load team_protocol module.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-invoke_tool'><code class='inline'>invoke_tool</code></a></td><td>Invoke an antigravity tool by name with arguments.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-_handle_task_boundary'><code class='inline'>_handle_task_boundary</code></a></td><td>Handle task_boundary tool calls.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_handle_notify_user'><code class='inline'>_handle_notify_user</code></a></td><td>Handle notify_user tool calls.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_handle_check_feedback'><code class='inline'>_handle_check_feedback</code></a></td><td>Handle check_feedback tool calls.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_handle_codebase_search'><code class='inline'>_handle_codebase_search</code></a></td><td>Handle codebase_search tool calls.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_handle_web_capture'><code class='inline'>_handle_web_capture</code></a></td><td>Handle web_capture tool calls.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_handle_web_compare'><code class='inline'>_handle_web_compare</code></a></td><td>Handle web_compare tool calls.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_handle_share_discovery'><code class='inline'>_handle_share_discovery</code></a></td><td>Handle share_discovery tool calls.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_handle_get_discoveries'><code class='inline'>_handle_get_discoveries</code></a></td><td>Handle get_discoveries tool calls.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_tools'><code class='inline'>get_tools</code></a></td><td>Return the list of antigravity tools.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-get_task_boundary'><h3><code class='inline'>get_task_boundary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_task_boundary()</code></div><p>Lazy load task_boundary module.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.antigravity_tools import get_task_boundary
+
+result = get_task_boundary()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_async_feedback'><h3><code class='inline'>get_async_feedback</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_async_feedback()</code></div><p>Lazy load async_feedback module.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.antigravity_tools import get_async_feedback
+
+result = get_async_feedback()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_codebase_search'><h3><code class='inline'>get_codebase_search</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_codebase_search()</code></div><p>Lazy load codebase_search module.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.antigravity_tools import get_codebase_search
+
+result = get_codebase_search()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_web_tracker'><h3><code class='inline'>get_web_tracker</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_web_tracker()</code></div><p>Lazy load web_tracker module.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.antigravity_tools import get_web_tracker
+
+result = get_web_tracker()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_team_protocol'><h3><code class='inline'>get_team_protocol</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def get_team_protocol(task_list = None)</code></div><p>Lazy load team_protocol module.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.antigravity_tools import get_team_protocol
+
+result = get_team_protocol(task_list=...  # default: None)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-invoke_tool'><h3><code class='inline'>invoke_tool</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>async def invoke_tool(tool_name: str, args: Dict[str, Any]) -&gt; Dict[str, Any]</code></div><p>Invoke an antigravity tool by name with arguments.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.antigravity_tools import invoke_tool
+
+    result = await invoke_tool()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_task_boundary'><h3><code class='inline'>_handle_task_boundary</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def _handle_task_boundary(args: Dict[str, Any]) -&gt; Dict[str, Any]</code></div><p>Handle task_boundary tool calls.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.antigravity_tools import _handle_task_boundary
+
+    result = await _handle_task_boundary()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_notify_user'><h3><code class='inline'>_handle_notify_user</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _handle_notify_user(args: Dict[str, Any]) -&gt; Dict[str, Any]</code></div><p>Handle notify_user tool calls.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.antigravity_tools import _handle_notify_user
+
+    result = await _handle_notify_user()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_check_feedback'><h3><code class='inline'>_handle_check_feedback</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _handle_check_feedback(args: Dict[str, Any]) -&gt; Dict[str, Any]</code></div><p>Handle check_feedback tool calls.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.antigravity_tools import _handle_check_feedback
+
+    result = await _handle_check_feedback()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_codebase_search'><h3><code class='inline'>_handle_codebase_search</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _handle_codebase_search(args: Dict[str, Any]) -&gt; Dict[str, Any]</code></div><p>Handle codebase_search tool calls.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.antigravity_tools import _handle_codebase_search
+
+    result = await _handle_codebase_search()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_web_capture'><h3><code class='inline'>_handle_web_capture</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _handle_web_capture(args: Dict[str, Any]) -&gt; Dict[str, Any]</code></div><p>Handle web_capture tool calls.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.antigravity_tools import _handle_web_capture
+
+    result = await _handle_web_capture()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_web_compare'><h3><code class='inline'>_handle_web_compare</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _handle_web_compare(args: Dict[str, Any]) -&gt; Dict[str, Any]</code></div><p>Handle web_compare tool calls.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.antigravity_tools import _handle_web_compare
+
+    result = await _handle_web_compare()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_share_discovery'><h3><code class='inline'>_handle_share_discovery</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def _handle_share_discovery(args: Dict[str, Any]) -&gt; Dict[str, Any]</code></div><p>Handle share_discovery tool calls.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.antigravity_tools import _handle_share_discovery
+
+    result = await _handle_share_discovery()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_handle_get_discoveries'><h3><code class='inline'>_handle_get_discoveries</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def _handle_get_discoveries(args: Dict[str, Any]) -&gt; Dict[str, Any]</code></div><p>Handle get_discoveries tool calls.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.antigravity_tools import _handle_get_discoveries
+
+    result = await _handle_get_discoveries()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_tools'><h3><code class='inline'>get_tools</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_tools() -&gt; List[Dict[str, Any]]</code></div><p>Return the list of antigravity tools.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.antigravity_tools import get_tools
+
+result = get_tools()
+# result: List[Dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ANTIGRAVITY_TOOLS</code></td><td><code class='inline'>[{&#x27;name&#x27;: &#x27;task_boundary&#x27;, &#x27;description&#x27;: &quot;Declare a high-level task boundary to group actions and report progress. Use </code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

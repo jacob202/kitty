@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_queue_db — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_queue_db</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_queue_db</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_queue_db.py</code> &middot; Python &middot; 10 functions &middot; 5 classes</p>
+<div class='card'><h2>Overview</h2><p>Builder queue DB layer — Task 4.3 state machine + connection/init.
+
+Extracted from :mod:`gateway.builder_queue` as the first cut of audit §2.2.
+This module owns the lowest layer of the KittyBuilder persistence stack:
+
+* Task-state machine constants &amp; legal transition map
+* Public exception classes for missing/unreachable/conflict conditions
+* The full SQLite schema DDL (``_SCHEMA_SQL``)
+* Connection pragmas, schema bootstrap, and column-add migrations
+* :func:`init_db` and :func:`connect` — used by every higher layer
+
+Public symbols are re-exported from :mod:`gateway.builder_queue` (which keeps
+its existing ``bq.X`` / ``from gateway.builder_queue import X`` surface), so
+sibling modules such as :mod:`gateway.builder_attempt`,
+:mod:`gateway.builder_runner`, :mod:`gateway.builder_initiative`, and the
+builder CLI/tests continue to work unchanged.
+
+Scope guard: business logic (claims, leases, runs, branch leases, PR
+reconciliation) stays in :mod:`gateway.builder_queue` and its subsequent
+extractions. Subsequent cuts will lift those modules into
+``builder_queue_leases`` / ``builder_queue_runs`` / ``builder_queue_events``
+in the order recommended by the audit.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>sys</code>, <code class='inline'>threading</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_apply_pragmas'><code class='inline'>_apply_pragmas</code></a></td><td>Apply the Phase 1A connection pragmas (Section 4.2).</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_apply_schema'><code class='inline'>_apply_schema</code></a></td><td>Create tables, indexes, and triggers if absent. Idempotent.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_ensure_branch_lease_initiative_id'><code class='inline'>_ensure_branch_lease_initiative_id</code></a></td><td>Migrate pre-initiative_id databases: add initiative_id + composite UNIQUE.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_ensure_branch_lease_initiative_id_required'><code class='inline'>_ensure_branch_lease_initiative_id_required</code></a></td><td>Ensure initiative_id is required (no default &#x27;&#x27;) and add CHECK constraint.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_ensure_branch_lease_columns'><code class='inline'>_ensure_branch_lease_columns</code></a></td><td>Migrate pre-rename databases where branch_leases used ``lease_ts``.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_ensure_pr_link_columns'><code class='inline'>_ensure_pr_link_columns</code></a></td><td>Add KB-S4 merge-tracking columns to databases created pre-migration.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_ensure_run_columns'><code class='inline'>_ensure_run_columns</code></a></td><td>Add Phase 1C-alpha run columns to databases created by the draft.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_default_db_path'><code class='inline'>_default_db_path</code></a></td><td>Resolve the default DB path through :mod:`gateway.builder_queue`.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Initialize the Builder queue DB: create parent dir, schema, pragmas.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-connect'><code class='inline'>connect</code></a></td><td>Open a connection to the Builder queue DB with pragmas + Row factory.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_apply_pragmas'><h3><code class='inline'>_apply_pragmas</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _apply_pragmas(conn: sqlite3.Connection) -&gt; None</code></div><p>Apply the Phase 1A connection pragmas (Section 4.2).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import _apply_pragmas
+
+result = _apply_pragmas(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_apply_schema'><h3><code class='inline'>_apply_schema</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _apply_schema(conn: sqlite3.Connection) -&gt; None</code></div><p>Create tables, indexes, and triggers if absent. Idempotent.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import _apply_schema
+
+result = _apply_schema(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_branch_lease_initiative_id'><h3><code class='inline'>_ensure_branch_lease_initiative_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _ensure_branch_lease_initiative_id(conn: sqlite3.Connection) -&gt; None</code></div><p>Migrate pre-initiative_id databases: add initiative_id + composite UNIQUE.
+
+The original schema used ``packet_id TEXT NOT NULL UNIQUE`` and a global
+``idx_branch_leases_worker`` on ``worker_id`` — neither scoped by
+initiative, so a v2 retry of the same packet (e.g. ``-v2`` after
+``-v1`` exhausted) could not create a lease without first deleting or
+conflicting with v1&#x27;s row. SQLite cannot alter a UNIQUE constraint in
+place, so this rebuilds the table.
+
+Legacy rows get a placeholder initiative_id so the NOT NULL constraint passes.
+
+Also drops any orphan ``idx_branch_leases_worker`` unique index that
+survived a prior migration. That index makes ``worker_id`` globally
+unique instead of per-initiative, blocking any second initiative from
+using the same worker preset (e.g. ``dsh-free``).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import _ensure_branch_lease_initiative_id
+
+result = _ensure_branch_lease_initiative_id(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_branch_lease_initiative_id_required'><h3><code class='inline'>_ensure_branch_lease_initiative_id_required</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _ensure_branch_lease_initiative_id_required(conn: sqlite3.Connection) -&gt; None</code></div><p>Ensure initiative_id is required (no default &#x27;&#x27;) and add CHECK constraint.
+
+SQLite cannot drop a DEFAULT or add a CHECK constraint in place, so this
+rebuilds the table if the schema still has the legacy DEFAULT &#x27;&#x27; or lacks
+the CHECK constraint.
+
+Legacy rows with empty initiative_id are updated to a placeholder so the
+CHECK constraint can be enforced going forward.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import _ensure_branch_lease_initiative_id_required
+
+result = _ensure_branch_lease_initiative_id_required(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_branch_lease_columns'><h3><code class='inline'>_ensure_branch_lease_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _ensure_branch_lease_columns(conn: sqlite3.Connection) -&gt; None</code></div><p>Migrate pre-rename databases where branch_leases used ``lease_ts``.
+
+The schema renamed the column to ``created_at`` without a migration, so
+live DBs created before the rename break every reader (builder_status&#x27;s
+lease join being the visible one).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import _ensure_branch_lease_columns
+
+result = _ensure_branch_lease_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_pr_link_columns'><h3><code class='inline'>_ensure_pr_link_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _ensure_pr_link_columns(conn: sqlite3.Connection) -&gt; None</code></div><p>Add KB-S4 merge-tracking columns to databases created pre-migration.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import _ensure_pr_link_columns
+
+result = _ensure_pr_link_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_run_columns'><h3><code class='inline'>_ensure_run_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _ensure_run_columns(conn: sqlite3.Connection) -&gt; None</code></div><p>Add Phase 1C-alpha run columns to databases created by the draft.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import _ensure_run_columns
+
+result = _ensure_run_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_default_db_path'><h3><code class='inline'>_default_db_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _default_db_path() -&gt; Path</code></div><p>Resolve the default DB path through :mod:`gateway.builder_queue`.
+
+The historical monkeypatch seam is ``builder_queue.BUILDER_QUEUE_DB``
+(dozens of tests patch it). After the audit §2.2 split, sibling modules
+(`builder_queue_runs`, `builder_queue_leases`, …) default through this
+module — so the default MUST read the facade&#x27;s global at call time, or a
+patched test writes tasks to one DB and reads them from another.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import _default_db_path
+
+result = _default_db_path()
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def init_db(db_path: Path | None = None) -&gt; None</code></div><p>Initialize the Builder queue DB: create parent dir, schema, pragmas.
+
+Safe to call repeatedly. Does not drop existing tables or rows.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import init_db
+
+result = init_db(db_path=&quot;db_path_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-connect'><h3><code class='inline'>connect</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def connect(db_path: Path | None = None) -&gt; sqlite3.Connection</code></div><p>Open a connection to the Builder queue DB with pragmas + Row factory.
+
+The caller is responsible for committing/closing. ``init_db`` is NOT
+called here — callers that need a schema-fresh DB should call
+``init_db`` first. Most library paths go through the helpers below,
+which call this internally.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_db import connect
+
+result = connect(db_path=&quot;db_path_example&quot;  # default: None)
+# result: sqlite3.Connection</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-TaskNotFoundError'><code class='inline'>TaskNotFoundError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-IllegalTransitionError'><code class='inline'>IllegalTransitionError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-LeaseConflictError'><code class='inline'>LeaseConflictError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-BranchLeaseConflictError'><code class='inline'>BranchLeaseConflictError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-DataCorruptionError'><code class='inline'>DataCorruptionError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-TaskNotFoundError'><h3><code class='inline'>TaskNotFoundError</code></h3><p>Raised when a task ID does not exist.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_queue_db import TaskNotFoundError
+
+obj = TaskNotFoundError(...)</pre></div>
+<div class='card' id='cls-IllegalTransitionError'><h3><code class='inline'>IllegalTransitionError</code></h3><p>Raised when a state transition is not legal or the task is archived.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_queue_db import IllegalTransitionError
+
+obj = IllegalTransitionError(...)</pre></div>
+<div class='card' id='cls-LeaseConflictError'><h3><code class='inline'>LeaseConflictError</code></h3><p>Raised when a task cannot be claimed or lease fencing rejects a stale worker.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_queue_db import LeaseConflictError
+
+obj = LeaseConflictError(...)</pre></div>
+<div class='card' id='cls-BranchLeaseConflictError'><h3><code class='inline'>BranchLeaseConflictError</code></h3><p>Raised when a branch lease is already held or a release is attempted by the wrong owner.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_queue_db import BranchLeaseConflictError
+
+obj = BranchLeaseConflictError(...)</pre></div>
+<div class='card' id='cls-DataCorruptionError'><h3><code class='inline'>DataCorruptionError</code></h3><p>Raised when a DB column contains data that cannot be decoded.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_queue_db import DataCorruptionError
+
+obj = DataCorruptionError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_INIT_LOCK</code></td><td><code class='inline'>threading.Lock()</code></td></tr><tr><td><code class='inline'>QUEUED</code></td><td><code class='inline'>&#x27;queued&#x27;</code></td></tr><tr><td><code class='inline'>CLAIMED</code></td><td><code class='inline'>&#x27;claimed&#x27;</code></td></tr><tr><td><code class='inline'>RUNNING</code></td><td><code class='inline'>&#x27;running&#x27;</code></td></tr><tr><td><code class='inline'>PR_OPENED</code></td><td><code class='inline'>&#x27;pr_opened&#x27;</code></td></tr><tr><td><code class='inline'>AWAITING_REVIEW</code></td><td><code class='inline'>&#x27;awaiting_review&#x27;</code></td></tr><tr><td><code class='inline'>DONE</code></td><td><code class='inline'>&#x27;done&#x27;</code></td></tr><tr><td><code class='inline'>FAILED</code></td><td><code class='inline'>&#x27;failed&#x27;</code></td></tr><tr><td><code class='inline'>CANCELLED</code></td><td><code class='inline'>&#x27;cancelled&#x27;</code></td></tr><tr><td><code class='inline'>BLOCKED</code></td><td><code class='inline'>&#x27;blocked&#x27;</code></td></tr><tr><td><code class='inline'>TERMINAL_STATES</code></td><td><code class='inline'>frozenset({DONE, FAILED, CANCELLED})</code></td></tr><tr><td><code class='inline'>_VALID_STATES</code></td><td><code class='inline'>frozenset({QUEUED, CLAIMED, RUNNING, PR_OPENED, AWAITING_REVIEW, DONE, FAILED, CANCELLED, BLOCKED})</code></td></tr><tr><td><code class='inline'>LEGAL_TRANSITIONS</code></td><td><code class='inline'>dict[str, frozenset[str]]</code></td></tr><tr><td><code class='inline'>_SCHEMA_SQL</code></td><td><code class='inline'>&quot;\nCREATE TABLE IF NOT EXISTS tasks (\n    id TEXT PRIMARY KEY,\n    title TEXT NOT NULL,\n    description TEXT,\n    st</code></td></tr><tr><td><code class='inline'>_PRAGMAS</code></td><td><code class='inline'>(&#x27;PRAGMA busy_timeout=30000;&#x27;, &#x27;PRAGMA journal_mode=WAL;&#x27;, &#x27;PRAGMA foreign_keys=ON;&#x27;, &#x27;PRAGMA synchronous=NORMAL;&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

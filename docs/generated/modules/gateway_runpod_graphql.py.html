@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.runpod_graphql — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.runpod_graphql</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.runpod_graphql</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/runpod_graphql.py</code> &middot; Python &middot; 1 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Minimal RunPod GraphQL support for GPU Pod creation.
+
+RunPod&#x27;s current official CLI uses GraphQL for GPU Pod creation because the
+GraphQL input supports cloud-enforced ``terminateAfter``. All other Kitty Pod
+operations remain on the documented REST control plane.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>httpx</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-create_gpu_pod'><code class='inline'>create_gpu_pod</code></a></td><td>Create one GPU Pod without retrying an ambiguous mutation.</td><td><span class='pill'>complex</span><span class='muted small'>(13)</span></td></tr></table></div>
+<div class='card' id='fn-create_gpu_pod'><h3><code class='inline'>create_gpu_pod</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (13)</span></h3><div class='sig'><code>async def create_gpu_pod(client: httpx.AsyncClient, api_key: str, graphql_url: str, pod_input: Mapping[str, object]) -&gt; Mapping[str, Any]</code></div><p>Create one GPU Pod without retrying an ambiguous mutation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.runpod_graphql import create_gpu_pod
+
+    result = await create_gpu_pod()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RunPodGraphQLError'><code class='inline'>RunPodGraphQLError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunPodGraphQLRejectedError'><code class='inline'>RunPodGraphQLRejectedError</code></a></td><td>(RunPodGraphQLError)</td><td>0 methods</td></tr><tr><td><a href='#cls-RunPodGraphQLAmbiguousError'><code class='inline'>RunPodGraphQLAmbiguousError</code></a></td><td>(RunPodGraphQLError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-RunPodGraphQLError'><h3><code class='inline'>RunPodGraphQLError</code></h3><p>Base class for RunPod GraphQL creation failures.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_graphql import RunPodGraphQLError
+
+obj = RunPodGraphQLError(...)</pre></div>
+<div class='card' id='cls-RunPodGraphQLRejectedError'><h3><code class='inline'>RunPodGraphQLRejectedError</code></h3><p>RunPod definitively rejected a GraphQL mutation without a Pod result.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_graphql import RunPodGraphQLRejectedError
+
+obj = RunPodGraphQLRejectedError(...)</pre></div>
+<div class='card' id='cls-RunPodGraphQLAmbiguousError'><h3><code class='inline'>RunPodGraphQLAmbiguousError</code></h3><p>A Pod may have been created but the response did not prove its outcome.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.runpod_graphql import RunPodGraphQLAmbiguousError
+
+obj = RunPodGraphQLAmbiguousError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>RUNPOD_GRAPHQL_URL</code></td><td><code class='inline'>&#x27;https://api.runpod.io/graphql&#x27;</code></td></tr><tr><td><code class='inline'>_CREATE_GPU_POD_MUTATION</code></td><td><code class='inline'>&#x27;\nmutation createPod($input: PodFindAndDeployOnDemandInput!) {\n  podFindAndDeployOnDemand(input: $input) {\n    id\n  </code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.tools.generate — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.tools.generate</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.tools.generate</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/tools/generate.py</code> &middot; Python &middot; 2 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Unified generate + edit_image tools.
+
+Replaces the 4 legacy generate_image* tools with one ``generate(prompt, engine=...)``
+that dispatches to the engine registry. SHA256-keyed cache returns the same path
+for identical (prompt, engine, params) inputs.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>mcp.imagen</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.io</code>, <code class='inline'>mcp.imagen.logger</code>, <code class='inline'>mcp.server.fastmcp</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-generate'><code class='inline'>generate</code></a></td><td>Generate an image from a text description.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-edit_image'><code class='inline'>edit_image</code></a></td><td>Edit an existing image with natural-language instructions.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-generate'><h3><code class='inline'>generate</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def generate(prompt: str, engine: str = &#x27;&#x27;, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = None, **kwargs) -&gt; list</code></div><p>Generate an image from a text description.
+
+Args:
+    prompt: What to generate. Be specific about subject, setting, lighting, mood.
+    engine: One of: nano_banana (default, best photorealism), imagen4, dalle, comfyui.
+    aspect_ratio: 1:1, 3:2, 2:3, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, or 21:9.
+                  DALL-E uses ``size`` instead (e.g. 1024x1024) — pass via kwargs.
+    photorealistic: When True (default), appends photographic quality cues.
+                    Set False for illustrations, paintings, or cartoons.
+    seed: Optional reproducibility seed. seed=0 and seed=None are different cache keys.
+    **kwargs: Engine-specific passthrough (e.g. size/quality for DALL-E,
+              negative_prompt/steps/cfg_scale for ComfyUI).
+
+Returns:
+    The generated image (inline) plus the saved file path, or a structured
+    refusal dict if the prompt was blocked.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.tools.generate import generate
+
+result = generate(prompt=&quot;prompt_example&quot;, engine=&quot;engine_example&quot;  # default: &#x27;&#x27;, aspect_ratio=&quot;aspect_ratio_example&quot;  # default: &#x27;1:1&#x27;, photorealistic=True  # default: True, seed=0  # default: None)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-edit_image'><h3><code class='inline'>edit_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def edit_image(image_path: str, edit_prompt: str, engine: str = &#x27;&#x27;) -&gt; list</code></div><p>Edit an existing image with natural-language instructions.
+
+The result renders inline and is saved as a new file (the original is untouched).
+Editing is currently supported by Nano Banana only.
+
+Args:
+    image_path: Absolute path to the source image (PNG or JPEG).
+    edit_prompt: What to change, e.g. &quot;make the background a sunset over the ocean&quot;.
+    engine: Engine to use (default: nano_banana — the only engine that supports editing).
+
+Returns:
+    The edited image (inline) plus the saved file path, or a structured refusal dict.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.tools.generate import edit_image
+
+result = edit_image(image_path=&quot;image_path_example&quot;, edit_prompt=&quot;edit_prompt_example&quot;, engine=&quot;engine_example&quot;  # default: &#x27;&#x27;)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_tools_batch.py.html'><code class='inline'>mcp.imagen.tools.batch</code></a></li><li><a href='mcp_imagen_tools_gallery.py.html'><code class='inline'>mcp.imagen.tools.gallery</code></a></li><li><a href='mcp_imagen_tools_generate_until.py.html'><code class='inline'>mcp.imagen.tools.generate_until</code></a></li><li><a href='mcp_imagen_tools_reference.py.html'><code class='inline'>mcp.imagen.tools.reference</code></a></li><li><a href='mcp_imagen_tools_refine.py.html'><code class='inline'>mcp.imagen.tools.refine</code></a></li><li><a href='mcp_imagen_tools_variations.py.html'><code class='inline'>mcp.imagen.tools.variations</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

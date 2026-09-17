@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.todo_store — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.todo_store</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.todo_store</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/todo_store.py</code> &middot; Python &middot; 20 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Structured Todo Store — model-maintainable task list across turns.
+
+The LLM can create and update a structured task list via POST /todos.
+Each item has: content, status (pending/in_progress/completed/deprioritized),
+and active_form (present continuous for &quot;currently doing&quot; display).
+
+Public API:
+  update(items: list[dict]) -&gt; list[dict]   Replace the entire list
+  get() -&gt; list[dict]                       Get current list
+  add(content: str) -&gt; dict                 Append one item
+  complete(index: int) -&gt; bool              Mark one item done</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>time</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-init_db'><code class='inline'>init_db</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-update'><code class='inline'>update</code></a></td><td>Set the todo list, reconciling against what is already there.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-restore'><code class='inline'>restore</code></a></td><td>Replace Todos with snapshot state and reconcile Project pointers.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-validate_restore'><code class='inline'>validate_restore</code></a></td><td>Prove ``restore`` can write this payload, changing nothing.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_plan_restore'><code class='inline'>_plan_restore</code></a></td><td>Validate a todos payload and return the plan the write path needs.</td><td><span class='pill'>complex</span><span class='muted small'>(15)</span></td></tr><tr><td><a href='#fn-_write_restore'><code class='inline'>_write_restore</code></a></td><td>Write the planned snapshot state. Caller owns the transaction.</td><td><span class='pill'>complex</span><span class='muted small'>(18)</span></td></tr><tr><td><a href='#fn-_match_existing_todo'><code class='inline'>_match_existing_todo</code></a></td><td>Resolve one incoming item to the row it should keep being.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-get'><code class='inline'>get</code></a></td><td>Get the current todo list, ordered by sort_order.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-add'><code class='inline'>add</code></a></td><td>Append one item to the list.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-complete'><code class='inline'>complete</code></a></td><td>Mark item at sort_order=index as completed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-clear'><code class='inline'>clear</code></a></td><td>Remove all todos.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-complete_by_id'><code class='inline'>complete_by_id</code></a></td><td>Mark item with given DB id as completed.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-set_progress'><code class='inline'>set_progress</code></a></td><td>Record where the user stopped, without claiming the item is finished.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-set_project'><code class='inline'>set_project</code></a></td><td>Associate one todo with the project it belongs to.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-delete_by_id'><code class='inline'>delete_by_id</code></a></td><td>Remove one todo by DB id.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_todos_text'><code class='inline'>get_todos_text</code></a></td><td>Return current todo list as a formatted string for context injection.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_row_to_dict'><code class='inline'>_row_to_dict</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_import_legacy_todos_once'><code class='inline'>_import_legacy_todos_once</code></a></td><td>Copy existing todos from the old DB once without deleting the old file.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_read_legacy_todos'><code class='inline'>_read_legacy_todos</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_mark_legacy_imported'><code class='inline'>_mark_legacy_imported</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-init_db'><h3><code class='inline'>init_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def init_db() -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import init_db
+
+result = init_db()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update'><h3><code class='inline'>update</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def update(items: list[dict]) -&gt; list[dict]</code></div><p>Set the todo list, reconciling against what is already there.
+
+This used to delete every row and re-insert, which handed every item a new
+id on each refresh. Anything holding a todo id — a project&#x27;s chosen next
+action, a recorded progress note, the completion the user just reported —
+silently pointed at nothing afterwards.
+
+Items are now matched to existing rows by explicit ``id`` first, then by
+exact content, so a model regenerating the same list keeps the same
+identities. A matched row is updated in place and keeps its id,
+``created_at``, ``project_id`` and progress note. Only rows the caller
+genuinely dropped are deleted.
+
+Each item dict: {content, status?, active_form?, id?}
+Returns the new list.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import update
+
+result = update(items=[])
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-restore'><h3><code class='inline'>restore</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def restore(items: list[dict]) -&gt; list[dict]</code></div><p>Replace Todos with snapshot state and reconcile Project pointers.
+
+``update()`` is intentionally generated-list reconciliation: an omitted
+selected todo survives because model suggestions must not erase an explicit
+user choice. Snapshot restore has the opposite contract: rows omitted from
+the snapshot are absent after restore. Keep these two semantics explicit so
+neither path weakens the other.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import restore
+
+result = restore(items=[])
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_restore'><h3><code class='inline'>validate_restore</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def validate_restore(items: list[dict], future_project_ids: frozenset[int] | None = None) -&gt; None</code></div><p>Prove ``restore`` can write this payload, changing nothing.
+
+``storage_sync`` writes other stores before Todos, so a payload that only
+fails at insert time would leave them committed against a rejected
+snapshot. The dry run executes the real statements — including the id and
+project-id binding — inside a transaction that is always rolled back.
+
+``future_project_ids`` names the project rows the snapshot&#x27;s own Projects
+store will have created by the time Todos restore runs. Those owners are
+staged as placeholder rows inside the rolled-back transaction so the check
+sees the state restore will actually see, rather than the pre-import one.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import validate_restore
+
+result = validate_restore(items=[], future_project_ids=0  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_plan_restore'><h3><code class='inline'>_plan_restore</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (15)</span></h3><div class='sig'><code>def _plan_restore(items: list[dict]) -&gt; tuple[list[int], set[int], set[int]]</code></div><p>Validate a todos payload and return the plan the write path needs.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import _plan_restore
+
+result = _plan_restore(items=[])
+# result: tuple[list[int], set[int], set[int]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_write_restore'><h3><code class='inline'>_write_restore</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (18)</span></h3><div class='sig'><code>def _write_restore(conn: sqlite3.Connection, items: list[dict], sort_orders: list[int], referenced_project_ids: set[int], now: float) -&gt; None</code></div><p>Write the planned snapshot state. Caller owns the transaction.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import _write_restore
+
+result = _write_restore(conn=..., items=[], sort_orders=0, referenced_project_ids=0, now=0.0)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_match_existing_todo'><h3><code class='inline'>_match_existing_todo</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _match_existing_todo(item: dict, content: str, by_id: dict[int, sqlite3.Row], unclaimed_by_content: dict[str, list[int]], kept: set[int]) -&gt; int | None</code></div><p>Resolve one incoming item to the row it should keep being.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import _match_existing_todo
+
+result = _match_existing_todo(item={}, content=&quot;content_example&quot;, by_id=0, unclaimed_by_content=&quot;unclaimed_by_content_example&quot;, kept=0)
+# result: int | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get'><h3><code class='inline'>get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get() -&gt; list[dict]</code></div><p>Get the current todo list, ordered by sort_order.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import get
+
+result = get()
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-add'><h3><code class='inline'>add</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def add(content: str, status: str = &#x27;pending&#x27;, active_form: str = &#x27;&#x27;) -&gt; dict</code></div><p>Append one item to the list.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import add
+
+result = add(content=&quot;content_example&quot;, status=&quot;status_example&quot;  # default: &#x27;pending&#x27;, active_form=&quot;active_form_example&quot;  # default: &#x27;&#x27;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-complete'><h3><code class='inline'>complete</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def complete(index: int) -&gt; bool</code></div><p>Mark item at sort_order=index as completed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import complete
+
+result = complete(index=0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-clear'><h3><code class='inline'>clear</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def clear() -&gt; None</code></div><p>Remove all todos.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import clear
+
+result = clear()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-complete_by_id'><h3><code class='inline'>complete_by_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def complete_by_id(todo_id: int) -&gt; bool</code></div><p>Mark item with given DB id as completed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import complete_by_id
+
+result = complete_by_id(todo_id=0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_progress'><h3><code class='inline'>set_progress</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def set_progress(todo_id: int, note: str) -&gt; dict | None</code></div><p>Record where the user stopped, without claiming the item is finished.
+
+&quot;This is where I stopped&quot; is a different statement from &quot;I did this&quot;, and
+conflating them loses the only thing that makes the action resumable. An
+item with progress moves to ``in_progress``; clearing the note leaves the
+status alone, because erasing a note is not abandoning the work.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import set_progress
+
+result = set_progress(todo_id=0, note=&quot;note_example&quot;)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_project'><h3><code class='inline'>set_project</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def set_project(todo_id: int, project_id: int | None) -&gt; dict | None</code></div><p>Associate one todo with the project it belongs to.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import set_project
+
+result = set_project(todo_id=0, project_id=0)
+# result: dict | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-delete_by_id'><h3><code class='inline'>delete_by_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def delete_by_id(todo_id: int) -&gt; bool</code></div><p>Remove one todo by DB id.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import delete_by_id
+
+result = delete_by_id(todo_id=0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_todos_text'><h3><code class='inline'>get_todos_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def get_todos_text() -&gt; str</code></div><p>Return current todo list as a formatted string for context injection.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import get_todos_text
+
+result = get_todos_text()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_dict'><h3><code class='inline'>_row_to_dict</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _row_to_dict(row: sqlite3.Row) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import _row_to_dict
+
+result = _row_to_dict(row=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_import_legacy_todos_once'><h3><code class='inline'>_import_legacy_todos_once</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _import_legacy_todos_once() -&gt; None</code></div><p>Copy existing todos from the old DB once without deleting the old file.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import _import_legacy_todos_once
+
+result = _import_legacy_todos_once()
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_legacy_todos'><h3><code class='inline'>_read_legacy_todos</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _read_legacy_todos() -&gt; list[sqlite3.Row]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import _read_legacy_todos
+
+result = _read_legacy_todos()
+# result: list[sqlite3.Row]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_mark_legacy_imported'><h3><code class='inline'>_mark_legacy_imported</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _mark_legacy_imported(conn: sqlite3.Connection, value: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.todo_store import _mark_legacy_imported
+
+result = _mark_legacy_imported(conn=..., value=&quot;value_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-TodoStoreError'><code class='inline'>TodoStoreError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-TodoStoreError'><h3><code class='inline'>TodoStoreError</code></h3><p>Raised when a todo operation cannot proceed safely.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.todo_store import TodoStoreError
+
+obj = TodoStoreError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>TODO_DB</code></td><td><code class='inline'>DATA_DIR / &#x27;todos.db&#x27;</code></td></tr><tr><td><code class='inline'>TODO_DB_FILE</code></td><td><code class='inline'>KITTY_DB_FILE</code></td></tr><tr><td><code class='inline'>LEGACY_IMPORT_SETTING</code></td><td><code class='inline'>&#x27;todos_legacy_imported&#x27;</code></td></tr><tr><td><code class='inline'>VALID_STATUSES</code></td><td><code class='inline'>frozenset({&#x27;pending&#x27;, &#x27;in_progress&#x27;, &#x27;completed&#x27;, &#x27;deprioritized&#x27;})</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

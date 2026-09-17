@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.imessage — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.imessage</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.imessage</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/imessage.py</code> &middot; Python &middot; 7 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>iMessage bridge — send/read via AppleScript on macOS.
+
+Public API:
+  send(phone_or_email, message) -&gt; bool
+  read_recent(limit) -&gt; list[dict]
+  is_available() -&gt; bool</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>logging</code>, <code class='inline'>subprocess</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_run_applescript'><code class='inline'>_run_applescript</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_escape_applescript_string'><code class='inline'>_escape_applescript_string</code></a></td><td>Escape backslash and double-quote for a plain AppleScript string literal.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_applescript_string_literal'><code class='inline'>_applescript_string_literal</code></a></td><td>Build an AppleScript expression for ``message`` with real linefeeds.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-send'><code class='inline'>send</code></a></td><td>Send an iMessage. Recipient can be phone number or email.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-read_recent'><code class='inline'>read_recent</code></a></td><td>Read recent iMessages from the last active conversation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-is_available'><code class='inline'>is_available</code></a></td><td>Check if iMessage integration is available.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_recent_text'><code class='inline'>get_recent_text</code></a></td><td>Return a formatted snippet of recent iMessages for context injection.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-_run_applescript'><h3><code class='inline'>_run_applescript</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _run_applescript(script: str) -&gt; tuple[bool, str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.imessage import _run_applescript
+
+result = _run_applescript(script=&quot;script_example&quot;)
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_escape_applescript_string'><h3><code class='inline'>_escape_applescript_string</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _escape_applescript_string(text: str) -&gt; str</code></div><p>Escape backslash and double-quote for a plain AppleScript string literal.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.imessage import _escape_applescript_string
+
+result = _escape_applescript_string(text=&quot;text_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_applescript_string_literal'><h3><code class='inline'>_applescript_string_literal</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _applescript_string_literal(message: str) -&gt; str</code></div><p>Build an AppleScript expression for ``message`` with real linefeeds.
+
+AppleScript string literals have no `\n` escape — a literal backslash-n
+two-character sequence renders as-is instead of a newline. Multi-line
+text is built by joining per-line string literals with `&amp; return &amp;`.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.imessage import _applescript_string_literal
+
+result = _applescript_string_literal(message=&quot;message_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-send'><h3><code class='inline'>send</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def send(recipient: str, message: str) -&gt; bool</code></div><p>Send an iMessage. Recipient can be phone number or email.
+
+Targets the participant of the iMessage account directly rather than
+`buddy &quot;&lt;id&gt;&quot;`, which fails silently on modern Messages.app (exit 0, no
+message sent) — verified on Jacob&#x27;s Air 2026-07-04. Requires Messages to
+be signed in and a conversation with the recipient to already exist.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.imessage import send
+
+result = send(recipient=&quot;recipient_example&quot;, message=&quot;message_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-read_recent'><h3><code class='inline'>read_recent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def read_recent(limit: int = 10) -&gt; list[dict]</code></div><p>Read recent iMessages from the last active conversation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.imessage import read_recent
+
+result = read_recent(limit=0  # default: 10)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_available'><h3><code class='inline'>is_available</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def is_available() -&gt; bool</code></div><p>Check if iMessage integration is available.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.imessage import is_available
+
+result = is_available()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_recent_text'><h3><code class='inline'>get_recent_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def get_recent_text(limit: int = 5) -&gt; str</code></div><p>Return a formatted snippet of recent iMessages for context injection.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.imessage import get_recent_text
+
+result = get_recent_text(limit=0  # default: 5)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

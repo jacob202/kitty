@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_runner — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_runner</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_runner</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_runner.py</code> &middot; Python &middot; 49 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>KittyBuilder Phase 1C-alpha — runner shadow mode.
+
+Claims a queue task, creates an isolated git worktree, launches a configured
+worker command, heartbeats the lease while it runs, and records everything
+(command, PID, timestamps, exit status, branch, worktree, log path, final
+report). Shadow mode performs **no GitHub mutations**: no push, no PR, no
+comments. Every outcome lands the task in ``blocked`` with a machine-readable
+reason so the operator (or Phase 1C-beta) decides what happens next.
+
+Crash safety: if this runner process dies, the lease stops renewing and the
+existing recovery scan moves the task to ``blocked(stale_heartbeat)``;
+``recover_interrupted_runs`` marks the dead run row. The worktree and log
+always survive for inspection — partial progress is never destroyed.
+
+Phase 2 upgrade — context injection:
+- ``inject_worker_context`` reads task/events/PR links, builds a context
+  manifest via ``builder_context.build_context_manifest``, writes it to the
+  run directory, and returns ``extra_env`` entries (KB_CONTEXT_BUNDLE_PATH,
+  KB_CONTEXT_MANIFEST_PATH) that ``run_worker`` adds to the child env.
+- ``validate_worker_context`` reads the manifest back after the worker exits
+  and confirms it has not been tampered with.
+
+Companion wiring:
+- ``run_agent_preset`` spawns an ``agent_runner`` agent (explorer / planner /
+  coder / reviewer / researcher) for a builder task, bridging the 5 presets
+  that were previously disconnected from the queue lifecycle.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>datetime</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.agent_runner</code>, <code class='inline'>gateway.builder_brief</code>, <code class='inline'>gateway.builder_context</code>, <code class='inline'>gateway.models.builder</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>shutil</code>, <code class='inline'>signal</code>, <code class='inline'>subprocess</code>, <code class='inline'>sys</code>, <code class='inline'>threading</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_existing_parent'><code class='inline'>_existing_parent</code></a></td><td>Return the nearest existing parent for a path we may create later.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_require_writable_directory'><code class='inline'>_require_writable_directory</code></a></td><td>Fail before a run when a required directory cannot be used safely.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-preflight_worktree'><code class='inline'>preflight_worktree</code></a></td><td>Check worktree and Git metadata prerequisites without mutating state.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_write_json_atomic'><code class='inline'>_write_json_atomic</code></a></td><td>Persist one JSON record without exposing a partially-written file.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_read_persisted_worktree_identity'><code class='inline'>_read_persisted_worktree_identity</code></a></td><td>Load the exact creation-time worktree identity stored for a run.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_repo_root'><code class='inline'>_repo_root</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-worktree_path'><code class='inline'>worktree_path</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_interpreter_hops'><code class='inline'>_interpreter_hops</code></a></td><td>Return every path the interpreter symlink chain passes through.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_validation_toolchain'><code class='inline'>_validation_toolchain</code></a></td><td>Return the repo validation venv and read-only runtime roots, if present.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_git'><code class='inline'>_git</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_git_output'><code class='inline'>_git_output</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_cleanup_timed_out_worktree'><code class='inline'>_cleanup_timed_out_worktree</code></a></td><td>Remove only an incomplete worktree created by this failed add.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-ensure_worktree'><code class='inline'>ensure_worktree</code></a></td><td>Create (or safely reuse) the deterministic worktree for a task.</td><td><span class='pill'>complex</span><span class='muted small'>(14)</span></td></tr><tr><td><a href='#fn-remove_worktree'><code class='inline'>remove_worktree</code></a></td><td>Remove a task worktree, optionally discarding its lone done marker.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_worktree_summary'><code class='inline'>_worktree_summary</code></a></td><td>Small evidence block for the final report: commits + dirty files.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_changed_paths'><code class='inline'>_changed_paths</code></a></td><td>Return committed, staged, unstaged, and untracked paths since dispatch.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_diff_sha256'><code class='inline'>_diff_sha256</code></a></td><td>Hash the complete observable worktree diff since dispatch.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-archive_and_reset_worktree'><code class='inline'>archive_and_reset_worktree</code></a></td><td>Preserve failed-attempt changes, then return to a clean base.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-worktree_head'><code class='inline'>worktree_head</code></a></td><td>Return the exact commit currently checked out in a worker worktree.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-worktree_diff_sha256'><code class='inline'>worktree_diff_sha256</code></a></td><td>Return the stable digest used to bind reviewer evidence to a diff.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-worktree_changed_paths'><code class='inline'>worktree_changed_paths</code></a></td><td>Return every path changed since *start_sha* (committed, staged, dirty).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_scope_violations'><code class='inline'>_scope_violations</code></a></td><td>Return changed paths outside the task&#x27;s explicit file allowlist.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_scope_snapshot'><code class='inline'>_scope_snapshot</code></a></td><td>Capture the current changed-path set and any scope violations.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_builder_declared_scopes'><code class='inline'>_builder_declared_scopes</code></a></td><td>Return explicit Builder mutation scopes; absent scope fails closed.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_kx_claim_paths'><code class='inline'>_kx_claim_paths</code></a></td><td>Translate Builder prefix semantics into KX path-fence patterns.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_resolve_required_kx_resources'><code class='inline'>_resolve_required_kx_resources</code></a></td><td>Resolve every declared Builder scope and reject any unmapped scope.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_renew_complete_kx_set'><code class='inline'>_renew_complete_kx_set</code></a></td><td>Renew KX only if the run still owns its complete semantic set.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_release_terminal_builder_kx_conflicts'><code class='inline'>_release_terminal_builder_kx_conflicts</code></a></td><td>Release only KX residue proven to belong to terminal runs of this task.</td><td><span class='pill'>complex</span><span class='muted small'>(15)</span></td></tr><tr><td><a href='#fn-_terminate_group'><code class='inline'>_terminate_group</code></a></td><td>SIGTERM the worker&#x27;s process group, escalate to SIGKILL after grace.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_raise_worker_launch_error'><code class='inline'>_raise_worker_launch_error</code></a></td><td>Persist a failed launch, then raise the original failure with context.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-inject_worker_context'><code class='inline'>inject_worker_context</code></a></td><td>Build and persist a context manifest, returning extra_env entries.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-validate_worker_context'><code class='inline'>validate_worker_context</code></a></td><td>Validate that the context manifest is intact after a worker run.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-run_agent_preset'><code class='inline'>run_agent_preset</code></a></td><td>Dispatch a builder task to an agent preset.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_dsh_presence_session_id'><code class='inline'>_dsh_presence_session_id</code></a></td><td>Map a real DSH Builder run to one durable Agent Room presence session.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_presence_issue'><code class='inline'>_presence_issue</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_presence_check_in'><code class='inline'>_presence_check_in</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_presence_heartbeat'><code class='inline'>_presence_heartbeat</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_presence_checkout'><code class='inline'>_presence_checkout</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-run_worker'><code class='inline'>run_worker</code></a></td><td>Claim *task_id*, run *command* in its isolated worktree, record all.</td><td><span class='pill'>complex</span><span class='muted small'>(110)</span></td></tr><tr><td><a href='#fn-request_cancel'><code class='inline'>request_cancel</code></a></td><td>Ask a live run to stop: flag it and signal the worker process group.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_parse_timestamp'><code class='inline'>_parse_timestamp</code></a></td><td>Parse a builder timestamp (``%Y-%m-%d %H:%M:%f``) into epoch seconds.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_process_alive'><code class='inline'>_process_alive</code></a></td><td>Return ``(alive, detail)`` for a recorded worker pid.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_single_worker_run'><code class='inline'>_single_worker_run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-detached_worker_status'><code class='inline'>detached_worker_status</code></a></td><td>Reconnectable status of a (possibly detached) worker run.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-reap_detached_workers'><code class='inline'>reap_detached_workers</code></a></td><td>Reclaim orphaned worker process groups so none accumulate.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_detached_spec_payload'><code class='inline'>_detached_spec_payload</code></a></td><td>Serialize the ``run_worker`` parameters a detached supervisor needs.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_supervise_worker'><code class='inline'>_supervise_worker</code></a></td><td>Run a detached worker to completion inside a supervisor process.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-run_worker_detached'><code class='inline'>run_worker_detached</code></a></td><td>Launch *command* under a durable detached supervisor and return at once.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_detached_main'><code class='inline'>_detached_main</code></a></td><td>Internal CLI entrypoint for the detached supervisor process.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_existing_parent'><h3><code class='inline'>_existing_parent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _existing_parent(path: Path) -&gt; Path</code></div><p>Return the nearest existing parent for a path we may create later.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _existing_parent
+
+result = _existing_parent(path=&quot;path_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require_writable_directory'><h3><code class='inline'>_require_writable_directory</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _require_writable_directory(path: Path, label: str) -&gt; None</code></div><p>Fail before a run when a required directory cannot be used safely.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _require_writable_directory
+
+result = _require_writable_directory(path=&quot;path_example&quot;, label=&quot;label_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-preflight_worktree'><h3><code class='inline'>preflight_worktree</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def preflight_worktree(task_id: str, repo_root: Path | None = None) -&gt; dict[str, str]</code></div><p>Check worktree and Git metadata prerequisites without mutating state.
+
+This is intentionally separate from ``ensure_worktree``: callers use it
+before opening an implementation attempt so an infrastructure failure does
+not consume the packet&#x27;s attempt budget.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import preflight_worktree
+
+result = preflight_worktree(task_id=&quot;task_id_example&quot;, repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_write_json_atomic'><h3><code class='inline'>_write_json_atomic</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _write_json_atomic(path: Path, payload: dict[str, Any]) -&gt; None</code></div><p>Persist one JSON record without exposing a partially-written file.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _write_json_atomic
+
+result = _write_json_atomic(path=&quot;path_example&quot;, payload=&quot;payload_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_read_persisted_worktree_identity'><h3><code class='inline'>_read_persisted_worktree_identity</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _read_persisted_worktree_identity(path: Path, expected_run_id: str) -&gt; rw.WorktreeIdentity</code></div><p>Load the exact creation-time worktree identity stored for a run.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _read_persisted_worktree_identity
+
+result = _read_persisted_worktree_identity(path=&quot;path_example&quot;, expected_run_id=&quot;expected_run_id_example&quot;)
+# result: rw.WorktreeIdentity</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_repo_root'><h3><code class='inline'>_repo_root</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _repo_root(repo_root: Path | None) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _repo_root
+
+result = _repo_root(repo_root=&quot;repo_root_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-worktree_path'><h3><code class='inline'>worktree_path</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def worktree_path(task_id: str, repo_root: Path | None = None) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import worktree_path
+
+result = worktree_path(task_id=&quot;task_id_example&quot;, repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_interpreter_hops'><h3><code class='inline'>_interpreter_hops</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _interpreter_hops(python: Path) -&gt; list[Path]</code></div><p>Return every path the interpreter symlink chain passes through.
+
+Seatbelt authorises an ``execve`` against each name in the chain as
+written, not against the final real path, so a venv whose interpreter
+points through an alias directory (uv installs ``cpython-3.12-*`` as a
+symlink to ``cpython-3.12.14-*``) is denied unless the alias hop is
+allowed too.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _interpreter_hops
+
+result = _interpreter_hops(python=&quot;python_example&quot;)
+# result: list[Path]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validation_toolchain'><h3><code class='inline'>_validation_toolchain</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _validation_toolchain(repo_root: Path) -&gt; tuple[Path | None, list[Path]]</code></div><p>Return the repo validation venv and read-only runtime roots, if present.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _validation_toolchain
+
+result = _validation_toolchain(repo_root=&quot;repo_root_example&quot;)
+# result: tuple[Path | None, list[Path]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_git'><h3><code class='inline'>_git</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _git(args: list[str], cwd: Path, timeout_seconds: int = _GIT_TIMEOUT_SECONDS) -&gt; subprocess.CompletedProcess[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _git
+
+result = _git(args=&quot;args_example&quot;, cwd=&quot;cwd_example&quot;, timeout_seconds=0  # default: _GIT_TIMEOUT_SECONDS)
+# result: subprocess.CompletedProcess[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_git_output'><h3><code class='inline'>_git_output</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _git_output(args: list[str], cwd: Path) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _git_output
+
+result = _git_output(args=&quot;args_example&quot;, cwd=&quot;cwd_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_cleanup_timed_out_worktree'><h3><code class='inline'>_cleanup_timed_out_worktree</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _cleanup_timed_out_worktree(root: Path, path: Path) -&gt; None</code></div><p>Remove only an incomplete worktree created by this failed add.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _cleanup_timed_out_worktree
+
+result = _cleanup_timed_out_worktree(root=&quot;root_example&quot;, path=&quot;path_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-ensure_worktree'><h3><code class='inline'>ensure_worktree</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (14)</span></h3><div class='sig'><code>def ensure_worktree(task_id: str, branch: str, repo_root: Path | None = None, base_sha: str | None = None, reuse_dirty: bool = False) -&gt; Path</code></div><p>Create (or safely reuse) the deterministic worktree for a task.
+
+Reuse requires the existing worktree to be on *branch* and, unless
+``reuse_dirty`` is set, completely clean; anything else raises — a dirty
+or ambiguous worktree is never overwritten (it may hold a crashed
+worker&#x27;s partial progress). ``reuse_dirty`` is an explicit opt-in for the
+repair loop only: the builder loop has already decided the dirty tree is
+the deliberate continuation of a prior rejected implementation, so
+reusing it does not overwrite anything. The branch check always holds;
+a wrong-branch tree is never reusable. A nonzero ``git status`` exit is an
+infrastructure failure and always raises; ``reuse_dirty`` accepts only
+successful status output that truthfully reports the tree as dirty.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import ensure_worktree
+
+result = ensure_worktree(task_id=&quot;task_id_example&quot;, branch=&quot;branch_example&quot;, repo_root=&quot;repo_root_example&quot;  # default: None, base_sha=&quot;base_sha_example&quot;  # default: None, reuse_dirty=True  # default: False)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-remove_worktree'><h3><code class='inline'>remove_worktree</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def remove_worktree(task_id: str, repo_root: Path | None = None, discard_done_marker: bool = False) -&gt; Path</code></div><p>Remove a task worktree, optionally discarding its lone done marker.
+
+``done.txt`` is an ephemeral worker handoff marker, not product output.
+Cleanup may remove exactly that one untracked file; every other dirty
+state, including a modified or tracked marker, still fails loudly.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import remove_worktree
+
+result = remove_worktree(task_id=&quot;task_id_example&quot;, repo_root=&quot;repo_root_example&quot;  # default: None, discard_done_marker=True  # default: False)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_worktree_summary'><h3><code class='inline'>_worktree_summary</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _worktree_summary(path: Path) -&gt; dict[str, Any]</code></div><p>Small evidence block for the final report: commits + dirty files.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _worktree_summary
+
+result = _worktree_summary(path=&quot;path_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_changed_paths'><h3><code class='inline'>_changed_paths</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _changed_paths(path: Path, start_sha: str) -&gt; list[str]</code></div><p>Return committed, staged, unstaged, and untracked paths since dispatch.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _changed_paths
+
+result = _changed_paths(path=&quot;path_example&quot;, start_sha=&quot;start_sha_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_diff_sha256'><h3><code class='inline'>_diff_sha256</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _diff_sha256(path: Path, start_sha: str) -&gt; str</code></div><p>Hash the complete observable worktree diff since dispatch.
+
+Git&#x27;s binary diff output covers committed, staged, and unstaged tracked
+changes. Untracked files are appended with explicit path/length framing so
+two different file sets cannot produce the same digest by concatenation.
+The digest is evidence only; it never substitutes for the changed-path
+allowlist check.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _diff_sha256
+
+result = _diff_sha256(path=&quot;path_example&quot;, start_sha=&quot;start_sha_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-archive_and_reset_worktree'><h3><code class='inline'>archive_and_reset_worktree</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def archive_and_reset_worktree(path: Path, evidence_dir: Path, reset_sha: str | None = None) -&gt; dict[str, Any]</code></div><p>Preserve failed-attempt changes, then return to a clean base.
+
+When ``reset_sha`` is provided, evidence is cumulative from that durable
+packet base and committed worker changes are reset too. This prevents a
+non-repairable retry from silently inheriting commits made by a crashed or
+orphaned worker. Without ``reset_sha`` the historical HEAD-relative
+behavior is preserved for callers that only need to clear dirty state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import archive_and_reset_worktree
+
+result = archive_and_reset_worktree(path=&quot;path_example&quot;, evidence_dir=&quot;evidence_dir_example&quot;, reset_sha=&quot;reset_sha_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-worktree_head'><h3><code class='inline'>worktree_head</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def worktree_head(path: Path) -&gt; str</code></div><p>Return the exact commit currently checked out in a worker worktree.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import worktree_head
+
+result = worktree_head(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-worktree_diff_sha256'><h3><code class='inline'>worktree_diff_sha256</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def worktree_diff_sha256(path: Path, start_sha: str) -&gt; str</code></div><p>Return the stable digest used to bind reviewer evidence to a diff.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import worktree_diff_sha256
+
+result = worktree_diff_sha256(path=&quot;path_example&quot;, start_sha=&quot;start_sha_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-worktree_changed_paths'><h3><code class='inline'>worktree_changed_paths</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def worktree_changed_paths(path: Path, start_sha: str) -&gt; list[str]</code></div><p>Return every path changed since *start_sha* (committed, staged, dirty).
+
+The packet-cumulative counterpart to ``run_worker``&#x27;s per-run
+``changed_paths``, which is measured from the retry-local HEAD at run
+start. Callers that own a durable base SHA (the builder loop&#x27;s review and
+final-success evidence) use this so the final state binds to the packet
+base rather than only the latest retry&#x27;s delta, while the per-attempt
+delta stays in each run record.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import worktree_changed_paths
+
+result = worktree_changed_paths(path=&quot;path_example&quot;, start_sha=&quot;start_sha_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_scope_violations'><h3><code class='inline'>_scope_violations</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _scope_violations(changed_paths: list[str], allowed_paths: list[str] | None) -&gt; list[str]</code></div><p>Return changed paths outside the task&#x27;s explicit file allowlist.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _scope_violations
+
+result = _scope_violations(changed_paths=&quot;changed_paths_example&quot;, allowed_paths=&quot;allowed_paths_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_scope_snapshot'><h3><code class='inline'>_scope_snapshot</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _scope_snapshot(path: Path, start_sha: str, allowed_paths: list[str] | None) -&gt; tuple[list[str], list[str]]</code></div><p>Capture the current changed-path set and any scope violations.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _scope_snapshot
+
+result = _scope_snapshot(path=&quot;path_example&quot;, start_sha=&quot;start_sha_example&quot;, allowed_paths=&quot;allowed_paths_example&quot;)
+# result: tuple[list[str], list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_builder_declared_scopes'><h3><code class='inline'>_builder_declared_scopes</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _builder_declared_scopes(allowed_paths: list[str] | None) -&gt; list[str]</code></div><p>Return explicit Builder mutation scopes; absent scope fails closed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _builder_declared_scopes
+
+result = _builder_declared_scopes(allowed_paths=&quot;allowed_paths_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_kx_claim_paths'><h3><code class='inline'>_kx_claim_paths</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _kx_claim_paths(scopes: list[str]) -&gt; list[str]</code></div><p>Translate Builder prefix semantics into KX path-fence patterns.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _kx_claim_paths
+
+result = _kx_claim_paths(scopes=&quot;scopes_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_required_kx_resources'><h3><code class='inline'>_resolve_required_kx_resources</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _resolve_required_kx_resources(scopes: list[str], allowed_paths: list[str] | None, worktree_path: Path, registry_path: Path) -&gt; list[str]</code></div><p>Resolve every declared Builder scope and reject any unmapped scope.
+
+File-like scopes resolve exactly. Directory scopes may claim every semantic
+resource reachable beneath the prefix. A trailing slash is an explicit
+directory declaration even when the directory does not exist yet.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _resolve_required_kx_resources
+
+result = _resolve_required_kx_resources(scopes=&quot;scopes_example&quot;, allowed_paths=&quot;allowed_paths_example&quot;, worktree_path=&quot;worktree_path_example&quot;, registry_path=&quot;registry_path_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_renew_complete_kx_set'><h3><code class='inline'>_renew_complete_kx_set</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _renew_complete_kx_set(session_id: str, required_resources: list[str], lease_seconds: int, db_path: Path) -&gt; dict[str, Any]</code></div><p>Renew KX only if the run still owns its complete semantic set.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _renew_complete_kx_set
+
+result = _renew_complete_kx_set(session_id=&quot;session_id_example&quot;, required_resources=&quot;required_resources_example&quot;, lease_seconds=0, db_path=&quot;db_path_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_release_terminal_builder_kx_conflicts'><h3><code class='inline'>_release_terminal_builder_kx_conflicts</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (15)</span></h3><div class='sig'><code>def _release_terminal_builder_kx_conflicts(holders: list[dict[str, Any]], task_id: str, queue_db_path: Path | None, coordination_db_path: Path) -&gt; list[str]</code></div><p>Release only KX residue proven to belong to terminal runs of this task.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _release_terminal_builder_kx_conflicts
+
+result = _release_terminal_builder_kx_conflicts(holders=&quot;holders_example&quot;, task_id=&quot;task_id_example&quot;, queue_db_path=&quot;queue_db_path_example&quot;, coordination_db_path=&quot;coordination_db_path_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_terminate_group'><h3><code class='inline'>_terminate_group</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _terminate_group(proc: subprocess.Popen[Any]) -&gt; None</code></div><p>SIGTERM the worker&#x27;s process group, escalate to SIGKILL after grace.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _terminate_group
+
+result = _terminate_group(proc=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_raise_worker_launch_error'><h3><code class='inline'>_raise_worker_launch_error</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _raise_worker_launch_error(exc: Exception, run: dict[str, Any], task: dict[str, Any], command: list[str], branch: str, wt_path: Path, log_path: Path, brief_path: Path, lease_token: str, claim_version: int, worker: str, model: str | None, provider: str | None, db_path: Path | None, kx_cleanup_error: str | None = None) -&gt; NoReturn</code></div><p>Persist a failed launch, then raise the original failure with context.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _raise_worker_launch_error
+
+result = _raise_worker_launch_error(exc=..., run=&quot;run_example&quot;, task=&quot;task_example&quot;, command=&quot;command_example&quot;, branch=&quot;branch_example&quot;, wt_path=&quot;wt_path_example&quot;, log_path=&quot;log_path_example&quot;, brief_path=&quot;brief_path_example&quot;, lease_token=&quot;lease_token_example&quot;, claim_version=0, worker=&quot;worker_example&quot;, model=&quot;model_example&quot;, provider=&quot;provider_example&quot;, db_path=&quot;db_path_example&quot;, kx_cleanup_error=&quot;kx_cleanup_error_example&quot;  # default: None)
+# result: NoReturn</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-inject_worker_context'><h3><code class='inline'>inject_worker_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def inject_worker_context(task_id: str, run_id: str, branch: str, worker: str = &#x27;local-runner&#x27;, model: str | None = None, provider: str | None = None, allowed_paths: list[str] | None = None, acceptance_criteria: list[str] | None = None, agent_preset: str | None = None, db_path: Path | None = None, repo_root: Path | None = None) -&gt; tuple[dict[str, str], WorkerContextBundle]</code></div><p>Build and persist a context manifest, returning extra_env entries.
+
+Reads the task&#x27;s events and PR links, builds a ``build_context_manifest``
+with allowed_paths, writes it as a run manifest, and returns the env vars
+the worker needs to locate the context at runtime.
+
+Returns (extra_env, context_bundle) where extra_env includes
+KB_CONTEXT_BUNDLE_PATH and KB_CONTEXT_MANIFEST_PATH.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import inject_worker_context
+
+result = inject_worker_context(task_id=&quot;task_id_example&quot;, run_id=&quot;run_id_example&quot;, branch=&quot;branch_example&quot;, worker=&quot;worker_example&quot;  # default: &#x27;local-runner&#x27;, model=&quot;model_example&quot;  # default: None, provider=&quot;provider_example&quot;  # default: None, allowed_paths=&quot;allowed_paths_example&quot;  # default: None, acceptance_criteria=&quot;acceptance_criteria_example&quot;  # default: None, agent_preset=&quot;agent_preset_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: tuple[dict[str, str], WorkerContextBundle]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_worker_context'><h3><code class='inline'>validate_worker_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def validate_worker_context(task_id: str, run_id: str, db_path: Path | None = None) -&gt; list[str]</code></div><p>Validate that the context manifest is intact after a worker run.
+
+Returns a list of validation issues (empty if context is valid).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import validate_worker_context
+
+result = validate_worker_context(task_id=&quot;task_id_example&quot;, run_id=&quot;run_id_example&quot;, db_path=&quot;db_path_example&quot;  # default: None)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_agent_preset'><h3><code class='inline'>run_agent_preset</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def run_agent_preset(goal: str, preset: AgentPreset | str, task_id: str | None = None, extra_context: str | None = None, model: str | None = None, max_iterations: int | None = None, temperature: float | None = None) -&gt; dict[str, Any]</code></div><p>Dispatch a builder task to an agent preset.
+
+Spawns an ``agent_runner`` agent with the given preset configuration,
+bridging the 5 presets (explorer, planner, coder, reviewer, researcher)
+into the builder lifecycle.
+
+Returns ``{&quot;session_id&quot;, &quot;preset&quot;, &quot;goal&quot;, &quot;status&quot;, &quot;output&quot;, &quot;error&quot;}``.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.builder_runner import run_agent_preset
+
+    result = await run_agent_preset()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_dsh_presence_session_id'><h3><code class='inline'>_dsh_presence_session_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _dsh_presence_session_id(run_id: str, worker: str | None) -&gt; str | None</code></div><p>Map a real DSH Builder run to one durable Agent Room presence session.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _dsh_presence_session_id
+
+result = _dsh_presence_session_id(run_id=&quot;run_id_example&quot;, worker=&quot;worker_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_presence_issue'><h3><code class='inline'>_presence_issue</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _presence_issue(action: str, exc: Exception) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _presence_issue
+
+result = _presence_issue(action=&quot;action_example&quot;, exc=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_presence_check_in'><h3><code class='inline'>_presence_check_in</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _presence_check_in(run_id: str, worker: str | None, task_id: str, start_sha: str, model: str | None) -&gt; tuple[str | None, list[str]]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _presence_check_in
+
+result = _presence_check_in(run_id=&quot;run_id_example&quot;, worker=&quot;worker_example&quot;, task_id=&quot;task_id_example&quot;, start_sha=&quot;start_sha_example&quot;, model=&quot;model_example&quot;)
+# result: tuple[str | None, list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_presence_heartbeat'><h3><code class='inline'>_presence_heartbeat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _presence_heartbeat(session_id: str | None, issues: list[str]) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _presence_heartbeat
+
+result = _presence_heartbeat(session_id=&quot;session_id_example&quot;, issues=&quot;issues_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_presence_checkout'><h3><code class='inline'>_presence_checkout</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _presence_checkout(session_id: str | None, issues: list[str]) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _presence_checkout
+
+result = _presence_checkout(session_id=&quot;session_id_example&quot;, issues=&quot;issues_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_worker'><h3><code class='inline'>run_worker</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (110)</span></h3><div class='sig'><code>def run_worker(task_id: str, command: list[str], worker: str = &#x27;local-runner&#x27;, model: str | None = None, provider: str | None = None, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS, lease_seconds: int = DEFAULT_LEASE_SECONDS, heartbeat_seconds: int = DEFAULT_HEARTBEAT_SECONDS, repo_root: Path | None = None, db_path: Path | None = None, coordination_db_path: Path | None = None, coordination_registry_path: Path | None = None, extra_env: dict[str, str] | None = None, base_sha: str | None = None, inject_context: bool = False, reuse_dirty_worktree: bool = False) -&gt; dict[str, Any]</code></div><p>Claim *task_id*, run *command* in its isolated worktree, record all.
+
+Returns the final run dict. The task ends in ``blocked`` with a reason
+from the outcome (shadow_run_complete / worker_failed / run_timeout /
+run_cancelled) unless the worker command already transitioned it itself
+(smart workers hold the lease via KB_LEASE_TOKEN and may do so).
+
+``extra_env`` adds variables to the worker environment (the KB-S3b
+packet loop passes attempt bundle/result paths). It may not re-inject
+the credentials this runner strips.
+
+``reuse_dirty_worktree`` opts into reusing an existing worktree that is
+on the correct branch but dirty. Only the runner loop&#x27;s repair retry
+sets it, after it has decided the dirty tree is a deliberately preserved
+prior implementation to build on; every other caller keeps the default
+fail-closed refusal.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import run_worker
+
+result = run_worker(task_id=&quot;task_id_example&quot;, command=&quot;command_example&quot;, worker=&quot;worker_example&quot;  # default: &#x27;local-runner&#x27;, model=&quot;model_example&quot;  # default: None, provider=&quot;provider_example&quot;  # default: None, timeout_seconds=0  # default: DEFAULT_TIMEOUT_SECONDS, lease_seconds=0  # default: DEFAULT_LEASE_SECONDS, heartbeat_seconds=0  # default: DEFAULT_HEARTBEAT_SECONDS, repo_root=&quot;repo_root_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None, coordination_db_path=&quot;coordination_db_path_example&quot;  # default: None, coordination_registry_path=&quot;coordination_registry_path_example&quot;  # default: None, extra_env=&quot;extra_env_example&quot;  # default: None, base_sha=&quot;base_sha_example&quot;  # default: None, inject_context=True  # default: False, reuse_dirty_worktree=True  # default: False)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-request_cancel'><h3><code class='inline'>request_cancel</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def request_cancel(run_id: str, kill: bool = False, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Ask a live run to stop: flag it and signal the worker process group.
+
+The owning runner notices the flag (or the process death) within one
+heartbeat and records the cancelled outcome. ``kill=True`` escalates to
+SIGKILL for a worker that ignores SIGTERM.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import request_cancel
+
+result = request_cancel(run_id=&quot;run_id_example&quot;, kill=True  # default: False, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_parse_timestamp'><h3><code class='inline'>_parse_timestamp</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _parse_timestamp(value: str | None) -&gt; float | None</code></div><p>Parse a builder timestamp (``%Y-%m-%d %H:%M:%f``) into epoch seconds.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _parse_timestamp
+
+result = _parse_timestamp(value=&quot;value_example&quot;)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_process_alive'><h3><code class='inline'>_process_alive</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _process_alive(pid: int, expected_identity: str | None) -&gt; tuple[bool, str]</code></div><p>Return ``(alive, detail)`` for a recorded worker pid.
+
+Alive means the pid is currently running *and* its start-time identity
+matches the run&#x27;s recorded identity, so a recycled pid is never mistaken
+for a live worker (PID-reuse fencing, same invariant as
+``request_cancel`` / ``recover_interrupted_runs``). A missing or
+mismatched identity is treated as not alive.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _process_alive
+
+result = _process_alive(pid=0, expected_identity=&quot;expected_identity_example&quot;)
+# result: tuple[bool, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_single_worker_run'><h3><code class='inline'>_single_worker_run</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _single_worker_run(task_id: str, run_id: str | None, db_path: Path | None) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _single_worker_run
+
+result = _single_worker_run(task_id=&quot;task_id_example&quot;, run_id=&quot;run_id_example&quot;, db_path=&quot;db_path_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-detached_worker_status'><h3><code class='inline'>detached_worker_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def detached_worker_status(run_id: str | None = None, task_id: str | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Reconnectable status of a (possibly detached) worker run.
+
+Exactly one of ``run_id`` or ``task_id`` is required. Reads the durable run
+record and the live worker process to classify the run as:
+
+  * ``completed`` — the run is in a terminal state; its final report is the
+    attempt&#x27;s attached output (branch, commit, changed paths).
+  * ``running`` — the run is active, its worker process is alive with a
+    matching identity, and the task lease is current (a live owner exists).
+  * ``orphaned`` — the run is active and its worker is alive, but the task
+    lease has expired: the owner (loop/supervisor) died and the worker is
+    still running unowned. The operator (or ``reap_detached_workers``) may
+    reclaim it.
+  * ``crashed`` — the run is active in the DB but the worker process is
+    gone (or its identity does not match); the owner recorded a run it
+    never got to finalize.
+  * ``starting`` — active with no worker pid recorded yet.
+  * ``missing`` — no run rows for the given identity.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import detached_worker_status
+
+result = detached_worker_status(run_id=&quot;run_id_example&quot;  # default: None, task_id=&quot;task_id_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reap_detached_workers'><h3><code class='inline'>reap_detached_workers</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def reap_detached_workers(db_path: Path | None = None, grace_seconds: int = DEFAULT_LEASE_SECONDS, _killpg: Any = os.killpg) -&gt; dict[str, Any]</code></div><p>Reclaim orphaned worker process groups so none accumulate.
+
+A worker whose owner died keeps running in its own session, but its task
+lease stops being renewed and expires. This scans every active (non
+terminal) run whose worker process is still alive and identity-matches, and
+whose task lease has been expired for more than ``grace_seconds`` — a
+positive, durable signal that the owning supervisor/loop is gone — and
+SIGTERMs (then SIGKILLs) that worker&#x27;s process group. Runs whose worker is
+already gone are left for ``recover_interrupted_runs`` to mark. Runs with a
+live, currently-leased owner are never touched.
+
+Returns a summary of reaped / skipped runs. ``_killpg`` is injectable for
+tests.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import reap_detached_workers
+
+result = reap_detached_workers(db_path=&quot;db_path_example&quot;  # default: None, grace_seconds=0  # default: DEFAULT_LEASE_SECONDS, _killpg=...  # default: os.killpg)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_detached_spec_payload'><h3><code class='inline'>_detached_spec_payload</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _detached_spec_payload(task_id: str, command: list[str], worker: str, model: str | None, provider: str | None, timeout_seconds: int, lease_seconds: int, heartbeat_seconds: int, repo_root: Path, db_path: Path | None, coordination_db_path: Path | None, coordination_registry_path: Path | None, extra_env: dict[str, str] | None, base_sha: str | None, inject_context: bool, reuse_dirty_worktree: bool) -&gt; dict[str, Any]</code></div><p>Serialize the ``run_worker`` parameters a detached supervisor needs.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _detached_spec_payload
+
+result = _detached_spec_payload(task_id=&quot;task_id_example&quot;, command=&quot;command_example&quot;, worker=&quot;worker_example&quot;, model=&quot;model_example&quot;, provider=&quot;provider_example&quot;, timeout_seconds=0, lease_seconds=0, heartbeat_seconds=0, repo_root=&quot;repo_root_example&quot;, db_path=&quot;db_path_example&quot;, coordination_db_path=&quot;coordination_db_path_example&quot;, coordination_registry_path=&quot;coordination_registry_path_example&quot;, extra_env=&quot;extra_env_example&quot;, base_sha=&quot;base_sha_example&quot;, inject_context=True, reuse_dirty_worktree=True)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_supervise_worker'><h3><code class='inline'>_supervise_worker</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _supervise_worker(spec_path: str | Path) -&gt; int</code></div><p>Run a detached worker to completion inside a supervisor process.
+
+This is the entrypoint the detached supervisor process executes. It reads
+the spec written by ``run_worker_detached`` and runs the exact synchronous
+``run_worker`` lifecycle so that *this* process — not the original caller —
+owns every step. Writes a completion/error status file beside the spec, so
+a later operator can inspect what the supervisor observed even if it had to
+exit abnormally. Returns the process exit code.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _supervise_worker
+
+result = _supervise_worker(spec_path=&quot;spec_path_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run_worker_detached'><h3><code class='inline'>run_worker_detached</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def run_worker_detached(task_id: str, command: list[str], worker: str = &#x27;local-runner&#x27;, model: str | None = None, provider: str | None = None, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS, lease_seconds: int = DEFAULT_LEASE_SECONDS, heartbeat_seconds: int = DEFAULT_HEARTBEAT_SECONDS, repo_root: Path | None = None, db_path: Path | None = None, coordination_db_path: Path | None = None, coordination_registry_path: Path | None = None, extra_env: dict[str, str] | None = None, base_sha: str | None = None, inject_context: bool = False, reuse_dirty_worktree: bool = False, spec_dir: Path | None = None) -&gt; dict[str, Any]</code></div><p>Launch *command* under a durable detached supervisor and return at once.
+
+The supervisor is a separate process in its own session
+(``start_new_session=True``). It owns the entire ``run_worker`` lifecycle —
+claim, worktree, spawn, heartbeat, collect, finalize — so the worker is
+not stranded when this calling process (loop, watcher, terminal) dies. This
+call returns immediately once the supervisor is spawned; the run row
+appears in the queue DB (and is observable via :func:`detached_worker_status`)
+as the supervisor proceeds.
+
+Parameter validation is identical to :func:`run_worker` and raises *before*
+anything is spawned. Returns a dispatch record containing the supervisor
+pid and the spec path; it deliberately does not block for completion.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import run_worker_detached
+
+result = run_worker_detached(task_id=&quot;task_id_example&quot;, command=&quot;command_example&quot;, worker=&quot;worker_example&quot;  # default: &#x27;local-runner&#x27;, model=&quot;model_example&quot;  # default: None, provider=&quot;provider_example&quot;  # default: None, timeout_seconds=0  # default: DEFAULT_TIMEOUT_SECONDS, lease_seconds=0  # default: DEFAULT_LEASE_SECONDS, heartbeat_seconds=0  # default: DEFAULT_HEARTBEAT_SECONDS, repo_root=&quot;repo_root_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None, coordination_db_path=&quot;coordination_db_path_example&quot;  # default: None, coordination_registry_path=&quot;coordination_registry_path_example&quot;  # default: None, extra_env=&quot;extra_env_example&quot;  # default: None, base_sha=&quot;base_sha_example&quot;  # default: None, inject_context=True  # default: False, reuse_dirty_worktree=True  # default: False, spec_dir=&quot;spec_dir_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_detached_main'><h3><code class='inline'>_detached_main</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _detached_main(argv: list[str] | None = None) -&gt; int</code></div><p>Internal CLI entrypoint for the detached supervisor process.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runner import _detached_main
+
+result = _detached_main(argv=&quot;argv_example&quot;  # default: None)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RunnerError'><code class='inline'>RunnerError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-RunnerError'><h3><code class='inline'>RunnerError</code></h3><p>Raised for worktree or run-orchestration failures.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.builder_runner import RunnerError
+
+obj = RunnerError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DEFAULT_LEASE_SECONDS</code></td><td><code class='inline'>60</code></td></tr><tr><td><code class='inline'>DEFAULT_HEARTBEAT_SECONDS</code></td><td><code class='inline'>10</code></td></tr><tr><td><code class='inline'>DEFAULT_TIMEOUT_SECONDS</code></td><td><code class='inline'>3600</code></td></tr><tr><td><code class='inline'>_GIT_TIMEOUT_SECONDS</code></td><td><code class='inline'>15</code></td></tr><tr><td><code class='inline'>_WORKTREE_ADD_TIMEOUT_SECONDS</code></td><td><code class='inline'>120</code></td></tr><tr><td><code class='inline'>_TERM_GRACE_SECONDS</code></td><td><code class='inline'>10</code></td></tr><tr><td><code class='inline'>_BLOCK_REASONS</code></td><td><code class='inline'>{bq.RUN_EXITED: &#x27;shadow_run_complete&#x27;, bq.RUN_FAILED: &#x27;worker_failed&#x27;, bq.RUN_TIMEOUT: &#x27;run_timeout&#x27;, bq.RUN_CANCELLED: </code></td></tr><tr><td><code class='inline'>_EXTRA_ENV_BLOCKED</code></td><td><code class='inline'>frozenset({&#x27;GITHUB_TOKEN&#x27;, &#x27;GH_TOKEN&#x27;, &#x27;SSH_AUTH_SOCK&#x27;, &#x27;SSH_AGENT_PID&#x27;, &#x27;GIT_SSH_COMMAND&#x27;, &#x27;GIT_SSH&#x27;, &#x27;GH_CONFIG_DIR&#x27;, </code></td></tr><tr><td><code class='inline'>_MAX_SYMLINK_HOPS</code></td><td><code class='inline'>16</code></td></tr><tr><td><code class='inline'>AGENT_PRESET_CONFIGS</code></td><td><code class='inline'>dict[AgentPreset, AgentPresetConfig]</code></td></tr><tr><td><code class='inline'>_DETACHED_DIR</code></td><td><code class='inline'>&#x27;detached&#x27;</code></td></tr><tr><td><code class='inline'>_DETACH_SUPERVISE_FLAG</code></td><td><code class='inline'>&#x27;--supervise&#x27;</code></td></tr><tr><td><code class='inline'>_DETACH_SUPERVISE_GRACE_PAD_SECONDS</code></td><td><code class='inline'>5</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

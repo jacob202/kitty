@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_runtime — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_runtime</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_runtime</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_runtime.py</code> &middot; Python &middot; 9 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Canonical Builder runtime snapshot with worker-session awareness.
+
+Extends ``builder_status.build_status_snapshot()`` with live worker-session
+and git-state projections. Every field is derived from existing queue, attempt,
+run, and event authorities — no second database, no mutable UI-owned state.
+
+KB-BRAIN-02: provides the read model that KB-BRAIN-03 (live events) and
+KB-BRAIN-04 (cockpit) consume.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_worker_session</code>, <code class='inline'>logging</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>sqlite3</code>, <code class='inline'>subprocess</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-build_runtime_snapshot'><code class='inline'>build_runtime_snapshot</code></a></td><td>Produce an enhanced snapshot with worker-session and git state.</td><td><span class='pill'>complex</span><span class='muted small'>(16)</span></td></tr><tr><td><a href='#fn-_connect'><code class='inline'>_connect</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_fetch_active_runs'><code class='inline'>_fetch_active_runs</code></a></td><td>Return runs whose state suggests the worker may still be alive.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_git_state'><code class='inline'>_git_state</code></a></td><td>Return canonical git state for the repository root.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_infer_worker_state'><code class='inline'>_infer_worker_state</code></a></td><td>Infer WorkerState from run metadata without a live session.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_pid_alive'><code class='inline'>_pid_alive</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_packet_dirty'><code class='inline'>_packet_dirty</code></a></td><td>Check if a packet&#x27;s worktree has uncommitted changes.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_safe_isoformat'><code class='inline'>_safe_isoformat</code></a></td><td>Try to convert a value to an ISO timestamp string, or return None.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_safe_list'><code class='inline'>_safe_list</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-build_runtime_snapshot'><h3><code class='inline'>build_runtime_snapshot</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (16)</span></h3><div class='sig'><code>def build_runtime_snapshot(db_path: Path | None = None, repo_root: Path | None = None) -&gt; dict[str, Any]</code></div><p>Produce an enhanced snapshot with worker-session and git state.
+
+Returns the same shape as ``build_status_snapshot`` with an additional
+``worker_sessions`` key and enriched per-packet ``git_state`` and
+``worker_session`` fields.
+
+Worker session state is inferred from the run table (PID, heartbeat,
+exit_code) and the task&#x27;s lease. It does not require a live worker process
+instance — it is a read-only projection usable by the runtime manifest
+and cockpit.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runtime import build_runtime_snapshot
+
+result = build_runtime_snapshot(db_path=&quot;db_path_example&quot;  # default: None, repo_root=&quot;repo_root_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_connect'><h3><code class='inline'>_connect</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _connect(db_path: Path | None) -&gt; sqlite3.Connection</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runtime import _connect
+
+result = _connect(db_path=&quot;db_path_example&quot;)
+# result: sqlite3.Connection</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fetch_active_runs'><h3><code class='inline'>_fetch_active_runs</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _fetch_active_runs(conn: sqlite3.Connection) -&gt; dict[str, dict[str, Any]]</code></div><p>Return runs whose state suggests the worker may still be alive.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runtime import _fetch_active_runs
+
+result = _fetch_active_runs(conn=...)
+# result: dict[str, dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_git_state'><h3><code class='inline'>_git_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _git_state(root: Path) -&gt; dict[str, str | bool | int]</code></div><p>Return canonical git state for the repository root.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runtime import _git_state
+
+result = _git_state(root=&quot;root_example&quot;)
+# result: dict[str, str | bool | int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_infer_worker_state'><h3><code class='inline'>_infer_worker_state</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _infer_worker_state(run_state: str, pid: int | None, exit_code: int | None, heartbeat: Any) -&gt; str</code></div><p>Infer WorkerState from run metadata without a live session.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runtime import _infer_worker_state
+
+result = _infer_worker_state(run_state=&quot;run_state_example&quot;, pid=0, exit_code=0, heartbeat=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_pid_alive'><h3><code class='inline'>_pid_alive</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _pid_alive(pid: int) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runtime import _pid_alive
+
+result = _pid_alive(pid=0)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_packet_dirty'><h3><code class='inline'>_packet_dirty</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _packet_dirty(task_id: str, root: Path, run: dict[str, Any]) -&gt; bool</code></div><p>Check if a packet&#x27;s worktree has uncommitted changes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runtime import _packet_dirty
+
+result = _packet_dirty(task_id=&quot;task_id_example&quot;, root=&quot;root_example&quot;, run=&quot;run_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_safe_isoformat'><h3><code class='inline'>_safe_isoformat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _safe_isoformat(value: Any) -&gt; str | None</code></div><p>Try to convert a value to an ISO timestamp string, or return None.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runtime import _safe_isoformat
+
+result = _safe_isoformat(value=...)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_safe_list'><h3><code class='inline'>_safe_list</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _safe_list(value: Any) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_runtime import _safe_list
+
+result = _safe_list(value=...)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>WORKER_STATE_MAP</code></td><td><code class='inline'>dict[str, str]</code></td></tr><tr><td><code class='inline'>SCHEMA_VERSION</code></td><td><code class='inline'>1</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

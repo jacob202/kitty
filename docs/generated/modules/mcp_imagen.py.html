@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/__init__.py</code> &middot; Python &middot; 0 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Imagen MCP — photorealistic image generation and editing for Claude Code.
+
+Package structure (PR 2 + PR 3):
+  config.py    — settings, constants, model names
+  logger.py   — structured logger
+  io.py        — save_image, image-part helpers, response parsing
+  cache.py     — SHA256-keyed cache for identical (prompt, engine, params)
+  retry.py     — tenacity decorator with exponential backoff
+  engines/     — nano_banana, imagen4, dalle, comfyui (+ registry)
+  tools/       — generate, edit_image, batch_generate, refine, variations, ...
+  server.py    — FastMCP app + tool wiring</p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_agent_room.py.html'><code class='inline'>mcp.agent_room</code></a></li><li><a href='mcp_builder.py.html'><code class='inline'>mcp.builder</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

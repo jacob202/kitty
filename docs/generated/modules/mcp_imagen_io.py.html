@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.io — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.io</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.io</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/io.py</code> &middot; Python &middot; 4 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>I/O helpers — save images, parse Gemini responses, build image parts.
+
+These are shared across all engines and tools so the engine modules stay
+focused on API calls.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>google.genai</code>, <code class='inline'>mcp.imagen.config</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>tempfile</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-save_image'><code class='inline'>save_image</code></a></td><td>Save raw image bytes to the output dir, return the path.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-first_image_bytes'><code class='inline'>first_image_bytes</code></a></td><td>Pull raw image bytes out of a Gemini generate_content response.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-refusal_text'><code class='inline'>refusal_text</code></a></td><td>Extract the text explanation from a response that produced no image.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-image_part'><code class='inline'>image_part</code></a></td><td>Build a Gemini image Part from a file on disk.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-save_image'><h3><code class='inline'>save_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def save_image(data: bytes, prefix: str = &#x27;img&#x27;, metadata: dict[str, Any] | None = None) -&gt; Path</code></div><p>Save raw image bytes to the output dir, return the path.
+
+``metadata`` is accepted for forward-compatibility (PR 4 sidecar) but
+not yet written to disk.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.io import save_image
+
+result = save_image(data=..., prefix=&quot;prefix_example&quot;  # default: &#x27;img&#x27;, metadata=&quot;metadata_example&quot;  # default: None)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-first_image_bytes'><h3><code class='inline'>first_image_bytes</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def first_image_bytes(response: object) -&gt; bytes | None</code></div><p>Pull raw image bytes out of a Gemini generate_content response.
+
+Returns None when the model returned only text (usually a safety refusal).</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.io import first_image_bytes
+
+result = first_image_bytes(response=...)
+# result: bytes | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-refusal_text'><h3><code class='inline'>refusal_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def refusal_text(response: object) -&gt; str</code></div><p>Extract the text explanation from a response that produced no image.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.io import refusal_text
+
+result = refusal_text(response=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-image_part'><h3><code class='inline'>image_part</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def image_part(path: Path)</code></div><p>Build a Gemini image Part from a file on disk.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.io import image_part
+
+result = image_part(path=&quot;path_example&quot;)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_benchmark.py.html'><code class='inline'>mcp.imagen.benchmark</code></a></li><li><a href='mcp_imagen_cache.py.html'><code class='inline'>mcp.imagen.cache</code></a></li><li><a href='mcp_imagen_character_lock.py.html'><code class='inline'>mcp.imagen.character_lock</code></a></li><li><a href='mcp_imagen_config.py.html'><code class='inline'>mcp.imagen.config</code></a></li><li><a href='mcp_imagen_engines.py.html'><code class='inline'>mcp.imagen.engines</code></a></li><li><a href='mcp_imagen_face_match.py.html'><code class='inline'>mcp.imagen.face_match</code></a></li><li><a href='mcp_imagen_logger.py.html'><code class='inline'>mcp.imagen.logger</code></a></li><li><a href='mcp_imagen_retry.py.html'><code class='inline'>mcp.imagen.retry</code></a></li><li><a href='mcp_imagen_server.py.html'><code class='inline'>mcp.imagen.server</code></a></li><li><a href='mcp_imagen_tools.py.html'><code class='inline'>mcp.imagen.tools</code></a></li><li><a href='mcp_imagen_verify.py.html'><code class='inline'>mcp.imagen.verify</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

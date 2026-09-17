@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.tools.variations — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.tools.variations</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.tools.variations</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/tools/variations.py</code> &middot; Python &middot; 1 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Variations tool — several alternates of an existing image.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>mcp.imagen.engines.base</code>, <code class='inline'>mcp.imagen.engines.nano_banana</code>, <code class='inline'>mcp.imagen.io</code>, <code class='inline'>mcp.server.fastmcp</code>, <code class='inline'>pathlib</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-variations'><code class='inline'>variations</code></a></td><td>Produce several alternates of an existing image — same subject, varied pose,</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-variations'><h3><code class='inline'>variations</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def variations(image_path: str, count: int = 3) -&gt; list</code></div><p>Produce several alternates of an existing image — same subject, varied pose,
+angle, and lighting. Good for &quot;give me more like this one.&quot;
+
+Args:
+    image_path: Absolute path to the source image.
+    count: How many variations (1-4). Default 3.
+
+Returns:
+    Each variation (inline) plus its saved path.</p><h3>Example Usage (synthetic)</h3><pre>from mcp.imagen.tools.variations import variations
+
+result = variations(image_path=&quot;image_path_example&quot;, count=0  # default: 3)
+# result: list</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_tools_batch.py.html'><code class='inline'>mcp.imagen.tools.batch</code></a></li><li><a href='mcp_imagen_tools_gallery.py.html'><code class='inline'>mcp.imagen.tools.gallery</code></a></li><li><a href='mcp_imagen_tools_generate.py.html'><code class='inline'>mcp.imagen.tools.generate</code></a></li><li><a href='mcp_imagen_tools_generate_until.py.html'><code class='inline'>mcp.imagen.tools.generate_until</code></a></li><li><a href='mcp_imagen_tools_reference.py.html'><code class='inline'>mcp.imagen.tools.reference</code></a></li><li><a href='mcp_imagen_tools_refine.py.html'><code class='inline'>mcp.imagen.tools.refine</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

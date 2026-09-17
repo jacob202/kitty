@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_queue_leases — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_queue_leases</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_queue_leases</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_queue_leases.py</code> &middot; Python &middot; 10 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Builder queue leases — claim/release/heartbeat/fence for task workers.
+
+Extracted from :mod:`gateway.builder_queue` as the second cut of audit §2.2
+(the DB-layer cut was §2.2 first cut, into :mod:`gateway.builder_queue_db`).
+
+Owns the lifecycle of worker claims on individual tasks: claim/next,
+lease fencing via token + claim_version, lease heartbeat renewal
+(:func:`renew_lease`), expired-lease recovery
+(:func:`recover_expired_leases`), and operator-side release paths.
+
+Public symbols are re-exported from :mod:`gateway.builder_queue` via the
+façade so callers (``gateway.builder_attempt``,
+``gateway.builder_runner``, ``gateway.builder_initiative``, CLI, tests)
+work unchanged.
+
+Active-mission note (:file:`.claude/STATE.md`): the chat-recovery work
+``CR-02-thread-goals-ui`` is independent of this module. The runner&#x27;s
+heartbeat loop (:func:`gateway.builder_runner.run_worker`) calls
+:func:`renew_lease` every N seconds; preserve fencing semantics
+(``lease_token`` + ``claim_version`` match) when changing this module.
+
+Dependency resolution: imports from ``gateway.builder_queue`` are
+performed lazily inside functions to break the parent-imports-child /
+child-imports-parent cycle at module-import time. The parent
+(``gateway.builder_queue``) loads this module first, and any cross
+module call from a lease function picks up the parent&#x27;s fully-loaded
+namespace at call time.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>gateway.builder_queue</code>, <code class='inline'>gateway.builder_queue_db</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>secrets</code>, <code class='inline'>sqlite3</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_generate_lease_token'><code class='inline'>_generate_lease_token</code></a></td><td>Return a 64-character hex token for lease fencing.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_claim_impl'><code class='inline'>_claim_impl</code></a></td><td>Claim *task_id* on an open transaction and return token/version.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-claim_task'><code class='inline'>claim_task</code></a></td><td>Claim a queued task for *worker_id* and return the updated task.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-claim_next'><code class='inline'>claim_next</code></a></td><td>Claim the highest-priority eligible queued task, or ``None``.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_transition_subject'><code class='inline'>_transition_subject</code></a></td><td>Read the task row and verify it can be transitioned.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-worker_transition_task'><code class='inline'>worker_transition_task</code></a></td><td>Transition a task using worker lease fencing.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-worker_release_task'><code class='inline'>worker_release_task</code></a></td><td>Release a worker-held task back to ``queued`` with lease fencing.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-operator_release_task'><code class='inline'>operator_release_task</code></a></td><td>Privileged release from ``claimed`` or ``blocked`` back to ``queued``.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-recover_expired_leases'><code class='inline'>recover_expired_leases</code></a></td><td>Recover expired worker leases in one transaction.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-renew_lease'><code class='inline'>renew_lease</code></a></td><td>Extend a live lease by *lease_seconds* from now (heartbeat).</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_generate_lease_token'><h3><code class='inline'>_generate_lease_token</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _generate_lease_token() -&gt; str</code></div><p>Return a 64-character hex token for lease fencing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import _generate_lease_token
+
+result = _generate_lease_token()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_claim_impl'><h3><code class='inline'>_claim_impl</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _claim_impl(conn: sqlite3.Connection, task_id: str, worker_id: str, lease_seconds: int = 1800) -&gt; tuple[str, int]</code></div><p>Claim *task_id* on an open transaction and return token/version.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import _claim_impl
+
+result = _claim_impl(conn=..., task_id=&quot;task_id_example&quot;, worker_id=&quot;worker_id_example&quot;, lease_seconds=0  # default: 1800)
+# result: tuple[str, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-claim_task'><h3><code class='inline'>claim_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def claim_task(task_id: str, worker_id: str, lease_seconds: int = 1800, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Claim a queued task for *worker_id* and return the updated task.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import claim_task
+
+result = claim_task(task_id=&quot;task_id_example&quot;, worker_id=&quot;worker_id_example&quot;, lease_seconds=0  # default: 1800, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-claim_next'><h3><code class='inline'>claim_next</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def claim_next(worker_id: str, lease_seconds: int = 1800, db_path: Path | None = None) -&gt; dict[str, Any] | None</code></div><p>Claim the highest-priority eligible queued task, or ``None``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import claim_next
+
+result = claim_next(worker_id=&quot;worker_id_example&quot;, lease_seconds=0  # default: 1800, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_transition_subject'><h3><code class='inline'>_transition_subject</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _transition_subject(conn: sqlite3.Connection, task_id: str) -&gt; sqlite3.Row</code></div><p>Read the task row and verify it can be transitioned.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import _transition_subject
+
+result = _transition_subject(conn=..., task_id=&quot;task_id_example&quot;)
+# result: sqlite3.Row</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-worker_transition_task'><h3><code class='inline'>worker_transition_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def worker_transition_task(task_id: str, new_state: str, lease_token: str, claim_version: int, payload: dict[str, Any] | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Transition a task using worker lease fencing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import worker_transition_task
+
+result = worker_transition_task(task_id=&quot;task_id_example&quot;, new_state=&quot;new_state_example&quot;, lease_token=&quot;lease_token_example&quot;, claim_version=0, payload=&quot;payload_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-worker_release_task'><h3><code class='inline'>worker_release_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def worker_release_task(task_id: str, lease_token: str, claim_version: int, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Release a worker-held task back to ``queued`` with lease fencing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import worker_release_task
+
+result = worker_release_task(task_id=&quot;task_id_example&quot;, lease_token=&quot;lease_token_example&quot;, claim_version=0, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-operator_release_task'><h3><code class='inline'>operator_release_task</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def operator_release_task(task_id: str, reason: str | None = None, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Privileged release from ``claimed`` or ``blocked`` back to ``queued``.
+
+Refuses while the task is ``running`` — the operator must block a
+running task first via :func:`transition_task` so the lease-scoped
+fencing semantics hold.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import operator_release_task
+
+result = operator_release_task(task_id=&quot;task_id_example&quot;, reason=&quot;reason_example&quot;  # default: None, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-recover_expired_leases'><h3><code class='inline'>recover_expired_leases</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def recover_expired_leases(db_path: Path | None = None) -&gt; dict[str, int]</code></div><p>Recover expired worker leases in one transaction.
+
+Scans for claimed tasks whose lease has expired and requeues them,
+then scans for running tasks whose lease has expired and blocks them
+with reason ``stale_heartbeat``. Both scans happen in a single
+``BEGIN IMMEDIATE`` transaction so two scans interleaving cannot
+leave inconsistent state. Returns counts for telemetry.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import recover_expired_leases
+
+result = recover_expired_leases(db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, int]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-renew_lease'><h3><code class='inline'>renew_lease</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def renew_lease(task_id: str, lease_token: str, claim_version: int, lease_seconds: int = 60, db_path: Path | None = None) -&gt; dict[str, Any]</code></div><p>Extend a live lease by *lease_seconds* from now (heartbeat).
+
+Fenced: requires the current token + version AND an unexpired lease —
+a worker whose lease already lapsed must not resurrect it (the recovery
+scan owns that task now). Appends no event by design: renewals are not
+state changes and would flood the log at 10s cadence.
+
+Raises :class:`gateway.builder_queue_db.LeaseConflictError` when fencing
+fails or the lease is expired.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_queue_leases import renew_lease
+
+result = renew_lease(task_id=&quot;task_id_example&quot;, lease_token=&quot;lease_token_example&quot;, claim_version=0, lease_seconds=0  # default: 60, db_path=&quot;db_path_example&quot;  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

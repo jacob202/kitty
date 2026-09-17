@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.tool_server — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.tool_server</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.tool_server</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/tool_server.py</code> &middot; Python &middot; 12 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>The deliberately small tool surface Kitty hands to Open WebUI.
+
+Open WebUI turns every operation in an OpenAPI document into a model tool. The
+Gateway&#x27;s full schema contains hundreds of operations, so this router exposes
+only bounded, user-facing projections. Reads must stay read-only: a chat tool
+must never initialize, migrate, or repair a control-plane store as a side effect.
+
+Mounted under ``/tools/v1`` and protected by the Gateway bearer secret.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>fastapi.openapi.utils</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.builder_status</code>, <code class='inline'>gateway.builder_status_readonly</code>, <code class='inline'>gateway.explicit_memory</code>, <code class='inline'>gateway.knowledge</code>, <code class='inline'>gateway.memory_graph</code>, <code class='inline'>gateway.next_step</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.project_store</code>, <code class='inline'>gateway.routes.calendar</code>, <code class='inline'>logging</code>, <code class='inline'>pydantic</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_limit_context'><code class='inline'>_limit_context</code></a></td><td>Keep at most ``limit`` rendered memory items while retaining headings.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-search_memory'><code class='inline'>search_memory</code></a></td><td>Search the unified memory graph, including journal, inbox, todos, and facts.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-remember'><code class='inline'>remember</code></a></td><td>Store user-confirmed memory without requiring the semantic backend.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-search_notes'><code class='inline'>search_notes</code></a></td><td>Retrieval over material deliberately ingested into Kitty&#x27;s knowledge base.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_projects'><code class='inline'>list_projects</code></a></td><td>Projects Kitty tracks, with life/admin work ahead of code work (ADR 0016).</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-project_next_step'><code class='inline'>project_next_step</code></a></td><td>One concrete next action, with an explicit normal empty state.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-calendar_today'><code class='inline'>calendar_today</code></a></td><td>Today&#x27;s events. ``available: false`` means the calendar is not connected.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-ask_tutor'><code class='inline'>ask_tutor</code></a></td><td>Answer from ingested documents and state honestly when none are available.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-builder_status'><code class='inline'>builder_status</code></a></td><td>A bounded, genuinely read-only control-plane summary.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-builder_mission_result'><code class='inline'>builder_mission_result</code></a></td><td>Return Builder&#x27;s read-only projection for one Mission/initiative.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_tool_server_spec'><code class='inline'>_tool_server_spec</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-tool_server_openapi'><code class='inline'>tool_server_openapi</code></a></td><td>The bounded spec Open WebUI reads, anchored to the actual Gateway origin.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-_limit_context'><h3><code class='inline'>_limit_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _limit_context(context: str, limit: int) -&gt; str</code></div><p>Keep at most ``limit`` rendered memory items while retaining headings.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.tool_server import _limit_context
+
+result = _limit_context(context=&quot;context_example&quot;, limit=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search_memory'><h3><code class='inline'>search_memory</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def search_memory(query: str = Query(min_length=1, max_length=500), limit: int = Query(default=5, ge=1, le=_TOOL_RESULT_LIMIT)) -&gt; dict</code></div><p>Search the unified memory graph, including journal, inbox, todos, and facts.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tool_server import search_memory
+
+    result = await search_memory()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-remember'><h3><code class='inline'>remember</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def remember(body: RememberRequest) -&gt; dict</code></div><p>Store user-confirmed memory without requiring the semantic backend.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.tool_server import remember
+
+result = remember(body=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-search_notes'><h3><code class='inline'>search_notes</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def search_notes(query: str = Query(min_length=1, max_length=500), limit: int = Query(default=5, ge=1, le=_TOOL_RESULT_LIMIT)) -&gt; dict</code></div><p>Retrieval over material deliberately ingested into Kitty&#x27;s knowledge base.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tool_server import search_notes
+
+    result = await search_notes()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_projects'><h3><code class='inline'>list_projects</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def list_projects(status: str | None = None) -&gt; dict</code></div><p>Projects Kitty tracks, with life/admin work ahead of code work (ADR 0016).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.tool_server import list_projects
+
+result = list_projects(status=&quot;status_example&quot;  # default: None)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-project_next_step'><h3><code class='inline'>project_next_step</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def project_next_step(project_id: int) -&gt; dict</code></div><p>One concrete next action, with an explicit normal empty state.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.tool_server import project_next_step
+
+result = project_next_step(project_id=0)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-calendar_today'><h3><code class='inline'>calendar_today</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def calendar_today() -&gt; dict</code></div><p>Today&#x27;s events. ``available: false`` means the calendar is not connected.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tool_server import calendar_today
+
+    result = await calendar_today()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-ask_tutor'><h3><code class='inline'>ask_tutor</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def ask_tutor(topic: str = Query(min_length=1, max_length=500)) -&gt; dict</code></div><p>Answer from ingested documents and state honestly when none are available.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.tool_server import ask_tutor
+
+    result = await ask_tutor()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-builder_status'><h3><code class='inline'>builder_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def builder_status() -&gt; dict</code></div><p>A bounded, genuinely read-only control-plane summary.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.tool_server import builder_status
+
+result = builder_status()
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-builder_mission_result'><h3><code class='inline'>builder_mission_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def builder_mission_result(mission_id: str) -&gt; dict</code></div><p>Return Builder&#x27;s read-only projection for one Mission/initiative.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.tool_server import builder_mission_result
+
+result = builder_mission_result(mission_id=&quot;mission_id_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_tool_server_spec'><h3><code class='inline'>_tool_server_spec</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _tool_server_spec(server_url: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.tool_server import _tool_server_spec
+
+result = _tool_server_spec(server_url=&quot;server_url_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-tool_server_openapi'><h3><code class='inline'>tool_server_openapi</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def tool_server_openapi(request: Request) -&gt; dict</code></div><p>The bounded spec Open WebUI reads, anchored to the actual Gateway origin.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.tool_server import tool_server_openapi
+
+result = tool_server_openapi(request=...)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RememberRequest'><code class='inline'>RememberRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-RememberRequest'><h3><code class='inline'>RememberRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> text: str, namespace: Literal[&#x27;facts&#x27;, &#x27;preferences&#x27;], memory_key: str | None, supersedes_id: str | None, source_ref: str | None, sensitivity: str, pinned: bool</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.tool_server import RememberRequest
+
+obj = RememberRequest(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>PREFIX</code></td><td><code class='inline'>&#x27;/tools/v1&#x27;</code></td></tr><tr><td><code class='inline'>_ATTENTION_STATES</code></td><td><code class='inline'>{&#x27;blocked&#x27;, &#x27;failed&#x27;, &#x27;paused&#x27;}</code></td></tr><tr><td><code class='inline'>_TOOL_RESULT_LIMIT</code></td><td><code class='inline'>10</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

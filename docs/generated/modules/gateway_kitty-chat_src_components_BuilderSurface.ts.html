@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/components/BuilderSurface — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/components/BuilderSurface</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/components/BuilderSurface</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/components/BuilderSurface.tsx</code> &middot; TypeScript &middot; 49 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>@/components/ui/Button</code>, <code class='inline'>@/lib/gateway</code>, <code class='inline'>@/lib/queries</code>, <code class='inline'>@/lib/ui</code>, <code class='inline'>lucide-react</code>, <code class='inline'>react</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-BuilderGlance'><code class='inline'>BuilderGlance</code></a></td><td>function</td><td>Home-page summary backed by the same truthful runtime fact as the detail view.</td></tr><tr><td><a href='#ex-BuilderPanel'><code class='inline'>BuilderPanel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderSurface'><code class='inline'>BuilderSurface</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-LoadingState'><code class='inline'>LoadingState</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-UnavailableState'><code class='inline'>UnavailableState</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-SurfaceHeader'><code class='inline'>SurfaceHeader</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-StaleNotice'><code class='inline'>StaleNotice</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-translateBuilderDetail'><code class='inline'>translateBuilderDetail</code></a></td><td>function</td><td>Translate Builder-internal jargon into plain language before it reaches the user.</td></tr><tr><td><a href='#ex-DataQualityNotice'><code class='inline'>DataQualityNotice</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderNextActionCard'><code class='inline'>BuilderNextActionCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderControls'><code class='inline'>BuilderControls</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isStalePacket'><code class='inline'>isStalePacket</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-staleLabel'><code class='inline'>staleLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AllPacketsModal'><code class='inline'>AllPacketsModal</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderOverview'><code class='inline'>BuilderOverview</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-PacketDetail'><code class='inline'>PacketDetail</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-Metric'><code class='inline'>Metric</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-StatusDetail'><code class='inline'>StatusDetail</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AttemptHistory'><code class='inline'>AttemptHistory</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-AttemptCard'><code class='inline'>AttemptCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-EvidenceBlock'><code class='inline'>EvidenceBlock</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-RunCard'><code class='inline'>RunCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-ExecutionContextCard'><code class='inline'>ExecutionContextCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-PublicationCard'><code class='inline'>PublicationCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-InvestigationCard'><code class='inline'>InvestigationCard</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-TimeValue'><code class='inline'>TimeValue</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-durationLabel'><code class='inline'>durationLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-budgetLabel'><code class='inline'>budgetLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-sortPacketsForAttention'><code class='inline'>sortPacketsForAttention</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-packetPriority'><code class='inline'>packetPriority</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-packetNeedsAttention'><code class='inline'>packetNeedsAttention</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isPacketActive'><code class='inline'>isPacketActive</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-attentionCount'><code class='inline'>attentionCount</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-activePacketCount'><code class='inline'>activePacketCount</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-findPacket'><code class='inline'>findPacket</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-packetSelectionKey'><code class='inline'>packetSelectionKey</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-builderGlanceLabel'><code class='inline'>builderGlanceLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-builderGlanceDetail'><code class='inline'>builderGlanceDetail</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-packetSummary'><code class='inline'>packetSummary</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-eligibilityLabel'><code class='inline'>eligibilityLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-deriveNextAction'><code class='inline'>deriveNextAction</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-eventSummary'><code class='inline'>eventSummary</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-failureLabel'><code class='inline'>failureLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-reviewLabel'><code class='inline'>reviewLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-displayState'><code class='inline'>displayState</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderInitiativeCards'><code class='inline'>BuilderInitiativeCards</code></a></td><td>function</td><td>Per-initiative progress cards showing state, progress, blocker, and next action.</td></tr><tr><td><a href='#ex-isExpired'><code class='inline'>isExpired</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderBrain'><code class='inline'>BuilderBrain</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BrainSection'><code class='inline'>BrainSection</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-BuilderGlance'><h3><code class='inline'>BuilderGlance</code> <span class='pill'>function</span></h3><div class='sig'><code>export function BuilderGlance({ onOpen }: BuilderGlanceProps)</code></div><p>Home-page summary backed by the same truthful runtime fact as the detail view.</p><h3>Code Example</h3><pre>import { BuilderGlance } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderGlance;</pre></div>
+<div class='card' id='ex-BuilderPanel'><h3><code class='inline'>BuilderPanel</code> <span class='pill'>function</span></h3><div class='sig'><code>export function BuilderPanel({ onBack }: { onBack?: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderPanel } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderPanel;</pre></div>
+<div class='card' id='ex-BuilderSurface'><h3><code class='inline'>BuilderSurface</code> <span class='pill'>function</span></h3><div class='sig'><code>export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfaceProps)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderSurface } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderSurface;</pre></div>
+<div class='card' id='ex-LoadingState'><h3><code class='inline'>LoadingState</code> <span class='pill'>function</span></h3><div class='sig'><code>function LoadingState({ onBack }: { onBack?: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { LoadingState } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = LoadingState;</pre></div>
+<div class='card' id='ex-UnavailableState'><h3><code class='inline'>UnavailableState</code> <span class='pill'>function</span></h3><div class='sig'><code>function UnavailableState({
+  fact,
+  error,
+  onBack,
+}: {
+  fact?: RuntimeFact&lt;BuilderStatusSnapshot&gt;
+  error?: string | null
+  onBack?: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { UnavailableState } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = UnavailableState;</pre></div>
+<div class='card' id='ex-SurfaceHeader'><h3><code class='inline'>SurfaceHeader</code> <span class='pill'>function</span></h3><div class='sig'><code>function SurfaceHeader({ onBack, observedAt }: { onBack?: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { SurfaceHeader } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = SurfaceHeader;</pre></div>
+<div class='card' id='ex-StaleNotice'><h3><code class='inline'>StaleNotice</code> <span class='pill'>function</span></h3><div class='sig'><code>function StaleNotice()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { StaleNotice } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = StaleNotice;</pre></div>
+<div class='card' id='ex-translateBuilderDetail'><h3><code class='inline'>translateBuilderDetail</code> <span class='pill'>function</span></h3><div class='sig'><code>function translateBuilderDetail(raw: string)</code></div><p>Translate Builder-internal jargon into plain language before it reaches the user.</p><h3>Code Example</h3><pre>import { translateBuilderDetail } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = translateBuilderDetail;</pre></div>
+<div class='card' id='ex-DataQualityNotice'><h3><code class='inline'>DataQualityNotice</code> <span class='pill'>function</span></h3><div class='sig'><code>function DataQualityNotice({ detail, inBuilder }: { detail: string; inBuilder?: boolean })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { DataQualityNotice } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = DataQualityNotice;</pre></div>
+<div class='card' id='ex-BuilderNextActionCard'><h3><code class='inline'>BuilderNextActionCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function BuilderNextActionCard({
+  snapshot,
+  onOpenAllPackets,
+  allPacketsButtonRef,
+}: {
+  snapshot: BuilderStatusSnapshot
+  onOpenAllPackets: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderNextActionCard } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderNextActionCard;</pre></div>
+<div class='card' id='ex-BuilderControls'><h3><code class='inline'>BuilderControls</code> <span class='pill'>function</span></h3><div class='sig'><code>function BuilderControls({
+  snapshot,
+  selection,
+  onRefresh,
+}: {
+  snapshot: BuilderStatusSnapshot
+  selection: PacketSelection | null
+  onRefresh: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderControls } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderControls;</pre></div>
+<div class='card' id='ex-isStalePacket'><h3><code class='inline'>isStalePacket</code> <span class='pill'>function</span></h3><div class='sig'><code>function isStalePacket(packet: BuilderPacketStatus)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isStalePacket } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isStalePacket;</pre></div>
+<div class='card' id='ex-staleLabel'><h3><code class='inline'>staleLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function staleLabel(packet: BuilderPacketStatus)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { staleLabel } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = staleLabel;</pre></div>
+<div class='card' id='ex-AllPacketsModal'><h3><code class='inline'>AllPacketsModal</code> <span class='pill'>function</span></h3><div class='sig'><code>function AllPacketsModal({
+  snapshot,
+  onClose,
+  onSelectPacket,
+}: {
+  snapshot: BuilderStatusSnapshot
+  onClose: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AllPacketsModal } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AllPacketsModal;</pre></div>
+<div class='card' id='ex-BuilderOverview'><h3><code class='inline'>BuilderOverview</code> <span class='pill'>function</span></h3><div class='sig'><code>function BuilderOverview({
+  snapshot,
+  onSelectPacket,
+  registerPacketButton,
+}: {
+  snapshot: BuilderStatusSnapshot
+  onSelectPacket: (selection: PacketSelection)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderOverview } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderOverview;</pre></div>
+<div class='card' id='ex-PacketDetail'><h3><code class='inline'>PacketDetail</code> <span class='pill'>function</span></h3><div class='sig'><code>function PacketDetail({
+  packet,
+  stale,
+  degradedReason,
+  onBack,
+  onHome,
+}: {
+  packet: BuilderPacketStatus
+  stale: boolean
+  degradedReason?: string | null
+  onBack: ()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { PacketDetail } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = PacketDetail;</pre></div>
+<div class='card' id='ex-Metric'><h3><code class='inline'>Metric</code> <span class='pill'>function</span></h3><div class='sig'><code>function Metric({ label, value }: { label: string; value: ReactNode })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { Metric } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = Metric;</pre></div>
+<div class='card' id='ex-StatusDetail'><h3><code class='inline'>StatusDetail</code> <span class='pill'>function</span></h3><div class='sig'><code>function StatusDetail({ label, value }: { label: string; value: string | null })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { StatusDetail } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = StatusDetail;</pre></div>
+<div class='card' id='ex-AttemptHistory'><h3><code class='inline'>AttemptHistory</code> <span class='pill'>function</span></h3><div class='sig'><code>function AttemptHistory({ packet }: { packet: BuilderPacketStatus })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AttemptHistory } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AttemptHistory;</pre></div>
+<div class='card' id='ex-AttemptCard'><h3><code class='inline'>AttemptCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function AttemptCard({ attempt, latest }: { attempt: BuilderAttemptStatus; latest: boolean })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { AttemptCard } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = AttemptCard;</pre></div>
+<div class='card' id='ex-EvidenceBlock'><h3><code class='inline'>EvidenceBlock</code> <span class='pill'>function</span></h3><div class='sig'><code>function EvidenceBlock({
+  title,
+  status,
+  children,
+}: {
+  title: string
+  status: string | null
+  children: ReactNode
+})</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { EvidenceBlock } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = EvidenceBlock;</pre></div>
+<div class='card' id='ex-RunCard'><h3><code class='inline'>RunCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function RunCard({ packet }: { packet: BuilderPacketStatus })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { RunCard } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = RunCard;</pre></div>
+<div class='card' id='ex-ExecutionContextCard'><h3><code class='inline'>ExecutionContextCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function ExecutionContextCard({ packet }: { packet: BuilderPacketStatus })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ExecutionContextCard } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ExecutionContextCard;</pre></div>
+<div class='card' id='ex-PublicationCard'><h3><code class='inline'>PublicationCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function PublicationCard({ packet }: { packet: BuilderPacketStatus })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { PublicationCard } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = PublicationCard;</pre></div>
+<div class='card' id='ex-InvestigationCard'><h3><code class='inline'>InvestigationCard</code> <span class='pill'>function</span></h3><div class='sig'><code>function InvestigationCard({ packet }: { packet: BuilderPacketStatus })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { InvestigationCard } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = InvestigationCard;</pre></div>
+<div class='card' id='ex-TimeValue'><h3><code class='inline'>TimeValue</code> <span class='pill'>function</span></h3><div class='sig'><code>function TimeValue({ value, fallback = &#x27;unknown&#x27; }: { value: string | null | undefined; fallback?: string })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { TimeValue } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = TimeValue;</pre></div>
+<div class='card' id='ex-durationLabel'><h3><code class='inline'>durationLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function durationLabel(start: string, end: string | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { durationLabel } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = durationLabel;</pre></div>
+<div class='card' id='ex-budgetLabel'><h3><code class='inline'>budgetLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function budgetLabel(packet: BuilderPacketStatus)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { budgetLabel } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = budgetLabel;</pre></div>
+<div class='card' id='ex-sortPacketsForAttention'><h3><code class='inline'>sortPacketsForAttention</code> <span class='pill'>function</span></h3><div class='sig'><code>function sortPacketsForAttention(packets: BuilderPacketStatus[])</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { sortPacketsForAttention } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = sortPacketsForAttention;</pre></div>
+<div class='card' id='ex-packetPriority'><h3><code class='inline'>packetPriority</code> <span class='pill'>function</span></h3><div class='sig'><code>function packetPriority(packet: BuilderPacketStatus)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { packetPriority } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = packetPriority;</pre></div>
+<div class='card' id='ex-packetNeedsAttention'><h3><code class='inline'>packetNeedsAttention</code> <span class='pill'>function</span></h3><div class='sig'><code>function packetNeedsAttention(packet: BuilderPacketStatus)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { packetNeedsAttention } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = packetNeedsAttention;</pre></div>
+<div class='card' id='ex-isPacketActive'><h3><code class='inline'>isPacketActive</code> <span class='pill'>function</span></h3><div class='sig'><code>function isPacketActive(packet: BuilderPacketStatus)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isPacketActive } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isPacketActive;</pre></div>
+<div class='card' id='ex-attentionCount'><h3><code class='inline'>attentionCount</code> <span class='pill'>function</span></h3><div class='sig'><code>export function attentionCount(snapshot: BuilderStatusSnapshot)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { attentionCount } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = attentionCount;</pre></div>
+<div class='card' id='ex-activePacketCount'><h3><code class='inline'>activePacketCount</code> <span class='pill'>function</span></h3><div class='sig'><code>export function activePacketCount(snapshot: BuilderStatusSnapshot)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { activePacketCount } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = activePacketCount;</pre></div>
+<div class='card' id='ex-findPacket'><h3><code class='inline'>findPacket</code> <span class='pill'>function</span></h3><div class='sig'><code>function findPacket(
+  snapshot: BuilderStatusSnapshot | null | undefined,
+  selection: PacketSelection,
+)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { findPacket } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = findPacket;</pre></div>
+<div class='card' id='ex-packetSelectionKey'><h3><code class='inline'>packetSelectionKey</code> <span class='pill'>function</span></h3><div class='sig'><code>function packetSelectionKey(selection: PacketSelection)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { packetSelectionKey } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = packetSelectionKey;</pre></div>
+<div class='card' id='ex-builderGlanceLabel'><h3><code class='inline'>builderGlanceLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function builderGlanceLabel(
+  fact: RuntimeFact&lt;BuilderStatusSnapshot&gt; | undefined,
+  isLoading: boolean,
+  attention: number,
+  active: number,
+)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { builderGlanceLabel } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = builderGlanceLabel;</pre></div>
+<div class='card' id='ex-builderGlanceDetail'><h3><code class='inline'>builderGlanceDetail</code> <span class='pill'>function</span></h3><div class='sig'><code>function builderGlanceDetail(
+  fact: RuntimeFact&lt;BuilderStatusSnapshot&gt; | undefined,
+  isLoading: boolean,
+  error: unknown,
+)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { builderGlanceDetail } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = builderGlanceDetail;</pre></div>
+<div class='card' id='ex-packetSummary'><h3><code class='inline'>packetSummary</code> <span class='pill'>function</span></h3><div class='sig'><code>function packetSummary(packet: BuilderPacketStatus)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { packetSummary } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = packetSummary;</pre></div>
+<div class='card' id='ex-eligibilityLabel'><h3><code class='inline'>eligibilityLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function eligibilityLabel(packet: BuilderPacketStatus)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { eligibilityLabel } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = eligibilityLabel;</pre></div>
+<div class='card' id='ex-deriveNextAction'><h3><code class='inline'>deriveNextAction</code> <span class='pill'>function</span></h3><div class='sig'><code>function deriveNextAction(snapshot: BuilderStatusSnapshot)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { deriveNextAction } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = deriveNextAction;</pre></div>
+<div class='card' id='ex-eventSummary'><h3><code class='inline'>eventSummary</code> <span class='pill'>function</span></h3><div class='sig'><code>function eventSummary(packet: BuilderPacketStatus)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { eventSummary } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = eventSummary;</pre></div>
+<div class='card' id='ex-failureLabel'><h3><code class='inline'>failureLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function failureLabel(kind: BuilderFailureKind | null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { failureLabel } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = failureLabel;</pre></div>
+<div class='card' id='ex-reviewLabel'><h3><code class='inline'>reviewLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function reviewLabel(verdict: BuilderAttemptStatus[&#x27;review_verdict&#x27;])</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { reviewLabel } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = reviewLabel;</pre></div>
+<div class='card' id='ex-displayState'><h3><code class='inline'>displayState</code> <span class='pill'>function</span></h3><div class='sig'><code>function displayState(value: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { displayState } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = displayState;</pre></div>
+<div class='card' id='ex-BuilderInitiativeCards'><h3><code class='inline'>BuilderInitiativeCards</code> <span class='pill'>function</span></h3><div class='sig'><code>function BuilderInitiativeCards({ snapshot }: { snapshot: NonNullable&lt;BuilderStatusSnapshot&gt; })</code></div><p>Per-initiative progress cards showing state, progress, blocker, and next action.</p><h3>Code Example</h3><pre>import { BuilderInitiativeCards } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderInitiativeCards;</pre></div>
+<div class='card' id='ex-isExpired'><h3><code class='inline'>isExpired</code> <span class='pill'>function</span></h3><div class='sig'><code>function isExpired(validUntil: string | undefined)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isExpired } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isExpired;</pre></div>
+<div class='card' id='ex-BuilderBrain'><h3><code class='inline'>BuilderBrain</code> <span class='pill'>function</span></h3><div class='sig'><code>function BuilderBrain({ snapshot }: { snapshot: BuilderStatusSnapshot })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderBrain } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderBrain;</pre></div>
+<div class='card' id='ex-BrainSection'><h3><code class='inline'>BrainSection</code> <span class='pill'>function</span></h3><div class='sig'><code>function BrainSection({ title, color, children }: { title: string; color: string; children: ReactNode })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BrainSection } from &#x27;@/gateway/kitty-chat/src/components/BuilderSurface&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BrainSection;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

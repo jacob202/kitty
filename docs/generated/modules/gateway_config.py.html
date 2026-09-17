@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.config — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.config</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.config</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/config.py</code> &middot; Python &middot; 6 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Central configuration for the gateway.
+
+Lane D: this module is the single source of truth for runtime
+configuration. Other modules should import from here instead of
+calling ``os.environ.get`` directly. The migration is incremental;
+existing ``os.environ.get`` call sites continue to work.
+
+The pattern is:
+
+- Top-of-file: env load (so .env is read once, at import time).
+- Module-level constants for values that are known at import time
+  and rarely change at runtime (host, port, paths).
+- ``get_setting(name, default, cast)`` for values that should be
+  re-read at call time (e.g. test overrides, runtime toggles).
+- ``require_setting(name)`` for values that have no sensible default
+  and must be set or the gateway should fail loud on first use.
+
+Fail loud, not silent: ``require_setting`` raises ``ConfigError``
+with a message that names the missing key and where to set it.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dotenv</code>, <code class='inline'>gateway.errors</code>, <code class='inline'>gateway.settings</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-require_setting'><code class='inline'>require_setting</code></a></td><td>Return the env var, or raise ConfigError if missing.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_setting'><code class='inline'>get_setting</code></a></td><td>Return the env var, or ``default``. Re-read on each call.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-gateway_secret'><code class='inline'>gateway_secret</code></a></td><td>Return the bearer token the gateway expects on protected routes.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-litellm_key'><code class='inline'>litellm_key</code></a></td><td>Return the LiteLLM master key (used for proxy auth when set).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-env_name'><code class='inline'>env_name</code></a></td><td>Return the active environment name, defaulting to ``local``.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-is_test_env'><code class='inline'>is_test_env</code></a></td><td>True when ``KITTY_ENV`` is ``test`` or starts with ``ci``.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-require_setting'><h3><code class='inline'>require_setting</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def require_setting(name: str) -&gt; str</code></div><p>Return the env var, or raise ConfigError if missing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.config import require_setting
+
+result = require_setting(name=&quot;name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_setting'><h3><code class='inline'>get_setting</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def get_setting(name: str, default: T, cast: Callable[[str], T] | None = None) -&gt; T</code></div><p>Return the env var, or ``default``. Re-read on each call.
+
+``cast`` runs on the raw string before the default is used. If
+``cast`` raises (e.g. ``int(&quot;abc&quot;)``), the call raises
+``ConfigError`` with the parse failure wrapped.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.config import get_setting
+
+result = get_setting(name=&quot;name_example&quot;, default=..., cast=&quot;cast_example&quot;  # default: None)
+# result: T</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-gateway_secret'><h3><code class='inline'>gateway_secret</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def gateway_secret() -&gt; str</code></div><p>Return the bearer token the gateway expects on protected routes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.config import gateway_secret
+
+result = gateway_secret()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-litellm_key'><h3><code class='inline'>litellm_key</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def litellm_key() -&gt; str</code></div><p>Return the LiteLLM master key (used for proxy auth when set).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.config import litellm_key
+
+result = litellm_key()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-env_name'><h3><code class='inline'>env_name</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def env_name() -&gt; str</code></div><p>Return the active environment name, defaulting to ``local``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.config import env_name
+
+result = env_name()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_test_env'><h3><code class='inline'>is_test_env</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def is_test_env() -&gt; bool</code></div><p>True when ``KITTY_ENV`` is ``test`` or starts with ``ci``.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.config import is_test_env
+
+result = is_test_env()
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>PROJECT_ROOT</code></td><td><code class='inline'>Path(__file__).parent.parent</code></td></tr><tr><td><code class='inline'>GATEWAY_HOST</code></td><td><code class='inline'>str</code></td></tr><tr><td><code class='inline'>GATEWAY_PORT</code></td><td><code class='inline'>int</code></td></tr><tr><td><code class='inline'>GATEWAY_BASE_URL</code></td><td><code class='inline'>str</code></td></tr><tr><td><code class='inline'>LITELLM_HOST</code></td><td><code class='inline'>str</code></td></tr><tr><td><code class='inline'>LITELLM_PORT</code></td><td><code class='inline'>int</code></td></tr><tr><td><code class='inline'>LITELLM_BASE_URL</code></td><td><code class='inline'>str</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

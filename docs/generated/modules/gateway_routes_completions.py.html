@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.completions — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.completions</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.completions</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/completions.py</code> &middot; Python &middot; 31 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>LiteLLM chat-completions proxy and session close.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>asyncio</code>, <code class='inline'>fastapi</code>, <code class='inline'>fastapi.responses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.buddy</code>, <code class='inline'>gateway.chat_errors</code>, <code class='inline'>gateway.constants</code>, <code class='inline'>gateway.context_assembler</code>, <code class='inline'>gateway.doctor</code>, <code class='inline'>gateway.domain_router</code>, <code class='inline'>gateway.http_client</code>, <code class='inline'>gateway.llm_client</code>, <code class='inline'>gateway.memory</code>, <code class='inline'>gateway.memory_graph</code>, <code class='inline'>gateway.model_routing</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>gateway.provider_prefs</code>, <code class='inline'>gateway.reasoning</code>, <code class='inline'>gateway.routes.chats</code>, <code class='inline'>gateway.routes.repairs</code>, <code class='inline'>gateway.runtime_manifest</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_has_current_source_tool'><code class='inline'>_has_current_source_tool</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_one_line'><code class='inline'>_one_line</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_durable_chat_object_system'><code class='inline'>_durable_chat_object_system</code></a></td><td>Describe authoritative objects this turn may reference by durable id.</td><td><span class='pill'>complex</span><span class='muted small'>(19)</span></td></tr><tr><td><a href='#fn-_strip_context_markers_from_content'><code class='inline'>_strip_context_markers_from_content</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_merge_explicit_context_into_user_content'><code class='inline'>_merge_explicit_context_into_user_content</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_prepare_explicit_context'><code class='inline'>_prepare_explicit_context</code></a></td><td>Strip persisted markers from user turns and resolve latest refs.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_message_budget_units'><code class='inline'>_message_budget_units</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_prefix_for_system_budget'><code class='inline'>_prefix_for_system_budget</code></a></td><td>Largest codepoint-safe prefix that keeps the serialized system message in budget.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_atomic_history_groups'><code class='inline'>_atomic_history_groups</code></a></td><td>Group assistant tool calls with their contiguous tool results.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_fit_final_model_messages'><code class='inline'>_fit_final_model_messages</code></a></td><td>Bound the payload while preserving the current turn and tool exchanges.</td><td><span class='pill'>complex</span><span class='muted small'>(24)</span></td></tr><tr><td><a href='#fn-route_model'><code class='inline'>route_model</code></a></td><td>Compatibility routing seam for tests and callers that still patch this Module.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_has_image'><code class='inline'>_has_image</code></a></td><td>Whether a message carries an image part.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_message_text'><code class='inline'>_message_text</code></a></td><td>The text of a message, whether or not it also carries images.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_attach_images_to_user_message'><code class='inline'>_attach_images_to_user_message</code></a></td><td>Attach resolved image parts to the latest user message.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-_resolve_builder_result_attachments'><code class='inline'>_resolve_builder_result_attachments</code></a></td><td>Resolve only canonical Builder-result text attachments from durable ids.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_attach_builder_results_to_user_message'><code class='inline'>_attach_builder_results_to_user_message</code></a></td><td>Add saved result content to the current user turn as data, not instructions.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_resolve_attachment_image_parts'><code class='inline'>_resolve_attachment_image_parts</code></a></td><td>Turn durable artifact ids into OpenAI image_url parts.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_static_abstention_result'><code class='inline'>_static_abstention_result</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_static_abstention_stream'><code class='inline'>_static_abstention_stream</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_finish_lifecycle_or_raise'><code class='inline'>_finish_lifecycle_or_raise</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_assistant_text_from_result'><code class='inline'>_assistant_text_from_result</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-chat_completions'><code class='inline'>chat_completions</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(144)</span></td></tr><tr><td><a href='#fn-api_chat_completions'><code class='inline'>api_chat_completions</code></a></td><td>Open WebUI-compatible alias so kitty-chat can target the gateway directly.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-api_models'><code class='inline'>api_models</code></a></td><td>Return available models with display names resolved from the routing config.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-api_model_routing'><code class='inline'>api_model_routing</code></a></td><td>Which provider each kitty-* alias actually calls, and whether its key is set.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-api_providers'><code class='inline'>api_providers</code></a></td><td>The direct-call fallback chain — order, key state, and what&#x27;s disabled.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-api_providers_set'><code class='inline'>api_providers_set</code></a></td><td>Reorder or disable providers without editing Python or restarting.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-close_session'><code class='inline'>close_session</code></a></td><td>End a chat session — consolidate short-term memory to long-term.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_is_repairs_intent'><code class='inline'>_is_repairs_intent</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_build_signals_context'><code class='inline'>_build_signals_context</code></a></td><td>Build a plain-English signals summary for chat injection.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_build_repairs_context'><code class='inline'>_build_repairs_context</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-_has_current_source_tool'><h3><code class='inline'>_has_current_source_tool</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def _has_current_source_tool(tools: object, tool_choice: object = None) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _has_current_source_tool
+
+result = _has_current_source_tool(tools=..., tool_choice=...  # default: None)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_one_line'><h3><code class='inline'>_one_line</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _one_line(value: object, limit: int = 120) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _one_line
+
+result = _one_line(value=..., limit=0  # default: 120)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_durable_chat_object_system'><h3><code class='inline'>_durable_chat_object_system</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (19)</span></h3><div class='sig'><code>def _durable_chat_object_system(conversation_id: str | None, user_message_id: str | None, project_id: int | None, project_name: str | None) -&gt; str</code></div><p>Describe authoritative objects this turn may reference by durable id.
+
+This is a read-only producer. It does not create actions/artifacts and it
+never asks the model to invent an id. Cards rendered from these fences
+re-read ActionQueue/ArtifactStore before showing state or controls.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _durable_chat_object_system
+
+result = _durable_chat_object_system(conversation_id=&quot;conversation_id_example&quot;, user_message_id=&quot;user_message_id_example&quot;, project_id=0, project_name=&quot;project_name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_strip_context_markers_from_content'><h3><code class='inline'>_strip_context_markers_from_content</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _strip_context_markers_from_content(content)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _strip_context_markers_from_content
+
+result = _strip_context_markers_from_content(content=...)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_merge_explicit_context_into_user_content'><h3><code class='inline'>_merge_explicit_context_into_user_content</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _merge_explicit_context_into_user_content(content, context_block: str)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _merge_explicit_context_into_user_content
+
+result = _merge_explicit_context_into_user_content(content=..., context_block=&quot;context_block_example&quot;)</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_prepare_explicit_context'><h3><code class='inline'>_prepare_explicit_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _prepare_explicit_context(messages: list[dict])</code></div><p>Strip persisted markers from user turns and resolve latest refs.
+
+Marker stripping applies only to user messages so pasted assistant/tool
+content survives byte-for-byte. The resolved context block rides inside the
+user turn instead of the system message: referenced object content is
+user-selected data and must never gain system-level authority.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _prepare_explicit_context
+
+result = _prepare_explicit_context(messages=[])</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_message_budget_units'><h3><code class='inline'>_message_budget_units</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _message_budget_units(message: dict) -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _message_budget_units
+
+result = _message_budget_units(message={})
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_prefix_for_system_budget'><h3><code class='inline'>_prefix_for_system_budget</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _prefix_for_system_budget(parts: dict[str, str], name: str, text: str, budget: int) -&gt; str</code></div><p>Largest codepoint-safe prefix that keeps the serialized system message in budget.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _prefix_for_system_budget
+
+result = _prefix_for_system_budget(parts=&quot;parts_example&quot;, name=&quot;name_example&quot;, text=&quot;text_example&quot;, budget=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_atomic_history_groups'><h3><code class='inline'>_atomic_history_groups</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _atomic_history_groups(messages: list[dict]) -&gt; list[list[dict]]</code></div><p>Group assistant tool calls with their contiguous tool results.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _atomic_history_groups
+
+result = _atomic_history_groups(messages=[])
+# result: list[list[dict]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fit_final_model_messages'><h3><code class='inline'>_fit_final_model_messages</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (24)</span></h3><div class='sig'><code>def _fit_final_model_messages(bundle_system: str, runtime_system: str, tool_system: str, messages: list[dict], token_cap: int, optional_system: str = &#x27;&#x27;) -&gt; tuple[list[dict], list[str]]</code></div><p>Bound the payload while preserving the current turn and tool exchanges.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _fit_final_model_messages
+
+result = _fit_final_model_messages(bundle_system=&quot;bundle_system_example&quot;, runtime_system=&quot;runtime_system_example&quot;, tool_system=&quot;tool_system_example&quot;, messages=[], token_cap=0, optional_system=&quot;optional_system_example&quot;  # default: &#x27;&#x27;)
+# result: tuple[list[dict], list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-route_model'><h3><code class='inline'>route_model</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def route_model(message: str) -&gt; str</code></div><p>Compatibility routing seam for tests and callers that still patch this Module.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import route_model
+
+result = route_model(message=&quot;message_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_has_image'><h3><code class='inline'>_has_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _has_image(content: object) -&gt; bool</code></div><p>Whether a message carries an image part.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _has_image
+
+result = _has_image(content=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_message_text'><h3><code class='inline'>_message_text</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _message_text(content: object) -&gt; str</code></div><p>The text of a message, whether or not it also carries images.
+
+An OpenAI message with an attachment sends ``content`` as a list of parts,
+not a string. Everything downstream — complexity, domain, memory, the
+repairs-intent check — assumed a string, so uploading any image to the chat
+endpoint raised ``&#x27;list&#x27; object has no attribute &#x27;strip&#x27;`` and returned 500.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _message_text
+
+result = _message_text(content=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_attach_images_to_user_message'><h3><code class='inline'>_attach_images_to_user_message</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _attach_images_to_user_message(messages: list[dict], image_parts: list[dict]) -&gt; list[dict]</code></div><p>Attach resolved image parts to the latest user message.
+
+The chat route receives ``attachment_ids`` (durable artifact ids) and the
+wire messages only carry text. This splices the resolved image parts into
+the current user message so the model actually sees the image. The user
+text stays a text part so every existing text consumer keeps working.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _attach_images_to_user_message
+
+result = _attach_images_to_user_message(messages=[], image_parts=[])
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_builder_result_attachments'><h3><code class='inline'>_resolve_builder_result_attachments</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _resolve_builder_result_attachments(attachment_ids: list[str]) -&gt; list[dict]</code></div><p>Resolve only canonical Builder-result text attachments from durable ids.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _resolve_builder_result_attachments
+
+result = _resolve_builder_result_attachments(attachment_ids=&quot;attachment_ids_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_attach_builder_results_to_user_message'><h3><code class='inline'>_attach_builder_results_to_user_message</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _attach_builder_results_to_user_message(messages: list[dict], attachments: list[dict]) -&gt; list[dict]</code></div><p>Add saved result content to the current user turn as data, not instructions.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _attach_builder_results_to_user_message
+
+result = _attach_builder_results_to_user_message(messages=[], attachments=[])
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_attachment_image_parts'><h3><code class='inline'>_resolve_attachment_image_parts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _resolve_attachment_image_parts(attachment_ids: list[str]) -&gt; list[dict]</code></div><p>Turn durable artifact ids into OpenAI image_url parts.
+
+Reuses the same type/size/state validation as the Library → chat bridge
+(``gateway/routes/chats.py``) so a Library-staged image and a direct
+``attachment_ids`` send agree on what is attachable. Any failure raises a
+plain-language HTTPException before the request is dispatched upstream.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _resolve_attachment_image_parts
+
+result = _resolve_attachment_image_parts(attachment_ids=&quot;attachment_ids_example&quot;)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_static_abstention_result'><h3><code class='inline'>_static_abstention_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _static_abstention_result(text: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _static_abstention_result
+
+result = _static_abstention_result(text=&quot;text_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_static_abstention_stream'><h3><code class='inline'>_static_abstention_stream</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _static_abstention_stream(text: str) -&gt; list[bytes]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _static_abstention_stream
+
+result = _static_abstention_stream(text=&quot;text_example&quot;)
+# result: list[bytes]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_finish_lifecycle_or_raise'><h3><code class='inline'>_finish_lifecycle_or_raise</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _finish_lifecycle_or_raise(handle: chat_lifecycle.TurnHandle, status: str, assistant_text: str, resolved_model: str | None = None, error: str | None = None, memory_items: list[MemoryEvidence] | None = None, evidence_items: list[dict[str, str]] | None = None) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _finish_lifecycle_or_raise
+
+result = _finish_lifecycle_or_raise(handle=..., status=&quot;status_example&quot;, assistant_text=&quot;assistant_text_example&quot;, resolved_model=&quot;resolved_model_example&quot;  # default: None, error=&quot;error_example&quot;  # default: None, memory_items=[]  # default: None, evidence_items=&quot;evidence_items_example&quot;  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_assistant_text_from_result'><h3><code class='inline'>_assistant_text_from_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _assistant_text_from_result(result: dict) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _assistant_text_from_result
+
+result = _assistant_text_from_result(result={})
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-chat_completions'><h3><code class='inline'>chat_completions</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (144)</span></h3><div class='sig'><code>async def chat_completions(request: Request)</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.completions import chat_completions
+
+    result = await chat_completions()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-api_chat_completions'><h3><code class='inline'>api_chat_completions</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def api_chat_completions(request: Request)</code></div><p>Open WebUI-compatible alias so kitty-chat can target the gateway directly.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.completions import api_chat_completions
+
+    result = await api_chat_completions()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-api_models'><h3><code class='inline'>api_models</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>async def api_models()</code></div><p>Return available models with display names resolved from the routing config.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.completions import api_models
+
+    result = await api_models()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-api_model_routing'><h3><code class='inline'>api_model_routing</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def api_model_routing()</code></div><p>Which provider each kitty-* alias actually calls, and whether its key is set.
+
+/api/models only returns alias ids, which is why an out-of-credit provider
+was indistinguishable from a healthy one everywhere in the UI.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.completions import api_model_routing
+
+    result = await api_model_routing()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-api_providers'><h3><code class='inline'>api_providers</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def api_providers()</code></div><p>The direct-call fallback chain — order, key state, and what&#x27;s disabled.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.completions import api_providers
+
+    result = await api_providers()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-api_providers_set'><h3><code class='inline'>api_providers_set</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def api_providers_set(payload: ProviderPrefsRequest)</code></div><p>Reorder or disable providers without editing Python or restarting.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.completions import api_providers_set
+
+    result = await api_providers_set()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-close_session'><h3><code class='inline'>close_session</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def close_session(payload: CloseSessionRequest)</code></div><p>End a chat session — consolidate short-term memory to long-term.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.completions import close_session
+
+    result = await close_session()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_is_repairs_intent'><h3><code class='inline'>_is_repairs_intent</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _is_repairs_intent(user_text: str) -&gt; bool</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _is_repairs_intent
+
+result = _is_repairs_intent(user_text=&quot;user_text_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_signals_context'><h3><code class='inline'>_build_signals_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _build_signals_context() -&gt; str | None</code></div><p>Build a plain-English signals summary for chat injection.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _build_signals_context
+
+result = _build_signals_context()
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_repairs_context'><h3><code class='inline'>_build_repairs_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def _build_repairs_context() -&gt; str | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.completions import _build_repairs_context
+
+result = _build_repairs_context()
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-CloseSessionRequest'><code class='inline'>CloseSessionRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-ProviderPrefsRequest'><code class='inline'>ProviderPrefsRequest</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-CloseSessionRequest'><h3><code class='inline'>CloseSessionRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> messages: list[dict], session_id: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.completions import CloseSessionRequest
+
+obj = CloseSessionRequest(...)</pre></div>
+<div class='card' id='cls-ProviderPrefsRequest'><h3><code class='inline'>ProviderPrefsRequest</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> order: list[str], disabled: list[str], active: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.completions import ProviderPrefsRequest
+
+obj = ProviderPrefsRequest(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_DURABLE_CHAT_OBJECT_LIMIT</code></td><td><code class='inline'>6</code></td></tr><tr><td><code class='inline'>_CURRENT_VERIFICATION_ABSTENTION</code></td><td><code class='inline'>&#x27;I need current authoritative verification before I can answer this as a current factual or action claim. This chat path</code></td></tr><tr><td><code class='inline'>_CURRENT_VERIFICATION_POLICY_MODEL</code></td><td><code class='inline'>&#x27;kitty-policy/current-verification-abstention&#x27;</code></td></tr><tr><td><code class='inline'>_CURRENT_SOURCE_TOOL_NAMES</code></td><td><code class='inline'>frozenset({&#x27;search_web&#x27;, &#x27;web_search&#x27;, &#x27;fetch_url&#x27;})</code></td></tr><tr><td><code class='inline'>_NO_TOOL_EXECUTOR_SYSTEM</code></td><td><code class='inline'>&#x27;\nThis chat runtime does not currently have a tool executor. Do not emit XML, DSML,\nor tool-call syntax as ordinary as</code></td></tr><tr><td><code class='inline'>_ATTACHMENT_FAILURE_MESSAGE</code></td><td><code class='inline'>&quot;Kitty couldn&#x27;t use that image. Remove it and stage the image again.&quot;</code></td></tr><tr><td><code class='inline'>_REPAIRS_INTENT_PATTERNS</code></td><td><code class='inline'>[&quot;what&#x27;s wrong&quot;, &#x27;what is wrong&#x27;, &#x27;anything broken&#x27;, &#x27;is anything wrong&#x27;, &#x27;is something wrong&#x27;, &#x27;any issues&#x27;, &#x27;system he</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/kitty-chat/tests/support/hermetic_gateway.py</code></li><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

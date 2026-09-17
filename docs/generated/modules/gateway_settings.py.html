@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.settings — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.settings</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.settings</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/settings.py</code> &middot; Python &middot; 1 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Pydantic-settings model for Kitty gateway configuration.
+
+All env vars the gateway reads are declared here.  Call ``get_settings()``
+(never import the Settings class directly) to get a fresh instance that
+re-reads from the current os.environ, which keeps pytest monkeypatch working.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>pydantic</code>, <code class='inline'>pydantic_settings</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_settings'><code class='inline'>get_settings</code></a></td><td>Return a fresh Settings instance, re-reading os.environ each call.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-get_settings'><h3><code class='inline'>get_settings</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def get_settings() -&gt; Settings</code></div><p>Return a fresh Settings instance, re-reading os.environ each call.
+
+Do NOT cache — tests rely on monkeypatch.setenv taking effect immediately.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.settings import get_settings
+
+result = get_settings()
+# result: Settings</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-Settings'><code class='inline'>Settings</code></a></td><td>(BaseSettings)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-Settings'><h3><code class='inline'>Settings</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> model_config, GATEWAY_HOST: str, GATEWAY_PORT: int, LITELLM_HOST: str, LITELLM_PORT: int, GATEWAY_SECRET: SecretStr | None, LITELLM_KEY: SecretStr | None, KITTY_ENV: str, KITTY_PROVIDER_CONNECT_TIMEOUT: float, KITTY_LLM_CHAIN_DEADLINE: float, OPENAI_API_KEY: SecretStr | None, GEMINI_API_KEY: SecretStr | None, OPENROUTER_API_KEY: SecretStr | None, NVIDIA_API_KEY: SecretStr | None, AGENTROUTER_API_KEY: SecretStr | None, AGENT_ROUTER_TOKEN: SecretStr | None, KITTY_OPENROUTER_CHEAP: str, KITTY_OPENROUTER_DIRECT_MODEL: str, KITTY_OPENAI_FALLBACK_MODEL: str, OPENAI_API_BASE: str, KITTY_GEMINI_MODEL: str, AGENTROUTER_MODEL: str, AGENTROUTER_API_BASE: str, KITTY_DISABLE_AGENTROUTER: str, NVIDIA_CHAT_MODEL: str, NVIDIA_API_BASE: str, KITTY_AGENTROUTER_USER_AGENT: str, KITTY_AGENTROUTER_ORIGINATOR: str, KITTY_AGENTROUTER_VERSION: str, KITTY_AGENTROUTER_EXTRA_HEADERS_JSON: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.settings import Settings
+
+obj = Settings(...)</pre></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

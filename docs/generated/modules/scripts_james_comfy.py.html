@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.james_comfy — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.james_comfy</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.james_comfy</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/james_comfy.py</code> &middot; Python &middot; 9 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Run the James identity workflow against a ComfyUI instance.
+
+The identity LoRA was trained on Flux, so everything here is Flux-family. Jacob&#x27;s
+larger body LoRAs (xhirsute, sulphur2, the Qwen penis LoRAs) target Qwen-Image
+and cannot be stacked with it — mixing families is why earlier results were
+inconsistent. Retraining identity on Qwen is the only way to use those.
+
+Usage:
+    COMFY_URL=https://&lt;pod&gt;-8188.proxy.runpod.net \
+    python3 scripts/james_comfy.py &quot;prompt&quot; --identity 0.9 --steps 24</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>argparse</code>, <code class='inline'>cv2</code>, <code class='inline'>json</code>, <code class='inline'>numpy</code>, <code class='inline'>os</code>, <code class='inline'>pathlib</code>, <code class='inline'>sys</code>, <code class='inline'>time</code>, <code class='inline'>urllib.error</code>, <code class='inline'>urllib.parse</code>, <code class='inline'>urllib.request</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-upload_image'><code class='inline'>upload_image</code></a></td><td>Push a reference into ComfyUI&#x27;s input folder and return its name.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-face_mask'><code class='inline'>face_mask</code></a></td><td>White over the face, black elsewhere, soft-edged.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-paste_face'><code class='inline'>paste_face</code></a></td><td>Align the reference face onto the scene&#x27;s face and return (image, mask).</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-build_workflow'><code class='inline'>build_workflow</code></a></td><td>Checkpoint -&gt; identity LoRA -&gt; anatomy LoRA -&gt; sample -&gt; save.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_post'><code class='inline'>_post</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_get'><code class='inline'>_get</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-run'><code class='inline'>run</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>complex</span><span class='muted small'>(12)</span></td></tr><tr><td><a href='#fn-_download'><code class='inline'>_download</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-main'><code class='inline'>main</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr></table></div>
+<div class='card' id='fn-upload_image'><h3><code class='inline'>upload_image</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def upload_image(path: Path) -&gt; str</code></div><p>Push a reference into ComfyUI&#x27;s input folder and return its name.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.james_comfy import upload_image
+
+result = upload_image(path=&quot;path_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-face_mask'><h3><code class='inline'>face_mask</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def face_mask(image_path: Path, feather: int = 48, grow: float = 0.35) -&gt; Path</code></div><p>White over the face, black elsewhere, soft-edged.
+
+Detected on this Mac rather than on the pod: the detector is 227KB against
+the pod&#x27;s alternative of a SAM3 checkpoint, and a mask is cheap to upload.
+Raises when no face is found rather than inpainting the whole frame.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.james_comfy import face_mask
+
+result = face_mask(image_path=&quot;image_path_example&quot;, feather=0  # default: 48, grow=0.0  # default: 0.35)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-paste_face'><h3><code class='inline'>paste_face</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def paste_face(scene: Path, reference: Path) -&gt; tuple[Path, Path]</code></div><p>Align the reference face onto the scene&#x27;s face and return (image, mask).
+
+Repainting the face region with the LoRA reproduces the LoRA&#x27;s likeness,
+which is the thing that was not good enough. Compositing the real face in
+first means the sampler is blending actual pixels of Jacob rather than
+inventing a face again; a low denoise then fixes lighting and edges.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.james_comfy import paste_face
+
+result = paste_face(scene=&quot;scene_example&quot;, reference=&quot;reference_example&quot;)
+# result: tuple[Path, Path]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_workflow'><h3><code class='inline'>build_workflow</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def build_workflow(prompt: str, identity: float, anatomy: float, steps: int, seed: int, width: int, height: int, guidance: float, source: str | None = None, denoise: float = 1.0, mask: str | None = None, pulid_face: str | None = None, pulid_weight: float = 0.9) -&gt; dict</code></div><p>Checkpoint -&gt; identity LoRA -&gt; anatomy LoRA -&gt; sample -&gt; save.
+
+Order matters: identity loads first so the anatomy LoRA modifies a model that
+already knows the face, rather than competing with it for the same weights.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.james_comfy import build_workflow
+
+result = build_workflow(prompt=&quot;prompt_example&quot;, identity=0.0, anatomy=0.0, steps=0, seed=0, width=0, height=0, guidance=0.0, source=&quot;source_example&quot;  # default: None, denoise=0.0  # default: 1.0, mask=&quot;mask_example&quot;  # default: None, pulid_face=&quot;pulid_face_example&quot;  # default: None, pulid_weight=0.0  # default: 0.9)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_post'><h3><code class='inline'>_post</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _post(path: str, payload: dict) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.james_comfy import _post
+
+result = _post(path=&quot;path_example&quot;, payload={})
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_get'><h3><code class='inline'>_get</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _get(path: str) -&gt; dict</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.james_comfy import _get
+
+result = _get(path=&quot;path_example&quot;)
+# result: dict</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-run'><h3><code class='inline'>run</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (12)</span></h3><div class='sig'><code>def run(workflow: dict, timeout: float = 900) -&gt; list[Path]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.james_comfy import run
+
+result = run(workflow={}, timeout=0.0  # default: 900)
+# result: list[Path]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_download'><h3><code class='inline'>_download</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _download(image: dict) -&gt; Path</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.james_comfy import _download
+
+result = _download(image={})
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-main'><h3><code class='inline'>main</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def main() -&gt; int</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from scripts.james_comfy import main
+
+result = main()
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>COMFY_URL</code></td><td><code class='inline'>os.environ.get(&#x27;COMFY_URL&#x27;, &#x27;http://127.0.0.1:8188&#x27;).rstrip(&#x27;/&#x27;)</code></td></tr><tr><td><code class='inline'>CHECKPOINT</code></td><td><code class='inline'>os.environ.get(&#x27;JAMES_CHECKPOINT&#x27;, &#x27;flux1-dev-fp8.safetensors&#x27;)</code></td></tr><tr><td><code class='inline'>IDENTITY_LORA</code></td><td><code class='inline'>os.environ.get(&#x27;JAMES_IDENTITY_LORA&#x27;, &#x27;FrhOzsbkqvvcgrLw_2Tel_pytorch_lora_weights.safetensors&#x27;)</code></td></tr><tr><td><code class='inline'>ANATOMY_LORA</code></td><td><code class='inline'>os.environ.get(&#x27;JAMES_ANATOMY_LORA&#x27;, &#x27;Male_Nude_and_Genital_Anatomy_for_Flux_1_Dev.safetensors&#x27;)</code></td></tr><tr><td><code class='inline'>OUT_DIR</code></td><td><code class='inline'>Path(os.environ.get(&#x27;JAMES_OUT_DIR&#x27;, &#x27;data/images/james&#x27;))</code></td></tr><tr><td><code class='inline'>HEADERS</code></td><td><code class='inline'>{&#x27;User-Agent&#x27;: &#x27;Mozilla/5.0&#x27;, &#x27;Content-Type&#x27;: &#x27;application/json&#x27;}</code></td></tr><tr><td><code class='inline'>YUNET_MODEL</code></td><td><code class='inline'>Path(os.environ.get(&#x27;KITTY_FACE_DETECTOR&#x27;, Path.home() / &#x27;kitty-services/models/face_detection_yunet_2023mar.onnx&#x27;)).exp</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_agent_council.py.html'><code class='inline'>scripts.agent_council</code></a></li><li><a href='scripts_agent_wrapup.py.html'><code class='inline'>scripts.agent_wrapup</code></a></li><li><a href='scripts_analyze_claude_usage.py.html'><code class='inline'>scripts.analyze_claude_usage</code></a></li><li><a href='scripts_assign_kb_files.py.html'><code class='inline'>scripts.assign_kb_files</code></a></li><li><a href='scripts_audit_session_end.py.html'><code class='inline'>scripts.audit_session_end</code></a></li><li><a href='scripts_builder_recovery_proof.py.html'><code class='inline'>scripts.builder_recovery_proof</code></a></li><li><a href='scripts_character_benchmark.py.html'><code class='inline'>scripts.character_benchmark</code></a></li><li><a href='scripts_check_continuity_state.py.html'><code class='inline'>scripts.check_continuity_state</code></a></li><li><a href='scripts_ci_metrics.py.html'><code class='inline'>scripts.ci_metrics</code></a></li><li><a href='scripts_curation.py.html'><code class='inline'>scripts.curation</code></a></li><li><a href='scripts_dry_run_c3.py.html'><code class='inline'>scripts.dry_run_c3</code></a></li><li><a href='scripts_gen.py.html'><code class='inline'>scripts.gen</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

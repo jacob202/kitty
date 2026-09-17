@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp.imagen.engines.base — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">mcp.imagen.engines.base</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>mcp.imagen.engines.base</code></h1>
+<p class='muted small'>Source: <code class='inline'>mcp/imagen/engines/base.py</code> &middot; Python &middot; 0 functions &middot; 2 classes</p>
+<div class='card'><h2>Overview</h2><p>Engine protocol and shared exceptions.
+
+Every engine implements the same interface so the tool layer can dispatch
+generically by name. ``RefusalError`` lets the tool layer distinguish a
+safety refusal (return structured dict to the LLM) from a transient failure
+(retry or surface the error).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-RefusalError'><code class='inline'>RefusalError</code></a></td><td>(Exception)</td><td>0 methods</td></tr><tr><td><a href='#cls-Engine'><code class='inline'>Engine</code></a></td><td>(Protocol)</td><td>5 methods</td></tr></table></div>
+<div class='card' id='cls-RefusalError'><h3><code class='inline'>RefusalError</code></h3><p>The engine returned no image — a safety filter blocked the prompt.
+
+The message contains the model&#x27;s explanation (if any) so the LLM can
+rephrase and retry with a different prompt.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from mcp.imagen.engines.base import RefusalError
+
+obj = RefusalError(...)</pre></div>
+<div class='card' id='cls-Engine'><h3><code class='inline'>Engine</code></h3><p>One image-generation backend.
+
+``generate`` and ``generate_async`` return raw PNG bytes on success and
+raise ``RefusalError`` when the prompt is blocked. Transient errors
+(429, 503, connection) are retried by the ``@retry_with_backoff`` decorator
+on the concrete engine; after exhausting retries the real exception
+propagates (prime directive: fail loud).</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>name</code></td><td><code class='inline'>def name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>model_name</code></td><td><code class='inline'>def model_name(self) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>generate</code></td><td><code class='inline'>def generate(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = None, **kwarg</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>generate_async</code></td><td><code class='inline'>async def generate_async(self, prompt: str, aspect_ratio: str = &#x27;1:1&#x27;, photorealistic: bool = True, seed: int | None = N</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>edit</code></td><td><code class='inline'>def edit(self, image_path: Path, edit_prompt: str) -&gt; bytes</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from mcp.imagen.engines.base import Engine
+
+obj = Engine(...)</pre></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='mcp_imagen_engines_adapters.py.html'><code class='inline'>mcp.imagen.engines.adapters</code></a></li><li><a href='mcp_imagen_engines_airforce.py.html'><code class='inline'>mcp.imagen.engines.airforce</code></a></li><li><a href='mcp_imagen_engines_comfyui.py.html'><code class='inline'>mcp.imagen.engines.comfyui</code></a></li><li><a href='mcp_imagen_engines_dalle.py.html'><code class='inline'>mcp.imagen.engines.dalle</code></a></li><li><a href='mcp_imagen_engines_drawthings.py.html'><code class='inline'>mcp.imagen.engines.drawthings</code></a></li><li><a href='mcp_imagen_engines_fal.py.html'><code class='inline'>mcp.imagen.engines.fal</code></a></li><li><a href='mcp_imagen_engines_imagen4.py.html'><code class='inline'>mcp.imagen.engines.imagen4</code></a></li><li><a href='mcp_imagen_engines_nano_banana.py.html'><code class='inline'>mcp.imagen.engines.nano_banana</code></a></li><li><a href='mcp_imagen_engines_runware.py.html'><code class='inline'>mcp.imagen.engines.runware</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

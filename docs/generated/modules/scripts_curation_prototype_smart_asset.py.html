@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scripts.curation.prototype_smart_asset — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">scripts.curation.prototype_smart_asset</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>scripts.curation.prototype_smart_asset</code></h1>
+<p class='muted small'>Source: <code class='inline'>scripts/curation/prototype_smart_asset.py</code> &middot; Python &middot; 2 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description — inferred purpose below. Flag for manual review.</p><p class="muted small">No module docstring found. Purpose inferred from file name, location, and exported symbols.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>asyncio</code>, <code class='inline'>contracts.smart_file_schema</code>, <code class='inline'>gateway</code>, <code class='inline'>hashlib</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>typing</code>, <code class='inline'>yaml</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-generate_soul_analysis'><code class='inline'>generate_soul_analysis</code></a></td><td>Calls LLM to generate the &#x27;Soul, Hooks, and Takes&#x27; metadata.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-create_smart_asset'><code class='inline'>create_smart_asset</code></a></td><td>Orchestrates the creation of a Smart Markdown Asset (SMA).</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-generate_soul_analysis'><h3><code class='inline'>generate_soul_analysis</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>async def generate_soul_analysis(filename: str, text_sample: str) -&gt; Dict[str, Any]</code></div><p>Calls LLM to generate the &#x27;Soul, Hooks, and Takes&#x27; metadata.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.curation.prototype_smart_asset import generate_soul_analysis
+
+    result = await generate_soul_analysis()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_smart_asset'><h3><code class='inline'>create_smart_asset</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def create_smart_asset(file_path: Path)</code></div><p>Orchestrates the creation of a Smart Markdown Asset (SMA).</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from scripts.curation.prototype_smart_asset import create_smart_asset
+
+    result = await create_smart_asset()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>TEST_FILE</code></td><td><code class='inline'>Path(&#x27;/Volumes/DATA/Books/ingestion_curated_deep_ocr/Engineering/Automotive/Engineering &amp; Physical Systems/2006 2008 Hon</code></td></tr><tr><td><code class='inline'>PROTOTYPE_DIR</code></td><td><code class='inline'>Path(&#x27;data/prototypes&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='scripts_curation_analyze_db.py.html'><code class='inline'>scripts.curation.analyze_db</code></a></li><li><a href='scripts_curation_analyze_duplicates.py.html'><code class='inline'>scripts.curation.analyze_duplicates</code></a></li><li><a href='scripts_curation_assign_kb_files.py.html'><code class='inline'>scripts.curation.assign_kb_files</code></a></li><li><a href='scripts_curation_complete_orca_tasks.py.html'><code class='inline'>scripts.curation.complete_orca_tasks</code></a></li><li><a href='scripts_curation_configure_kb_prompts.py.html'><code class='inline'>scripts.curation.configure_kb_prompts</code></a></li><li><a href='scripts_curation_core_curation_engine.py.html'><code class='inline'>scripts.curation.core_curation_engine</code></a></li><li><a href='scripts_curation_curate_books.py.html'><code class='inline'>scripts.curation.curate_books</code></a></li><li><a href='scripts_curation_curation_worker.py.html'><code class='inline'>scripts.curation.curation_worker</code></a></li><li><a href='scripts_curation_deduplicate_by_size.py.html'><code class='inline'>scripts.curation.deduplicate_by_size</code></a></li><li><a href='scripts_curation_deep_curate.py.html'><code class='inline'>scripts.curation.deep_curate</code></a></li><li><a href='scripts_curation_dispatch_pilot.py.html'><code class='inline'>scripts.curation.dispatch_pilot</code></a></li><li><a href='scripts_curation_extract_chat_goldmine.py.html'><code class='inline'>scripts.curation.extract_chat_goldmine</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

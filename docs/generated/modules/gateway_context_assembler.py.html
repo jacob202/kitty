@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.context_assembler — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.context_assembler</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.context_assembler</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/context_assembler.py</code> &middot; Python &middot; 26 functions &middot; 5 classes</p>
+<div class='card'><h2>Overview</h2><p>Context Assembler — the single deep module for read-path context.
+
+After Phase 2, the request-time read path is one module with one testable
+surface. ``assemble_context`` is the only public entry point; everything else
+in this module is an internal seam.
+
+Public surface:
+
+- :class:`ContextBundle` — the structured result. ``system`` is the joined
+  prompt string. ``memory_items`` are the raw :class:`Item` records the
+  assemblers got from each store. ``live_blocks`` are the strings produced
+  by the enrichment layer (calendar, weather, etc.). ``warnings`` lists every
+  source that failed so the operator can see what was missing.
+
+- :func:`assemble_context` — the deep entry point. Always returns a
+  ``ContextBundle``; individual source failures become ``Warning`` strings,
+  never exceptions. Total infrastructure failure (no LLM reachable AND no
+  DB reachable) is the only condition under which it raises.
+
+Failure handling (the partial-result contract):
+
+- Each store adapter runs concurrently with a per-store timeout.
+- A failed adapter produces an empty ``list[Item]`` and a warning string
+  in the bundle.
+- Each enrichment runs in isolation; a failure produces a warning string.
+- The system prompt is always built from whatever sources succeeded.
+- The bundle is always returned (no caller is left guessing whether a
+  context build is partial).</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>contracts.knowledge_pipeline</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.context_enrichment</code>, <code class='inline'>gateway.knowledge</code>, <code class='inline'>gateway.memory_graph</code>, <code class='inline'>gateway.memory_policy</code>, <code class='inline'>gateway.personality</code>, <code class='inline'>gateway.prompts</code>, <code class='inline'>logging</code>, <code class='inline'>re</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_should_surface_parts'><code class='inline'>_should_surface_parts</code></a></td><td>Return True when the context warrants auto-surfacing the parts debate.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_build_parts_system_prompt'><code class='inline'>_build_parts_system_prompt</code></a></td><td>Append the parts debate instruction to an existing system prompt.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_explicit_skill_name'><code class='inline'>_explicit_skill_name</code></a></td><td>Return the exact registry name from one explicit directive line.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_default_skill_hint'><code class='inline'>_default_skill_hint</code></a></td><td>Resolve an explicit installed skill, otherwise suggest one from triggers.</td><td><span class='pill'>moderate</span><span class='muted small'>(9)</span></td></tr><tr><td><a href='#fn-_domain_prompt'><code class='inline'>_domain_prompt</code></a></td><td>Load the per-domain system prompt. Apply domain-specific mutations.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_flatten_items'><code class='inline'>_flatten_items</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_filter_items_by_policy'><code class='inline'>_filter_items_by_policy</code></a></td><td>Filter each store&#x27;s items through memory policy, keeping only those</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_join_blocks'><code class='inline'>_join_blocks</code></a></td><td>Concatenate non-empty blocks with a blank line between them.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_evidence_receipt'><code class='inline'>_evidence_receipt</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-_evidence_header'><code class='inline'>_evidence_header</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_render_evidence_items'><code class='inline'>_render_evidence_items</code></a></td><td>Render source-bound evidence without mixing it into personal memory.</td><td><span class='pill'>complex</span><span class='muted small'>(26)</span></td></tr><tr><td><a href='#fn-_reconcile_evidence_receipts'><code class='inline'>_reconcile_evidence_receipts</code></a></td><td>Return truthful receipts for the evidence text that actually reached the model.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-_warning_source'><code class='inline'>_warning_source</code></a></td><td>Extract a bounded source id without leaking exception detail.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_degraded_sources'><code class='inline'>_degraded_sources</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_context_degradation_marker'><code class='inline'>_context_degradation_marker</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_context_health'><code class='inline'>_context_health</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_budget_units'><code class='inline'>_budget_units</code></a></td><td>Conservative token upper bound: one unit per UTF-8 byte.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_utf8_prefix'><code class='inline'>_utf8_prefix</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_truncate_context_block'><code class='inline'>_truncate_context_block</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-_fit_context_blocks'><code class='inline'>_fit_context_blocks</code></a></td><td>Fit named prompt blocks into a conservative whole-context budget.</td><td><span class='pill'>complex</span><span class='muted small'>(17)</span></td></tr><tr><td><a href='#fn-_reconcile_memory_evidence'><code class='inline'>_reconcile_memory_evidence</code></a></td><td>Keep only whole memory records that actually appear in prompt order.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-assemble_context'><code class='inline'>assemble_context</code></a></td><td>The single deep entry point for request-time context.</td><td><span class='pill'>complex</span><span class='muted small'>(31)</span></td></tr><tr><td><a href='#fn-_looks_like_total_failure'><code class='inline'>_looks_like_total_failure</code></a></td><td>A bundle is a total failure when there is nothing to prompt the LLM with.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-assert_not_total_failure'><code class='inline'>assert_not_total_failure</code></a></td><td>Raise :class:`RuntimeError` if the bundle is a total infrastructure failure.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-get_system_prompt'><code class='inline'>get_system_prompt</code></a></td><td>Return the joined system prompt string.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-build_worker_context'><code class='inline'>build_worker_context</code></a></td><td>Build a plain-text context block for synchronous worker tasks.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr></table></div>
+<div class='card' id='fn-_should_surface_parts'><h3><code class='inline'>_should_surface_parts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _should_surface_parts(message: str) -&gt; bool</code></div><p>Return True when the context warrants auto-surfacing the parts debate.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _should_surface_parts
+
+result = _should_surface_parts(message=&quot;message_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_build_parts_system_prompt'><h3><code class='inline'>_build_parts_system_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _build_parts_system_prompt(base_prompt: str) -&gt; str</code></div><p>Append the parts debate instruction to an existing system prompt.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _build_parts_system_prompt
+
+result = _build_parts_system_prompt(base_prompt=&quot;base_prompt_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_explicit_skill_name'><h3><code class='inline'>_explicit_skill_name</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _explicit_skill_name(message: str) -&gt; str | None</code></div><p>Return the exact registry name from one explicit directive line.
+
+Skill Registry accepts Unicode names, so the launcher/parser must not use a
+narrower ASCII grammar than the authority it projects.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _explicit_skill_name
+
+result = _explicit_skill_name(message=&quot;message_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_default_skill_hint'><h3><code class='inline'>_default_skill_hint</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (9)</span></h3><div class='sig'><code>def _default_skill_hint(message: str) -&gt; str</code></div><p>Resolve an explicit installed skill, otherwise suggest one from triggers.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _default_skill_hint
+
+result = _default_skill_hint(message=&quot;message_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_domain_prompt'><h3><code class='inline'>_domain_prompt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _domain_prompt(message: str, domain: str | None) -&gt; str</code></div><p>Load the per-domain system prompt. Apply domain-specific mutations.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _domain_prompt
+
+result = _domain_prompt(message=&quot;message_example&quot;, domain=&quot;domain_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_flatten_items'><h3><code class='inline'>_flatten_items</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _flatten_items(results: dict[str, list[Item]]) -&gt; list[Item]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _flatten_items
+
+result = _flatten_items(results=&quot;results_example&quot;)
+# result: list[Item]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_filter_items_by_policy'><h3><code class='inline'>_filter_items_by_policy</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _filter_items_by_policy(results: dict[str, list[Item]], query: str) -&gt; dict[str, list[Item]]</code></div><p>Filter each store&#x27;s items through memory policy, keeping only those
+that should surface. Preserves the dict structure for downstream formatting.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _filter_items_by_policy
+
+result = _filter_items_by_policy(results=&quot;results_example&quot;, query=&quot;query_example&quot;)
+# result: dict[str, list[Item]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_join_blocks'><h3><code class='inline'>_join_blocks</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _join_blocks(*blocks) -&gt; str</code></div><p>Concatenate non-empty blocks with a blank line between them.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _join_blocks
+
+result = _join_blocks()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_evidence_receipt'><h3><code class='inline'>_evidence_receipt</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def _evidence_receipt(item: Item, evidence_id: str) -&gt; EvidenceReceipt</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _evidence_receipt
+
+result = _evidence_receipt(item=..., evidence_id=&quot;evidence_id_example&quot;)
+# result: EvidenceReceipt</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_evidence_header'><h3><code class='inline'>_evidence_header</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _evidence_header(record: EvidenceReceipt) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _evidence_header
+
+result = _evidence_header(record=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_render_evidence_items'><h3><code class='inline'>_render_evidence_items</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (26)</span></h3><div class='sig'><code>def _render_evidence_items(items: list[Item], policy: EvidencePolicy, expert_profile: str | None = None, max_units: int | None = None) -&gt; tuple[str, list[EvidenceReceipt]]</code></div><p>Render source-bound evidence without mixing it into personal memory.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _render_evidence_items
+
+result = _render_evidence_items(items=[], policy=..., expert_profile=&quot;expert_profile_example&quot;  # default: None, max_units=0  # default: None)
+# result: tuple[str, list[EvidenceReceipt]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_evidence_receipts'><h3><code class='inline'>_reconcile_evidence_receipts</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def _reconcile_evidence_receipts(items: list[EvidenceReceipt], rendered_prompt: str) -&gt; list[EvidenceReceipt]</code></div><p>Return truthful receipts for the evidence text that actually reached the model.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _reconcile_evidence_receipts
+
+result = _reconcile_evidence_receipts(items=[], rendered_prompt=&quot;rendered_prompt_example&quot;)
+# result: list[EvidenceReceipt]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_warning_source'><h3><code class='inline'>_warning_source</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _warning_source(warning: str) -&gt; str | None</code></div><p>Extract a bounded source id without leaking exception detail.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _warning_source
+
+result = _warning_source(warning=&quot;warning_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_degraded_sources'><h3><code class='inline'>_degraded_sources</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _degraded_sources(warnings: list[str]) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _degraded_sources
+
+result = _degraded_sources(warnings=&quot;warnings_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_context_degradation_marker'><h3><code class='inline'>_context_degradation_marker</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _context_degradation_marker(sources: list[str]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _context_degradation_marker
+
+result = _context_degradation_marker(sources=&quot;sources_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_context_health'><h3><code class='inline'>_context_health</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _context_health(warnings: list[str]) -&gt; dict[str, object]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _context_health
+
+result = _context_health(warnings=&quot;warnings_example&quot;)
+# result: dict[str, object]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_budget_units'><h3><code class='inline'>_budget_units</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _budget_units(text: str) -&gt; int</code></div><p>Conservative token upper bound: one unit per UTF-8 byte.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _budget_units
+
+result = _budget_units(text=&quot;text_example&quot;)
+# result: int</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_utf8_prefix'><h3><code class='inline'>_utf8_prefix</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _utf8_prefix(text: str, max_units: int) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _utf8_prefix
+
+result = _utf8_prefix(text=&quot;text_example&quot;, max_units=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_truncate_context_block'><h3><code class='inline'>_truncate_context_block</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def _truncate_context_block(text: str, limit: int) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _truncate_context_block
+
+result = _truncate_context_block(text=&quot;text_example&quot;, limit=0)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_fit_context_blocks'><h3><code class='inline'>_fit_context_blocks</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (17)</span></h3><div class='sig'><code>def _fit_context_blocks(blocks: list[tuple[str, str, float]], tier: str, required_full_names: set[str] | None = None) -&gt; tuple[str, dict[str, object], list[str]]</code></div><p>Fit named prompt blocks into a conservative whole-context budget.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _fit_context_blocks
+
+result = _fit_context_blocks(blocks=&quot;blocks_example&quot;, tier=&quot;tier_example&quot;, required_full_names=&quot;required_full_names_example&quot;  # default: None)
+# result: tuple[str, dict[str, object], list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_reconcile_memory_evidence'><h3><code class='inline'>_reconcile_memory_evidence</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _reconcile_memory_evidence(items: list[MemoryEvidence], rendered_prompt: str) -&gt; list[MemoryEvidence]</code></div><p>Keep only whole memory records that actually appear in prompt order.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _reconcile_memory_evidence
+
+result = _reconcile_memory_evidence(items=[], rendered_prompt=&quot;rendered_prompt_example&quot;)
+# result: list[MemoryEvidence]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-assemble_context'><h3><code class='inline'>assemble_context</code> <span class='pill'>async</span> <span class='pill'>complexity: complex (31)</span></h3><div class='sig'><code>async def assemble_context(message: str, parts_mode: bool = False, domain: str | None = None, deps: _AssemblerDeps | None = None, objective: str | None = None, tier: str = &#x27;standard&#x27;, expert_profile: str | None = None) -&gt; ContextBundle</code></div><p>The single deep entry point for request-time context.
+
+Returns a :class:`ContextBundle` even when sources fail. Only raises
+on total infrastructure failure (see the module docstring).
+
+Args:
+    message: The user&#x27;s incoming message — drives memory retrieval
+        and trigger detection.
+    parts_mode: Force the parts-system surface. When false, the parts
+        block is added only if the message triggers parts-mode detection.
+    domain: Pre-classified domain. When ``None`` the domain is inferred
+        from the message.
+    deps: Internal — test override seam. Production callers should
+        leave this as ``None``.
+    objective: Optional per-thread goal. When set, a ``Thread goal:``
+        line is injected into the system prompt. When ``None`` the
+        assembled output is byte-identical to pre-packet behaviour.
+    tier: Per-tier context budget and enrichment control.
+        ``trivial`` (300 tokens, no enrichments),
+        ``standard`` (1200 tokens, full enrichments — the default,
+        byte-identical to pre-packet behaviour),
+        ``deep`` (2400 tokens, full enrichments).
+    expert_profile: Optional active corpus retrieval profile. This scopes
+        source retrieval; it does not create a second agent/personality.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.context_assembler import assemble_context
+
+    result = await assemble_context()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_looks_like_total_failure'><h3><code class='inline'>_looks_like_total_failure</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _looks_like_total_failure(bundle: ContextBundle) -&gt; bool</code></div><p>A bundle is a total failure when there is nothing to prompt the LLM with.
+
+Concretely: no memory items, no live blocks, and at least one warning
+in the memory_graph layer (the only place a hard infrastructure failure
+surfaces). Pure enrichment failures alone are not total — the prompt
+is still usable.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import _looks_like_total_failure
+
+result = _looks_like_total_failure(bundle=...)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-assert_not_total_failure'><h3><code class='inline'>assert_not_total_failure</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def assert_not_total_failure(bundle: ContextBundle) -&gt; ContextBundle</code></div><p>Raise :class:`RuntimeError` if the bundle is a total infrastructure failure.
+
+Callers that want the strict &quot;no LLM AND no DB&quot; raise semantics should
+call this after `assemble_context`. The base function never raises
+so a partial result is always available; the route layer decides when
+&quot;total failure&quot; is fatal.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import assert_not_total_failure
+
+result = assert_not_total_failure(bundle=...)
+# result: ContextBundle</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_system_prompt'><h3><code class='inline'>get_system_prompt</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def get_system_prompt(message: str, parts_mode: bool = False, domain: Optional[str] = None, objective: str | None = None, tier: str = &#x27;standard&#x27;) -&gt; str</code></div><p>Return the joined system prompt string.
+
+Equivalent to `(await assemble_context(..., objective=objective, tier=tier)).system`.
+Kept as a convenience wrapper for callers that only need the system string.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.context_assembler import get_system_prompt
+
+    result = await get_system_prompt()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-build_worker_context'><h3><code class='inline'>build_worker_context</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def build_worker_context(context_type: str, **kwargs) -&gt; str</code></div><p>Build a plain-text context block for synchronous worker tasks.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.context_assembler import build_worker_context
+
+result = build_worker_context(context_type=&quot;context_type_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-SkillSelectionError'><code class='inline'>SkillSelectionError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-SelectedSkillTooLargeError'><code class='inline'>SelectedSkillTooLargeError</code></a></td><td>(ValueError)</td><td>0 methods</td></tr><tr><td><a href='#cls-EvidenceReceipt'><code class='inline'>EvidenceReceipt</code></a></td><td>(TypedDict)</td><td>0 methods</td></tr><tr><td><a href='#cls-ContextBundle'><code class='inline'>ContextBundle</code></a></td><td></td><td>0 methods</td></tr><tr><td><a href='#cls-_AssemblerDeps'><code class='inline'>_AssemblerDeps</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-SkillSelectionError'><h3><code class='inline'>SkillSelectionError</code></h3><p>An explicit ``Use skill:`` directive cannot be honored truthfully.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.context_assembler import SkillSelectionError
+
+obj = SkillSelectionError(...)</pre></div>
+<div class='card' id='cls-SelectedSkillTooLargeError'><h3><code class='inline'>SelectedSkillTooLargeError</code></h3><p>An explicit skill cannot fit without losing part of its instructions.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.context_assembler import SelectedSkillTooLargeError
+
+obj = SelectedSkillTooLargeError(...)</pre></div>
+<div class='card' id='cls-EvidenceReceipt'><h3><code class='inline'>EvidenceReceipt</code></h3><p>One source-bound evidence record that actually reached the model prompt.</p><p class='small'><b>Attributes:</b> evidence_id: str, text: str, source_id: NotRequired[str], source_sha256: NotRequired[str], logical_unit_id: NotRequired[str], work_id: NotRequired[str], series_id: NotRequired[str], title: NotRequired[str], locator_start: NotRequired[str], locator_end: NotRequired[str], authority_tier: NotRequired[str], currency_status: NotRequired[str], clinical_use_policy: NotRequired[str]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.context_assembler import EvidenceReceipt
+
+obj = EvidenceReceipt(...)</pre></div>
+<div class='card' id='cls-ContextBundle'><h3><code class='inline'>ContextBundle</code></h3><p>The structured outcome of :func:`assemble_context`.
+
+Attributes:
+    system: The joined system prompt — what callers pass to the LLM.
+    memory_items: Every :class:`Item` retrieved by the store adapters,
+        flattened across stores. Order is store order, then item order
+        within a store. Empty list when every adapter failed.
+    live_blocks: The string blocks produced by the enrichment layer
+        (calendar, weather, etc.). Excludes memory items.
+    warnings: Per-source failure strings in the form
+        ``{source_name}: {exc_type}: {message}``. Empty when every
+        source succeeded.
+    injected_memory_items: The exact memory records rendered into
+        ``system`` for this request, in prompt order — after memory
+        policy, the privacy gate, and token budgeting. This is the
+        truthful &quot;which memories informed this answer&quot; evidence;
+        ``memory_items`` above remains the raw pre-filter audit list.</p><p class='small'><b>Attributes:</b> system: str, memory_items: list[Item], evidence_items: list[Item], live_blocks: list[str], warnings: list[str], injected_memory_items: list[MemoryEvidence], injected_evidence_items: list[EvidenceReceipt], evidence_policy: EvidencePolicy, context_budget: dict[str, object], selected_skill_block: str | None, selected_expert_evidence_block: str | None, context_health: dict[str, object]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.context_assembler import ContextBundle
+
+obj = ContextBundle(...)</pre></div>
+<div class='card' id='cls-_AssemblerDeps'><h3><code class='inline'>_AssemblerDeps</code></h3><p>Internal: the seams a test can swap to drive the orchestrator.</p><p class='small'><b>Attributes:</b> adapters: list[StoreAdapter] | None, enrichments: tuple[EnrichmentFn, ...], skill_hint_fn: SkillHintFn | None, graph_cls: type[MemoryGraph]</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.context_assembler import _AssemblerDeps
+
+obj = _AssemblerDeps(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>TOTAL_CONTEXT_TOKEN_CAPS</code></td><td><code class='inline'>dict[str, int]</code></td></tr><tr><td><code class='inline'>_CONTEXT_BLOCK_SHARES</code></td><td><code class='inline'>dict[str, float]</code></td></tr><tr><td><code class='inline'>_CONTEXT_TRUNCATION_MARKER</code></td><td><code class='inline'>&#x27;\n[truncated by Kitty context budget]&#x27;</code></td></tr><tr><td><code class='inline'>_HIGH_STAKES_TRIGGERS</code></td><td><code class='inline'>[&#x27;should i&#x27;, &#x27;should we&#x27;, &#x27;deciding&#x27;, &#x27;decision&#x27;, &#x27;choose&#x27;, &#x27;choice&#x27;, &#x27;worth it&#x27;, &#x27;is it worth&#x27;, &#x27;commit&#x27;, &#x27;quit&#x27;, &#x27;leav</code></td></tr><tr><td><code class='inline'>_CHALLENGE_TRIGGERS</code></td><td><code class='inline'>[&#x27;i think&#x27;, &#x27;i believe&#x27;, &#x27;i know&#x27;, &#x27;obviously&#x27;, &#x27;clearly&#x27;, &#x27;definitely&#x27;, &#x27;always&#x27;, &#x27;never&#x27;, &#x27;everyone&#x27;, &#x27;no one&#x27;, &#x27;the o</code></td></tr><tr><td><code class='inline'>_SOCRATIC_TRIGGERS</code></td><td><code class='inline'>[&#x27;what do you think&#x27;, &#x27;am i right&#x27;, &#x27;is this a good idea&#x27;, &#x27;does this make sense&#x27;, &#x27;validate&#x27;, &#x27;confirm&#x27;, &#x27;agree&#x27;, &quot;tell</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/kitty-chat/tests/support/hermetic_gateway.py</code></li><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

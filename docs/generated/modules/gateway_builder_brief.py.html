@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.builder_brief — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.builder_brief</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.builder_brief</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/builder_brief.py</code> &middot; Python &middot; 4 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>KittyBuilder Phase 1B — worker brief renderer.
+
+Turns a queue task into a complete, self-contained worker prompt: scope,
+acceptance criteria, branch, validation, fencing rules, and stop conditions.
+Pure presentation — no DB access, no side effects. The CLI feeds it the task
+dict, its events, and its PR links.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>json</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-resources_for_paths'><code class='inline'>resources_for_paths</code></a></td><td>Mechanical prefix match against RESOURCE_MAP. No inference — a path</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-default_branch_name'><code class='inline'>default_branch_name</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-render_worker_brief'><code class='inline'>render_worker_brief</code></a></td><td>Render a markdown worker brief for a queue task.</td><td><span class='pill'>complex</span><span class='muted small'>(26)</span></td></tr><tr><td><a href='#fn-_last_report'><code class='inline'>_last_report</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr></table></div>
+<div class='card' id='fn-resources_for_paths'><h3><code class='inline'>resources_for_paths</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def resources_for_paths(allowed_paths: list[str]) -&gt; dict[str, list[str]]</code></div><p>Mechanical prefix match against RESOURCE_MAP. No inference — a path
+matching no prefix contributes nothing, on purpose.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_brief import resources_for_paths
+
+result = resources_for_paths(allowed_paths=&quot;allowed_paths_example&quot;)
+# result: dict[str, list[str]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-default_branch_name'><h3><code class='inline'>default_branch_name</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def default_branch_name(task: dict[str, Any]) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_brief import default_branch_name
+
+result = default_branch_name(task=&quot;task_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-render_worker_brief'><h3><code class='inline'>render_worker_brief</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (26)</span></h3><div class='sig'><code>def render_worker_brief(task: dict[str, Any], events: list[dict[str, Any]], pr_links: list[dict[str, Any]], branch: str | None = None) -&gt; str</code></div><p>Render a markdown worker brief for a queue task.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_brief import render_worker_brief
+
+result = render_worker_brief(task=&quot;task_example&quot;, events=&quot;events_example&quot;, pr_links=&quot;pr_links_example&quot;, branch=&quot;branch_example&quot;  # default: None)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_last_report'><h3><code class='inline'>_last_report</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _last_report(task: dict[str, Any]) -&gt; dict[str, Any] | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.builder_brief import _last_report
+
+result = _last_report(task=&quot;task_example&quot;)
+# result: dict[str, Any] | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_EVENT_TAIL</code></td><td><code class='inline'>10</code></td></tr><tr><td><code class='inline'>RESOURCE_MAP</code></td><td><code class='inline'>list[tuple[str, list[str], list[str]]]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

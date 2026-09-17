@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.insights — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.insights</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.insights</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/insights.py</code> &middot; Python &middot; 2 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>User insight cards — deliberately empty substrate for the insights endpoint.
+
+Why this module exists (Phase 3 of the gateway deepening program):
+the route used to keep a hard-coded list of mock insight cards
+(&quot;pattern-morning-weather&quot;, &quot;suggestion-daily-loop&quot;,
+&quot;milestone-100-chats&quot;) and serve them as if they were real. That
+violates the &quot;Fail loud&quot; prime directive — the UI was being shown
+invented data. The new module has no mock data; ``list_insights()``
+returns ``[]`` and the route surfaces &quot;no insights&quot; to the UI.
+
+This is one of the two explicit ``try/except ImportError -&gt; in-memory
+mock`` shapes from the spec. The other (the 3 hardcoded loops) is
+fixed in ``gateway/loops.py``; that one becomes real data because the
+data shape is concrete, not invented.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>logging</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-list_insights'><code class='inline'>list_insights</code></a></td><td>Return user insight cards. Always empty — there is no real source.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-dismiss_insight'><code class='inline'>dismiss_insight</code></a></td><td>No-op dismissal. Returns ``False`` because there is no card to dismiss.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-list_insights'><h3><code class='inline'>list_insights</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_insights(limit: int = 10) -&gt; list[dict]</code></div><p>Return user insight cards. Always empty — there is no real source.
+
+The empty state is explicit and tested, not silently swallowed.
+When a real insight producer lands (e.g. from ``brief.py`` or
+pattern detection), the body of this function changes; the
+route layer does not.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insights import list_insights
+
+result = list_insights(limit=0  # default: 10)
+# result: list[dict]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-dismiss_insight'><h3><code class='inline'>dismiss_insight</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def dismiss_insight(insight_id: str) -&gt; bool</code></div><p>No-op dismissal. Returns ``False`` because there is no card to dismiss.
+
+The wire shape of the endpoint is preserved (the route still
+returns ``{&quot;dismissed&quot;: id}``); the underlying state is empty, so
+no card was actually removed.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.insights import dismiss_insight
+
+result = dismiss_insight(insight_id=&quot;insight_id_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

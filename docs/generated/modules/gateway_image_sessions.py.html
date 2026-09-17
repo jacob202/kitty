@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.image_sessions — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.image_sessions</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.image_sessions</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/image_sessions.py</code> &middot; Python &middot; 32 functions &middot; 9 classes</p>
+<div class='card'><h2>Overview</h2><p>Durable conversational image sessions (issue #336, slice A1).
+
+Image Studio could render an image but could not remember one. Each request
+started from form state, so &quot;keep his face, make his build broader&quot; had nothing
+to refer back to. This module stores the conversation: what the subject is,
+which result is selected, what must not change, and what was asked for.
+
+Boundaries:
+- This module owns session state only. ``image_jobs`` remains the record of what
+  was rendered, and ``image_runner`` remains the only dispatch path. Nothing
+  here submits work to a renderer.
+- The anchor is the selected result a follow-up operates on. Only a succeeded
+  job carrying a verified artifact may become one — an anchor that cannot be
+  fed to a renderer is worse than no anchor, because it fails at render time
+  instead of selection time.
+- Every mutation validates and raises. There are no silent no-ops: a session
+  that quietly forgets its anchor produces a fresh reroll wearing the language
+  of an edit, which is the exact failure issue #336 calls out.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>dataclasses</code>, <code class='inline'>datetime</code>, <code class='inline'>enum</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.image_jobs</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>sqlite3</code>, <code class='inline'>typing</code>, <code class='inline'>uuid</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_now_iso'><code class='inline'>_now_iso</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_new_session_id'><code class='inline'>_new_session_id</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_new_turn_id'><code class='inline'>_new_turn_id</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_decode_list'><code class='inline'>_decode_list</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_encode_list'><code class='inline'>_encode_list</code></a></td><td>Serialise a string list, rejecting blanks and duplicates.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_check_json_bounded'><code class='inline'>_check_json_bounded</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_check_text_bounded'><code class='inline'>_check_text_bounded</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_ensure_session_column'><code class='inline'>_ensure_session_column</code></a></td><td>Add image_jobs.session_id if absent.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_ensure_spend_columns'><code class='inline'>_ensure_spend_columns</code></a></td><td>Add the unsettled paid-exposure column to image sessions.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_ensure_project_column'><code class='inline'>_ensure_project_column</code></a></td><td>Add optional Project scope to image sessions.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_ensure_db'><code class='inline'>_ensure_db</code></a></td><td>Apply this module&#x27;s migration, plus the schemas it references.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_row_to_session'><code class='inline'>_row_to_session</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-_row_to_turn'><code class='inline'>_row_to_turn</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-create_session'><code class='inline'>create_session</code></a></td><td>Open a new conversational image session.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-get_session'><code class='inline'>get_session</code></a></td><td>Retrieve a session, or None if it does not exist.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-require_session'><code class='inline'>require_session</code></a></td><td>Retrieve a session, raising if it is missing.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_require_active'><code class='inline'>_require_active</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-list_sessions'><code class='inline'>list_sessions</code></a></td><td>Most-recently-updated sessions first.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-append_turn'><code class='inline'>append_turn</code></a></td><td>Append a conversation turn. Sequence numbers are assigned here, not by callers.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-list_turns'><code class='inline'>list_turns</code></a></td><td>Turns in conversation order. This is what resume replays.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-attach_job'><code class='inline'>attach_job</code></a></td><td>Record that a job belongs to this session.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-list_session_jobs'><code class='inline'>list_session_jobs</code></a></td><td>Jobs produced by this session, oldest first.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-job_session_id'><code class='inline'>job_session_id</code></a></td><td>Return the session a job is attached to, or None.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-set_anchor'><code class='inline'>set_anchor</code></a></td><td>Select a rendered result as the anchor for follow-up edits.</td><td><span class='pill'>moderate</span><span class='muted small'>(7)</span></td></tr><tr><td><a href='#fn-clear_anchor'><code class='inline'>clear_anchor</code></a></td><td>Drop the current anchor, returning the session to fresh generation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-update_session'><code class='inline'>update_session</code></a></td><td>Update session context. Only supplied fields change.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-reserve_attempt'><code class='inline'>reserve_attempt</code></a></td><td>Atomically reserve one render attempt before a paid provider is called.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-reconcile_reserved_attempt_cost'><code class='inline'>reconcile_reserved_attempt_cost</code></a></td><td>Replace one conservative paid reservation with provider-reported cost.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-release_reserved_attempt_cost'><code class='inline'>release_reserved_attempt_cost</code></a></td><td>Release one reservation only when dispatch is known not to have happened.</td><td><span class='pill'>simple</span><span class='muted small'>(5)</span></td></tr><tr><td><a href='#fn-finalize_recovered_paid_job'><code class='inline'>finalize_recovered_paid_job</code></a></td><td>Atomically settle one recovered paid attempt and mark its artifact successful.</td><td><span class='pill'>complex</span><span class='muted small'>(11)</span></td></tr><tr><td><a href='#fn-record_attempt'><code class='inline'>record_attempt</code></a></td><td>Count one completed render attempt and add its cost to the session total.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-end_session'><code class='inline'>end_session</code></a></td><td>Close a session. Ending an already-ended session is an error, not a no-op.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr></table></div>
+<div class='card' id='fn-_now_iso'><h3><code class='inline'>_now_iso</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _now_iso() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _now_iso
+
+result = _now_iso()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_new_session_id'><h3><code class='inline'>_new_session_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _new_session_id() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _new_session_id
+
+result = _new_session_id()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_new_turn_id'><h3><code class='inline'>_new_turn_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _new_turn_id() -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _new_turn_id
+
+result = _new_turn_id()
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_decode_list'><h3><code class='inline'>_decode_list</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _decode_list(raw: str | None) -&gt; list[str]</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _decode_list
+
+result = _decode_list(raw=&quot;raw_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_encode_list'><h3><code class='inline'>_encode_list</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _encode_list(values: list[str] | None, field_name: str) -&gt; str | None</code></div><p>Serialise a string list, rejecting blanks and duplicates.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _encode_list
+
+result = _encode_list(values=&quot;values_example&quot;, field_name=&quot;field_name_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_json_bounded'><h3><code class='inline'>_check_json_bounded</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _check_json_bounded(value: str | None, field_name: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _check_json_bounded
+
+result = _check_json_bounded(value=&quot;value_example&quot;, field_name=&quot;field_name_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_check_text_bounded'><h3><code class='inline'>_check_text_bounded</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _check_text_bounded(value: str | None, field_name: str) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _check_text_bounded
+
+result = _check_text_bounded(value=&quot;value_example&quot;, field_name=&quot;field_name_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_session_column'><h3><code class='inline'>_ensure_session_column</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _ensure_session_column(conn: Any) -&gt; None</code></div><p>Add image_jobs.session_id if absent.
+
+Deferred rather than written into the .sql file because ALTER TABLE has no
+IF NOT EXISTS form in SQLite, and the migration must stay re-runnable — the
+same pattern image_jobs._ensure_queue_columns uses.
+
+Deliberately unguarded: callers reach this only after image_jobs._ensure_db
+has created the table, so a failing PRAGMA means the schema is broken.
+Swallowing it would skip the column and surface later as an inscrutable
+&quot;no such column: session_id&quot; on the first insert.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _ensure_session_column
+
+result = _ensure_session_column(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_spend_columns'><h3><code class='inline'>_ensure_spend_columns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _ensure_spend_columns(conn: Any) -&gt; None</code></div><p>Add the unsettled paid-exposure column to image sessions.
+
+``spend_usd`` is settled spend only. ``reserved_spend_usd`` is conservative
+pre-dispatch exposure that still counts against the budget until it is
+released or reconciled. SQLite cannot add this column idempotently in SQL,
+so the versioned migration is a marker and this helper owns the ALTER.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _ensure_spend_columns
+
+result = _ensure_spend_columns(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_project_column'><h3><code class='inline'>_ensure_project_column</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _ensure_project_column(conn: Any) -&gt; None</code></div><p>Add optional Project scope to image sessions.
+
+The projects table is an explicit dependency once a creative session can be
+project-scoped. The FK makes nonexistent project IDs fail closed instead of
+becoming dangling provenance.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _ensure_project_column
+
+result = _ensure_project_column(conn=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_ensure_db'><h3><code class='inline'>_ensure_db</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _ensure_db(conn: Any = None) -&gt; None</code></div><p>Apply this module&#x27;s migration, plus the schemas it references.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _ensure_db
+
+result = _ensure_db(conn=...  # default: None)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_session'><h3><code class='inline'>_row_to_session</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _row_to_session(row: Any) -&gt; ImageSession</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _row_to_session
+
+result = _row_to_session(row=...)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_row_to_turn'><h3><code class='inline'>_row_to_turn</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _row_to_turn(row: Any) -&gt; SessionTurn</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _row_to_turn
+
+result = _row_to_turn(row=...)
+# result: SessionTurn</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-create_session'><h3><code class='inline'>create_session</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>def create_session(title: str | None = None, project_id: int | None = None, character_id: str | None = None, reference_ids: list[str] | None = None, protected_traits: list[str] | None = None) -&gt; ImageSession</code></div><p>Open a new conversational image session.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import create_session
+
+result = create_session(title=&quot;title_example&quot;  # default: None, project_id=0  # default: None, character_id=&quot;character_id_example&quot;  # default: None, reference_ids=&quot;reference_ids_example&quot;  # default: None, protected_traits=&quot;protected_traits_example&quot;  # default: None)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_session'><h3><code class='inline'>get_session</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def get_session(session_id: str) -&gt; ImageSession | None</code></div><p>Retrieve a session, or None if it does not exist.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import get_session
+
+result = get_session(session_id=&quot;session_id_example&quot;)
+# result: ImageSession | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-require_session'><h3><code class='inline'>require_session</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def require_session(session_id: str) -&gt; ImageSession</code></div><p>Retrieve a session, raising if it is missing.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import require_session
+
+result = require_session(session_id=&quot;session_id_example&quot;)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_require_active'><h3><code class='inline'>_require_active</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _require_active(session_id: str) -&gt; ImageSession</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import _require_active
+
+result = _require_active(session_id=&quot;session_id_example&quot;)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_sessions'><h3><code class='inline'>list_sessions</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def list_sessions(limit: int = 50, status: ImageSessionStatus | None = None) -&gt; list[ImageSession]</code></div><p>Most-recently-updated sessions first.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import list_sessions
+
+result = list_sessions(limit=0  # default: 50, status=...  # default: None)
+# result: list[ImageSession]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-append_turn'><h3><code class='inline'>append_turn</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def append_turn(session_id: str, role: TurnRole | str, content: str | None = None, job_id: str | None = None) -&gt; SessionTurn</code></div><p>Append a conversation turn. Sequence numbers are assigned here, not by callers.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import append_turn
+
+result = append_turn(session_id=&quot;session_id_example&quot;, role=&quot;role_example&quot;, content=&quot;content_example&quot;  # default: None, job_id=&quot;job_id_example&quot;  # default: None)
+# result: SessionTurn</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_turns'><h3><code class='inline'>list_turns</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_turns(session_id: str, limit: int = 200) -&gt; list[SessionTurn]</code></div><p>Turns in conversation order. This is what resume replays.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import list_turns
+
+result = list_turns(session_id=&quot;session_id_example&quot;, limit=0  # default: 200)
+# result: list[SessionTurn]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-attach_job'><h3><code class='inline'>attach_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def attach_job(session_id: str, job_id: str) -&gt; None</code></div><p>Record that a job belongs to this session.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import attach_job
+
+result = attach_job(session_id=&quot;session_id_example&quot;, job_id=&quot;job_id_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_session_jobs'><h3><code class='inline'>list_session_jobs</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_session_jobs(session_id: str, limit: int = 200) -&gt; list[Any]</code></div><p>Jobs produced by this session, oldest first.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import list_session_jobs
+
+result = list_session_jobs(session_id=&quot;session_id_example&quot;, limit=0  # default: 200)
+# result: list[Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-job_session_id'><h3><code class='inline'>job_session_id</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def job_session_id(job_id: str) -&gt; str | None</code></div><p>Return the session a job is attached to, or None.
+
+Exposes the ``image_jobs.session_id`` link (added by
+``_ensure_session_column``) so callers can resolve the character identity a
+rendered job was produced under without inventing a second ownership model.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import job_session_id
+
+result = job_session_id(job_id=&quot;job_id_example&quot;)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-set_anchor'><h3><code class='inline'>set_anchor</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (7)</span></h3><div class='sig'><code>def set_anchor(session_id: str, job_id: str) -&gt; ImageSession</code></div><p>Select a rendered result as the anchor for follow-up edits.
+
+Rejects any job that could not actually be fed to a renderer. Catching that
+here means &quot;use this one&quot; fails at selection time with a clear reason,
+rather than at render time as a mysterious reroll.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import set_anchor
+
+result = set_anchor(session_id=&quot;session_id_example&quot;, job_id=&quot;job_id_example&quot;)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-clear_anchor'><h3><code class='inline'>clear_anchor</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def clear_anchor(session_id: str) -&gt; ImageSession</code></div><p>Drop the current anchor, returning the session to fresh generation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import clear_anchor
+
+result = clear_anchor(session_id=&quot;session_id_example&quot;)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-update_session'><h3><code class='inline'>update_session</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def update_session(session_id: str, title: str | None = None, character_id: str | None = None, reference_ids: list[str] | None = None, protected_traits: list[str] | None = None, requested_changes: list[str] | None = None, last_plan: dict[str, Any] | None = None, clear_character: bool | None = None) -&gt; ImageSession</code></div><p>Update session context. Only supplied fields change.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import update_session
+
+result = update_session(session_id=&quot;session_id_example&quot;, title=&quot;title_example&quot;  # default: None, character_id=&quot;character_id_example&quot;  # default: None, reference_ids=&quot;reference_ids_example&quot;  # default: None, protected_traits=&quot;protected_traits_example&quot;  # default: None, requested_changes=&quot;requested_changes_example&quot;  # default: None, last_plan=&quot;last_plan_example&quot;  # default: None, clear_character=True  # default: None)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reserve_attempt'><h3><code class='inline'>reserve_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def reserve_attempt(session_id: str, cost_usd: float, max_attempts: int, max_spend_usd: float) -&gt; ImageSession</code></div><p>Atomically reserve one render attempt before a paid provider is called.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import reserve_attempt
+
+result = reserve_attempt(session_id=&quot;session_id_example&quot;, cost_usd=0.0, max_attempts=0, max_spend_usd=0.0)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-reconcile_reserved_attempt_cost'><h3><code class='inline'>reconcile_reserved_attempt_cost</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def reconcile_reserved_attempt_cost(session_id: str, reserved_cost_usd: float, actual_cost_usd: float) -&gt; ImageSession</code></div><p>Replace one conservative paid reservation with provider-reported cost.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import reconcile_reserved_attempt_cost
+
+result = reconcile_reserved_attempt_cost(session_id=&quot;session_id_example&quot;, reserved_cost_usd=0.0, actual_cost_usd=0.0)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-release_reserved_attempt_cost'><h3><code class='inline'>release_reserved_attempt_cost</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (5)</span></h3><div class='sig'><code>def release_reserved_attempt_cost(session_id: str, reserved_cost_usd: float) -&gt; ImageSession</code></div><p>Release one reservation only when dispatch is known not to have happened.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import release_reserved_attempt_cost
+
+result = release_reserved_attempt_cost(session_id=&quot;session_id_example&quot;, reserved_cost_usd=0.0)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-finalize_recovered_paid_job'><h3><code class='inline'>finalize_recovered_paid_job</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (11)</span></h3><div class='sig'><code>def finalize_recovered_paid_job(session_id: str, job_id: str, reserved_cost_usd: float, actual_cost_usd: float) -&gt; ImageSession</code></div><p>Atomically settle one recovered paid attempt and mark its artifact successful.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import finalize_recovered_paid_job
+
+result = finalize_recovered_paid_job(session_id=&quot;session_id_example&quot;, job_id=&quot;job_id_example&quot;, reserved_cost_usd=0.0, actual_cost_usd=0.0)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-record_attempt'><h3><code class='inline'>record_attempt</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def record_attempt(session_id: str, cost_usd: float = 0.0) -&gt; ImageSession</code></div><p>Count one completed render attempt and add its cost to the session total.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import record_attempt
+
+result = record_attempt(session_id=&quot;session_id_example&quot;, cost_usd=0.0  # default: 0.0)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-end_session'><h3><code class='inline'>end_session</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def end_session(session_id: str) -&gt; ImageSession</code></div><p>Close a session. Ending an already-ended session is an error, not a no-op.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.image_sessions import end_session
+
+result = end_session(session_id=&quot;session_id_example&quot;)
+# result: ImageSession</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ImageSessionStatus'><code class='inline'>ImageSessionStatus</code></a></td><td>(str, Enum)</td><td>1 methods</td></tr><tr><td><a href='#cls-TurnRole'><code class='inline'>TurnRole</code></a></td><td>(str, Enum)</td><td>0 methods</td></tr><tr><td><a href='#cls-ImageSessionError'><code class='inline'>ImageSessionError</code></a></td><td>(RuntimeError)</td><td>0 methods</td></tr><tr><td><a href='#cls-SessionNotFoundError'><code class='inline'>SessionNotFoundError</code></a></td><td>(ImageSessionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-SessionEndedError'><code class='inline'>SessionEndedError</code></a></td><td>(ImageSessionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-AnchorError'><code class='inline'>AnchorError</code></a></td><td>(ImageSessionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-SessionBudgetExceededError'><code class='inline'>SessionBudgetExceededError</code></a></td><td>(ImageSessionError)</td><td>0 methods</td></tr><tr><td><a href='#cls-ImageSession'><code class='inline'>ImageSession</code></a></td><td></td><td>5 methods</td></tr><tr><td><a href='#cls-SessionTurn'><code class='inline'>SessionTurn</code></a></td><td></td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-ImageSessionStatus'><h3><code class='inline'>ImageSessionStatus</code></h3><p>Lifecycle of a conversational image session.</p><p class='small'><b>Attributes:</b> ACTIVE, ENDED</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>is_terminal</code></td><td><code class='inline'>def is_terminal(self) -&gt; bool</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_sessions import ImageSessionStatus
+
+obj = ImageSessionStatus(...)</pre></div>
+<div class='card' id='cls-TurnRole'><h3><code class='inline'>TurnRole</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> USER, ASSISTANT</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_sessions import TurnRole
+
+obj = TurnRole(...)</pre></div>
+<div class='card' id='cls-ImageSessionError'><h3><code class='inline'>ImageSessionError</code></h3><p>Raised when a session operation cannot complete safely.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_sessions import ImageSessionError
+
+obj = ImageSessionError(...)</pre></div>
+<div class='card' id='cls-SessionNotFoundError'><h3><code class='inline'>SessionNotFoundError</code></h3><p>Raised when a session id does not exist.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_sessions import SessionNotFoundError
+
+obj = SessionNotFoundError(...)</pre></div>
+<div class='card' id='cls-SessionEndedError'><h3><code class='inline'>SessionEndedError</code></h3><p>Raised when a mutation targets an already-ended session.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_sessions import SessionEndedError
+
+obj = SessionEndedError(...)</pre></div>
+<div class='card' id='cls-AnchorError'><h3><code class='inline'>AnchorError</code></h3><p>Raised when a job cannot serve as an anchor.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_sessions import AnchorError
+
+obj = AnchorError(...)</pre></div>
+<div class='card' id='cls-SessionBudgetExceededError'><h3><code class='inline'>SessionBudgetExceededError</code></h3><p>Raised before dispatch when a render would exceed a session ceiling.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.image_sessions import SessionBudgetExceededError
+
+obj = SessionBudgetExceededError(...)</pre></div>
+<div class='card' id='cls-ImageSession'><h3><code class='inline'>ImageSession</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> session_id: str, status: ImageSessionStatus, title: str | None, project_id: int | None, character_id: str | None, reference_ids_json: str | None, anchor_job_id: str | None, anchor_artifact_id: str | None, protected_traits_json: str | None, requested_changes_json: str | None, last_plan_json: str | None, spend_usd: float, reserved_spend_usd: float, attempt_count: int, created_at: str, updated_at: str, ended_at: str | None</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>reference_ids</code></td><td><code class='inline'>def reference_ids(self) -&gt; list[str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>protected_traits</code></td><td><code class='inline'>def protected_traits(self) -&gt; list[str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>requested_changes</code></td><td><code class='inline'>def requested_changes(self) -&gt; list[str]</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>last_plan</code></td><td><code class='inline'>def last_plan(self) -&gt; dict[str, Any] | None</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_sessions import ImageSession
+
+obj = ImageSession(...)</pre></div>
+<div class='card' id='cls-SessionTurn'><h3><code class='inline'>SessionTurn</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> turn_id: str, session_id: str, seq: int, role: TurnRole, content: str | None, job_id: str | None, created_at: str</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>to_dict</code></td><td><code class='inline'>def to_dict(self) -&gt; dict[str, Any]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.image_sessions import SessionTurn
+
+obj = SessionTurn(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>_MIGRATION_FILE</code></td><td><code class='inline'>DB_MIGRATIONS_DIR / &#x27;029_image_sessions.sql&#x27;</code></td></tr><tr><td><code class='inline'>_PROJECTS_MIGRATION_FILE</code></td><td><code class='inline'>DB_MIGRATIONS_DIR / &#x27;010_projects.sql&#x27;</code></td></tr><tr><td><code class='inline'>_MAX_JSON_BYTES</code></td><td><code class='inline'>65536</code></td></tr><tr><td><code class='inline'>_MAX_TEXT_BYTES</code></td><td><code class='inline'>10240</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

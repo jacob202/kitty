@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.insights — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.insights</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.insights</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/insights.py</code> &middot; Python &middot; 8 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>Insights endpoints — dream insights + insight lifecycle (issue #270).
+
+The dream-touching endpoints (``/dream/insights``, ``/dream/trigger``,
+``/dream/status``) live solely in ``routes/dream.py`` (registered first,
+canonical). They were previously duplicated here; the duplicates were
+removed so the route surface is single-source and registration order can
+no longer pick the handler. This module owns only the insights-specific
+and insight-lifecycle paths below.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-get_insights'><code class='inline'>get_insights</code></a></td><td>Get recent insights from the real dream insight store.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-dismiss_insight'><code class='inline'>dismiss_insight</code></a></td><td>Dismiss an insight.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-post_capture'><code class='inline'>post_capture</code></a></td><td>Capture a new insight. Returns the item id.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_due'><code class='inline'>get_due</code></a></td><td>Return approved pending insights that are due for return.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-list_insights'><code class='inline'>list_insights</code></a></td><td>List insights, optional status filter.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_insight'><code class='inline'>get_insight</code></a></td><td>Get one insight by id.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-respond_to_insight'><code class='inline'>respond_to_insight</code></a></td><td>Respond to a returned insight: act, snooze, or archive.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-get_metrics'><code class='inline'>get_metrics</code></a></td><td>Return insight loop metrics.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-get_insights'><h3><code class='inline'>get_insights</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def get_insights(limit: int = 10) -&gt; dict</code></div><p>Get recent insights from the real dream insight store.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.insights import get_insights
+
+    result = await get_insights()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-dismiss_insight'><h3><code class='inline'>dismiss_insight</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def dismiss_insight(insight_id: str) -&gt; dict</code></div><p>Dismiss an insight.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.insights import dismiss_insight
+
+    result = await dismiss_insight()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_capture'><h3><code class='inline'>post_capture</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def post_capture(text: str, source_ref: str | None = None, category: str | None = None, return_at: str | None = None, return_policy: str = &#x27;next_brief&#x27;, explicit_consent: bool = False) -&gt; dict</code></div><p>Capture a new insight. Returns the item id.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.insights import post_capture
+
+    result = await post_capture()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_due'><h3><code class='inline'>get_due</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def get_due() -&gt; dict</code></div><p>Return approved pending insights that are due for return.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.insights import get_due
+
+    result = await get_due()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_insights'><h3><code class='inline'>list_insights</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def list_insights(status: str | None = None, limit: int = 50) -&gt; dict</code></div><p>List insights, optional status filter.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.insights import list_insights
+
+    result = await list_insights()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_insight'><h3><code class='inline'>get_insight</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>async def get_insight(item_id: int) -&gt; dict</code></div><p>Get one insight by id.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.insights import get_insight
+
+    result = await get_insight()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-respond_to_insight'><h3><code class='inline'>respond_to_insight</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def respond_to_insight(item_id: int, choice: str, snooze_until: str | None = None, archive_reason: str | None = None) -&gt; dict</code></div><p>Respond to a returned insight: act, snooze, or archive.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.insights import respond_to_insight
+
+    result = await respond_to_insight()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_metrics'><h3><code class='inline'>get_metrics</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>async def get_metrics() -&gt; dict</code></div><p>Return insight loop metrics.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.insights import get_metrics
+
+    result = await get_metrics()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

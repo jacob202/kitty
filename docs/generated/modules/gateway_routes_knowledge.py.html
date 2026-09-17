@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.routes.knowledge — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.routes.knowledge</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.routes.knowledge</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/routes/knowledge.py</code> &middot; Python &middot; 16 functions &middot; 3 classes</p>
+<div class='card'><h2>Overview</h2><p>Knowledge library endpoints — ingest, inventory, and search.
+
+Productizes the existing ``gateway.knowledge`` and ``gateway.pdf_pipeline``
+seams. No silent success: every ingest response carries an explicit
+``status`` (success | skipped | failed | pending) and a ``reason`` string.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>contracts.knowledge_pipeline</code>, <code class='inline'>fastapi</code>, <code class='inline'>gateway</code>, <code class='inline'>gateway.document_validator</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>httpx</code>, <code class='inline'>ipaddress</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>pydantic</code>, <code class='inline'>re</code>, <code class='inline'>socket</code>, <code class='inline'>time</code>, <code class='inline'>typing</code>, <code class='inline'>urllib.parse</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_is_private_ip'><code class='inline'>_is_private_ip</code></a></td><td>Check if an IP address is private/internal (RFC 1918, loopback, link-local, etc.).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_resolve_and_validate_host'><code class='inline'>_resolve_and_validate_host</code></a></td><td>Resolve hostname to IPs and validate none are private/internal.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_validate_url_security'><code class='inline'>_validate_url_security</code></a></td><td>Validate URL against SSRF: block private IPs, localhost, and non-HTTP(S) schemes.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-post_ingest'><code class='inline'>post_ingest</code></a></td><td>Ingest a local file or a URL into the knowledge base.</td><td><span class='pill'>moderate</span><span class='muted small'>(10)</span></td></tr><tr><td><a href='#fn-get_sources'><code class='inline'>get_sources</code></a></td><td>List every ingested source with chunk counts and metadata.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-list_experts'><code class='inline'>list_experts</code></a></td><td>Return retrieval profiles from the currently active expert corpus.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-get_search'><code class='inline'>get_search</code></a></td><td>Search the knowledge base. Returns references per chunk.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr><tr><td><a href='#fn-post_expert'><code class='inline'>post_expert</code></a></td><td>Answer from uploaded sources through the loopback-only MLX model.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_resolve_target'><code class='inline'>_resolve_target</code></a></td><td>Return (path_to_ingest, was_downloaded, failure_reason).</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-_download_url'><code class='inline'>_download_url</code></a></td><td>Stream a URL into KNOWLEDGE_DIR/inbox and return the temp path.</td><td><span class='pill'>moderate</span><span class='muted small'>(8)</span></td></tr><tr><td><a href='#fn-_stream_response_to_disk'><code class='inline'>_stream_response_to_disk</code></a></td><td>Stream an already-validated response body into URL_DOWNLOAD_DIR.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_safe_filename'><code class='inline'>_safe_filename</code></a></td><td>Pick a filesystem-safe filename for a downloaded URL.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-_guess_ext'><code class='inline'>_guess_ext</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_status_reason'><code class='inline'>_status_reason</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-_aggregate_sources'><code class='inline'>_aggregate_sources</code></a></td><td>Group chunk metadatas by source name and summarize per source.</td><td><span class='pill'>complex</span><span class='muted small'>(25)</span></td></tr><tr><td><a href='#fn-_format_chunk'><code class='inline'>_format_chunk</code></a></td><td>Project a knowledge.search() chunk into the public response shape.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-_is_private_ip'><h3><code class='inline'>_is_private_ip</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _is_private_ip(ip: str) -&gt; bool</code></div><p>Check if an IP address is private/internal (RFC 1918, loopback, link-local, etc.).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.knowledge import _is_private_ip
+
+result = _is_private_ip(ip=&quot;ip_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_and_validate_host'><h3><code class='inline'>_resolve_and_validate_host</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>def _resolve_and_validate_host(host: str) -&gt; list[str]</code></div><p>Resolve hostname to IPs and validate none are private/internal.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.knowledge import _resolve_and_validate_host
+
+result = _resolve_and_validate_host(host=&quot;host_example&quot;)
+# result: list[str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_validate_url_security'><h3><code class='inline'>_validate_url_security</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def _validate_url_security(url: str) -&gt; None</code></div><p>Validate URL against SSRF: block private IPs, localhost, and non-HTTP(S) schemes.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.knowledge import _validate_url_security
+
+result = _validate_url_security(url=&quot;url_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_ingest'><h3><code class='inline'>post_ingest</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (10)</span></h3><div class='sig'><code>async def post_ingest(body: IngestRequest) -&gt; IngestResponse</code></div><p>Ingest a local file or a URL into the knowledge base.
+
+Returns an explicit status (success | skipped | failed | pending) and a
+reason. Status is never implied from HTTP code alone.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.knowledge import post_ingest
+
+    result = await post_ingest()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_sources'><h3><code class='inline'>get_sources</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def get_sources() -&gt; dict</code></div><p>List every ingested source with chunk counts and metadata.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.knowledge import get_sources
+
+    result = await get_sources()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-list_experts'><h3><code class='inline'>list_experts</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def list_experts()</code></div><p>Return retrieval profiles from the currently active expert corpus.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.knowledge import list_experts
+
+result = list_experts()</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-get_search'><h3><code class='inline'>get_search</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>async def get_search(q: str = &#x27;&#x27;, limit: int = 5) -&gt; dict</code></div><p>Search the knowledge base. Returns references per chunk.
+
+An empty result set returns an explicit message — the client should
+never have to interpret &quot;results: []&quot; as success or failure.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.knowledge import get_search
+
+    result = await get_search()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-post_expert'><h3><code class='inline'>post_expert</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def post_expert(body: ExpertRequest) -&gt; dict</code></div><p>Answer from uploaded sources through the loopback-only MLX model.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.knowledge import post_expert
+
+    result = await post_expert()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_resolve_target'><h3><code class='inline'>_resolve_target</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>async def _resolve_target(body: IngestRequest) -&gt; tuple[Optional[Path], bool, Optional[str]]</code></div><p>Return (path_to_ingest, was_downloaded, failure_reason).
+
+Async because ``_download_url`` is an async streaming caller; previously
+a sync ``requests.get`` blocks the FastAPI event loop from inside
+``async def post_ingest`` (the classic async-route, sync-call gotcha).
+See docs/AUDIT_FULL_ENGINEERING_2026-07-20.md §2.1.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.knowledge import _resolve_target
+
+    result = await _resolve_target()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_download_url'><h3><code class='inline'>_download_url</code> <span class='pill'>async</span> <span class='pill'>complexity: moderate (8)</span></h3><div class='sig'><code>async def _download_url(url: str) -&gt; tuple[Optional[Path], bool, Optional[str]]</code></div><p>Stream a URL into KNOWLEDGE_DIR/inbox and return the temp path.
+
+Async: ``_resolve_target`` is ``async`` so the upstream
+``async def post_ingest`` route stays cooperative. Bounded by
+``URL_DOWNLOAD_TIMEOUT_SECONDS`` and ``URL_DOWNLOAD_MAX_BYTES`` (200 MB
+hard cap) — same as the prior ``requests``-based implementation.
+See docs/AUDIT_FULL_ENGINEERING_2026-07-20.md §2.1.
+
+Redirects are followed manually (``follow_redirects=False``) so every
+hop is re-validated against SSRF targets — an attacker-controlled public
+URL must not be able to bounce the gateway into localhost or the LAN.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.knowledge import _download_url
+
+    result = await _download_url()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_stream_response_to_disk'><h3><code class='inline'>_stream_response_to_disk</code> <span class='pill'>async</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>async def _stream_response_to_disk(url: str, resp: httpx.Response) -&gt; tuple[Optional[Path], bool, Optional[str]]</code></div><p>Stream an already-validated response body into URL_DOWNLOAD_DIR.</p><h3>Example Usage (synthetic)</h3><pre>import asyncio
+
+async def main():
+    from gateway.routes.knowledge import _stream_response_to_disk
+
+    result = await _stream_response_to_disk()
+
+asyncio.run(main())</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_safe_filename'><h3><code class='inline'>_safe_filename</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _safe_filename(url: str, resp: httpx.Response) -&gt; str</code></div><p>Pick a filesystem-safe filename for a downloaded URL.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.knowledge import _safe_filename
+
+result = _safe_filename(url=&quot;url_example&quot;, resp=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_guess_ext'><h3><code class='inline'>_guess_ext</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def _guess_ext(resp: httpx.Response) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.knowledge import _guess_ext
+
+result = _guess_ext(resp=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_status_reason'><h3><code class='inline'>_status_reason</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def _status_reason(status: str) -&gt; str</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.knowledge import _status_reason
+
+result = _status_reason(status=&quot;status_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_aggregate_sources'><h3><code class='inline'>_aggregate_sources</code> <span class='pill'>sync</span> <span class='pill'>complexity: complex (25)</span></h3><div class='sig'><code>def _aggregate_sources(metadatas: list[dict[str, Any]]) -&gt; list[dict[str, Any]]</code></div><p>Group chunk metadatas by source name and summarize per source.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.knowledge import _aggregate_sources
+
+result = _aggregate_sources(metadatas=&quot;metadatas_example&quot;)
+# result: list[dict[str, Any]]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_format_chunk'><h3><code class='inline'>_format_chunk</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _format_chunk(chunk: dict[str, Any]) -&gt; dict[str, Any]</code></div><p>Project a knowledge.search() chunk into the public response shape.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.routes.knowledge import _format_chunk
+
+result = _format_chunk(chunk=&quot;chunk_example&quot;)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-IngestRequest'><code class='inline'>IngestRequest</code></a></td><td>(BaseModel)</td><td>2 methods</td></tr><tr><td><a href='#cls-IngestResponse'><code class='inline'>IngestResponse</code></a></td><td>(BaseModel)</td><td>0 methods</td></tr><tr><td><a href='#cls-ExpertRequest'><code class='inline'>ExpertRequest</code></a></td><td>(BaseModel)</td><td>1 methods</td></tr></table></div>
+<div class='card' id='cls-IngestRequest'><h3><code class='inline'>IngestRequest</code></h3><p>Body for POST /knowledge/ingest. Exactly one of path/url must be set.</p><p class='small'><b>Attributes:</b> path: Optional[str], url: Optional[str], source_label: Optional[str], sensitivity: str, doc_type: Optional[str], collection: str, tags: list[str], evidence: Optional[EvidenceMetadata], force_refresh: bool</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>_exactly_one_source</code></td><td><code class='inline'>def _exactly_one_source(self) -&gt; &#x27;IngestRequest&#x27;</code></td><td><span class='pill'>simple</span></td></tr><tr><td><code class='inline'>_normalize_tags</code></td><td><code class='inline'>def _normalize_tags(cls, tags: list[str]) -&gt; list[str]</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.routes.knowledge import IngestRequest
+
+obj = IngestRequest(...)</pre></div>
+<div class='card' id='cls-IngestResponse'><h3><code class='inline'>IngestResponse</code></h3><p>Undocumented class.</p><p class='small'><b>Attributes:</b> status: str, source_id: str, reason: str</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.routes.knowledge import IngestResponse
+
+obj = IngestResponse(...)</pre></div>
+<div class='card' id='cls-ExpertRequest'><h3><code class='inline'>ExpertRequest</code></h3><p>A strictly local expert retrieval request.</p><p class='small'><b>Attributes:</b> model_config, query: str, expert: str, limit: int</p><table><tr><th>Method</th><th>Signature</th><th>Complexity</th></tr><tr><td><code class='inline'>_non_empty_query</code></td><td><code class='inline'>def _non_empty_query(cls, query: str) -&gt; str</code></td><td><span class='pill'>simple</span></td></tr></table><h3>Code Example</h3><pre>from gateway.routes.knowledge import ExpertRequest
+
+obj = ExpertRequest(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>ALLOWED_STATUSES</code></td><td><code class='inline'>{&#x27;success&#x27;, &#x27;skipped&#x27;, &#x27;failed&#x27;, &#x27;pending&#x27;}</code></td></tr><tr><td><code class='inline'>URL_DOWNLOAD_TIMEOUT_SECONDS</code></td><td><code class='inline'>30</code></td></tr><tr><td><code class='inline'>URL_DOWNLOAD_MAX_BYTES</code></td><td><code class='inline'>200 * 1024 * 1024</code></td></tr><tr><td><code class='inline'>URL_DOWNLOAD_DIR</code></td><td><code class='inline'>KNOWLEDGE_DIR / &#x27;inbox&#x27;</code></td></tr><tr><td><code class='inline'>MAX_REDIRECTS</code></td><td><code class='inline'>5</code></td></tr><tr><td><code class='inline'>_SAFE_NAME_RE</code></td><td><code class='inline'>re.compile(&#x27;[^A-Za-z0-9._-]+&#x27;)</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway_routes_actions.py.html'><code class='inline'>gateway.routes.actions</code></a></li><li><a href='gateway_routes_activity.py.html'><code class='inline'>gateway.routes.activity</code></a></li><li><a href='gateway_routes_agent_workspace.py.html'><code class='inline'>gateway.routes.agent_workspace</code></a></li><li><a href='gateway_routes_agents.py.html'><code class='inline'>gateway.routes.agents</code></a></li><li><a href='gateway_routes_artifacts.py.html'><code class='inline'>gateway.routes.artifacts</code></a></li><li><a href='gateway_routes_ask.py.html'><code class='inline'>gateway.routes.ask</code></a></li><li><a href='gateway_routes_automations.py.html'><code class='inline'>gateway.routes.automations</code></a></li><li><a href='gateway_routes_brief.py.html'><code class='inline'>gateway.routes.brief</code></a></li><li><a href='gateway_routes_builder.py.html'><code class='inline'>gateway.routes.builder</code></a></li><li><a href='gateway_routes_calendar.py.html'><code class='inline'>gateway.routes.calendar</code></a></li><li><a href='gateway_routes_capabilities.py.html'><code class='inline'>gateway.routes.capabilities</code></a></li><li><a href='gateway_routes_capture.py.html'><code class='inline'>gateway.routes.capture</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

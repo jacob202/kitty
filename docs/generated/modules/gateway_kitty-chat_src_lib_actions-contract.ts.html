@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/lib/actions-contract — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/lib/actions-contract</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/lib/actions-contract</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/lib/actions-contract.ts</code> &middot; TypeScript &middot; 6 exports</p>
+<div class='card'><h2>Overview</h2><p>**
+OK-ACTION-01 — Shared Object + Action Contract
+The smallest reusable product contract that lets Kitty render the same owned
+object with the same meaningful actions across Home, Chat, Work, Projects,
+Library, Automations, and Image Lab without introducing a new source of truth.
+This contract is a projection layer only. Existing per-authority responses
+remain authoritative. No new store, workflow engine, or generic mutation
+endpoint is introduced.
+@file gateway/kitty-chat/src/lib/actions-contract.ts
+── Authority Inventory (OK-ACTION-01 §1) ─────────────────────────────────────
+Inspected actual source files. References relative to
+gateway/kitty-chat/src/lib/ unless noted.
+1. Gateway action/approval/execute routes (backend: gateway/routes/actions.py)
+   - GatewayAction (gateway.ts:1573): id, kind, title, risk_tier (T0|T1|T2),
+     status, result, execution_decision, decided_at, executed_at.
+   - Routes: POST /actions/{id}/approve, /reject, /execute — approval and
+     execution are separate for T2 (gateway.ts:1595-1618).
+2. Project identity &amp; destination
+   - GatewayProject (gateway.ts:1706): id(number), name, kind(code|life),
+     status(active|completed|failed|paused), summary.
+   - Native destination: Projects view with selected project id. The app uses
+     view state/callbacks, not a /projects/{id} browser route.
+3. Work/Builder identity &amp; status
+   - GatewayProjectWorkItem (gateway.ts:1746): id(string), title,
+     state(active|blocked|failed|ready|waiting|paused|completed), next_action.
+   - Native destination: Work view. Current UI does not deep-link to a Work row,
+     so the destination preserves workId as selection context without inventing a URL.
+   - NOTE: waiting is not running; the contract maps it to queued.
+4. Artifact identity &amp; destination
+   - GatewayArtifact (gateway.ts:1830): id(string), project_id, kind,
+     media_type, display_name, state(ready|failed|...), storage_uri,
+     content_hash, size_bytes, created_by.
+   - Destination: /artifacts/</p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-KittyObjectType'><code class='inline'>KittyObjectType</code></a></td><td>type</td><td>Categories an object can belong to. Matches existing Kitty domain surfaces.</td></tr><tr><td><a href='#ex-KittyTruthState'><code class='inline'>KittyTruthState</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-KittyDestination'><code class='inline'>KittyDestination</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-KittyObjectRef'><code class='inline'>KittyObjectRef</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-KittyAvailableAction'><code class='inline'>KittyAvailableAction</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-KittyObjectProjection'><code class='inline'>KittyObjectProjection</code></a></td><td>type</td><td>The result of projecting a single owned object into the shared contract.</td></tr></table></div>
+<div class='card' id='ex-KittyObjectType'><h3><code class='inline'>KittyObjectType</code> <span class='pill'>type</span></h3><div class='sig'><code>export type KittyObjectType</code></div><p>Categories an object can belong to. Matches existing Kitty domain surfaces.</p><h3>Code Example</h3><pre>import { KittyObjectType } from &#x27;@/gateway/kitty-chat/src/lib/actions-contract&#x27;;
+
+// TODO: wire real props; see component signature
+const result = KittyObjectType;</pre></div>
+<div class='card' id='ex-KittyTruthState'><h3><code class='inline'>KittyTruthState</code> <span class='pill'>type</span></h3><div class='sig'><code>export type KittyTruthState</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { KittyTruthState } from &#x27;@/gateway/kitty-chat/src/lib/actions-contract&#x27;;
+
+// TODO: wire real props; see component signature
+const result = KittyTruthState;</pre></div>
+<div class='card' id='ex-KittyDestination'><h3><code class='inline'>KittyDestination</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface KittyDestination</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { KittyDestination } from &#x27;@/gateway/kitty-chat/src/lib/actions-contract&#x27;;
+
+// TODO: wire real props; see component signature
+const result = KittyDestination;</pre></div>
+<div class='card' id='ex-KittyObjectRef'><h3><code class='inline'>KittyObjectRef</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface KittyObjectRef</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { KittyObjectRef } from &#x27;@/gateway/kitty-chat/src/lib/actions-contract&#x27;;
+
+// TODO: wire real props; see component signature
+const result = KittyObjectRef;</pre></div>
+<div class='card' id='ex-KittyAvailableAction'><h3><code class='inline'>KittyAvailableAction</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface KittyAvailableAction</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { KittyAvailableAction } from &#x27;@/gateway/kitty-chat/src/lib/actions-contract&#x27;;
+
+// TODO: wire real props; see component signature
+const result = KittyAvailableAction;</pre></div>
+<div class='card' id='ex-KittyObjectProjection'><h3><code class='inline'>KittyObjectProjection</code> <span class='pill'>type</span></h3><div class='sig'><code>export interface KittyObjectProjection</code></div><p>The result of projecting a single owned object into the shared contract.</p><h3>Code Example</h3><pre>import { KittyObjectProjection } from &#x27;@/gateway/kitty-chat/src/lib/actions-contract&#x27;;
+
+// TODO: wire real props; see component signature
+const result = KittyObjectProjection;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

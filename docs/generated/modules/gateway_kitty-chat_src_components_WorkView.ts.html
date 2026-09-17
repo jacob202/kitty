@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway/kitty-chat/src/components/WorkView — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway/kitty-chat/src/components/WorkView</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway/kitty-chat/src/components/WorkView</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/kitty-chat/src/components/WorkView.tsx</code> &middot; TypeScript &middot; 28 exports</p>
+<div class='card'><h2>Overview</h2><p>TODO: Add module description.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>@/components/artifacts/ArtifactCanvas</code>, <code class='inline'>@/components/builder/BuilderProposalCard</code>, <code class='inline'>@/lib/gateway</code>, <code class='inline'>@/lib/queries</code>, <code class='inline'>@/lib/work</code>, <code class='inline'>lucide-react</code>, <code class='inline'>react</code></p></div>
+<div class='card'><h2>Exports</h2><table><tr><th>Name</th><th>Kind</th><th>Summary</th></tr><tr><td><a href='#ex-WorkBuilderRequest'><code class='inline'>WorkBuilderRequest</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-WorkGroupSection'><code class='inline'>WorkGroupSection</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-SchedulerStatus'><code class='inline'>SchedulerStatus</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-DegradedSourceNotice'><code class='inline'>DegradedSourceNotice</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-workGroup'><code class='inline'>workGroup</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-isExpired'><code class='inline'>isExpired</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-boundedSourceReason'><code class='inline'>boundedSourceReason</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-Notice'><code class='inline'>Notice</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-Count'><code class='inline'>Count</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-SourceStatus'><code class='inline'>SourceStatus</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-approvalLabel'><code class='inline'>approvalLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-RowAction'><code class='inline'>RowAction</code></a></td><td>type</td><td>Undocumented.</td></tr><tr><td><a href='#ex-rowAction'><code class='inline'>rowAction</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-canCancel'><code class='inline'>canCancel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-rawWorkDetail'><code class='inline'>rawWorkDetail</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-workDetailLabel'><code class='inline'>workDetailLabel</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-WorkRow'><code class='inline'>WorkRow</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-RowActions'><code class='inline'>RowActions</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-ResultArtifactAction'><code class='inline'>ResultArtifactAction</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-ReadyResultArtifactAction'><code class='inline'>ReadyResultArtifactAction</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-BuilderRunBanner'><code class='inline'>BuilderRunBanner</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-describeReady'><code class='inline'>describeReady</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-evidenceRecord'><code class='inline'>evidenceRecord</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-evidenceScalar'><code class='inline'>evidenceScalar</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-boundedEvidenceText'><code class='inline'>boundedEvidenceText</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-evidenceDate'><code class='inline'>evidenceDate</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-EvidenceDetails'><code class='inline'>EvidenceDetails</code></a></td><td>function</td><td>Undocumented.</td></tr><tr><td><a href='#ex-evidenceLabels'><code class='inline'>evidenceLabels</code></a></td><td>function</td><td>Undocumented.</td></tr></table></div>
+<div class='card' id='ex-WorkBuilderRequest'><h3><code class='inline'>WorkBuilderRequest</code> <span class='pill'>function</span></h3><div class='sig'><code>function WorkBuilderRequest()</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { WorkBuilderRequest } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = WorkBuilderRequest;</pre></div>
+<div class='card' id='ex-WorkGroupSection'><h3><code class='inline'>WorkGroupSection</code> <span class='pill'>function</span></h3><div class='sig'><code>function WorkGroupSection({ group, items, builderRunning, schedulerEnabled, isMobile }: { group: WorkGroup; items: GatewayWorkItem[]; builderRunning: boolean; schedulerEnabled: boolean | null; isMobil</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { WorkGroupSection } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = WorkGroupSection;</pre></div>
+<div class='card' id='ex-SchedulerStatus'><h3><code class='inline'>SchedulerStatus</code> <span class='pill'>function</span></h3><div class='sig'><code>function SchedulerStatus({ supervisor, failed }: { supervisor: ReturnType&lt;typeof useSupervisor&gt;[&#x27;data&#x27;]; failed: boolean })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { SchedulerStatus } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = SchedulerStatus;</pre></div>
+<div class='card' id='ex-DegradedSourceNotice'><h3><code class='inline'>DegradedSourceNotice</code> <span class='pill'>function</span></h3><div class='sig'><code>function DegradedSourceNotice({ reason }: { reason: string })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { DegradedSourceNotice } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = DegradedSourceNotice;</pre></div>
+<div class='card' id='ex-workGroup'><h3><code class='inline'>workGroup</code> <span class='pill'>function</span></h3><div class='sig'><code>function workGroup(item: GatewayWorkItem)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { workGroup } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = workGroup;</pre></div>
+<div class='card' id='ex-isExpired'><h3><code class='inline'>isExpired</code> <span class='pill'>function</span></h3><div class='sig'><code>function isExpired(validUntil: string)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { isExpired } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = isExpired;</pre></div>
+<div class='card' id='ex-boundedSourceReason'><h3><code class='inline'>boundedSourceReason</code> <span class='pill'>function</span></h3><div class='sig'><code>function boundedSourceReason(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { boundedSourceReason } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = boundedSourceReason;</pre></div>
+<div class='card' id='ex-Notice'><h3><code class='inline'>Notice</code> <span class='pill'>function</span></h3><div class='sig'><code>function Notice({ children }: { children: ReactNode })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { Notice } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = Notice;</pre></div>
+<div class='card' id='ex-Count'><h3><code class='inline'>Count</code> <span class='pill'>function</span></h3><div class='sig'><code>function Count({ state, value }: { state: GatewayWorkState; value: number })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { Count } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = Count;</pre></div>
+<div class='card' id='ex-SourceStatus'><h3><code class='inline'>SourceStatus</code> <span class='pill'>function</span></h3><div class='sig'><code>function SourceStatus({ state, observedAt }: { state: &#x27;available&#x27; | &#x27;degraded&#x27; | &#x27;stale&#x27;; observedAt: string })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { SourceStatus } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = SourceStatus;</pre></div>
+<div class='card' id='ex-approvalLabel'><h3><code class='inline'>approvalLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function approvalLabel(item: GatewayWorkItem)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { approvalLabel } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = approvalLabel;</pre></div>
+<div class='card' id='ex-RowAction'><h3><code class='inline'>RowAction</code> <span class='pill'>type</span></h3><div class='sig'><code>export type RowAction</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { RowAction } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = RowAction;</pre></div>
+<div class='card' id='ex-rowAction'><h3><code class='inline'>rowAction</code> <span class='pill'>function</span></h3><div class='sig'><code>export function rowAction(item: GatewayWorkItem, builderRunning: boolean, schedulerEnabled: boolean | null = null)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { rowAction } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = rowAction;</pre></div>
+<div class='card' id='ex-canCancel'><h3><code class='inline'>canCancel</code> <span class='pill'>function</span></h3><div class='sig'><code>function canCancel(item: GatewayWorkItem)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { canCancel } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = canCancel;</pre></div>
+<div class='card' id='ex-rawWorkDetail'><h3><code class='inline'>rawWorkDetail</code> <span class='pill'>function</span></h3><div class='sig'><code>function rawWorkDetail(item: GatewayWorkItem)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { rawWorkDetail } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = rawWorkDetail;</pre></div>
+<div class='card' id='ex-workDetailLabel'><h3><code class='inline'>workDetailLabel</code> <span class='pill'>function</span></h3><div class='sig'><code>function workDetailLabel(item: GatewayWorkItem)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { workDetailLabel } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = workDetailLabel;</pre></div>
+<div class='card' id='ex-WorkRow'><h3><code class='inline'>WorkRow</code> <span class='pill'>function</span></h3><div class='sig'><code>function WorkRow({ item, isLast, builderRunning, schedulerEnabled, isMobile }: { item: GatewayWorkItem; isLast: boolean; builderRunning: boolean; schedulerEnabled: boolean | null; isMobile: boolean })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { WorkRow } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = WorkRow;</pre></div>
+<div class='card' id='ex-RowActions'><h3><code class='inline'>RowActions</code> <span class='pill'>function</span></h3><div class='sig'><code>function RowActions({ item, builderRunning, schedulerEnabled }: { item: GatewayWorkItem; builderRunning: boolean; schedulerEnabled: boolean | null })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { RowActions } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = RowActions;</pre></div>
+<div class='card' id='ex-ResultArtifactAction'><h3><code class='inline'>ResultArtifactAction</code> <span class='pill'>function</span></h3><div class='sig'><code>function ResultArtifactAction({ item, isMobile }: { item: GatewayWorkItem; isMobile: boolean })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ResultArtifactAction } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ResultArtifactAction;</pre></div>
+<div class='card' id='ex-ReadyResultArtifactAction'><h3><code class='inline'>ReadyResultArtifactAction</code> <span class='pill'>function</span></h3><div class='sig'><code>function ReadyResultArtifactAction({ artifactId, isMobile }: { artifactId: string; isMobile: boolean })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { ReadyResultArtifactAction } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = ReadyResultArtifactAction;</pre></div>
+<div class='card' id='ex-BuilderRunBanner'><h3><code class='inline'>BuilderRunBanner</code> <span class='pill'>function</span></h3><div class='sig'><code>function BuilderRunBanner({ supervisor, supervisorKnown }: { supervisor: GatewaySupervisor; supervisorKnown: boolean })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { BuilderRunBanner } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = BuilderRunBanner;</pre></div>
+<div class='card' id='ex-describeReady'><h3><code class='inline'>describeReady</code> <span class='pill'>function</span></h3><div class='sig'><code>function describeReady(supervisor: GatewaySupervisor)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { describeReady } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = describeReady;</pre></div>
+<div class='card' id='ex-evidenceRecord'><h3><code class='inline'>evidenceRecord</code> <span class='pill'>function</span></h3><div class='sig'><code>function evidenceRecord(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { evidenceRecord } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = evidenceRecord;</pre></div>
+<div class='card' id='ex-evidenceScalar'><h3><code class='inline'>evidenceScalar</code> <span class='pill'>function</span></h3><div class='sig'><code>function evidenceScalar(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { evidenceScalar } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = evidenceScalar;</pre></div>
+<div class='card' id='ex-boundedEvidenceText'><h3><code class='inline'>boundedEvidenceText</code> <span class='pill'>function</span></h3><div class='sig'><code>function boundedEvidenceText(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { boundedEvidenceText } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = boundedEvidenceText;</pre></div>
+<div class='card' id='ex-evidenceDate'><h3><code class='inline'>evidenceDate</code> <span class='pill'>function</span></h3><div class='sig'><code>function evidenceDate(value: unknown)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { evidenceDate } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = evidenceDate;</pre></div>
+<div class='card' id='ex-EvidenceDetails'><h3><code class='inline'>EvidenceDetails</code> <span class='pill'>function</span></h3><div class='sig'><code>function EvidenceDetails({ evidence }: { evidence: Record&lt;string, unknown&gt; })</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { EvidenceDetails } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = EvidenceDetails;</pre></div>
+<div class='card' id='ex-evidenceLabels'><h3><code class='inline'>evidenceLabels</code> <span class='pill'>function</span></h3><div class='sig'><code>function evidenceLabels(item: GatewayWorkItem)</code></div><p>Undocumented export.</p><h3>Code Example</h3><pre>import { evidenceLabels } from &#x27;@/gateway/kitty-chat/src/components/WorkView&#x27;;
+
+// TODO: wire real props; see component signature
+const result = evidenceLabels;</pre></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

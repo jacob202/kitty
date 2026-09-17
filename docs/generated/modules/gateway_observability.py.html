@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.observability — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.observability</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.observability</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/observability.py</code> &middot; Python &middot; 2 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>LLM call observability.
+
+Lane E foundation: every chat call leaves a JSONL trail at
+``data/llm_calls.jsonl`` with the timestamp, model, latency,
+outcome, and any error message. This is the minimum useful
+visibility into LLM usage — a backfill for the existing
+``log_chat_trace`` which only records routing decisions, not call
+outcomes.
+
+Why a separate file (and not just adding to the existing
+``log_chat_trace``): the existing trace is per-routing-decision
+and lives in different files. The observability file is
+per-call and aggregated. The two are complementary, not
+duplicates.
+
+Why JSONL not SQLite: append-only writes, no migration cost,
+one line per call, easy to grep / jq / tail. If we ever need
+to query aggregates, the same data is small enough to load
+into a notebook.
+
+Failure mode: the recording function is best-effort. If the
+file can&#x27;t be written, we log a warning and continue — never
+break a chat call because the observability file is locked.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>contextlib</code>, <code class='inline'>dataclasses</code>, <code class='inline'>gateway.paths</code>, <code class='inline'>json</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>time</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-record_chat'><code class='inline'>record_chat</code></a></td><td>Context manager that times a chat call and appends a JSONL line on exit.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-_append_call'><code class='inline'>_append_call</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr></table></div>
+<div class='card' id='fn-record_chat'><h3><code class='inline'>record_chat</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def record_chat(model: str, operation: str = &#x27;llm.call&#x27;, correlation_id: str | None = None, log_path: Path = DEFAULT_LOG_PATH) -&gt; Iterator[ChatCall]</code></div><p>Context manager that times a chat call and appends a JSONL line on exit.
+
+Usage::
+
+    with record_chat(&quot;kitty-sonnet&quot;, operation=&quot;brief.synthesis&quot;) as call:
+        response = call_llm(messages, model=&quot;kitty-sonnet&quot;)
+        call.prompt_tokens = _estimate_tokens(messages)
+        call.completion_tokens = _estimate_tokens([response])
+
+The returned ``call`` object is mutable so the caller can fill
+in token counts after the call returns. The JSONL line is
+written at context exit, regardless of whether the body
+raised.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.observability import record_chat
+
+result = record_chat(model=&quot;model_example&quot;, operation=&quot;operation_example&quot;  # default: &#x27;llm.call&#x27;, correlation_id=&quot;correlation_id_example&quot;  # default: None, log_path=&quot;log_path_example&quot;  # default: DEFAULT_LOG_PATH)
+# result: Iterator[ChatCall]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-_append_call'><h3><code class='inline'>_append_call</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def _append_call(call: ChatCall, log_path: Path) -&gt; None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.observability import _append_call
+
+result = _append_call(call=..., log_path=&quot;log_path_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-ChatCall'><code class='inline'>ChatCall</code></a></td><td></td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-ChatCall'><h3><code class='inline'>ChatCall</code></h3><p>One LLM call, recorded as a single JSONL line.</p><p class='small'><b>Attributes:</b> timestamp: float, model: str, latency_ms: float, success: bool, error: str | None, operation: str, prompt_tokens: int | None, completion_tokens: int | None, correlation_id: str | None</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.observability import ChatCall
+
+obj = ChatCall(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>DEFAULT_LOG_PATH</code></td><td><code class='inline'>DATA_DIR / &#x27;llm_calls.jsonl&#x27;</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.document_validator — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.document_validator</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.document_validator</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/document_validator.py</code> &middot; Python &middot; 3 functions &middot; 1 classes</p>
+<div class='card'><h2>Overview</h2><p>Document upload validation for knowledge ingestion.
+
+Defense-in-depth for ``POST /knowledge/ingest``. DeepTutor validates uploads
+with magic-byte sniffing, an extension allowlist, and filename sanitization
+(see ``deeptutor/utils/document_validator.py``). Kitty&#x27;s knowledge route
+currently trusts the file extension and size bounds alone; this module closes
+that gap without adding dependencies.
+
+Failure is loud: invalid inputs raise ``DocumentValidationError`` with a cause,
+never a silent default.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>logging</code>, <code class='inline'>pathlib</code>, <code class='inline'>unicodedata</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-_check_magic'><code class='inline'>_check_magic</code></a></td><td>Reject files whose leading bytes contradict the declared extension.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-sanitize_filename'><code class='inline'>sanitize_filename</code></a></td><td>Return a filesystem-safe filename, preserving a valid extension.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-validate_document'><code class='inline'>validate_document</code></a></td><td>Validate a local file for knowledge ingestion.</td><td><span class='pill'>moderate</span><span class='muted small'>(6)</span></td></tr></table></div>
+<div class='card' id='fn-_check_magic'><h3><code class='inline'>_check_magic</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def _check_magic(path: Path, ext: str) -&gt; None</code></div><p>Reject files whose leading bytes contradict the declared extension.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.document_validator import _check_magic
+
+result = _check_magic(path=&quot;path_example&quot;, ext=&quot;ext_example&quot;)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-sanitize_filename'><h3><code class='inline'>sanitize_filename</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def sanitize_filename(name: str) -&gt; str</code></div><p>Return a filesystem-safe filename, preserving a valid extension.
+
+Strips path components, null bytes, and control characters. Unicode is
+NFC-normalized. Absolute or traversal paths collapse to a bare name.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.document_validator import sanitize_filename
+
+result = sanitize_filename(name=&quot;name_example&quot;)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_document'><h3><code class='inline'>validate_document</code> <span class='pill'>sync</span> <span class='pill'>complexity: moderate (6)</span></h3><div class='sig'><code>def validate_document(path: str | Path) -&gt; Path</code></div><p>Validate a local file for knowledge ingestion.
+
+Checks existence, size, extension allowlist, and magic bytes. Returns the
+validated ``Path``. Raises ``DocumentValidationError`` on any failure.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.document_validator import validate_document
+
+result = validate_document(path=&quot;path_example&quot;)
+# result: Path</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Classes</h2><table><tr><th>Name</th><th>Bases</th><th>Methods</th></tr><tr><td><a href='#cls-DocumentValidationError'><code class='inline'>DocumentValidationError</code></a></td><td>(Exception)</td><td>0 methods</td></tr></table></div>
+<div class='card' id='cls-DocumentValidationError'><h3><code class='inline'>DocumentValidationError</code></h3><p>Raised when an uploaded document fails safety validation.</p><p class='muted'>No methods.</p><h3>Code Example</h3><pre>from gateway.document_validator import DocumentValidationError
+
+obj = DocumentValidationError(...)</pre></div>
+<div class='card'><h2>Constants</h2><table><tr><th>Name</th><th>Value / Type</th></tr><tr><td><code class='inline'>MAX_FILE_SIZE</code></td><td><code class='inline'>200 * 1024 * 1024</code></td></tr><tr><td><code class='inline'>ALLOWED_EXTENSIONS</code></td><td><code class='inline'>{&#x27;.pdf&#x27;, &#x27;.txt&#x27;, &#x27;.md&#x27;, &#x27;.docx&#x27;, &#x27;.doc&#x27;, &#x27;.rtf&#x27;, &#x27;.html&#x27;, &#x27;.htm&#x27;, &#x27;.xml&#x27;, &#x27;.json&#x27;, &#x27;.csv&#x27;, &#x27;.xlsx&#x27;, &#x27;.xls&#x27;, &#x27;.pptx&#x27;, &#x27;.p</code></td></tr><tr><td><code class='inline'>_MAGIC_PREFIXES</code></td><td><code class='inline'>dict[bytes, set[str]]</code></td></tr></table></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

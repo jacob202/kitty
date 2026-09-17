@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gateway.flux2_transport — Kitty Code Reference</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><nav class="top"><a href="../index.html">Kitty Code Reference</a>
+<span class="muted">gateway.flux2_transport</span></nav>
+<div class="wrap"><span id='top'></span><h1><code class='inline'>gateway.flux2_transport</code></h1>
+<p class='muted small'>Source: <code class='inline'>gateway/flux2_transport.py</code> &middot; Python &middot; 10 functions &middot; 0 classes</p>
+<div class='card'><h2>Overview</h2><p>BFL Direct FLUX.2 transport — the hosted adapter for the flux2@1 compiler.
+
+IL-04: BFL Direct is the first real hosted FLUX.2 transport. All BFL-specific
+wire details live here and nowhere else (ADR 0040 decision 4: the difference
+between BFL / Runware / the private worker lives in the adapters). The compiler
+output (gateway/flux2_compiler.py) stays provider-neutral; this module maps a
+CompiledFlux2Request onto BFL request fields.
+
+Contract with the IL-02 policy gate: BFL Direct is HOSTED. The runner must
+never route private_adult content to this transport, regardless of
+availability, price, recipe preference, or retry. The policy validation lives
+at the runner boundary (gateway/image_runner.py) which calls this module only
+for safe-lane, already-validated work.
+
+Wire facts (from vendored bfl-api skill, pinned commit a6f74cc):
+- endpoints are /v1/flux-2-klein-4b and /v1/flux-2-pro
+- auth header: x-key: &lt;BFL_API_KEY&gt;
+- references: input_image, input_image_2 .. input_image_8 (klein: max 4,
+  pro: max 8); URL or base64 both accepted — base64 is used here so local byte
+  references never need a public URL.
+- flow: POST endpoint -&gt; {polling_url}; GET polling_url -&gt; status Pending/Ready/
+  Error (legacy also saw Queued/Processing); when Ready, result.sample is a URL
+  that EXPIRES in 10 minutes -&gt; download immediately.
+- pricing: 1 credit = $0.01; formula (firstMP + (outputMP-1)*mpPrice) +
+  (inputMP*mpPrice) cents.</p></div>
+<div class='card'><h2>Dependencies</h2><p class='small'><code class='inline'>__future__</code>, <code class='inline'>base64</code>, <code class='inline'>gateway.flux2_compiler</code>, <code class='inline'>gateway.flux2_targets</code>, <code class='inline'>gateway.image_jobs</code>, <code class='inline'>os</code>, <code class='inline'>typing</code></p></div>
+<div class='card'><h2>Functions</h2><table><tr><th>Name</th><th>Summary</th><th>Complexity</th></tr><tr><td><a href='#fn-endpoint_for'><code class='inline'>endpoint_for</code></a></td><td>Absolute BFL endpoint for an execution target.</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr><tr><td><a href='#fn-serialize_references'><code class='inline'>serialize_references</code></a></td><td>Map ordered compiled references onto BFL input_image wire fields.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-serialize_payload'><code class='inline'>serialize_payload</code></a></td><td>Serialize a compiled FLUX.2 request onto BFL wire fields.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-submit_headers'><code class='inline'>submit_headers</code></a></td><td>BFL authentication headers (x-key). Credential lives in env.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-is_running_status'><code class='inline'>is_running_status</code></a></td><td>True while BFL reports the job still in flight.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-sample_url_from_result'><code class='inline'>sample_url_from_result</code></a></td><td>Extract the (10-minute-expiring) download URL from a Ready result.</td><td><span class='pill'>simple</span><span class='muted small'>(3)</span></td></tr><tr><td><a href='#fn-seed_from_result'><code class='inline'>seed_from_result</code></a></td><td>Undocumented — behavior inferred from implementation.</td><td><span class='pill'>simple</span><span class='muted small'>(2)</span></td></tr><tr><td><a href='#fn-parse_cost_usd'><code class='inline'>parse_cost_usd</code></a></td><td>Convert provider-reported cost credits to USD; None if not reported.</td><td><span class='pill'>simple</span><span class='muted small'>(4)</span></td></tr><tr><td><a href='#fn-validate_reference_limit'><code class='inline'>validate_reference_limit</code></a></td><td>Fail loud BEFORE any request leaves for BFL if references exceed limit.</td><td><span class='pill'>simple</span><span class='muted small'>(1)</span></td></tr><tr><td><a href='#fn-credits_to_usd'><code class='inline'>credits_to_usd</code></a></td><td>Convert BFL credits to USD (1 credit = $0.01).</td><td><span class='pill'>simple</span><span class='muted small'>(0)</span></td></tr></table></div>
+<div class='card' id='fn-endpoint_for'><h3><code class='inline'>endpoint_for</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def endpoint_for(target: Flux2HostedTarget) -&gt; str</code></div><p>Absolute BFL endpoint for an execution target.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import endpoint_for
+
+result = endpoint_for(target=...)
+# result: str</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-serialize_references'><h3><code class='inline'>serialize_references</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def serialize_references(target: Flux2HostedTarget, references: Sequence[CompiledReference], reference_bytes: Sequence[bytes]) -&gt; dict[str, str]</code></div><p>Map ordered compiled references onto BFL input_image wire fields.
+
+Deterministic slot/order contract: the compiled reference&#x27;s ``order``
+numbers it and drives the wire field — slot 1 -&gt; ``input_image``,
+slot N -&gt; ``input_image_{N}``. Bytes are base64-encoded so local references
+never require a public URL. Enforces the target&#x27;s reference limit loudly.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import serialize_references
+
+result = serialize_references(target=..., references=..., reference_bytes=...)
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-serialize_payload'><h3><code class='inline'>serialize_payload</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def serialize_payload(target: Flux2HostedTarget, compiled: CompiledFlux2Request, reference_bytes: Sequence[bytes] = (), seed: int | None = None) -&gt; dict[str, Any]</code></div><p>Serialize a compiled FLUX.2 request onto BFL wire fields.
+
+The canonical compiled object (prompt prose, ordered semantic references,
+protected traits, requested changes, unresolved negatives) is NOT
+transmitted verbatim; only the fields BFL understands leave this module.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import serialize_payload
+
+result = serialize_payload(target=..., compiled=..., reference_bytes=...  # default: (), seed=0  # default: None)
+# result: dict[str, Any]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-submit_headers'><h3><code class='inline'>submit_headers</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def submit_headers() -&gt; dict[str, str]</code></div><p>BFL authentication headers (x-key). Credential lives in env.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import submit_headers
+
+result = submit_headers()
+# result: dict[str, str]</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-is_running_status'><h3><code class='inline'>is_running_status</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def is_running_status(status: str | None) -&gt; bool</code></div><p>True while BFL reports the job still in flight.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import is_running_status
+
+result = is_running_status(status=&quot;status_example&quot;)
+# result: bool</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-sample_url_from_result'><h3><code class='inline'>sample_url_from_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (3)</span></h3><div class='sig'><code>def sample_url_from_result(result: Any) -&gt; str | None</code></div><p>Extract the (10-minute-expiring) download URL from a Ready result.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import sample_url_from_result
+
+result = sample_url_from_result(result=...)
+# result: str | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-seed_from_result'><h3><code class='inline'>seed_from_result</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (2)</span></h3><div class='sig'><code>def seed_from_result(result: Any) -&gt; int | None</code></div><p>Undocumented. Purpose inferred from name, signature, and implementation.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import seed_from_result
+
+result = seed_from_result(result=...)
+# result: int | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-parse_cost_usd'><h3><code class='inline'>parse_cost_usd</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (4)</span></h3><div class='sig'><code>def parse_cost_usd(response: dict[str, Any], fallback: float | None = None) -&gt; float | None</code></div><p>Convert provider-reported cost credits to USD; None if not reported.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import parse_cost_usd
+
+result = parse_cost_usd(response=&quot;response_example&quot;, fallback=0.0  # default: None)
+# result: float | None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-validate_reference_limit'><h3><code class='inline'>validate_reference_limit</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (1)</span></h3><div class='sig'><code>def validate_reference_limit(target: Flux2HostedTarget, references: Sequence[CompiledReference]) -&gt; None</code></div><p>Fail loud BEFORE any request leaves for BFL if references exceed limit.</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import validate_reference_limit
+
+result = validate_reference_limit(target=..., references=...)
+# result: None</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card' id='fn-credits_to_usd'><h3><code class='inline'>credits_to_usd</code> <span class='pill'>sync</span> <span class='pill'>complexity: simple (0)</span></h3><div class='sig'><code>def credits_to_usd(credits: float) -&gt; float</code></div><p>Convert BFL credits to USD (1 credit = $0.01).</p><h3>Example Usage (synthetic)</h3><pre>from gateway.flux2_transport import credits_to_usd
+
+result = credits_to_usd(credits=0.0)
+# result: float</pre><p class='muted small'>See also: <a href='#top'>module top</a> &middot; <a href='../index.html'>index</a></p></div>
+<div class='card'><h2>Found in tests</h2><ul class='small'><li><code class='inline'>gateway/tests/e2e_cleanup.py</code></li><li><code class='inline'>tests/bench/conftest.py</code></li><li><code class='inline'>tests/bench/memorybench.py</code></li><li><code class='inline'>tests/bench/test_builder_state_machine.py</code></li><li><code class='inline'>tests/bench/test_isc_criteria.py</code></li><li><code class='inline'>tests/codemap_test.py</code></li><li><code class='inline'>tests/test_action_grants.py</code></li><li><code class='inline'>tests/test_action_queue.py</code></li></ul></div>
+<div class='card'><h2>See Also</h2><ul class='small'><li><a href='gateway__id_helpers.py.html'><code class='inline'>gateway._id_helpers</code></a></li><li><a href='gateway__work_projection_details.py.html'><code class='inline'>gateway._work_projection_details</code></a></li><li><a href='gateway__work_projection_item.py.html'><code class='inline'>gateway._work_projection_item</code></a></li><li><a href='gateway__work_projection_select.py.html'><code class='inline'>gateway._work_projection_select</code></a></li><li><a href='gateway__work_projection_support.py.html'><code class='inline'>gateway._work_projection_support</code></a></li><li><a href='gateway_action_grants.py.html'><code class='inline'>gateway.action_grants</code></a></li><li><a href='gateway_action_queue.py.html'><code class='inline'>gateway.action_queue</code></a></li><li><a href='gateway_activity_projection.py.html'><code class='inline'>gateway.activity_projection</code></a></li><li><a href='gateway_activity_timeline.py.html'><code class='inline'>gateway.activity_timeline</code></a></li><li><a href='gateway_agent_coordination.py.html'><code class='inline'>gateway.agent_coordination</code></a></li><li><a href='gateway_agent_coordination_cli.py.html'><code class='inline'>gateway.agent_coordination_cli</code></a></li><li><a href='gateway_agent_room_cli.py.html'><code class='inline'>gateway.agent_room_cli</code></a></li></ul></div>
+<footer>Generated from source; docstrings quoted verbatim where present.
+Synthetic examples are illustrative &mdash; verify against tests.</footer></div></body></html>

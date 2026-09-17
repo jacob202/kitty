@@ -1,0 +1,3572 @@
+[
+ {
+  "name": "gateway",
+  "lang": "Python",
+  "file": "modules/gateway.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway._id_helpers",
+  "lang": "Python",
+  "file": "modules/gateway__id_helpers.py.html",
+  "summary": "Shared ID-generation helpers."
+ },
+ {
+  "name": "gateway._work_projection_details",
+  "lang": "Python",
+  "file": "modules/gateway__work_projection_details.py.html",
+  "summary": "Project packet, run, and blocker details for Work items."
+ },
+ {
+  "name": "gateway._work_projection_item",
+  "lang": "Python",
+  "file": "modules/gateway__work_projection_item.py.html",
+  "summary": "Project one Builder initiative into a product Work item."
+ },
+ {
+  "name": "gateway._work_projection_select",
+  "lang": "Python",
+  "file": "modules/gateway__work_projection_select.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway._work_projection_support",
+  "lang": "Python",
+  "file": "modules/gateway__work_projection_support.py.html",
+  "summary": "Format bounded Builder facts for the Work projection."
+ },
+ {
+  "name": "gateway.action_grants",
+  "lang": "Python",
+  "file": "modules/gateway_action_grants.py.html",
+  "summary": "Scoped user grants evaluated at the action execution boundary (issue #554)."
+ },
+ {
+  "name": "gateway.action_queue",
+  "lang": "Python",
+  "file": "modules/gateway_action_queue.py.html",
+  "summary": "Action queue with enforced risk tiers (P3, docs/packets/003)."
+ },
+ {
+  "name": "gateway.activity_projection",
+  "lang": "Python",
+  "file": "modules/gateway_activity_projection.py.html",
+  "summary": "Read-only projection of Kitty work that already belongs to existing authorities."
+ },
+ {
+  "name": "gateway.activity_timeline",
+  "lang": "Python",
+  "file": "modules/gateway_activity_timeline.py.html",
+  "summary": "Unified activity timeline \u2014 a read-only projection over existing evidence."
+ },
+ {
+  "name": "gateway.agent_coordination",
+  "lang": "Python",
+  "file": "modules/gateway_agent_coordination.py.html",
+  "summary": "KX-COORD-01: SQLite-enforced mutation ownership for Kitty agents."
+ },
+ {
+  "name": "gateway.agent_coordination_cli",
+  "lang": "Python",
+  "file": "modules/gateway_agent_coordination_cli.py.html",
+  "summary": "CLI for KX-COORD-01 agent ownership claims."
+ },
+ {
+  "name": "gateway.agent_room_cli",
+  "lang": "Python",
+  "file": "modules/gateway_agent_room_cli.py.html",
+  "summary": "Local CLI for Kitty's canonical global agent room."
+ },
+ {
+  "name": "gateway.agent_runner",
+  "lang": "Python",
+  "file": "modules/gateway_agent_runner.py.html",
+  "summary": "Autonomous Sub-Agent Runner \u2014 spawn agents that execute goals independently."
+ },
+ {
+  "name": "gateway.agent_workspace",
+  "lang": "Python",
+  "file": "modules/gateway_agent_workspace.py.html",
+  "summary": "Durable shared rooms for user and specialist-agent collaboration."
+ },
+ {
+  "name": "gateway.ambient",
+  "lang": "Python",
+  "file": "modules/gateway_ambient.py.html",
+  "summary": "Ambient Context Awareness \u2014 detect what Jacob is doing and preload context."
+ },
+ {
+  "name": "gateway.antigravity_tools",
+  "lang": "Python",
+  "file": "modules/gateway_antigravity_tools.py.html",
+  "summary": "Antigravity/Orca-style tools integration."
+ },
+ {
+  "name": "gateway.app",
+  "lang": "Python",
+  "file": "modules/gateway_app.py.html",
+  "summary": "Kitty Gateway \u2014 thin FastAPI brain between the kitty-chat UI and LiteLLM."
+ },
+ {
+  "name": "gateway.archivist",
+  "lang": "Python",
+  "file": "modules/gateway_archivist.py.html",
+  "summary": "Mechanical storage and retrieval for Kitty's knowledge base."
+ },
+ {
+  "name": "gateway.artifact_store",
+  "lang": "Python",
+  "file": "modules/gateway_artifact_store.py.html",
+  "summary": "Durable metadata and provenance for local Kitty artifacts."
+ },
+ {
+  "name": "gateway.async_feedback",
+  "lang": "Python",
+  "file": "modules/gateway_async_feedback.py.html",
+  "summary": "Async Feedback Loop \u2014 Antigravity-style notifications and user feedback."
+ },
+ {
+  "name": "gateway.auth",
+  "lang": "Python",
+  "file": "modules/gateway_auth.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.automation_actions",
+  "lang": "Python",
+  "file": "modules/gateway_automation_actions.py.html",
+  "summary": "One named Automation action registry and execution path."
+ },
+ {
+  "name": "gateway.automation_runs",
+  "lang": "Python",
+  "file": "modules/gateway_automation_runs.py.html",
+  "summary": "Durable Automation Run evidence for scheduled and event-triggered actions."
+ },
+ {
+  "name": "gateway.automation_supervisor",
+  "lang": "Python",
+  "file": "modules/gateway_automation_supervisor.py.html",
+  "summary": "Central lifecycle/status seam for Gateway background services."
+ },
+ {
+  "name": "gateway.autonomy_state",
+  "lang": "Python",
+  "file": "modules/gateway_autonomy_state.py.html",
+  "summary": "Autonomy State Layer for Kitty."
+ },
+ {
+  "name": "gateway.brief",
+  "lang": "Python",
+  "file": "modules/gateway_brief.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.brief_scheduler",
+  "lang": "Python",
+  "file": "modules/gateway_brief_scheduler.py.html",
+  "summary": "Morning Brief configuration and delivery."
+ },
+ {
+  "name": "gateway.buddy",
+  "lang": "Python",
+  "file": "modules/gateway_buddy.py.html",
+  "summary": "Buddy state \u2014 Kitty's persistent mood, energy, and session counters."
+ },
+ {
+  "name": "gateway.buddy_store",
+  "lang": "Python",
+  "file": "modules/gateway_buddy_store.py.html",
+  "summary": "Buddy state persistence \u2014 single-row store in kitty.db."
+ },
+ {
+  "name": "gateway.builder_attempt",
+  "lang": "Python",
+  "file": "modules/gateway_builder_attempt.py.html",
+  "summary": "KittyBuilder KB-S2 \u2014 packet attempts: context bundles + result contracts."
+ },
+ {
+  "name": "gateway.builder_autonomy",
+  "lang": "Python",
+  "file": "modules/gateway_builder_autonomy.py.html",
+  "summary": "Read-only autonomy projections for Builder runway and operator decisions."
+ },
+ {
+  "name": "gateway.builder_brief",
+  "lang": "Python",
+  "file": "modules/gateway_builder_brief.py.html",
+  "summary": "KittyBuilder Phase 1B \u2014 worker brief renderer."
+ },
+ {
+  "name": "gateway.builder_cli",
+  "lang": "Python",
+  "file": "modules/gateway_builder_cli.py.html",
+  "summary": "KittyBuilder execution control-plane CLI."
+ },
+ {
+  "name": "gateway.builder_commands",
+  "lang": "Python",
+  "file": "modules/gateway_builder_commands.py.html",
+  "summary": "Typed operator command functions for cockpit controls (KB-BRAIN-05)."
+ },
+ {
+  "name": "gateway.builder_context",
+  "lang": "Python",
+  "file": "modules/gateway_builder_context.py.html",
+  "summary": "Collision-safe, privacy-bounded context and run manifests for KittyBuilder."
+ },
+ {
+  "name": "gateway.builder_contract",
+  "lang": "Python",
+  "file": "modules/gateway_builder_contract.py.html",
+  "summary": "Builder contract \u2014 validate and run Ideal-State-Criteria (ISC) checks."
+ },
+ {
+  "name": "gateway.builder_contract_gate",
+  "lang": "Python",
+  "file": "modules/gateway_builder_contract_gate.py.html",
+  "summary": "Deterministic packet contract checks run before semantic review."
+ },
+ {
+  "name": "gateway.builder_doctor",
+  "lang": "Python",
+  "file": "modules/gateway_builder_doctor.py.html",
+  "summary": "KittyBuilder preflight doctor \u2014 read-only safety checks."
+ },
+ {
+  "name": "gateway.builder_events",
+  "lang": "Python",
+  "file": "modules/gateway_builder_events.py.html",
+  "summary": "Structured live event stream for the Builder cockpit."
+ },
+ {
+  "name": "gateway.builder_execution_boundary",
+  "lang": "Python",
+  "file": "modules/gateway_builder_execution_boundary.py.html",
+  "summary": "Lower-trust process boundary for KittyBuilder model subprocesses."
+ },
+ {
+  "name": "gateway.builder_identity",
+  "lang": "Python",
+  "file": "modules/gateway_builder_identity.py.html",
+  "summary": "Fail-closed worker identity verification for KittyBuilder branch leases."
+ },
+ {
+  "name": "gateway.builder_initiative",
+  "lang": "Python",
+  "file": "modules/gateway_builder_initiative.py.html",
+  "summary": "KittyBuilder KB-S1A \u2014 initiative manifests: validation, persistence, apply."
+ },
+ {
+  "name": "gateway.builder_isc",
+  "lang": "Python",
+  "file": "modules/gateway_builder_isc.py.html",
+  "summary": "Ideal State Criteria \u2014 derive, check, and format binary success criteria."
+ },
+ {
+  "name": "gateway.builder_loop",
+  "lang": "Python",
+  "file": "modules/gateway_builder_loop.py.html",
+  "summary": "KittyBuilder KB-S3b \u2014 bounded per-packet repair loop."
+ },
+ {
+  "name": "gateway.builder_operability",
+  "lang": "Python",
+  "file": "modules/gateway_builder_operability.py.html",
+  "summary": "Durable, agent-operable receipts for side-effecting Builder operations."
+ },
+ {
+  "name": "gateway.builder_paid_routing",
+  "lang": "Python",
+  "file": "modules/gateway_builder_paid_routing.py.html",
+  "summary": "Explicit governed paid routes for KittyBuilder execution."
+ },
+ {
+  "name": "gateway.builder_pr_janitor",
+  "lang": "Python",
+  "file": "modules/gateway_builder_pr_janitor.py.html",
+  "summary": "Builder-owned deterministic repairs before PR publication."
+ },
+ {
+  "name": "gateway.builder_publish",
+  "lang": "Python",
+  "file": "modules/gateway_builder_publish.py.html",
+  "summary": "KB-S4 \u2014 operator-gated branch push and PR create/update."
+ },
+ {
+  "name": "gateway.builder_queue",
+  "lang": "Python",
+  "file": "modules/gateway_builder_queue.py.html",
+  "summary": "KittyBuilder Phase 1A \u2014 durable local Builder queue store & state machine."
+ },
+ {
+  "name": "gateway.builder_queue_branch_leases",
+  "lang": "Python",
+  "file": "modules/gateway_builder_queue_branch_leases.py.html",
+  "summary": "Builder queue branch leases \u2014 packet/worker/branch/worktree exclusive leases."
+ },
+ {
+  "name": "gateway.builder_queue_db",
+  "lang": "Python",
+  "file": "modules/gateway_builder_queue_db.py.html",
+  "summary": "Builder queue DB layer \u2014 Task 4.3 state machine + connection/init."
+ },
+ {
+  "name": "gateway.builder_queue_leases",
+  "lang": "Python",
+  "file": "modules/gateway_builder_queue_leases.py.html",
+  "summary": "Builder queue leases \u2014 claim/release/heartbeat/fence for task workers."
+ },
+ {
+  "name": "gateway.builder_queue_runs",
+  "lang": "Python",
+  "file": "modules/gateway_builder_queue_runs.py.html",
+  "summary": "Builder queue runs \u2014 Phase 1C-alpha run-record lifecycle."
+ },
+ {
+  "name": "gateway.builder_report",
+  "lang": "Python",
+  "file": "modules/gateway_builder_report.py.html",
+  "summary": "CP-05 \u2014 bounded campaign report artifact."
+ },
+ {
+  "name": "gateway.builder_run",
+  "lang": "Python",
+  "file": "modules/gateway_builder_run.py.html",
+  "summary": "KB-S5 \u2014 the ``initiative run`` driver loop."
+ },
+ {
+  "name": "gateway.builder_runner",
+  "lang": "Python",
+  "file": "modules/gateway_builder_runner.py.html",
+  "summary": "KittyBuilder Phase 1C-alpha \u2014 runner shadow mode."
+ },
+ {
+  "name": "gateway.builder_runtime",
+  "lang": "Python",
+  "file": "modules/gateway_builder_runtime.py.html",
+  "summary": "Canonical Builder runtime snapshot with worker-session awareness."
+ },
+ {
+  "name": "gateway.builder_scope",
+  "lang": "Python",
+  "file": "modules/gateway_builder_scope.py.html",
+  "summary": "Shared fail-closed scope primitives for KittyBuilder packet execution."
+ },
+ {
+  "name": "gateway.builder_status",
+  "lang": "Python",
+  "file": "modules/gateway_builder_status.py.html",
+  "summary": "Bounded, read-only Builder status projection for the Kitty runtime API."
+ },
+ {
+  "name": "gateway.builder_status_readonly",
+  "lang": "Python",
+  "file": "modules/gateway_builder_status_readonly.py.html",
+  "summary": "Genuinely read-only detailed KittyBuilder projections."
+ },
+ {
+  "name": "gateway.builder_supervisor",
+  "lang": "Python",
+  "file": "modules/gateway_builder_supervisor.py.html",
+  "summary": "Autonomous campaign supervisor \u2014 stateless tick/status control plane."
+ },
+ {
+  "name": "gateway.builder_worker_session",
+  "lang": "Python",
+  "file": "modules/gateway_builder_worker_session.py.html",
+  "summary": "Canonical Builder worker event and runtime-state vocabulary."
+ },
+ {
+  "name": "gateway.calendar_integration",
+  "lang": "Python",
+  "file": "modules/gateway_calendar_integration.py.html",
+  "summary": "Calendar integration \u2014 read/write macOS Calendar via AppleScript."
+ },
+ {
+  "name": "gateway.capability_report",
+  "lang": "Python",
+  "file": "modules/gateway_capability_report.py.html",
+  "summary": "Startup capability report (QoL Packet 07)."
+ },
+ {
+  "name": "gateway.chat_errors",
+  "lang": "Python",
+  "file": "modules/gateway_chat_errors.py.html",
+  "summary": "User-facing chat turn failures."
+ },
+ {
+  "name": "gateway.chat_lifecycle",
+  "lang": "Python",
+  "file": "modules/gateway_chat_lifecycle.py.html",
+  "summary": "Durable normalized chat turns and generation attempts."
+ },
+ {
+  "name": "gateway.chat_search",
+  "lang": "Python",
+  "file": "modules/gateway_chat_search.py.html",
+  "summary": "Chat message search \u2014 FTS5-powered keyword search across conversations."
+ },
+ {
+  "name": "gateway.chats_store",
+  "lang": "Python",
+  "file": "modules/gateway_chats_store.py.html",
+  "summary": "Chat session store \u2014 keyed by id, stored as JSON blobs in kitty.db."
+ },
+ {
+  "name": "gateway.chronicle_service",
+  "lang": "Python",
+  "file": "modules/gateway_chronicle_service.py.html",
+  "summary": "Pure session-history analysis for the chronicle feature."
+ },
+ {
+  "name": "gateway.clerk",
+  "lang": "Python",
+  "file": "modules/gateway_clerk.py.html",
+  "summary": "Dumb extraction and preprocessing for Kitty's knowledge base."
+ },
+ {
+  "name": "gateway.codebase_search",
+  "lang": "Python",
+  "file": "modules/gateway_codebase_search.py.html",
+  "summary": "Codebase Search \u2014 Semantic code search using ChromaDB."
+ },
+ {
+  "name": "gateway.compute_governor",
+  "lang": "Python",
+  "file": "modules/gateway_compute_governor.py.html",
+  "summary": "Compute governor \u2014 stop paying twice for work that has not changed."
+ },
+ {
+  "name": "gateway.config",
+  "lang": "Python",
+  "file": "modules/gateway_config.py.html",
+  "summary": "Central configuration for the gateway."
+ },
+ {
+  "name": "gateway.connectors",
+  "lang": "Python",
+  "file": "modules/gateway_connectors.py.html",
+  "summary": "External connectors \u2014 read-only integrations that emit signals (P3)."
+ },
+ {
+  "name": "gateway.connectors.github",
+  "lang": "Python",
+  "file": "modules/gateway_connectors_github.py.html",
+  "summary": "GitHub read-only connector (P5b, docs/packets/020)."
+ },
+ {
+  "name": "gateway.connectors.mail",
+  "lang": "Python",
+  "file": "modules/gateway_connectors_mail.py.html",
+  "summary": "Gmail read-only connector (P3, docs/packets/005)."
+ },
+ {
+  "name": "gateway.constants",
+  "lang": "Python",
+  "file": "modules/gateway_constants.py.html",
+  "summary": "Shared gateway constants."
+ },
+ {
+  "name": "gateway.context_assembler",
+  "lang": "Python",
+  "file": "modules/gateway_context_assembler.py.html",
+  "summary": "Context Assembler \u2014 the single deep module for read-path context."
+ },
+ {
+  "name": "gateway.context_compaction",
+  "lang": "Python",
+  "file": "modules/gateway_context_compaction.py.html",
+  "summary": "Context Compaction \u2014 auto-summarize long chat threads into memory checkpoints."
+ },
+ {
+  "name": "gateway.context_enrichment",
+  "lang": "Python",
+  "file": "modules/gateway_context_enrichment.py.html",
+  "summary": "Live-state enrichment appended after memory_graph unified context."
+ },
+ {
+  "name": "gateway.context_mission",
+  "lang": "Python",
+  "file": "modules/gateway_context_mission.py.html",
+  "summary": "Bounded Mission Supervisor context and cycle contract."
+ },
+ {
+  "name": "gateway.context_orientation",
+  "lang": "Python",
+  "file": "modules/gateway_context_orientation.py.html",
+  "summary": "Shared deterministic orientation projection for Kitty's cross-agent work."
+ },
+ {
+  "name": "gateway.context_receipt",
+  "lang": "Python",
+  "file": "modules/gateway_context_receipt.py.html",
+  "summary": "Context receipt facade and the single shared orientation owner."
+ },
+ {
+  "name": "gateway.context_receipt_legacy",
+  "lang": "Python",
+  "file": "modules/gateway_context_receipt_legacy.py.html",
+  "summary": "Deterministic repository context receipts and continuity validation."
+ },
+ {
+  "name": "gateway.context_references",
+  "lang": "Python",
+  "file": "modules/gateway_context_references.py.html",
+  "summary": "Resolve durable object references embedded invisibly in chat messages."
+ },
+ {
+  "name": "gateway.conversation_handoff",
+  "lang": "Python",
+  "file": "modules/gateway_conversation_handoff.py.html",
+  "summary": "Conversation -> approved KittyBuilder job handoff for Kitty's native chat."
+ },
+ {
+  "name": "gateway.council",
+  "lang": "Python",
+  "file": "modules/gateway_council.py.html",
+  "summary": "Council supervisor \u2014 classify, route to agents, then synthesize one answer."
+ },
+ {
+  "name": "gateway.cron",
+  "lang": "Python",
+  "file": "modules/gateway_cron.py.html",
+  "summary": "Cron Scheduler \u2014 runtime trigger system for recurring tasks."
+ },
+ {
+  "name": "gateway.db",
+  "lang": "Python",
+  "file": "modules/gateway_db.py.html",
+  "summary": "Phase B SQLite foundation for app-owned Kitty state."
+ },
+ {
+  "name": "gateway.deadline_extractor",
+  "lang": "Python",
+  "file": "modules/gateway_deadline_extractor.py.html",
+  "summary": "Deadline extraction from health/admin documents and mail signals (P7, docs/packets/017)."
+ },
+ {
+  "name": "gateway.deadline_store",
+  "lang": "Python",
+  "file": "modules/gateway_deadline_store.py.html",
+  "summary": "Deadline store \u2014 watched deadlines and escalation log (P7, docs/packets/017)."
+ },
+ {
+  "name": "gateway.deadline_sweep",
+  "lang": "Python",
+  "file": "modules/gateway_deadline_sweep.py.html",
+  "summary": "Urgent-thing sweep \u2014 discover deadlines across sources and push a report (P7, docs/packets/017)."
+ },
+ {
+  "name": "gateway.deadline_watch",
+  "lang": "Python",
+  "file": "modules/gateway_deadline_watch.py.html",
+  "summary": "Deadline watch cron \u2014 escalating pushes for approaching deadlines (P7, docs/packets/017)."
+ },
+ {
+  "name": "gateway.delegation",
+  "lang": "Python",
+  "file": "modules/gateway_delegation.py.html",
+  "summary": "Delegation packet generator (P3, docs/packets/007)."
+ },
+ {
+  "name": "gateway.deploy",
+  "lang": "Python",
+  "file": "modules/gateway_deploy.py.html",
+  "summary": "Deployment Agent \u2014 deploy projects to hosting platforms."
+ },
+ {
+  "name": "gateway.desktop_store",
+  "lang": "Python",
+  "file": "modules/gateway_desktop_store.py.html",
+  "summary": "Desktop Phase 1 storage helpers."
+ },
+ {
+  "name": "gateway.doctor",
+  "lang": "Python",
+  "file": "modules/gateway_doctor.py.html",
+  "summary": "Kitty preflight / health doctor."
+ },
+ {
+  "name": "gateway.document_validator",
+  "lang": "Python",
+  "file": "modules/gateway_document_validator.py.html",
+  "summary": "Document upload validation for knowledge ingestion."
+ },
+ {
+  "name": "gateway.domain_router",
+  "lang": "Python",
+  "file": "modules/gateway_domain_router.py.html",
+  "summary": "Domain classifier \u2014 keyword scorer over the user message."
+ },
+ {
+  "name": "gateway.dream_insights",
+  "lang": "Python",
+  "file": "modules/gateway_dream_insights.py.html",
+  "summary": "Dream / memory consolidation \u2014 owned substrate for the dream endpoint."
+ },
+ {
+  "name": "gateway.errors",
+  "lang": "Python",
+  "file": "modules/gateway_errors.py.html",
+  "summary": "Typed error hierarchy for the gateway."
+ },
+ {
+  "name": "gateway.eval_runner",
+  "lang": "Python",
+  "file": "modules/gateway_eval_runner.py.html",
+  "summary": "Eval Runner \u2014 lightweight before/after quality measurement."
+ },
+ {
+  "name": "gateway.expert_proactive",
+  "lang": "Python",
+  "file": "modules/gateway_expert_proactive.py.html",
+  "summary": "Proactive expert evaluation and learning loop."
+ },
+ {
+  "name": "gateway.expert_state",
+  "lang": "Python",
+  "file": "modules/gateway_expert_state.py.html",
+  "summary": "Data access layer for proactive expert state (snooze, inbox lifecycle, feedback)."
+ },
+ {
+  "name": "gateway.explicit_memory",
+  "lang": "Python",
+  "file": "modules/gateway_explicit_memory.py.html",
+  "summary": "Governed user-confirmed memories stored in Kitty's existing SQLite DB."
+ },
+ {
+  "name": "gateway.feedback",
+  "lang": "Python",
+  "file": "modules/gateway_feedback.py.html",
+  "summary": "User feedback and error logging \u2014 owned substrate for the feedback endpoint."
+ },
+ {
+  "name": "gateway.flux2_compiler",
+  "lang": "Python",
+  "file": "modules/gateway_flux2_compiler.py.html",
+  "summary": "Provider-neutral FLUX.2 semantic compiler, version flux2@1."
+ },
+ {
+  "name": "gateway.flux2_targets",
+  "lang": "Python",
+  "file": "modules/gateway_flux2_targets.py.html",
+  "summary": "Flux2HostedTarget \u2014 the explicit execution-target representation for hosted FLUX.2."
+ },
+ {
+  "name": "gateway.flux2_transport",
+  "lang": "Python",
+  "file": "modules/gateway_flux2_transport.py.html",
+  "summary": "BFL Direct FLUX.2 transport \u2014 the hosted adapter for the flux2@1 compiler."
+ },
+ {
+  "name": "gateway.health_parser",
+  "lang": "Python",
+  "file": "modules/gateway_health_parser.py.html",
+  "summary": "Apple Health XML parser \u2014 extract key metrics from export.xml."
+ },
+ {
+  "name": "gateway.health_surface",
+  "lang": "Python",
+  "file": "modules/gateway_health_surface.py.html",
+  "summary": "Kitty Health surface \u2014 read-only projection answering \"is Kitty working?\"."
+ },
+ {
+  "name": "gateway.honcho",
+  "lang": "Python",
+  "file": "modules/gateway_honcho.py.html",
+  "summary": "Weekly pattern mirror \u2014 surfaces behavioral themes from recent gateway traces."
+ },
+ {
+  "name": "gateway.http_client",
+  "lang": "Python",
+  "file": "modules/gateway_http_client.py.html",
+  "summary": "Shared async HTTP client for LiteLLM proxy calls."
+ },
+ {
+  "name": "gateway.hybrid_search",
+  "lang": "Python",
+  "file": "modules/gateway_hybrid_search.py.html",
+  "summary": "Hybrid search: ChromaDB (vector) + SQLite FTS5 (keyword) with RRF fusion."
+ },
+ {
+  "name": "gateway.idea_mine_store",
+  "lang": "Python",
+  "file": "modules/gateway_idea_mine_store.py.html",
+  "summary": "Packet 024 phase 2 \u2014 chat-log idea mine review store and pipeline."
+ },
+ {
+  "name": "gateway.image_agent",
+  "lang": "Python",
+  "file": "modules/gateway_image_agent.py.html",
+  "summary": "Bounded image-specialist controller (issue #336, slice A3)."
+ },
+ {
+  "name": "gateway.image_backends",
+  "lang": "Python",
+  "file": "modules/gateway_image_backends.py.html",
+  "summary": "Abstract image backend interface with ComfyUI and Stability AI implementations."
+ },
+ {
+  "name": "gateway.image_batches",
+  "lang": "Python",
+  "file": "modules/gateway_image_batches.py.html",
+  "summary": "Durable Image Lab batch queue."
+ },
+ {
+  "name": "gateway.image_character_contracts",
+  "lang": "Python",
+  "file": "modules/gateway_image_character_contracts.py.html",
+  "summary": "Executable Image Studio character contracts."
+ },
+ {
+  "name": "gateway.image_characters",
+  "lang": "Python",
+  "file": "modules/gateway_image_characters.py.html",
+  "summary": "Image Studio V2 \u2014 Character library (private by default) with face"
+ },
+ {
+  "name": "gateway.image_estimates",
+  "lang": "Python",
+  "file": "modules/gateway_image_estimates.py.html",
+  "summary": "Evidence-backed Image Lab cost and duration estimates."
+ },
+ {
+  "name": "gateway.image_evaluation",
+  "lang": "Python",
+  "file": "modules/gateway_image_evaluation.py.html",
+  "summary": "Fail-closed Image Lab evaluation contract."
+ },
+ {
+  "name": "gateway.image_gen",
+  "lang": "Python",
+  "file": "modules/gateway_image_gen.py.html",
+  "summary": "ComfyUI image generation \u2014 calls the ComfyUI REST API (local or Colab tunnel)."
+ },
+ {
+  "name": "gateway.image_guidance_bank",
+  "lang": "Python",
+  "file": "modules/gateway_image_guidance_bank.py.html",
+  "summary": "Kitty ImageGuidance Bank \u2014 curated generation guidance as versioned Markdown."
+ },
+ {
+  "name": "gateway.image_identity_assignment",
+  "lang": "Python",
+  "file": "modules/gateway_image_identity_assignment.py.html",
+  "summary": "Fail-closed identity assignment evidence for multi-character ImageBench runs."
+ },
+ {
+  "name": "gateway.image_iteration",
+  "lang": "Python",
+  "file": "modules/gateway_image_iteration.py.html",
+  "summary": "Image Lab iteration helpers (QoL Packet 02)."
+ },
+ {
+  "name": "gateway.image_jobs",
+  "lang": "Python",
+  "file": "modules/gateway_image_jobs.py.html",
+  "summary": "Durable provider-neutral image-job metadata store (IMG-01)."
+ },
+ {
+  "name": "gateway.image_plan_store",
+  "lang": "Python",
+  "file": "modules/gateway_image_plan_store.py.html",
+  "summary": "Durable, session-owned image plans (issue #336, slice A2)."
+ },
+ {
+  "name": "gateway.image_plan_types",
+  "lang": "Python",
+  "file": "modules/gateway_image_plan_types.py.html",
+  "summary": "Kitty ImagePlan types \u2014 plan type definitions and builder for the"
+ },
+ {
+  "name": "gateway.image_policy",
+  "lang": "Python",
+  "file": "modules/gateway_image_policy.py.html",
+  "summary": "Content-lane execution policy for image generation (ADR 0040 decision #8)."
+ },
+ {
+  "name": "gateway.image_quality",
+  "lang": "Python",
+  "file": "modules/gateway_image_quality.py.html",
+  "summary": "Image reference quality checks \u2014 local validation without external models."
+ },
+ {
+  "name": "gateway.image_recipes",
+  "lang": "Python",
+  "file": "modules/gateway_image_recipes.py.html",
+  "summary": "Image Studio V1 \u2014 Recipe registry and Auto routing."
+ },
+ {
+  "name": "gateway.image_reference_selector",
+  "lang": "Python",
+  "file": "modules/gateway_image_reference_selector.py.html",
+  "summary": "Role-aware, capability-aware reference selection for Image Lab dispatch."
+ },
+ {
+  "name": "gateway.image_runner",
+  "lang": "Python",
+  "file": "modules/gateway_image_runner.py.html",
+  "summary": "Image generation runner \u2014 deep module owning job lifecycle and engine dispatch."
+ },
+ {
+  "name": "gateway.image_scorers",
+  "lang": "Python",
+  "file": "modules/gateway_image_scorers.py.html",
+  "summary": "Fail-closed production scorer adapters for Image Lab evaluation."
+ },
+ {
+  "name": "gateway.image_sessions",
+  "lang": "Python",
+  "file": "modules/gateway_image_sessions.py.html",
+  "summary": "Durable conversational image sessions (issue #336, slice A1)."
+ },
+ {
+  "name": "gateway.imessage",
+  "lang": "Python",
+  "file": "modules/gateway_imessage.py.html",
+  "summary": "iMessage bridge \u2014 send/read via AppleScript on macOS."
+ },
+ {
+  "name": "gateway.inbox_watcher",
+  "lang": "Python",
+  "file": "modules/gateway_inbox_watcher.py.html",
+  "summary": "Watch iCloud inbox for voice notes and ingest them into data/inbox.jsonl."
+ },
+ {
+  "name": "gateway.ingestion_queue",
+  "lang": "Python",
+  "file": "modules/gateway_ingestion_queue.py.html",
+  "summary": "SQLite-backed ingestion queue for Kitty."
+ },
+ {
+  "name": "gateway.insight_loop",
+  "lang": "Python",
+  "file": "modules/gateway_insight_loop.py.html",
+  "summary": "Insight lifecycle: capture, classify, return, act, learn (issue #270)."
+ },
+ {
+  "name": "gateway.insights",
+  "lang": "Python",
+  "file": "modules/gateway_insights.py.html",
+  "summary": "User insight cards \u2014 deliberately empty substrate for the insights endpoint."
+ },
+ {
+  "name": "gateway.intelligence_projection",
+  "lang": "Python",
+  "file": "modules/gateway_intelligence_projection.py.html",
+  "summary": "Read-only Home projection for the few things Kitty most wants to surface."
+ },
+ {
+  "name": "gateway.inventory",
+  "lang": "Python",
+  "file": "modules/gateway_inventory.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.journal",
+  "lang": "Python",
+  "file": "modules/gateway_journal.py.html",
+  "summary": "Journal system \u2014 Kitty as interviewer, entry emerges from conversation."
+ },
+ {
+  "name": "gateway.journal_store",
+  "lang": "Python",
+  "file": "modules/gateway_journal_store.py.html",
+  "summary": "Journal entry store \u2014 normalized columns in kitty.db."
+ },
+ {
+  "name": "gateway.jsonl_tail",
+  "lang": "Python",
+  "file": "modules/gateway_jsonl_tail.py.html",
+  "summary": "Bounded helpers for append-only JSONL hot paths."
+ },
+ {
+  "name": "gateway.kitty-chat.tests.support.hermetic_gateway",
+  "lang": "Python",
+  "file": "modules/gateway_kitty-chat_tests_support_hermetic_gateway.py.html",
+  "summary": "Minimal real Kitty Gateway surface for the browser continuity seam."
+ },
+ {
+  "name": "gateway.knowledge",
+  "lang": "Python",
+  "file": "modules/gateway_knowledge.py.html",
+  "summary": "Robust Knowledge Pipeline \u2014 orchestrates document ingestion and retrieval."
+ },
+ {
+  "name": "gateway.learning",
+  "lang": "Python",
+  "file": "modules/gateway_learning.py.html",
+  "summary": "Socratic Layer for Kitty."
+ },
+ {
+  "name": "gateway.librarian",
+  "lang": "Python",
+  "file": "modules/gateway_librarian.py.html",
+  "summary": "High-reasoning judgment for Kitty's knowledge base curation."
+ },
+ {
+  "name": "gateway.life_awareness",
+  "lang": "Python",
+  "file": "modules/gateway_life_awareness.py.html",
+  "summary": "Life Awareness \u2014 calendar-aware, do-not-disturb, proactive life-first companion."
+ },
+ {
+  "name": "gateway.life_cron",
+  "lang": "Python",
+  "file": "modules/gateway_life_cron.py.html",
+  "summary": "Cron wrappers for blocking life-awareness/provider work."
+ },
+ {
+  "name": "gateway.llm_client",
+  "lang": "Python",
+  "file": "modules/gateway_llm_client.py.html",
+  "summary": "Unified LLM client \u2014 one Kitty route, then provider fallbacks."
+ },
+ {
+  "name": "gateway.local_review",
+  "lang": "Python",
+  "file": "modules/gateway_local_review.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.magic_kitty",
+  "lang": "Python",
+  "file": "modules/gateway_magic_kitty.py.html",
+  "summary": "Magic Kitty \u2014 cross-project insight discovery (DOCS ADR-0014 / packet 022)."
+ },
+ {
+  "name": "gateway.mcp_tool_bridge",
+  "lang": "Python",
+  "file": "modules/gateway_mcp_tool_bridge.py.html",
+  "summary": "MCP Tool Bridge \u2014 runtime discovery and bounded tool invocation."
+ },
+ {
+  "name": "gateway.memory",
+  "lang": "Python",
+  "file": "modules/gateway_memory.py.html",
+  "summary": "Mem0 memory wrapper for Kitty Gateway."
+ },
+ {
+  "name": "gateway.memory_consolidation",
+  "lang": "Python",
+  "file": "modules/gateway_memory_consolidation.py.html",
+  "summary": "Memory consolidation \u2014 periodic compression of traces into durable long-term memory."
+ },
+ {
+  "name": "gateway.memory_explain",
+  "lang": "Python",
+  "file": "modules/gateway_memory_explain.py.html",
+  "summary": "Read-only explanation projection over the governed explicit-memory store (#552)."
+ },
+ {
+  "name": "gateway.memory_graph",
+  "lang": "Python",
+  "file": "modules/gateway_memory_graph.py.html",
+  "summary": "Unified Memory Graph \u2014 deep module for cross-store context retrieval."
+ },
+ {
+  "name": "gateway.memory_mission",
+  "lang": "Python",
+  "file": "modules/gateway_memory_mission.py.html",
+  "summary": "Gateway-owned durable Mission state for Mission Center."
+ },
+ {
+  "name": "gateway.memory_policy",
+  "lang": "Python",
+  "file": "modules/gateway_memory_policy.py.html",
+  "summary": "Memory policy \u2014 consentful, scoped, decayed memory for continuity, not surveillance."
+ },
+ {
+  "name": "gateway.memory_weave",
+  "lang": "Python",
+  "file": "modules/gateway_memory_weave.py.html",
+  "summary": "Memory Weave \u2014 temporal knowledge graph for Kitty."
+ },
+ {
+  "name": "gateway.mempalace_adapter",
+  "lang": "Python",
+  "file": "modules/gateway_mempalace_adapter.py.html",
+  "summary": "MemPalace StoreAdapter \u2014 optional local-first semantic memory backend."
+ },
+ {
+  "name": "gateway.mission_accept_cli",
+  "lang": "Python",
+  "file": "modules/gateway_mission_accept_cli.py.html",
+  "summary": "Local operator command for recording running-product Mission acceptance."
+ },
+ {
+  "name": "gateway.mission_runtime",
+  "lang": "Python",
+  "file": "modules/gateway_mission_runtime.py.html",
+  "summary": "Mission wake/review adapter over existing Automation and free DSH seams."
+ },
+ {
+  "name": "gateway.model_digest",
+  "lang": "Python",
+  "file": "modules/gateway_model_digest.py.html",
+  "summary": "AI Model Digest \u2014 read stored model-change events for the morning brief."
+ },
+ {
+  "name": "gateway.model_discovery",
+  "lang": "Python",
+  "file": "modules/gateway_model_discovery.py.html",
+  "summary": "Provider catalogue discovery for Kitty model roles."
+ },
+ {
+  "name": "gateway.model_policy_alignment",
+  "lang": "Python",
+  "file": "modules/gateway_model_policy_alignment.py.html",
+  "summary": "Keep the model-role contract aligned with the routes Kitty actually serves."
+ },
+ {
+  "name": "gateway.model_presets",
+  "lang": "Python",
+  "file": "modules/gateway_model_presets.py.html",
+  "summary": "Curated, evidence-honest model picker payloads."
+ },
+ {
+  "name": "gateway.model_routing",
+  "lang": "Python",
+  "file": "modules/gateway_model_routing.py.html",
+  "summary": "Model routing truth \u2014 which provider each kitty-* alias actually calls."
+ },
+ {
+  "name": "gateway.models",
+  "lang": "Python",
+  "file": "modules/gateway_models.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.models.builder",
+  "lang": "Python",
+  "file": "modules/gateway_models_builder.py.html",
+  "summary": "Pydantic models for the KittyBuilder control plane."
+ },
+ {
+  "name": "gateway.monitors",
+  "lang": "Python",
+  "file": "modules/gateway_monitors.py.html",
+  "summary": "URL/page monitors \u2014 owned substrate for the monitors endpoint."
+ },
+ {
+  "name": "gateway.next_step",
+  "lang": "Python",
+  "file": "modules/gateway_next_step.py.html",
+  "summary": "Next-step navigator \u2014 one curated \"B\" per project (P4, docs/packets/016)."
+ },
+ {
+  "name": "gateway.notify",
+  "lang": "Python",
+  "file": "modules/gateway_notify.py.html",
+  "summary": "Push notification \u2014 Pushover integration for phone alerts."
+ },
+ {
+  "name": "gateway.nudge",
+  "lang": "Python",
+  "file": "modules/gateway_nudge.py.html",
+  "summary": "Proactive Nudge Engine \u2014 detect patterns and suggest actions without being asked."
+ },
+ {
+  "name": "gateway.observability",
+  "lang": "Python",
+  "file": "modules/gateway_observability.py.html",
+  "summary": "LLM call observability."
+ },
+ {
+  "name": "gateway.onboarding",
+  "lang": "Python",
+  "file": "modules/gateway_onboarding.py.html",
+  "summary": "Persist onboarding state in the shared app_settings table."
+ },
+ {
+  "name": "gateway.openviking_shadow",
+  "lang": "Python",
+  "file": "modules/gateway_openviking_shadow.py.html",
+  "summary": "Optional local OpenViking retrieval for Kitty context assembly."
+ },
+ {
+  "name": "gateway.openwebui_routing_guards",
+  "lang": "Python",
+  "file": "modules/gateway_openwebui_routing_guards.py.html",
+  "summary": "Runtime guards for OpenAI-compatible chat clients such as Open WebUI."
+ },
+ {
+  "name": "gateway.operating_policy",
+  "lang": "Python",
+  "file": "modules/gateway_operating_policy.py.html",
+  "summary": "Executable operating contracts for model roles, image characters, and Builder."
+ },
+ {
+  "name": "gateway.paths",
+  "lang": "Python",
+  "file": "modules/gateway_paths.py.html",
+  "summary": "Central path definitions for the Kitty gateway."
+ },
+ {
+  "name": "gateway.patterns",
+  "lang": "Python",
+  "file": "modules/gateway_patterns.py.html",
+  "summary": "Longitudinal Pattern Tracking \u2014 multi-timeframe behavioral analysis."
+ },
+ {
+  "name": "gateway.pdf_pipeline",
+  "lang": "Python",
+  "file": "modules/gateway_pdf_pipeline.py.html",
+  "summary": "Phase 9 PDF pipeline \u2014 LlamaCloud primary, PyMuPDF fallback."
+ },
+ {
+  "name": "gateway.perf",
+  "lang": "Python",
+  "file": "modules/gateway_perf.py.html",
+  "summary": "Performance stats and metrics \u2014 owned substrate for the perf endpoint."
+ },
+ {
+  "name": "gateway.personality",
+  "lang": "Python",
+  "file": "modules/gateway_personality.py.html",
+  "summary": "Personality \u2014 load and assemble Kitty's modular personality files."
+ },
+ {
+  "name": "gateway.plugin_registry",
+  "lang": "Python",
+  "file": "modules/gateway_plugin_registry.py.html",
+  "summary": "Plugin Registry \u2014 extensible capability system for Kitty."
+ },
+ {
+  "name": "gateway.prefetcher",
+  "lang": "Python",
+  "file": "modules/gateway_prefetcher.py.html",
+  "summary": "Predictive context prefetcher."
+ },
+ {
+  "name": "gateway.proactive_insights",
+  "lang": "Python",
+  "file": "modules/gateway_proactive_insights.py.html",
+  "summary": "Proactive Insight Engine \u2014 surfaces patterns without being asked."
+ },
+ {
+  "name": "gateway.project_context",
+  "lang": "Python",
+  "file": "modules/gateway_project_context.py.html",
+  "summary": "Persisted active-project scope for gateway requests."
+ },
+ {
+  "name": "gateway.project_resume",
+  "lang": "Python",
+  "file": "modules/gateway_project_resume.py.html",
+  "summary": "Project resume \u2014 refresh()/resume() composer (P6, docs/packets/021)."
+ },
+ {
+  "name": "gateway.project_store",
+  "lang": "Python",
+  "file": "modules/gateway_project_store.py.html",
+  "summary": "Project registry \u2014 CRUD for the projects table (P6, docs/packets/021)."
+ },
+ {
+  "name": "gateway.prompts",
+  "lang": "Python",
+  "file": "modules/gateway_prompts.py.html",
+  "summary": "Central catalog of inline prompts that were previously scattered across"
+ },
+ {
+  "name": "gateway.provider_prefs",
+  "lang": "Python",
+  "file": "modules/gateway_provider_prefs.py.html",
+  "summary": "Which provider Kitty tries first, and which ones it skips entirely."
+ },
+ {
+  "name": "gateway.push",
+  "lang": "Python",
+  "file": "modules/gateway_push.py.html",
+  "summary": "Push notification fa\u00e7ade (P3, docs/packets/015)."
+ },
+ {
+  "name": "gateway.query_builder",
+  "lang": "Python",
+  "file": "modules/gateway_query_builder.py.html",
+  "summary": "Typed where-clause builder for safe SQLite parameterisation (audit \u00a72.3)."
+ },
+ {
+  "name": "gateway.reasoning",
+  "lang": "Python",
+  "file": "modules/gateway_reasoning.py.html",
+  "summary": "Reasoning engine \u2014 complexity classifier, model routing, execution receipts."
+ },
+ {
+  "name": "gateway.registry",
+  "lang": "Python",
+  "file": "modules/gateway_registry.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.reliability_metrics",
+  "lang": "Python",
+  "file": "modules/gateway_reliability_metrics.py.html",
+  "summary": "Small deterministic metrics for repeated Kitty reliability evidence."
+ },
+ {
+  "name": "gateway.research_bench",
+  "lang": "Python",
+  "file": "modules/gateway_research_bench.py.html",
+  "summary": "Small, versioned benchmark contract for choosing Kitty research engines."
+ },
+ {
+  "name": "gateway.research_execution",
+  "lang": "Python",
+  "file": "modules/gateway_research_execution.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.research_runs",
+  "lang": "Python",
+  "file": "modules/gateway_research_runs.py.html",
+  "summary": "Durable execution truth for deep-research runs."
+ },
+ {
+  "name": "gateway.researcher",
+  "lang": "Python",
+  "file": "modules/gateway_researcher.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.reset",
+  "lang": "Python",
+  "file": "modules/gateway_reset.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.rich_cli",
+  "lang": "Python",
+  "file": "modules/gateway_rich_cli.py.html",
+  "summary": "Rich terminal output patterns \u2014 CLI utilities using the \"rich\" library."
+ },
+ {
+  "name": "gateway.routes",
+  "lang": "Python",
+  "file": "modules/gateway_routes.py.html",
+  "summary": "FastAPI route modules \u2014 included from gateway.app."
+ },
+ {
+  "name": "gateway.routes.actions",
+  "lang": "Python",
+  "file": "modules/gateway_routes_actions.py.html",
+  "summary": "Action-queue endpoints (P3, docs/packets/003)."
+ },
+ {
+  "name": "gateway.routes.activity",
+  "lang": "Python",
+  "file": "modules/gateway_routes_activity.py.html",
+  "summary": "Unified read-only activity projection for the Kitty product shell."
+ },
+ {
+  "name": "gateway.routes.agent_workspace",
+  "lang": "Python",
+  "file": "modules/gateway_routes_agent_workspace.py.html",
+  "summary": "Gateway routes for durable shared agent workspaces."
+ },
+ {
+  "name": "gateway.routes.agents",
+  "lang": "Python",
+  "file": "modules/gateway_routes_agents.py.html",
+  "summary": "Agent routes."
+ },
+ {
+  "name": "gateway.routes.artifacts",
+  "lang": "Python",
+  "file": "modules/gateway_routes_artifacts.py.html",
+  "summary": "Read-only artifact registry endpoints."
+ },
+ {
+  "name": "gateway.routes.ask",
+  "lang": "Python",
+  "file": "modules/gateway_routes_ask.py.html",
+  "summary": "Siri / script-friendly ask endpoint."
+ },
+ {
+  "name": "gateway.routes.automations",
+  "lang": "Python",
+  "file": "modules/gateway_routes_automations.py.html",
+  "summary": "Automation execution and lifecycle status routes."
+ },
+ {
+  "name": "gateway.routes.brief",
+  "lang": "Python",
+  "file": "modules/gateway_routes_brief.py.html",
+  "summary": "Morning brief routes."
+ },
+ {
+  "name": "gateway.routes.builder",
+  "lang": "Python",
+  "file": "modules/gateway_routes_builder.py.html",
+  "summary": "Builder-specific routes \u2014 event stream and control surface."
+ },
+ {
+  "name": "gateway.routes.calendar",
+  "lang": "Python",
+  "file": "modules/gateway_routes_calendar.py.html",
+  "summary": "macOS Calendar integration routes."
+ },
+ {
+  "name": "gateway.routes.capabilities",
+  "lang": "Python",
+  "file": "modules/gateway_routes_capabilities.py.html",
+  "summary": "Read-only projection of Kitty capabilities for product discovery."
+ },
+ {
+  "name": "gateway.routes.capture",
+  "lang": "Python",
+  "file": "modules/gateway_routes_capture.py.html",
+  "summary": "Capture endpoints \u2014 file/PDF/screenshot -> inbox -> knowledge pipeline."
+ },
+ {
+  "name": "gateway.routes.chats",
+  "lang": "Python",
+  "file": "modules/gateway_routes_chats.py.html",
+  "summary": "Kitty-chat session persistence \u2014 backed by kitty.db via chats_store."
+ },
+ {
+  "name": "gateway.routes.chronicle",
+  "lang": "Python",
+  "file": "modules/gateway_routes_chronicle.py.html",
+  "summary": "Chronicle \u2014 session history analysis and personalized usage tips."
+ },
+ {
+  "name": "gateway.routes.completions",
+  "lang": "Python",
+  "file": "modules/gateway_routes_completions.py.html",
+  "summary": "LiteLLM chat-completions proxy and session close."
+ },
+ {
+  "name": "gateway.routes.conversation_handoff",
+  "lang": "Python",
+  "file": "modules/gateway_routes_conversation_handoff.py.html",
+  "summary": "HTTP surface for the conversation -> approved KittyBuilder job handoff."
+ },
+ {
+  "name": "gateway.routes.council",
+  "lang": "Python",
+  "file": "modules/gateway_routes_council.py.html",
+  "summary": "Council supervisor HTTP entrypoint."
+ },
+ {
+  "name": "gateway.routes.cron",
+  "lang": "Python",
+  "file": "modules/gateway_routes_cron.py.html",
+  "summary": "Cron schedule management routes."
+ },
+ {
+  "name": "gateway.routes.deadlines",
+  "lang": "Python",
+  "file": "modules/gateway_routes_deadlines.py.html",
+  "summary": "Deadline routes (P7, docs/packets/017)."
+ },
+ {
+  "name": "gateway.routes.desktop",
+  "lang": "Python",
+  "file": "modules/gateway_routes_desktop.py.html",
+  "summary": "Desktop-specific Phase 1 endpoints."
+ },
+ {
+  "name": "gateway.routes.dream",
+  "lang": "Python",
+  "file": "modules/gateway_routes_dream.py.html",
+  "summary": "Dream / memory consolidation routes \u2014 thin FastAPI wrapper."
+ },
+ {
+  "name": "gateway.routes.experts",
+  "lang": "Python",
+  "file": "modules/gateway_routes_experts.py.html",
+  "summary": "REST endpoints for proactive expert feedback and state management."
+ },
+ {
+  "name": "gateway.routes.feedback",
+  "lang": "Python",
+  "file": "modules/gateway_routes_feedback.py.html",
+  "summary": "User feedback and error logging endpoint \u2014 thin FastAPI wrapper."
+ },
+ {
+  "name": "gateway.routes.idea_mine",
+  "lang": "Python",
+  "file": "modules/gateway_routes_idea_mine.py.html",
+  "summary": "Idea-mine review endpoints (packet 024, phase 2)."
+ },
+ {
+  "name": "gateway.routes.image_character_contracts",
+  "lang": "Python",
+  "file": "modules/gateway_routes_image_character_contracts.py.html",
+  "summary": "Image character contracts and the generation path they actually control."
+ },
+ {
+  "name": "gateway.routes.image_generation",
+  "lang": "Python",
+  "file": "modules/gateway_routes_image_generation.py.html",
+  "summary": "Image generation routes."
+ },
+ {
+  "name": "gateway.routes.image_studio",
+  "lang": "Python",
+  "file": "modules/gateway_routes_image_studio.py.html",
+  "summary": "Image Studio routes."
+ },
+ {
+  "name": "gateway.routes.image_studio_jobs",
+  "lang": "Python",
+  "file": "modules/gateway_routes_image_studio_jobs.py.html",
+  "summary": "Durable Image Lab estimate and batch queue HTTP contract."
+ },
+ {
+  "name": "gateway.routes.import_chatgpt",
+  "lang": "Python",
+  "file": "modules/gateway_routes_import_chatgpt.py.html",
+  "summary": "ChatGPT import endpoint for the onboarding wizard."
+ },
+ {
+  "name": "gateway.routes.inbox",
+  "lang": "Python",
+  "file": "modules/gateway_routes_inbox.py.html",
+  "summary": "Inbox triage endpoints (P2, docs/packets/002)."
+ },
+ {
+  "name": "gateway.routes.insights",
+  "lang": "Python",
+  "file": "modules/gateway_routes_insights.py.html",
+  "summary": "Insights endpoints \u2014 dream insights + insight lifecycle (issue #270)."
+ },
+ {
+  "name": "gateway.routes.integrations",
+  "lang": "Python",
+  "file": "modules/gateway_routes_integrations.py.html",
+  "summary": "Integrations: messaging, plugins, MCP, sync, ops tooling."
+ },
+ {
+  "name": "gateway.routes.intelligence",
+  "lang": "Python",
+  "file": "modules/gateway_routes_intelligence.py.html",
+  "summary": "Selective personal-intelligence projection for Home."
+ },
+ {
+  "name": "gateway.routes.journal",
+  "lang": "Python",
+  "file": "modules/gateway_routes_journal.py.html",
+  "summary": "Journal interview and message management."
+ },
+ {
+  "name": "gateway.routes.kitty_tools",
+  "lang": "Python",
+  "file": "modules/gateway_routes_kitty_tools.py.html",
+  "summary": "Misc Kitty tool routes (reset, troubleshoot, research, etc.)."
+ },
+ {
+  "name": "gateway.routes.knowledge",
+  "lang": "Python",
+  "file": "modules/gateway_routes_knowledge.py.html",
+  "summary": "Knowledge library endpoints \u2014 ingest, inventory, and search."
+ },
+ {
+  "name": "gateway.routes.life",
+  "lang": "Python",
+  "file": "modules/gateway_routes_life.py.html",
+  "summary": "Life awareness routes \u2014 calendar, do-not-disturb, evening reflection, proactive."
+ },
+ {
+  "name": "gateway.routes.logs",
+  "lang": "Python",
+  "file": "modules/gateway_routes_logs.py.html",
+  "summary": "Read-only log tail for the UI terminal view."
+ },
+ {
+  "name": "gateway.routes.loops",
+  "lang": "Python",
+  "file": "modules/gateway_routes_loops.py.html",
+  "summary": "Loops endpoint for Kitty UI \u2014 background task loops."
+ },
+ {
+  "name": "gateway.routes.magic",
+  "lang": "Python",
+  "file": "modules/gateway_routes_magic.py.html",
+  "summary": "Magic Kitty route \u2014 cross-project connections for the home dashboard."
+ },
+ {
+  "name": "gateway.routes.memories",
+  "lang": "Python",
+  "file": "modules/gateway_routes_memories.py.html",
+  "summary": "Long-term memory list and forget lifecycle."
+ },
+ {
+  "name": "gateway.routes.missions",
+  "lang": "Python",
+  "file": "modules/gateway_routes_missions.py.html",
+  "summary": "Thin Gateway HTTP surface for durable Mission-owned state."
+ },
+ {
+  "name": "gateway.routes.models",
+  "lang": "Python",
+  "file": "modules/gateway_routes_models.py.html",
+  "summary": "User-facing model choice views."
+ },
+ {
+  "name": "gateway.routes.monitors",
+  "lang": "Python",
+  "file": "modules/gateway_routes_monitors.py.html",
+  "summary": "Monitors endpoint for Kitty UI \u2014 thin FastAPI wrapper."
+ },
+ {
+  "name": "gateway.routes.network",
+  "lang": "Python",
+  "file": "modules/gateway_routes_network.py.html",
+  "summary": "Network reachability routes (phone-access status)."
+ },
+ {
+  "name": "gateway.routes.notifications",
+  "lang": "Python",
+  "file": "modules/gateway_routes_notifications.py.html",
+  "summary": "Notification routes."
+ },
+ {
+  "name": "gateway.routes.onboarding",
+  "lang": "Python",
+  "file": "modules/gateway_routes_onboarding.py.html",
+  "summary": "Persisted onboarding state endpoint."
+ },
+ {
+  "name": "gateway.routes.openai_compat",
+  "lang": "Python",
+  "file": "modules/gateway_routes_openai_compat.py.html",
+  "summary": "Small OpenAI-compatible discovery surface for third-party Kitty clients."
+ },
+ {
+  "name": "gateway.routes.perf",
+  "lang": "Python",
+  "file": "modules/gateway_routes_perf.py.html",
+  "summary": "Performance stats and metrics endpoint \u2014 thin FastAPI wrapper."
+ },
+ {
+  "name": "gateway.routes.personality",
+  "lang": "Python",
+  "file": "modules/gateway_routes_personality.py.html",
+  "summary": "Read and update Kitty's personality documents \u2014 soul, identity, agents, and preferences."
+ },
+ {
+  "name": "gateway.routes.projects",
+  "lang": "Python",
+  "file": "modules/gateway_routes_projects.py.html",
+  "summary": "Project registry + resume endpoints (P6/P4, docs/packets/021 + 016)."
+ },
+ {
+  "name": "gateway.routes.prompts",
+  "lang": "Python",
+  "file": "modules/gateway_routes_prompts.py.html",
+  "summary": "Prompt templates endpoint \u2014 thin FastAPI wrapper."
+ },
+ {
+  "name": "gateway.routes.providers",
+  "lang": "Python",
+  "file": "modules/gateway_routes_providers.py.html",
+  "summary": "Active chat-provider inspection and switching."
+ },
+ {
+  "name": "gateway.routes.register",
+  "lang": "Python",
+  "file": "modules/gateway_routes_register.py.html",
+  "summary": "Mount all gateway route modules on the FastAPI app."
+ },
+ {
+  "name": "gateway.routes.repairs",
+  "lang": "Python",
+  "file": "modules/gateway_routes_repairs.py.html",
+  "summary": "Self-repairs endpoint \u2014 actionable diagnosis for chat and Home cards."
+ },
+ {
+  "name": "gateway.routes.research",
+  "lang": "Python",
+  "file": "modules/gateway_routes_research.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.routes.runtime",
+  "lang": "Python",
+  "file": "modules/gateway_routes_runtime.py.html",
+  "summary": "Authoritative runtime capability manifest."
+ },
+ {
+  "name": "gateway.routes.search",
+  "lang": "Python",
+  "file": "modules/gateway_routes_search.py.html",
+  "summary": "Search endpoint for Kitty UI."
+ },
+ {
+  "name": "gateway.routes.session_context",
+  "lang": "Python",
+  "file": "modules/gateway_routes_session_context.py.html",
+  "summary": "Expose the durable session handoff in a small dashboard-friendly shape."
+ },
+ {
+  "name": "gateway.routes.signals",
+  "lang": "Python",
+  "file": "modules/gateway_routes_signals.py.html",
+  "summary": "Proactive signals feed \u2014 returns RepairsIssue-shaped records from signal store."
+ },
+ {
+  "name": "gateway.routes.skills",
+  "lang": "Python",
+  "file": "modules/gateway_routes_skills.py.html",
+  "summary": "Skill routes."
+ },
+ {
+  "name": "gateway.routes.state",
+  "lang": "Python",
+  "file": "modules/gateway_routes_state.py.html",
+  "summary": "Current-state endpoints (P1) \u2014 composed read, snapshot, mechanical diff."
+ },
+ {
+  "name": "gateway.routes.status",
+  "lang": "Python",
+  "file": "modules/gateway_routes_status.py.html",
+  "summary": "Status glance endpoint \u2014 for Apple Watch / quick health checks."
+ },
+ {
+  "name": "gateway.routes.telos",
+  "lang": "Python",
+  "file": "modules/gateway_routes_telos.py.html",
+  "summary": "TELOS user-identity endpoints \u2014 inspect and fill Jacob's profile sections."
+ },
+ {
+  "name": "gateway.routes.timeline",
+  "lang": "Python",
+  "file": "modules/gateway_routes_timeline.py.html",
+  "summary": "Unified activity timeline endpoint \u2014 a read-only projection over evidence."
+ },
+ {
+  "name": "gateway.routes.todos",
+  "lang": "Python",
+  "file": "modules/gateway_routes_todos.py.html",
+  "summary": "Todo routes."
+ },
+ {
+  "name": "gateway.routes.tool_server",
+  "lang": "Python",
+  "file": "modules/gateway_routes_tool_server.py.html",
+  "summary": "The deliberately small tool surface Kitty hands to Open WebUI."
+ },
+ {
+  "name": "gateway.routes.tutor",
+  "lang": "Python",
+  "file": "modules/gateway_routes_tutor.py.html",
+  "summary": "Kitty Tutor HTTP entrypoint."
+ },
+ {
+  "name": "gateway.routes.undo",
+  "lang": "Python",
+  "file": "modules/gateway_routes_undo.py.html",
+  "summary": "Undo/Restore endpoints (Packet 09)."
+ },
+ {
+  "name": "gateway.routes.usage",
+  "lang": "Python",
+  "file": "modules/gateway_routes_usage.py.html",
+  "summary": "Read-only summaries of persisted LLM token usage."
+ },
+ {
+  "name": "gateway.routes.version",
+  "lang": "Python",
+  "file": "modules/gateway_routes_version.py.html",
+  "summary": "Version endpoint \u2014 returns the current Kitty version."
+ },
+ {
+  "name": "gateway.routes.voice",
+  "lang": "Python",
+  "file": "modules/gateway_routes_voice.py.html",
+  "summary": "Speech, transcription, and live voice WebSocket."
+ },
+ {
+  "name": "gateway.routes.work",
+  "lang": "Python",
+  "file": "modules/gateway_routes_work.py.html",
+  "summary": "Read-only product Work snapshot derived from Builder status."
+ },
+ {
+  "name": "gateway.run_workspace",
+  "lang": "Python",
+  "file": "modules/gateway_run_workspace.py.html",
+  "summary": "Authenticated Git worktree containment and cumulative mutation snapshots."
+ },
+ {
+  "name": "gateway.runpod_control",
+  "lang": "Python",
+  "file": "modules/gateway_runpod_control.py.html",
+  "summary": "Narrow RunPod control-plane client for Kitty-managed image Pods."
+ },
+ {
+  "name": "gateway.runpod_graphql",
+  "lang": "Python",
+  "file": "modules/gateway_runpod_graphql.py.html",
+  "summary": "Minimal RunPod GraphQL support for GPU Pod creation."
+ },
+ {
+  "name": "gateway.runpod_worker",
+  "lang": "Python",
+  "file": "modules/gateway_runpod_worker.py.html",
+  "summary": "Client for the authenticated Kitty Comfy worker exposed by RunPod."
+ },
+ {
+  "name": "gateway.runtime_manifest",
+  "lang": "Python",
+  "file": "modules/gateway_runtime_manifest.py.html",
+  "summary": "Authoritative runtime facts exposed to Kitty clients and chat turns."
+ },
+ {
+  "name": "gateway.search",
+  "lang": "Python",
+  "file": "modules/gateway_search.py.html",
+  "summary": "Unified Search \u2014 normalized query results across Kitty stores."
+ },
+ {
+  "name": "gateway.self_review",
+  "lang": "Python",
+  "file": "modules/gateway_self_review.py.html",
+  "summary": "Self-review signals \u2014 feed Kitty's soul evolution."
+ },
+ {
+  "name": "gateway.session_end_audit",
+  "lang": "Python",
+  "file": "modules/gateway_session_end_audit.py.html",
+  "summary": "Read-only proof that OpenCode actually executed the session-end contract."
+ },
+ {
+  "name": "gateway.settings",
+  "lang": "Python",
+  "file": "modules/gateway_settings.py.html",
+  "summary": "Pydantic-settings model for Kitty gateway configuration."
+ },
+ {
+  "name": "gateway.signal_store",
+  "lang": "Python",
+  "file": "modules/gateway_signal_store.py.html",
+  "summary": "Signal store \u2014 one append table for connector and system events (P1)."
+ },
+ {
+  "name": "gateway.skill_import",
+  "lang": "Python",
+  "file": "modules/gateway_skill_import.py.html",
+  "summary": "Skill bundle import with DeepTutor-grade safety."
+ },
+ {
+  "name": "gateway.skill_registry",
+  "lang": "Python",
+  "file": "modules/gateway_skill_registry.py.html",
+  "summary": "Skill Registry \u2014 discover, register, and invoke skills from disk."
+ },
+ {
+  "name": "gateway.sse",
+  "lang": "Python",
+  "file": "modules/gateway_sse.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.state_composer",
+  "lang": "Python",
+  "file": "modules/gateway_state_composer.py.html",
+  "summary": "Composed read of Kitty's current state (P1, docs/packets/001)."
+ },
+ {
+  "name": "gateway.storage_router",
+  "lang": "Python",
+  "file": "modules/gateway_storage_router.py.html",
+  "summary": "Write-side StorageRouter."
+ },
+ {
+  "name": "gateway.storage_sync",
+  "lang": "Python",
+  "file": "modules/gateway_storage_sync.py.html",
+  "summary": "JSON import/export for the migrated SQLite stores."
+ },
+ {
+  "name": "gateway.stt",
+  "lang": "Python",
+  "file": "modules/gateway_stt.py.html",
+  "summary": "Speech-to-text for Kitty Gateway \u2014 wraps faster-whisper."
+ },
+ {
+  "name": "gateway.task_boundary",
+  "lang": "Python",
+  "file": "modules/gateway_task_boundary.py.html",
+  "summary": "Task Boundary System \u2014 Antigravity-style task tracking and progress reporting."
+ },
+ {
+  "name": "gateway.tasks",
+  "lang": "Python",
+  "file": "modules/gateway_tasks.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.team_protocol",
+  "lang": "Python",
+  "file": "modules/gateway_team_protocol.py.html",
+  "summary": "Team Protocol \u2014 Claim, discover, challenge protocol for multi-agent coordination."
+ },
+ {
+  "name": "gateway.telegram_bot",
+  "lang": "Python",
+  "file": "modules/gateway_telegram_bot.py.html",
+  "summary": "Telegram bot bridge \u2014 mobile access to Kitty via Telegram."
+ },
+ {
+  "name": "gateway.tests.e2e_cleanup",
+  "lang": "Python",
+  "file": "modules/gateway_tests_e2e_cleanup.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.todo_store",
+  "lang": "Python",
+  "file": "modules/gateway_todo_store.py.html",
+  "summary": "Structured Todo Store \u2014 model-maintainable task list across turns."
+ },
+ {
+  "name": "gateway.token_spend_report",
+  "lang": "Python",
+  "file": "modules/gateway_token_spend_report.py.html",
+  "summary": "Summaries for Kitty's append-only token ledger."
+ },
+ {
+  "name": "gateway.token_usage_log",
+  "lang": "Python",
+  "file": "modules/gateway_token_usage_log.py.html",
+  "summary": "Thread-safe JSONL token telemetry to data/kitty_token_log.jsonl."
+ },
+ {
+  "name": "gateway.topic_hash",
+  "lang": "Python",
+  "file": "modules/gateway_topic_hash.py.html",
+  "summary": "Deterministic hashing for expert topics."
+ },
+ {
+  "name": "gateway.triage",
+  "lang": "Python",
+  "file": "modules/gateway_triage.py.html",
+  "summary": "Inbox triage (P2, docs/packets/002) \u2014 classify capture into action buckets."
+ },
+ {
+  "name": "gateway.troubleshooter",
+  "lang": "Python",
+  "file": "modules/gateway_troubleshooter.py.html",
+  "summary": "Queries the knowledge base for a specific device and symptom,"
+ },
+ {
+  "name": "gateway.tts",
+  "lang": "Python",
+  "file": "modules/gateway_tts.py.html",
+  "summary": "Text-to-speech for Kitty Gateway \u2014 edge-tts (Microsoft Neural TTS, free)."
+ },
+ {
+  "name": "gateway.tutor",
+  "lang": "Python",
+  "file": "modules/gateway_tutor.py.html",
+  "summary": "Kitty Tutor \u2014 RAG learning scaffold built on the existing knowledge pipeline."
+ },
+ {
+  "name": "gateway.undo_journal",
+  "lang": "Python",
+  "file": "modules/gateway_undo_journal.py.html",
+  "summary": "Undo/Restore journal for Packet 09."
+ },
+ {
+  "name": "gateway.user_context",
+  "lang": "Python",
+  "file": "modules/gateway_user_context.py.html",
+  "summary": "User identity context \u2014 loads Jacob's TELOS files for prompt injection."
+ },
+ {
+  "name": "gateway.verifier",
+  "lang": "Python",
+  "file": "modules/gateway_verifier.py.html",
+  "summary": "Verification Agent \u2014 post-change validation with test running and regression checks."
+ },
+ {
+  "name": "gateway.vision",
+  "lang": "Python",
+  "file": "modules/gateway_vision.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.voice_gate",
+  "lang": "Python",
+  "file": "modules/gateway_voice_gate.py.html",
+  "summary": "Voice Gate \u2014 pre-response filter enforcing SOUL.md compliance before user sees output."
+ },
+ {
+  "name": "gateway.voice_middleware",
+  "lang": "Python",
+  "file": "modules/gateway_voice_middleware.py.html",
+  "summary": "Voice Gate Middleware \u2014 automatically clean AI responses for all endpoints."
+ },
+ {
+  "name": "gateway.voice_pipeline",
+  "lang": "Python",
+  "file": "modules/gateway_voice_pipeline.py.html",
+  "summary": "Voice Pipeline \u2014 deep module for real-time voice conversation."
+ },
+ {
+  "name": "gateway.weather",
+  "lang": "Python",
+  "file": "modules/gateway_weather.py.html",
+  "summary": "Weather \u2014 current conditions for Regina via wttr.in."
+ },
+ {
+  "name": "gateway.web_monitor",
+  "lang": "Python",
+  "file": "modules/gateway_web_monitor.py.html",
+  "summary": "Web Monitor \u2014 persistent URL polling with change detection and keyword matching."
+ },
+ {
+  "name": "gateway.web_tracker",
+  "lang": "Python",
+  "file": "modules/gateway_web_tracker.py.html",
+  "summary": "Web Change Tracker \u2014 Orca-inspired cross-session web tracking."
+ },
+ {
+  "name": "gateway.why_not",
+  "lang": "Python",
+  "file": "modules/gateway_why_not.py.html",
+  "summary": "Truthful \"Why didn't this happen?\" explanations for automations."
+ },
+ {
+  "name": "gateway.work_projection",
+  "lang": "Python",
+  "file": "modules/gateway_work_projection.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway.work_spine",
+  "lang": "Python",
+  "file": "modules/gateway_work_spine.py.html",
+  "summary": "Work spine \u2014 read-only projection over public Builder read APIs."
+ },
+ {
+  "name": "gateway/kitty-chat/src/app/api/identity/route",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_app_api_identity_route.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/app/layout",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_app_layout.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/app/manifest",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_app_manifest.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/app/page",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_app_page.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/app/providers",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_app_providers.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/app/proxy/[...path]/route",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_app_proxy_[___path]_route.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/AgentSessionsPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_AgentSessionsPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/AgentWorkspacePanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_AgentWorkspacePanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/AutomationsView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_AutomationsView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/BottomNav",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_BottomNav.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/BuilderSurface",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_BuilderSurface.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/BuilderView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_BuilderView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/CapturePanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_CapturePanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ChatMessage",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ChatMessage.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ChatView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ChatView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/CommandPalette",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_CommandPalette.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/CrayonCat",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_CrayonCat.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/CronPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_CronPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/DocumentsPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_DocumentsPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/DreamStatus",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_DreamStatus.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ErrorBoundary",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ErrorBoundary.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/HomeIntelligence",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_HomeIntelligence.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/HomeState",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_HomeState.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/HomeView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_HomeView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ImageGallery",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ImageGallery.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ImageLab",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ImageLab.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/InputBar",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_InputBar.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/InsightFeed",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_InsightFeed.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/InsightReturnCard",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_InsightReturnCard.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/JournalPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_JournalPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/KittyRuntimeProvider",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_KittyRuntimeProvider.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/KittyThread",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_KittyThread.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/LibraryView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_LibraryView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/LoopWatch",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_LoopWatch.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ModelSelectorCmdk",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ModelSelectorCmdk.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/MonitorPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_MonitorPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/OnboardingModal",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_OnboardingModal.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/PerfDashboard",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_PerfDashboard.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ProjectsPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ProjectsPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ProjectsView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ProjectsView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/PromptToolkit",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_PromptToolkit.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ProviderCenter",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ProviderCenter.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/Rail",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_Rail.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ResearchView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ResearchView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/RightPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_RightPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/SessionSidebar",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_SessionSidebar.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/SettingsPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_SettingsPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/SettingsShell",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_SettingsShell.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/SignalCard",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_SignalCard.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/Skeleton",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_Skeleton.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/StatusBar",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_StatusBar.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/StudioView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_StudioView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/TerminalStrip",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_TerminalStrip.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/TerminalView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_TerminalView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ThreadGoal",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ThreadGoal.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/Toast",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_Toast.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/TodoPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_TodoPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ToolCallBlock",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ToolCallBlock.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ToolCard",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ToolCard.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/TopBar",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_TopBar.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/TutorPanel",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_TutorPanel.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/TutorShell",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_TutorShell.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ViewRenderer",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ViewRenderer.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/WobFilters",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_WobFilters.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/WorkView",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_WorkView.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/activity/ActivityCenter",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_activity_ActivityCenter.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/artifacts/ArtifactCanvas",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_artifacts_ArtifactCanvas.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/builder/BuilderCockpit",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_builder_BuilderCockpit.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/builder/BuilderPacketTree",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_builder_BuilderPacketTree.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/builder/BuilderProposalCard",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_builder_BuilderProposalCard.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/builder/BuilderWorkerInspector",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_builder_BuilderWorkerInspector.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/builder/BuilderWorkerPane",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_builder_BuilderWorkerPane.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/builder/OperatorControls",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_builder_OperatorControls.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/builder/useLiveBuilderEvents",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_builder_useLiveBuilderEvents.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/chat/ActionCard",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_chat_ActionCard.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/chat/ArtifactChatCard",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_chat_ArtifactChatCard.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/projects/ProjectWorkspace",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_projects_ProjectWorkspace.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/shared/ToolCallCard",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_shared_ToolCallCard.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/shared/WorkCard",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_shared_WorkCard.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ui/AsyncState",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ui_AsyncState.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ui/Button",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ui_Button.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ui/Card",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ui_Card.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ui/Dialog",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ui_Dialog.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ui/StatusBadge",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ui_StatusBadge.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/components/ui/index",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_components_ui_index.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/hooks/useDashboardConfig",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_hooks_useDashboardConfig.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/hooks/useDialogFocus",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_hooks_useDialogFocus.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/hooks/useKittyState",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_hooks_useKittyState.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/hooks/useMobileLayout",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_hooks_useMobileLayout.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/hooks/useOptimisticMutation",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_hooks_useOptimisticMutation.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/hooks/useReducedMotion",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_hooks_useReducedMotion.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/hooks/useTheme",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_hooks_useTheme.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/hooks/useUndo",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_hooks_useUndo.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/actions-adapters",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_actions-adapters.ts.html",
+  "summary": "** OK-ACTION-01 \u2014 two real domain adapters for the shared action contract. */"
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/actions-contract",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_actions-contract.ts.html",
+  "summary": "**"
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/attachment-validation",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_attachment-validation.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/capability-launch",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_capability-launch.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/chat-client",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_chat-client.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/chromadb-hybrid",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_chromadb-hybrid.ts.html",
+  "summary": "**"
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/context-references",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_context-references.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/failure-copy",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_failure-copy.ts.html",
+  "summary": "Translates a thrown fetch/query error into one short, plain-language"
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/gateway",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_gateway.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/gateway-proxy-config",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_gateway-proxy-config.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/gateway-proxy-headers",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_gateway-proxy-headers.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/kitty-runtime",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_kitty-runtime.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/model-availability",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_model-availability.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/model-picker",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_model-picker.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/mood",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_mood.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/project-copy",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_project-copy.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/pwa",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_pwa.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/queries",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_queries.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/sse",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_sse.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/types",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_types.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/ui",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_ui.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/views",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_views.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/lib/work",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_lib_work.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "gateway/kitty-chat/src/state/KittyContext",
+  "lang": "TypeScript",
+  "file": "modules/gateway_kitty-chat_src_state_KittyContext.ts.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations",
+  "lang": "Python",
+  "file": "modules/integrations.py.html",
+  "summary": "External integration surfaces for Kitty."
+ },
+ {
+  "name": "integrations.discord_command_center",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center.py.html",
+  "summary": "Discord Command Center control-surface integration."
+ },
+ {
+  "name": "integrations.discord_command_center.adapters",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_adapters.py.html",
+  "summary": "Local CLI adapters used by Discord Command Center."
+ },
+ {
+  "name": "integrations.discord_command_center.adapters.codex",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_adapters_codex.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.bot",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_bot.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.config",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_config.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.models",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_models.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.runner",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_runner.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.runtime",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_runtime.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.scrub",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_scrub.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.service",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_service.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.smoke",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_smoke.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.tasks",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_tasks.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "integrations.discord_command_center.workspace",
+  "lang": "Python",
+  "file": "modules/integrations_discord_command_center_workspace.py.html",
+  "summary": "Discord compatibility wrapper for the shared run-workspace primitive."
+ },
+ {
+  "name": "mcp",
+  "lang": "Python",
+  "file": "modules/mcp.py.html",
+  "summary": "Namespace package \u2014 extends mcp to include both the pip-installed SDK"
+ },
+ {
+  "name": "mcp.agent_room",
+  "lang": "Python",
+  "file": "modules/mcp_agent_room.py.html",
+  "summary": "MCP client surface for Kitty's canonical global agent room."
+ },
+ {
+  "name": "mcp.agent_room.server",
+  "lang": "Python",
+  "file": "modules/mcp_agent_room_server.py.html",
+  "summary": "FastMCP entry point for Kitty's canonical global agent room."
+ },
+ {
+  "name": "mcp.builder",
+  "lang": "Python",
+  "file": "modules/mcp_builder.py.html",
+  "summary": "KittyBuilder MCP bridge."
+ },
+ {
+  "name": "mcp.builder.commands",
+  "lang": "Python",
+  "file": "modules/mcp_builder_commands.py.html",
+  "summary": "Governed KittyBuilder mutation adapters for MCP clients."
+ },
+ {
+  "name": "mcp.builder.context",
+  "lang": "Python",
+  "file": "modules/mcp_builder_context.py.html",
+  "summary": "Read-only Kitty/Builder projections for conversational MCP clients."
+ },
+ {
+  "name": "mcp.builder.repo_tools",
+  "lang": "Python",
+  "file": "modules/mcp_builder_repo_tools.py.html",
+  "summary": "Allowlisted repository reads and planning-artifact writes for MCP clients."
+ },
+ {
+  "name": "mcp.builder.schemas",
+  "lang": "Python",
+  "file": "modules/mcp_builder_schemas.py.html",
+  "summary": "Shared public response helpers for the KittyBuilder MCP bridge."
+ },
+ {
+  "name": "mcp.builder.server",
+  "lang": "Python",
+  "file": "modules/mcp_builder_server.py.html",
+  "summary": "FastMCP registration/transport entry point for the KittyBuilder bridge."
+ },
+ {
+  "name": "mcp.imagen",
+  "lang": "Python",
+  "file": "modules/mcp_imagen.py.html",
+  "summary": "Imagen MCP \u2014 photorealistic image generation and editing for Claude Code."
+ },
+ {
+  "name": "mcp.imagen.benchmark",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_benchmark.py.html",
+  "summary": "Face-locked character benchmark \u2014 ten face-visible scenes scored against"
+ },
+ {
+  "name": "mcp.imagen.cache",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_cache.py.html",
+  "summary": "SHA256-keyed cache for identical (prompt, engine, params) inputs."
+ },
+ {
+  "name": "mcp.imagen.character_lock",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_character_lock.py.html",
+  "summary": "Single-reference character lock \u2014 one approved photo per character, fail-closed."
+ },
+ {
+  "name": "mcp.imagen.config",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_config.py.html",
+  "summary": "Settings and constants for the imagen MCP server."
+ },
+ {
+  "name": "mcp.imagen.engines",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines.py.html",
+  "summary": "Engine registry \u2014 maps engine slugs to engine instances."
+ },
+ {
+  "name": "mcp.imagen.engines.adapters",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_adapters.py.html",
+  "summary": "Adapter interface for local image-generation servers (Packet 025)."
+ },
+ {
+  "name": "mcp.imagen.engines.airforce",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_airforce.py.html",
+  "summary": "Airforce engine \u2014 OpenAI-compatible images/generations REST gateway."
+ },
+ {
+  "name": "mcp.imagen.engines.base",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_base.py.html",
+  "summary": "Engine protocol and shared exceptions."
+ },
+ {
+  "name": "mcp.imagen.engines.comfyui",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_comfyui.py.html",
+  "summary": "ComfyUI engine \u2014 local SD1.5 / SDXL generation."
+ },
+ {
+  "name": "mcp.imagen.engines.dalle",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_dalle.py.html",
+  "summary": "DALL-E 3 engine \u2014 OpenAI's image generation."
+ },
+ {
+  "name": "mcp.imagen.engines.drawthings",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_drawthings.py.html",
+  "summary": "Draw Things engine \u2014 A1111-compatible API for local Apple Silicon generation."
+ },
+ {
+  "name": "mcp.imagen.engines.fal",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_fal.py.html",
+  "summary": "Fal engine \u2014 REST image generation via fal's async queue API, FLUX PuLID."
+ },
+ {
+  "name": "mcp.imagen.engines.imagen4",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_imagen4.py.html",
+  "summary": "Imagen 4 engine \u2014 Google's imagen-4.0-generate-001."
+ },
+ {
+  "name": "mcp.imagen.engines.nano_banana",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_nano_banana.py.html",
+  "summary": "Nano Banana engine \u2014 Google's gemini-2.5-flash-image."
+ },
+ {
+  "name": "mcp.imagen.engines.runware",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_engines_runware.py.html",
+  "summary": "Runware engine \u2014 REST image generation with FLUX + PuLID identity conditioning."
+ },
+ {
+  "name": "mcp.imagen.face_match",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_face_match.py.html",
+  "summary": "Reusable exact-reference face matcher for the character benchmark."
+ },
+ {
+  "name": "mcp.imagen.io",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_io.py.html",
+  "summary": "I/O helpers \u2014 save images, parse Gemini responses, build image parts."
+ },
+ {
+  "name": "mcp.imagen.logger",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_logger.py.html",
+  "summary": "Structured logger for the imagen package."
+ },
+ {
+  "name": "mcp.imagen.retry",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_retry.py.html",
+  "summary": "Tenacity-based retry decorator with exponential backoff."
+ },
+ {
+  "name": "mcp.imagen.server",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_server.py.html",
+  "summary": "Imagen MCP server \u2014 photorealistic image generation and editing for Claude Code."
+ },
+ {
+  "name": "mcp.imagen.tools",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_tools.py.html",
+  "summary": "Tool registration \u2014 imports all tools so they're registered on the MCP server."
+ },
+ {
+  "name": "mcp.imagen.tools.batch",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_tools_batch.py.html",
+  "summary": "Batch generation tool \u2014 N prompts concurrently via asyncio.gather."
+ },
+ {
+  "name": "mcp.imagen.tools.gallery",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_tools_gallery.py.html",
+  "summary": "Gallery tool \u2014 HTML contact sheet of all generated images."
+ },
+ {
+  "name": "mcp.imagen.tools.generate",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_tools_generate.py.html",
+  "summary": "Unified generate + edit_image tools."
+ },
+ {
+  "name": "mcp.imagen.tools.generate_until",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_tools_generate_until.py.html",
+  "summary": "``generate_until`` tool \u2014 criteria-verified generation loop."
+ },
+ {
+  "name": "mcp.imagen.tools.reference",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_tools_reference.py.html",
+  "summary": "Reference and avatar tools \u2014 subject consistency and compositing."
+ },
+ {
+  "name": "mcp.imagen.tools.refine",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_tools_refine.py.html",
+  "summary": "Refine tool \u2014 autonomous generate \u2192 critique \u2192 edit loop."
+ },
+ {
+  "name": "mcp.imagen.tools.variations",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_tools_variations.py.html",
+  "summary": "Variations tool \u2014 several alternates of an existing image."
+ },
+ {
+  "name": "mcp.imagen.verify",
+  "lang": "Python",
+  "file": "modules/mcp_imagen_verify.py.html",
+  "summary": "Verification loop \u2014 generate, score, keep best, stop early."
+ },
+ {
+  "name": "scripts.agent_council",
+  "lang": "Python",
+  "file": "modules/scripts_agent_council.py.html",
+  "summary": "Run bounded, read-only opinions from local coding-agent CLIs."
+ },
+ {
+  "name": "scripts.agent_wrapup",
+  "lang": "Python",
+  "file": "modules/scripts_agent_wrapup.py.html",
+  "summary": "Create a concrete session wrap-up template for the next agent."
+ },
+ {
+  "name": "scripts.analyze_claude_usage",
+  "lang": "Python",
+  "file": "modules/scripts_analyze_claude_usage.py.html",
+  "summary": "Rank Claude Code sessions by token spend, using the local JSONL transcripts."
+ },
+ {
+  "name": "scripts.assign_kb_files",
+  "lang": "Python",
+  "file": "modules/scripts_assign_kb_files.py.html",
+  "summary": "Compatibility entrypoint \u2014 implementation lives in scripts/curation/assign_kb_files.py."
+ },
+ {
+  "name": "scripts.audit_session_end",
+  "lang": "Python",
+  "file": "modules/scripts_audit_session_end.py.html",
+  "summary": "Prove whether OpenCode actually loaded and executed session-end."
+ },
+ {
+  "name": "scripts.builder_recovery_proof",
+  "lang": "Python",
+  "file": "modules/scripts_builder_recovery_proof.py.html",
+  "summary": "Live Builder recovery proof for roadmap outcome 1.1."
+ },
+ {
+  "name": "scripts.character_benchmark",
+  "lang": "Python",
+  "file": "modules/scripts_character_benchmark.py.html",
+  "summary": "CLI: run the face-locked character benchmark and print the automated verdict."
+ },
+ {
+  "name": "scripts.check_continuity_state",
+  "lang": "Python",
+  "file": "modules/scripts_check_continuity_state.py.html",
+  "summary": "Validate Kitty's complete repository continuity contract."
+ },
+ {
+  "name": "scripts.ci_metrics",
+  "lang": "Python",
+  "file": "modules/scripts_ci_metrics.py.html",
+  "summary": "Delivery-pipeline efficiency evidence, derived from GitHub Actions history."
+ },
+ {
+  "name": "scripts.curation",
+  "lang": "Python",
+  "file": "modules/scripts_curation.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.analyze_db",
+  "lang": "Python",
+  "file": "modules/scripts_curation_analyze_db.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.analyze_duplicates",
+  "lang": "Python",
+  "file": "modules/scripts_curation_analyze_duplicates.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.assign_kb_files",
+  "lang": "Python",
+  "file": "modules/scripts_curation_assign_kb_files.py.html",
+  "summary": "Categorize uploaded Open WebUI files and assign them to knowledge bases."
+ },
+ {
+  "name": "scripts.curation.complete_orca_tasks",
+  "lang": "Python",
+  "file": "modules/scripts_curation_complete_orca_tasks.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.configure_kb_prompts",
+  "lang": "Python",
+  "file": "modules/scripts_curation_configure_kb_prompts.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.core_curation_engine",
+  "lang": "Python",
+  "file": "modules/scripts_curation_core_curation_engine.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.curate_books",
+  "lang": "Python",
+  "file": "modules/scripts_curation_curate_books.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.curation_worker",
+  "lang": "Python",
+  "file": "modules/scripts_curation_curation_worker.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.deduplicate_by_size",
+  "lang": "Python",
+  "file": "modules/scripts_curation_deduplicate_by_size.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.deep_curate",
+  "lang": "Python",
+  "file": "modules/scripts_curation_deep_curate.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.dispatch_pilot",
+  "lang": "Python",
+  "file": "modules/scripts_curation_dispatch_pilot.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.extract_chat_goldmine",
+  "lang": "Python",
+  "file": "modules/scripts_curation_extract_chat_goldmine.py.html",
+  "summary": "Packet 024 phase 1 \u2014 offline chat-log idea mine extractor."
+ },
+ {
+  "name": "scripts.curation.generate_synthetic_indexes",
+  "lang": "Python",
+  "file": "modules/scripts_curation_generate_synthetic_indexes.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.init_curation_db",
+  "lang": "Python",
+  "file": "modules/scripts_curation_init_curation_db.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.inspect_db_schema",
+  "lang": "Python",
+  "file": "modules/scripts_curation_inspect_db_schema.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.knowledge_gap_filler",
+  "lang": "Python",
+  "file": "modules/scripts_curation_knowledge_gap_filler.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.map_canonical_library",
+  "lang": "Python",
+  "file": "modules/scripts_curation_map_canonical_library.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.ocr_library",
+  "lang": "Python",
+  "file": "modules/scripts_curation_ocr_library.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.prototype_smart_asset",
+  "lang": "Python",
+  "file": "modules/scripts_curation_prototype_smart_asset.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.reingest",
+  "lang": "Python",
+  "file": "modules/scripts_curation_reingest.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.scale_curation",
+  "lang": "Python",
+  "file": "modules/scripts_curation_scale_curation.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.smart_deduplicate",
+  "lang": "Python",
+  "file": "modules/scripts_curation_smart_deduplicate.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.curation.split_general_reference",
+  "lang": "Python",
+  "file": "modules/scripts_curation_split_general_reference.py.html",
+  "summary": "Split the 'general reference' KB into focused knowledge bases."
+ },
+ {
+  "name": "scripts.curation.test_clean_names",
+  "lang": "Python",
+  "file": "modules/scripts_curation_test_clean_names.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.dry_run_c3",
+  "lang": "Python",
+  "file": "modules/scripts_dry_run_c3.py.html",
+  "summary": "C3-0 dry-run helper for the cron_schedules migration."
+ },
+ {
+  "name": "scripts.gen",
+  "lang": "Python",
+  "file": "modules/scripts_gen.py.html",
+  "summary": "Quick fal.ai image generator. Usage: python3 gen.py \"your prompt here\""
+ },
+ {
+  "name": "scripts.generate_image",
+  "lang": "Python",
+  "file": "modules/scripts_generate_image.py.html",
+  "summary": "Generate an image via the gateway's ComfyUI-backed endpoint."
+ },
+ {
+  "name": "scripts.image_lab_acceptance_scene",
+  "lang": "Python",
+  "file": "modules/scripts_image_lab_acceptance_scene.py.html",
+  "summary": "Two-character acceptance-scene builder for the FLUX.2 Image Lab benchmark gate."
+ },
+ {
+  "name": "scripts.image_lab_benchmark",
+  "lang": "Python",
+  "file": "modules/scripts_image_lab_benchmark.py.html",
+  "summary": "Kitty ImageBench manifest, blind-review, and economics runner."
+ },
+ {
+  "name": "scripts.ingest_books",
+  "lang": "Python",
+  "file": "modules/scripts_ingest_books.py.html",
+  "summary": "Book ingestion \u2014 5-expert structure for wicked-fast retrieval."
+ },
+ {
+  "name": "scripts.james_comfy",
+  "lang": "Python",
+  "file": "modules/scripts_james_comfy.py.html",
+  "summary": "Run the James identity workflow against a ComfyUI instance."
+ },
+ {
+  "name": "scripts.kb_effectiveness",
+  "lang": "Python",
+  "file": "modules/scripts_kb_effectiveness.py.html",
+  "summary": "Record and report whether the cross-tool KB improves engineering outcomes."
+ },
+ {
+  "name": "scripts.kitty_backup",
+  "lang": "Python",
+  "file": "modules/scripts_kitty_backup.py.html",
+  "summary": "Local backup and restore drill for Kitty app-owned data."
+ },
+ {
+  "name": "scripts.kitty_backup_proof",
+  "lang": "Python",
+  "file": "modules/scripts_kitty_backup_proof.py.html",
+  "summary": "Non-destructive backup/restore proof drill (Roadmap 2.2)."
+ },
+ {
+  "name": "scripts.kitty_desktop_launchd",
+  "lang": "Python",
+  "file": "modules/scripts_kitty_desktop_launchd.py.html",
+  "summary": "Generate and manage the macOS LaunchAgents for the Kitty Desktop service stack."
+ },
+ {
+  "name": "scripts.kitty_desktop_runtime",
+  "lang": "Python",
+  "file": "modules/scripts_kitty_desktop_runtime.py.html",
+  "summary": "Desktop Phase 1 runtime supervisor."
+ },
+ {
+  "name": "scripts.kitty_reliability_gate",
+  "lang": "Python",
+  "file": "modules/scripts_kitty_reliability_gate.py.html",
+  "summary": "Repeat a fixed set of Kitty fault scenarios and emit an exact-SHA receipt."
+ },
+ {
+  "name": "scripts.kittybuilder_claude_adapter",
+  "lang": "Python",
+  "file": "modules/scripts_kittybuilder_claude_adapter.py.html",
+  "summary": "Strict Claude Code worker/reviewer adapter for KittyBuilder packet attempts."
+ },
+ {
+  "name": "scripts.kittybuilder_codex_adapter",
+  "lang": "Python",
+  "file": "modules/scripts_kittybuilder_codex_adapter.py.html",
+  "summary": "KittyBuilder adapter for Codex CLI using ChatGPT authentication."
+ },
+ {
+  "name": "scripts.live_swarm_test",
+  "lang": "Python",
+  "file": "modules/scripts_live_swarm_test.py.html",
+  "summary": "Live Swarm Test for MemoryWeave."
+ },
+ {
+  "name": "scripts.live_swarm_test_http",
+  "lang": "Python",
+  "file": "modules/scripts_live_swarm_test_http.py.html",
+  "summary": "Live Swarm Test for HTTP Gateway Concurrency."
+ },
+ {
+  "name": "scripts.mempalace_preflight",
+  "lang": "Python",
+  "file": "modules/scripts_mempalace_preflight.py.html",
+  "summary": "MemPalace preflight \u2014 prove the installed package before you trust it."
+ },
+ {
+  "name": "scripts.migrate_mem0_to_mempalace",
+  "lang": "Python",
+  "file": "modules/scripts_migrate_mem0_to_mempalace.py.html",
+  "summary": "Migrate Kitty's mem0 memories into MemPalace \u2014 safely and idempotently."
+ },
+ {
+  "name": "scripts.model_discovery",
+  "lang": "Python",
+  "file": "modules/scripts_model_discovery.py.html",
+  "summary": "Discover provider model candidates without changing Kitty's production routes."
+ },
+ {
+  "name": "scripts.openviking_kb_build",
+  "lang": "Python",
+  "file": "modules/scripts_openviking_kb_build.py.html",
+  "summary": "Build one immutable OpenViking shadow generation from the engineering ~/kb allowlist."
+ },
+ {
+  "name": "scripts.openviking_runtime",
+  "lang": "Python",
+  "file": "modules/scripts_openviking_runtime.py.html",
+  "summary": "Reproducible Kitty-managed OpenViking + embedding Ollama runtime."
+ },
+ {
+  "name": "scripts.openwebui_local",
+  "lang": "Python",
+  "file": "modules/scripts_openwebui_local.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.openwebui_tool",
+  "lang": "Python",
+  "file": "modules/scripts_openwebui_tool.py.html",
+  "summary": "Local Open WebUI operations for Kitty."
+ },
+ {
+  "name": "scripts.openwebui_tool.acceptance",
+  "lang": "Python",
+  "file": "modules/scripts_openwebui_tool_acceptance.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.openwebui_tool.cli",
+  "lang": "Python",
+  "file": "modules/scripts_openwebui_tool_cli.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.openwebui_tool.common",
+  "lang": "Python",
+  "file": "modules/scripts_openwebui_tool_common.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.openwebui_tool.service",
+  "lang": "Python",
+  "file": "modules/scripts_openwebui_tool_service.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.openwebui_tool.system",
+  "lang": "Python",
+  "file": "modules/scripts_openwebui_tool_system.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.operating_policy",
+  "lang": "Python",
+  "file": "modules/scripts_operating_policy.py.html",
+  "summary": "Validate and exercise Kitty's operating contracts."
+ },
+ {
+  "name": "scripts.ops",
+  "lang": "Python",
+  "file": "modules/scripts_ops.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.ops.council_audit",
+  "lang": "Python",
+  "file": "modules/scripts_ops_council_audit.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.ops.kitty_task",
+  "lang": "Python",
+  "file": "modules/scripts_ops_kitty_task.py.html",
+  "summary": "Kitty Orca/Antigravity CLI - Ghostty Integration"
+ },
+ {
+  "name": "scripts.ops.reviewer",
+  "lang": "Python",
+  "file": "modules/scripts_ops_reviewer.py.html",
+  "summary": "Review the current git diff using the dedicated @reviewer agent."
+ },
+ {
+  "name": "scripts.ops.spend_report",
+  "lang": "Python",
+  "file": "modules/scripts_ops_spend_report.py.html",
+  "summary": "Print Kitty's token and estimated credit usage report."
+ },
+ {
+  "name": "scripts.ops.test_real_search",
+  "lang": "Python",
+  "file": "modules/scripts_ops_test_real_search.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.packet_preflight",
+  "lang": "Python",
+  "file": "modules/scripts_packet_preflight.py.html",
+  "summary": "Check a Builder packet manifest for the defects that have actually stopped runs."
+ },
+ {
+  "name": "scripts.packet_slate_compiler",
+  "lang": "Python",
+  "file": "modules/scripts_packet_slate_compiler.py.html",
+  "summary": "Compile a structured packet slate into a Builder manifest and packet docs."
+ },
+ {
+  "name": "scripts.pr_policy",
+  "lang": "Python",
+  "file": "modules/scripts_pr_policy.py.html",
+  "summary": "Trusted, deterministic merge policy for Kitty pull requests."
+ },
+ {
+  "name": "scripts.pr_review",
+  "lang": "Python",
+  "file": "modules/scripts_pr_review.py.html",
+  "summary": "Best-effort exact-head model-review evidence producer."
+ },
+ {
+  "name": "scripts.pr_review_gate",
+  "lang": "Python",
+  "file": "modules/scripts_pr_review_gate.py.html",
+  "summary": "Deterministic exact-head review-evidence gate for pull requests."
+ },
+ {
+  "name": "scripts.pr_scope",
+  "lang": "Python",
+  "file": "modules/scripts_pr_scope.py.html",
+  "summary": "Canonical change-scope classifier for Kitty's delivery pipeline."
+ },
+ {
+  "name": "scripts.proof_capture_current_ui",
+  "lang": "Python",
+  "file": "modules/scripts_proof_capture_current_ui.py.html",
+  "summary": "Capture current Kitty UI evidence from an isolated proof worktree."
+ },
+ {
+  "name": "scripts.proof_capture_work_surface",
+  "lang": "Python",
+  "file": "modules/scripts_proof_capture_work_surface.py.html",
+  "summary": "Capture the current Kitty Work surface after passing first-run onboarding."
+ },
+ {
+  "name": "scripts.purge_dead_test_artifacts",
+  "lang": "Python",
+  "file": "modules/scripts_purge_dead_test_artifacts.py.html",
+  "summary": "Remove artifact rows left behind by tests that once wrote to the live store."
+ },
+ {
+  "name": "scripts.quick_capture",
+  "lang": "Python",
+  "file": "modules/scripts_quick_capture.py.html",
+  "summary": "Append a mobile-compatible quick capture to Kitty's local inbox."
+ },
+ {
+  "name": "scripts.read_agent_transcripts",
+  "lang": "Python",
+  "file": "modules/scripts_read_agent_transcripts.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.remember",
+  "lang": "Python",
+  "file": "modules/scripts_remember.py.html",
+  "summary": "Append a durable preference to config/PREFERENCES.md."
+ },
+ {
+  "name": "scripts.resolve_next_work",
+  "lang": "Python",
+  "file": "modules/scripts_resolve_next_work.py.html",
+  "summary": "Deterministically resolve what a ``next`` / continuation means."
+ },
+ {
+  "name": "scripts.resume",
+  "lang": "Python",
+  "file": "modules/scripts_resume.py.html",
+  "summary": "Print a one-screen orientation block for the current Kitty worktree."
+ },
+ {
+  "name": "scripts.run_with_timeout",
+  "lang": "Python",
+  "file": "modules/scripts_run_with_timeout.py.html",
+  "summary": "Run a command with a hard timeout and no orphaned descendants."
+ },
+ {
+  "name": "scripts.run_worker",
+  "lang": "Python",
+  "file": "modules/scripts_run_worker.py.html",
+  "summary": "TODO: Add module description."
+ },
+ {
+  "name": "scripts.runpod_image_preflight",
+  "lang": "Python",
+  "file": "modules/scripts_runpod_image_preflight.py.html",
+  "summary": "No-GPU preflight for the immutable Kitty ComfyUI worker image."
+ },
+ {
+  "name": "scripts.runpod_james_adaptive",
+  "lang": "Python",
+  "file": "modules/scripts_runpod_james_adaptive.py.html",
+  "summary": "Run a larger James portrait search with capacity-aware RunPod fallback."
+ },
+ {
+  "name": "scripts.runpod_james_batch",
+  "lang": "Python",
+  "file": "modules/scripts_runpod_james_batch.py.html",
+  "summary": "Run several James portrait prompts through one guarded Kitty RunPod session."
+ },
+ {
+  "name": "scripts.runpod_worker_smoke_test",
+  "lang": "Python",
+  "file": "modules/scripts_runpod_worker_smoke_test.py.html",
+  "summary": "Run one guarded RunPod Pod -> Kitty worker -> local image smoke test."
+ },
+ {
+  "name": "scripts.scan",
+  "lang": "Python",
+  "file": "modules/scripts_scan.py.html",
+  "summary": "Daily stale-state report. Facts come only from git/gh; never guessed."
+ },
+ {
+  "name": "scripts.second_opinion",
+  "lang": "Python",
+  "file": "modules/scripts_second_opinion.py.html",
+  "summary": "Run a question meant for Jacob through a second LLM before he sees it."
+ },
+ {
+  "name": "scripts.session_learning",
+  "lang": "Python",
+  "file": "modules/scripts_session_learning.py.html",
+  "summary": "Record and summarize cross-tool workflow-learning signals."
+ },
+ {
+  "name": "scripts.shadow_canary",
+  "lang": "Python",
+  "file": "modules/scripts_shadow_canary.py.html",
+  "summary": "One-shot OpenViking shadow retrieval through Kitty's real context seam."
+ },
+ {
+  "name": "scripts.spend_report",
+  "lang": "Python",
+  "file": "modules/scripts_spend_report.py.html",
+  "summary": "Compatibility entrypoint \u2014 implementation lives in scripts/ops/spend_report.py."
+ },
+ {
+  "name": "scripts.storage_io",
+  "lang": "Python",
+  "file": "modules/scripts_storage_io.py.html",
+  "summary": "CLI for the JSON import/export of Phase B storage stores."
+ },
+ {
+  "name": "scripts.transcript_reader",
+  "lang": "Python",
+  "file": "modules/scripts_transcript_reader.py.html",
+  "summary": "Read-only cross-tool transcript reader."
+ },
+ {
+  "name": "scripts.vibe_session",
+  "lang": "Python",
+  "file": "modules/scripts_vibe_session.py.html",
+  "summary": "Generate a focused coding-session workflow scaffold."
+ },
+ {
+  "name": "workers",
+  "lang": "Python",
+  "file": "modules/workers.py.html",
+  "summary": "Runtime workers used by Kitty-managed compute."
+ },
+ {
+  "name": "workers.comfy_worker",
+  "lang": "Python",
+  "file": "modules/workers_comfy_worker.py.html",
+  "summary": "Authenticated Kitty front-end for a private ComfyUI process."
+ },
+ {
+  "name": "workers.comfy_worker.app",
+  "lang": "Python",
+  "file": "modules/workers_comfy_worker_app.py.html",
+  "summary": "Authenticated, allowlisted Kitty front-end for a private ComfyUI process."
+ }
+]
