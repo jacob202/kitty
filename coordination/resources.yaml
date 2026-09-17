@@ -85,11 +85,14 @@ resources:
     - contracts/knowledge_pipeline.py
     - gateway/archivist.py
     - gateway/domain_router.py
+    - gateway/expert_proactive.py
+    - gateway/expert_state.py
     - gateway/hybrid_search.py
     - gateway/ingestion_queue.py
     - gateway/knowledge.py
     - gateway/librarian.py
     - gateway/pdf_pipeline.py
+    - gateway/routes/experts.py
     - gateway/routes/knowledge.py
     - tests/test_domain_router.py
     - tests/test_knowledge.py
@@ -148,6 +151,7 @@ resources:
     - gateway/agent_room_cli.py
     - gateway/app.py
     - gateway/doctor.py
+    - gateway/health_surface.py
     - gateway/kitty-chat/.gitignore
     - gateway/kitty-chat/next.config.ts
     - gateway/kitty-chat/package.json
@@ -287,6 +291,7 @@ resources:
     - gateway/token_spend_report.py
     - opencode.jsonc
     - scripts/agent_council.py
+    - scripts/kitty_backup_proof.py
     - scripts/nightly_packet_drain.sh
     - scripts/ops/kitty_task.py
     - scripts/transcript_reader.py
