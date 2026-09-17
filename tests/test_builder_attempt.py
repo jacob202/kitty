@@ -25,6 +25,7 @@ from gateway.builder_cli import main
 
 INITIATIVE = "kitty-alpha-v1"
 PACKET = "KB-A1"
+BASE_SHA = "a" * 40
 
 
 def _python_c(code: str) -> str:
@@ -56,6 +57,18 @@ def _manifest() -> dict:
             },
         ],
     }
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_base_sha(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep apply_manifest off the live origin.
+
+    apply_manifest() resolves an unbound base with resolve_base_sha(), which
+    runs ``git fetch origin main``. That made test setup a live network call —
+    a slow fetch failed setup with subprocess.TimeoutExpired. These tests do not
+    exercise ref resolution, so pin a deterministic SHA instead.
+    """
+    monkeypatch.setattr(bi, "resolve_base_sha", lambda _repo_root=None: BASE_SHA)
 
 
 @pytest.fixture
