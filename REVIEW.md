@@ -112,3 +112,23 @@ behaviour.
 - **Worktrees are normal here.** Tooling that assumes the canonical checkout —
   a virtualenv, `node_modules`, a data root — is broken for every agent, because
   agents work in worktrees almost exclusively.
+
+## Say which rule you applied
+
+Name this file once in your review summary, and name the rule behind each
+finding — "gate that proves nothing", "config naming something nothing
+provides", "true and unusable", "partial fix", or the specific enforcement
+boundary crossed.
+
+Two reasons, and the second is the one that matters.
+
+A finding that cites its rule is easier to act on. The reader can agree with the
+rule and still reject the finding, or accept both, without reverse-engineering
+what standard was being applied.
+
+And it is the only way anyone finds out when this file stops being read. Nothing
+here reports whether the guidance loaded; a review that silently fell back to
+generic defaults looks exactly like one that applied every rule above and found
+nothing. If your summary does not cite this file, that absence is the signal.
+Which is itself the rule about messages that are true and unusable, applied to
+the review process rather than the code.
