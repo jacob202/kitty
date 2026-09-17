@@ -117,33 +117,58 @@ def _session_file(context: dict[str, Any]) -> Path:
     return Path(context["git_dir"]) / "kitty-agent-session"
 
 
+def _active_bound_claims(
+    context: dict[str, Any], session_id: str
+) -> list[dict[str, Any]]:
+    db_path, _ = _coordination_paths(context)
+    worktree = str(Path(context["worktree"]).resolve())
+    return [
+        claim
+        for claim in agent_coordination.list_claims(active_only=True, db_path=db_path)
+        if claim["session_id"] == session_id
+        and str(claim.get("worktree") or "") == worktree
+    ]
+
+
+def _bind_session(context: dict[str, Any], session_id: str) -> None:
+    _session_file(context).write_text(session_id + "\n", encoding="utf-8")
+
+
 def _session_id(
     context: dict[str, Any] | None = None,
     *,
     create: bool = True,
     rotate_if_inactive: bool = False,
 ) -> str:
-    override = os.environ.get("KITTY_AGENT_SESSION_ID")
-    if override and override.strip():
-        return override.strip()
     ctx = context or _repo_context()
     session_file = _session_file(ctx)
+    override = (os.environ.get("KITTY_AGENT_SESSION_ID") or "").strip()
     if session_file.exists():
         existing = session_file.read_text(encoding="utf-8").strip()
         if existing:
-            if not rotate_if_inactive:
+            active = _active_bound_claims(ctx, existing)
+            if active:
+                participant = (os.environ.get("KITTY_AGENT_PARTICIPANT") or "").strip()
+                owners = {str(claim.get("participant") or "") for claim in active}
+                if participant and owners and participant not in owners:
+                    owner = sorted(owners)[0]
+                    raise agent_coordination.CoordinationClaimError(
+                        f"worktree session {existing} belongs to participant {owner}; "
+                        f"refusing to borrow it as {participant}"
+                    )
                 return existing
-            db_path, _ = _coordination_paths(ctx)
-            active = agent_coordination.list_claims(active_only=True, db_path=db_path)
-            if any(claim["session_id"] == existing for claim in active):
+            if rotate_if_inactive:
+                session_file.unlink(missing_ok=True)
+            elif not override:
                 return existing
-            session_file.unlink(missing_ok=True)
+    if override:
+        return override
     if not create:
         raise agent_coordination.CoordinationClaimError(
             "no Kitty agent session is established for this worktree; run kitty agent claim first"
         )
     created = f"{_participant()}-{uuid.uuid4().hex}"
-    session_file.write_text(created + "\n", encoding="utf-8")
+    _bind_session(ctx, created)
     return created
 
 
@@ -241,8 +266,9 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, int]:
     if args.command == "claim":
         context = _repo_context()
         db_path, registry_path = _coordination_paths(context)
+        session_id = _session_id(context, rotate_if_inactive=True)
         result = agent_coordination.acquire(
-            session_id=_session_id(context, rotate_if_inactive=True),
+            session_id=session_id,
             participant=_participant(),
             role=args.role,
             resource_id=args.resource,
@@ -264,6 +290,7 @@ def _dispatch(args: argparse.Namespace) -> tuple[Any, int]:
                 file=sys.stderr,
             )
             return result, 2
+        _bind_session(context, session_id)
         return result, 0
 
     if args.command == "renew":

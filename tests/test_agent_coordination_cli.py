@@ -118,6 +118,41 @@ def test_claim_auto_resolves_git_identity_and_status_json(
     assert row["state"] == "active"
 
 
+def test_exported_session_id_is_bound_and_survives_provider_id_rotation(
+    repo: Path, cli_env: dict[str, str]
+) -> None:
+    first = _claim(repo, cli_env)
+    assert first.returncode == 0, first.stderr
+    binding = _git_dir(repo) / "kitty-agent-session"
+    assert binding.read_text(encoding="utf-8").strip() == "session-one"
+
+    rotated = {**cli_env, "KITTY_AGENT_SESSION_ID": "session-two"}
+    renewed = _run(repo, rotated, "renew", "--json")
+    assert renewed.returncode == 0, renewed.stderr
+    assert json.loads(renewed.stdout)["renewed"] == 1
+
+    released = _run(repo, rotated, "release", "--json")
+    assert released.returncode == 0, released.stderr
+    assert json.loads(released.stdout)["released"] == 1
+    assert not binding.exists()
+
+
+def test_active_worktree_binding_cannot_be_borrowed_by_another_participant(
+    repo: Path, cli_env: dict[str, str]
+) -> None:
+    first = _claim(repo, cli_env)
+    assert first.returncode == 0, first.stderr
+
+    other = {
+        **cli_env,
+        "KITTY_AGENT_PARTICIPANT": "claude",
+        "KITTY_AGENT_SESSION_ID": "claude-session-two",
+    }
+    result = _run(repo, other, "renew", "--json")
+    assert result.returncode != 0
+    assert "belongs to participant chatgpt" in result.stderr
+
+
 def test_conflict_is_nonzero_and_names_holding_session(
     repo: Path, cli_env: dict[str, str]
 ) -> None:
