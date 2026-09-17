@@ -963,9 +963,58 @@ def _consecutive_identical_crashes(
                 break
             reason = this_reason
             count += 1
-        elif etype in {"run_exited", "recovery_lane_changed"}:
+        elif etype in {
+            "run_exited",
+            "recovery_lane_changed",
+            "recovery_budget_cleared",
+        }:
             break
     return count, reason
+
+
+def clear_recovery_budget(
+    task_id: str,
+    *,
+    reason: str,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Clear a task's consecutive-crash streak after its cause has been fixed.
+
+    The streak is durable event history, so fixing the cause — an unregistered
+    scope, a rejected CLI contract — did not clear it. The loop refuses before
+    attempting while the streak stands, and only a completed run
+    (``run_exited``) or a lane change could break it, so a packet whose cause
+    was already fixed stayed durably blocked in ``recovery_budget_exhausted``
+    with no sanctioned way back.
+
+    This records the operator's inspection and breaks the run, exactly as
+    ``recovery_lane_changed`` already does for a lane change. The previous
+    count and reason are preserved in the event, so the history stays
+    auditable rather than erased.
+    """
+    text = str(reason or "").strip()
+    if not text:
+        raise LoopError("clearing the recovery budget requires a reason")
+    if bq.get_task(task_id, db_path=db_path) is None:
+        raise LoopError(f"task {task_id} is missing")
+    cleared_count, previous_reason = _consecutive_identical_crashes(
+        task_id, db_path=db_path
+    )
+    bq.append_event(
+        task_id,
+        "recovery_budget_cleared",
+        payload={
+            "reason": text,
+            "cleared_crash_count": cleared_count,
+            "previous_reason": previous_reason,
+        },
+        db_path=db_path,
+    )
+    return {
+        "task_id": task_id,
+        "cleared_crash_count": cleared_count,
+        "previous_reason": previous_reason,
+    }
 
 
 def _reconcile_stale_attempts(

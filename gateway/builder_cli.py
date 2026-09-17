@@ -445,6 +445,29 @@ def _cmd_queue_operator_release(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Queue — clear-recovery
+# ---------------------------------------------------------------------------
+
+
+def _cmd_queue_clear_recovery(args: argparse.Namespace) -> int:
+    from gateway.builder_loop import LoopError, clear_recovery_budget
+
+    try:
+        result = clear_recovery_budget(args.id, reason=args.reason)
+    except LoopError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+    else:
+        print(
+            f"Cleared recovery budget for {result['task_id']} "
+            f"({result['cleared_crash_count']} consecutive crash(es))"
+        )
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Queue — transition
 # ---------------------------------------------------------------------------
 
@@ -1914,6 +1937,14 @@ COMMANDS: list[CommandSpec] = [
                 [_a("id", "task ID"),
                  _a("--reason", "reason for release", default=None),
                  _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-clear-recovery", "queue", "clear-recovery",
+                "clear a task's consecutive-crash streak after its cause is fixed "
+                "(records the operator reason; a blocked packet with a fixed root "
+                "cause otherwise has no way back)",
+                _cmd_queue_clear_recovery,
+                [_a("id", "task ID"),
+                 _a("--reason", "operator reason: what was fixed", required=True),
+                 _a("--json", "output JSON", action="store_true")]),
     CommandSpec("queue-transition", "queue", "transition", "transition a task to a new state (worker-fenced)",
                 _cmd_queue_transition,
                 [_a("id", "task ID"),
@@ -2191,6 +2222,7 @@ _MUTATING_QUEUE_COMMANDS = frozenset(
         "claim-next",
         "release",
         "operator-release",
+        "clear-recovery",
         "transition",
         "archive",
         "attach-report",

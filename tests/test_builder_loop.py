@@ -1680,6 +1680,65 @@ class TestRecoveryBudget:
         count, _reason = bl._consecutive_identical_crashes(task_id, db_path=db_path)
         assert count == 0
 
+    def test_operator_clear_unblocks_a_packet_whose_cause_is_fixed(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A packet must not stay blocked forever once its cause is fixed.
+
+        The streak is durable event history, so fixing the cause (an
+        unregistered scope, say) did not clear it and the loop refused before
+        attempting. The operator clear records the inspection and breaks the
+        run, which is the only sanctioned way back.
+        """
+        task_id = _apply(db_path, repo_root=repo)
+        for _ in range(3):
+            self._crash(task_id, db_path)
+
+        with pytest.raises(bl.LoopError, match="recovery budget exhausted"):
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                repo_root=repo, db_path=db_path,
+            )
+
+        result = bl.clear_recovery_budget(
+            task_id,
+            reason="registered the packet scope in coordination/resources.yaml",
+            db_path=db_path,
+        )
+        assert result["cleared_crash_count"] == 3
+        assert bl._consecutive_identical_crashes(task_id, db_path=db_path) == (0, "")
+
+        # The history stays auditable: the clear names what it cleared.
+        cleared = [
+            event for event in bq.list_events(task_id, db_path=db_path)
+            if event["type"] == "recovery_budget_cleared"
+        ]
+        assert len(cleared) == 1
+        assert cleared[0]["payload"]["cleared_crash_count"] == 3
+        assert "coordination/resources.yaml" in cleared[0]["payload"]["reason"]
+
+        # Clearing the streak is necessary but not sufficient: the exhausted run
+        # also left the task durably blocked, so the operator releases it too.
+        bq.operator_release_task(
+            task_id, reason="recovery budget cleared", db_path=db_path
+        )
+
+        # And the packet can run again.
+        after = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert after["outcome"] == bl.LOOP_SUCCEEDED
+
+    def test_clear_recovery_budget_requires_a_reason(
+        self, repo: Path, db_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        with pytest.raises(bl.LoopError, match="requires a reason"):
+            bl.clear_recovery_budget(task_id, reason="   ", db_path=db_path)
+
     def test_stops_with_truthful_blocker_after_identical_crashes(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
