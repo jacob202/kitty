@@ -19,7 +19,7 @@ PACKET = "ID-1"
 
 
 @pytest.fixture
-def db_path(tmp_path: Path) -> Path:
+def db_path(tmp_path: Path, hermetic_builder_base) -> Path:
     path = tmp_path / "kittybuilder" / "builder_queue.db"
     bi.init_db(path)
     return path

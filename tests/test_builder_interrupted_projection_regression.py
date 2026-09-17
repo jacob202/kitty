@@ -30,7 +30,7 @@ def test_interrupted_run_projects_recovery_needed_not_in_progress(tmp_path: Path
             }
         ],
     }
-    applied = bi.apply_manifest(manifest, db_path=db_path)
+    applied = bi.apply_manifest(manifest, db_path=db_path, base_sha="a" * 40)
     task_id = applied["packets"][0]["task_id"]
     stale_attempt = ba.start_attempt(
         "interrupted-projection", "IP-1", db_path=db_path

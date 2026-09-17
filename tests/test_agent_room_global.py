@@ -28,7 +28,7 @@ def test_global_room_is_stable_idempotent_and_has_real_agent_roster(room_db):
     # is retired from sending (see _RETIRED_PARTICIPANT_IDS), and `commandcode`
     # is an active sender for Command Code sessions.
     assert [agent["id"] for agent in first["agents"]] == [
-        "chatgpt", "claude", "codex", "kitty", "dsh", "commandcode"
+        "chatgpt", "claude", "codex", "kitty", "dsh", "commandcode", "opencode"
     ]
     assert {agent["status"] for agent in first["agents"]} == {"registered"}
     assert all(agent["model"] is None for agent in first["agents"])
