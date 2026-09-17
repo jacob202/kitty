@@ -190,6 +190,8 @@ class TestSupervisorStatusEndpoint:
         assert response.status_code == 503
         assert "queue unreadable" not in response.json()["detail"]
         assert "unexpected error" in response.json()["detail"]
+        assert "Try the action again" in response.json()["detail"]
+        assert "logs" not in response.json()["detail"].lower()
 
     def test_running_true_when_active_runs_present(self, client, monkeypatch):
         active_runs = [

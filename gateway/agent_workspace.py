@@ -22,6 +22,23 @@ MAX_MESSAGE_LENGTH = 12_000
 MAX_CONTEXT_MESSAGES = 40
 MAX_CONTEXT_CONTENT = 4_000
 AGENT_TIMEOUT_SECONDS = 60
+_PUBLIC_TURN_FAILURE_MESSAGE = "The turn failed on our side. Try again."
+_FAILURE_EVENT_TYPES = frozenset({"agent_failed", "turn_failed"})
+
+
+def _public_turn_record(record: dict[str, Any]) -> dict[str, Any]:
+    if record.get("status") == "failed" and record.get("error_message"):
+        record["error_message"] = _PUBLIC_TURN_FAILURE_MESSAGE
+    return record
+
+
+def _public_event_record(event: dict[str, Any]) -> dict[str, Any]:
+    metadata = event.get("metadata")
+    if event.get("type") in _FAILURE_EVENT_TYPES and isinstance(metadata, dict):
+        if metadata.get("error_message"):
+            event["metadata"] = {**metadata, "error_message": _PUBLIC_TURN_FAILURE_MESSAGE}
+    return event
+
 
 DEFAULT_AGENTS: tuple[dict[str, str], ...] = (
     {
@@ -893,7 +910,7 @@ def _list_events(conn: Any, workspace_id: str, *, limit: int) -> list[dict[str, 
     for row in reversed(rows):
         event = dict(row)
         event["metadata"] = json.loads(event.pop("metadata_json"))
-        events.append(event)
+        events.append(_public_event_record(event))
     return events
 
 
@@ -1291,7 +1308,7 @@ def _list_turns(conn: Any, workspace_id: str, *, limit: int) -> list[dict[str, A
         """,
         (workspace_id, limit),
     ).fetchall()
-    return [dict(row) for row in rows]
+    return [_public_turn_record(dict(row)) for row in rows]
 
 
 def get_turn(workspace_id: str, turn_id: str) -> dict[str, Any]:
@@ -1306,7 +1323,7 @@ def get_turn(workspace_id: str, turn_id: str) -> dict[str, Any]:
         ).fetchone()
     if turn is None:
         raise AgentWorkspaceError(f"turn {turn_id} does not belong to workspace {workspace_id}")
-    return dict(turn)
+    return _public_turn_record(dict(turn))
 
 
 def start_turn(
@@ -1687,7 +1704,6 @@ def _record_turn_failure(
 ) -> None:
     error_type = type(exc).__name__
     detail = _bounded_failure_detail(exc)
-    operator_detail = _bounded_failure_detail(exc, user_facing=False)
     now = time.time()
     failure_message_id = f"message_{uuid.uuid4().hex}"
     failure_content = f"Incomplete: {active_agent_id or 'the room'} could not finish. {detail}"
@@ -1699,9 +1715,7 @@ def _record_turn_failure(
                 error_message = ?, finished_at = ?
             WHERE id = ? AND workspace_id = ? AND status = 'running'
             """,
-            # The turn record is the operator/debug copy: raw text stays here.
-            # Only the room message above goes generic.
-            (error_type, operator_detail, now, turn_id, workspace_id),
+            (error_type, detail, now, turn_id, workspace_id),
         ).rowcount
         if updated != 1:
             # Someone else (e.g. interrupt_running_turns after a Gateway
@@ -1726,7 +1740,7 @@ def _record_turn_failure(
             metadata={
                 "turn_id": turn_id,
                 "error_type": error_type,
-                "error_message": operator_detail,
+                "error_message": detail,
             },
             now=now,
         )
@@ -1759,30 +1773,26 @@ def _record_turn_failure(
             metadata={
                 "turn_id": turn_id,
                 "error_type": error_type,
-                "error_message": operator_detail,
+                "error_message": detail,
             },
             now=now,
         )
         conn.commit()
 
 
-def _bounded_failure_detail(exc: Exception, *, user_facing: bool = True) -> str:
-    """Bounded failure text; plain language for the room, raw for the event log.
+def _bounded_failure_detail(exc: Exception) -> str:
+    """Return only allowlisted user-safe failure text for durable/public records.
 
-    A dead provider chain stringifies as six provider diagnostics. Jacob reads
-    the room message, so it gets the one-action version while the durable event
-    keeps the raw list for whoever debugs the stack.
+    ``run_persisted_turn`` logs the original exception with its traceback before
+    this function is called, so raw diagnostics stay in protected server logs
+    instead of being copied into workspace rows or API-visible event metadata.
     """
     from gateway.llm_client import ProviderChainExhausted
 
-    if user_facing and isinstance(exc, ProviderChainExhausted):
+    if isinstance(exc, ProviderChainExhausted):
         detail = exc.user_message
-    elif user_facing:
-        # Jacob reads the room message: never raw internals (paths, keys,
-        # provider diagnostics). The event log keeps the raw text instead.
-        detail = "Something went wrong on our side. The technical details are in the logs."
     else:
-        detail = str(exc).strip() or "no error detail was provided"
+        detail = _PUBLIC_TURN_FAILURE_MESSAGE
     return detail[:1_000]
 
 

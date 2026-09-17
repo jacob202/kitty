@@ -135,7 +135,7 @@ def _translate_supervisor_error(raw: str) -> str:
     for fragment, plain in _SUPERVISOR_ERROR_TRANSLATIONS.items():
         if fragment in raw:
             return plain
-    return "Builder encountered an unexpected error. Check the logs for details."
+    return "Builder encountered an unexpected error. Try the action again."
 
 
 @router.post("/builder/supervisor/tick")

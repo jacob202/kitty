@@ -198,6 +198,8 @@ class TestErrorSanitization:
         body = response.json()
         assert body["ok"] is False
         assert "/vault/route-marker" not in body["error"]
+        assert "Try the action again" in body["error"]
+        assert "logs" not in body["error"].lower()
 
     def test_supervisor_status_hides_raw_error(self, client, monkeypatch):
         from gateway import builder_supervisor as bs
