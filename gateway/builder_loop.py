@@ -2243,6 +2243,81 @@ def _governor_settle(
     )
 
 
+def publish_succeeded_task(
+    task_id: str,
+    *,
+    attempt_id: int,
+    evidence: dict[str, Any],
+    repo_root: Path | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Attach a succeeded packet's final report and publish it, fenced.
+
+    Unattended dispatch calls this after a packet succeeds. ``publish_task``
+    requires a non-empty task final report, and nothing else in the run path
+    writes one; the report must therefore be attached here, under the task's
+    current lease fence, so a superseded worker can never attach one. A task
+    with no fence fails closed instead of writing outside its claim.
+
+    Returns ``{"status": "published"|"failed", ...}``. A publication failure
+    never raises and never reclassifies the packet outcome: the caller keeps
+    the worktree for the operator and records the failure in the run result.
+    """
+    from gateway import builder_publish as bp
+
+    task = bq.get_task(task_id, db_path=db_path)
+    if task is None:
+        return {
+            "status": "failed",
+            "error": f"task {task_id} disappeared before publication",
+        }
+
+    lease_token = task.get("lease_token")
+    claim_version = task.get("claim_version")
+    if not lease_token or claim_version is None:
+        return {
+            "status": "failed",
+            "error": (
+                f"task {task_id} has no lease fence; refusing to attach a "
+                "final report outside the claim"
+            ),
+        }
+
+    report = {
+        **evidence,
+        "outcome": "succeeded",
+        "task_id": task_id,
+        "attempt_id": attempt_id,
+    }
+    try:
+        bq.attach_final_report(
+            task_id,
+            report,
+            lease_token=str(lease_token),
+            claim_version=int(claim_version),
+            db_path=db_path,
+        )
+    except Exception as exc:  # noqa: BLE001 - lease/state refusals are publication failures
+        return {
+            "status": "failed",
+            "error": f"final report attach failed: {type(exc).__name__}: {exc}",
+        }
+
+    try:
+        published = bp.publish_task(task_id, repo_root=repo_root, db_path=db_path)
+    except Exception as exc:  # noqa: BLE001 - a publish failure must not fail the packet
+        return {
+            "status": "failed",
+            "error": f"publish failed: {type(exc).__name__}: {exc}",
+        }
+    return {
+        "status": "published",
+        "branch": published.get("branch"),
+        "pr": published.get("pr"),
+        "transitions": published.get("transitions"),
+    }
+
+
 def run_packet(
     initiative_id: str,
     packet_id: str,
@@ -2268,6 +2343,7 @@ def run_packet(
     governor_projected_cost_cad: float | None = None,
     governor_requested_route: str | None = None,
     publication_preflight: bool = False,
+    publish: bool = False,
 ) -> dict[str, Any]:
     """Run the bounded repair loop for one packet.
 
@@ -3549,10 +3625,40 @@ def run_packet(
             )
             entry["outcome"] = ba.ATTEMPT_SUCCEEDED
 
+            # Publication runs before worktree cleanup because publish_task
+            # pushes from the task worktree, which the cleanup below removes.
+            # A publication failure must not reclassify the succeeded packet;
+            # it is recorded and the worktree is kept for the operator.
+            publication: dict[str, Any] | None = None
+            if publish:
+                publication = publish_succeeded_task(
+                    task_id,
+                    attempt_id=attempt_id,
+                    evidence={
+                        "initiative_id": initiative_id,
+                        "packet_id": packet_id,
+                        "base_sha": base_sha,
+                        "cumulative": manifest.get("cumulative"),
+                        "worker_run": manifest.get("worker_run"),
+                    },
+                    repo_root=repo_root,
+                    db_path=db_path,
+                )
+                entry["publication"] = publication
+                if publication.get("status") != "published":
+                    logger.warning(
+                        "publication failed for %s/%s: %s",
+                        initiative_id,
+                        packet_id,
+                        publication.get("error"),
+                    )
+
             # A worker's done marker is the explicit handoff boundary. Never
             # discard the only recoverable copy when durable result persistence
             # or registration failed after otherwise-completed work.
-            if result_artifact is not None and result_artifact.get("state") != "ready":
+            if publication is not None and publication.get("status") != "published":
+                entry["worktree_cleanup"] = "kept_publication_failed"
+            elif result_artifact is not None and result_artifact.get("state") != "ready":
                 entry["worktree_cleanup"] = (
                     "kept_result_registration_failed"
                     if (attempt_dir / "result.patch").is_file()
@@ -3589,6 +3695,7 @@ def run_packet(
                 "task_id": task_id,
                 "task_state": final_task["state"] if final_task else None,
                 "attempts": history,
+                "publication": publication,
             }
 
         entry["outcome"] = ba.ATTEMPT_FAILED

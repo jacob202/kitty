@@ -107,17 +107,25 @@ def _supervisor_route_argv() -> list[str]:
     return ["--paid", "--tier", route]
 
 
-# Unattended dispatch runs each packet in shadow mode: implement, validate,
-# review — no push and no pull request.
+# Unattended dispatch publishes each succeeded packet as its own branch and
+# pull request, and stops there. Jacob authorized publication on 2026-09-16 and
+# docs/ACTIVE_MISSION.md records the scope: opening a pull request, never
+# merging one.
 #
-# Jacob authorized per-packet publication on 2026-09-16, but it is not wired on
-# this path yet. PR #889 dispatched `--publish --gate manual` before the
-# run-packet CLI accepted either flag, so every unattended launch died at
-# argument parsing before its first attempt. Publication also needs the run
-# path to attach the task final report publish_task requires. Re-add the flags
-# only when that wiring exists end-to-end; the parser regression in
-# tests/test_builder_supervisor.py parses this argv through the real CLI parser
-# so the seam cannot drift silently again.
+# 'manual' is the load-bearing word. The auto gate is a real capability under
+# ADRs 0018 and 0021 — evidence-gated auto-merge with auto-revert — and it is
+# deliberately not used here. PR #889 dispatched these flags before the CLI
+# accepted them, and every unattended launch died at argument parsing; the
+# dispatch/CLI contract now lives in PR #895 (run-packet --publish attaches the
+# succeeded packet's final report under its lease fence, then publishes), and
+# the parser regression in tests/test_builder_supervisor.py parses this argv
+# through the real CLI parser so the seam cannot drift silently again.
+SUPERVISOR_PUBLISH_ARGV = ["--publish", "--gate", "manual"]
+
+
+def _supervisor_dispatch_argv() -> list[str]:
+    """Every run-packet flag unattended dispatch uses: route, then publication."""
+    return [*_supervisor_route_argv(), *SUPERVISOR_PUBLISH_ARGV]
 
 
 class SupervisorError(RuntimeError):
@@ -769,7 +777,7 @@ def _launch_run(
 
     command = [
         str(kitty), "builder", "initiative", "run-packet",
-        initiative_id, packet_id, *_supervisor_route_argv(), "--json",
+        initiative_id, packet_id, *_supervisor_dispatch_argv(), "--json",
     ]
     log_dir = root / "data" / "kittybuilder" / "supervisor-launch"
     log_dir.mkdir(parents=True, exist_ok=True)

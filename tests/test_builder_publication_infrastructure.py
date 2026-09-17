@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 from pathlib import Path
@@ -10,8 +11,10 @@ import pytest
 
 from gateway import agent_coordination as ac
 from gateway import builder_attempt as ba
+from gateway import builder_cli
 from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
+from gateway import builder_publish as bp
 from gateway import builder_queue as bq
 
 INITIATIVE = "publication-infra"
@@ -221,3 +224,158 @@ def test_unexpected_publication_preflight_exit_fails_before_attempt(
     assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
     assert not marker.exists()
     assert bq.get_task(task_id, db_path=db_path)["state"] == bq.QUEUED
+
+
+# ---------------------------------------------------------------------------
+# run-packet --publish wiring (PR #895)
+# ---------------------------------------------------------------------------
+
+
+def _claimed_task(db_path: Path) -> dict:
+    task = bq.create_task("publish me", description="wire it", db_path=db_path)
+    bq.claim_task(task["id"], "worker-1", db_path=db_path)
+    claimed = bq.get_task(task["id"], db_path=db_path)
+    assert claimed is not None
+    assert claimed["lease_token"]
+    assert claimed["claim_version"]
+    return claimed
+
+
+def test_publish_succeeded_task_attaches_fenced_report_then_publishes(
+    db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task = _claimed_task(db_path)
+    calls: list[str] = []
+
+    def fake_attach(task_id: str, report: dict, **kwargs: object) -> dict:
+        calls.append("attach")
+        assert task_id == task["id"]
+        assert report["outcome"] == "succeeded"
+        assert report["attempt_id"] == 3
+        assert report["base_sha"] == "a" * 40
+        assert kwargs["lease_token"] == task["lease_token"]
+        assert kwargs["claim_version"] == task["claim_version"]
+        return {}
+
+    def fake_publish(task_id: str, **kwargs: object) -> dict:
+        calls.append("publish")
+        assert task_id == task["id"]
+        return {
+            "branch": "kittybuilder/t",
+            "pr": {"pr_number": 7},
+            "transitions": ["pr_opened"],
+        }
+
+    monkeypatch.setattr(bq, "attach_final_report", fake_attach)
+    monkeypatch.setattr(bp, "publish_task", fake_publish)
+
+    result = bl.publish_succeeded_task(
+        task["id"], attempt_id=3, evidence={"base_sha": "a" * 40}, db_path=db_path
+    )
+
+    assert calls == ["attach", "publish"], "the report must be attached before publish"
+    assert result["status"] == "published"
+    assert result["pr"] == {"pr_number": 7}
+    assert result["branch"] == "kittybuilder/t"
+
+
+def test_publish_succeeded_task_without_fence_fails_closed(
+    db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task = bq.create_task("unclaimed", db_path=db_path)
+    called: list[str] = []
+    monkeypatch.setattr(
+        bq, "attach_final_report", lambda *a, **k: called.append("attach") or {}
+    )
+    monkeypatch.setattr(
+        bp, "publish_task", lambda *a, **k: called.append("publish") or {}
+    )
+
+    result = bl.publish_succeeded_task(
+        task["id"], attempt_id=1, evidence={}, db_path=db_path
+    )
+
+    assert result["status"] == "failed"
+    assert "no lease fence" in result["error"]
+    assert called == [], "nothing may be written outside the claim"
+
+
+def test_publish_succeeded_task_records_publish_failure(
+    db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task = _claimed_task(db_path)
+    monkeypatch.setattr(bq, "attach_final_report", lambda *a, **k: {})
+
+    def boom(task_id: str, **kwargs: object) -> dict:
+        raise bp.PublishError("git push failed (exit 1): no credentials")
+
+    monkeypatch.setattr(bp, "publish_task", boom)
+
+    result = bl.publish_succeeded_task(
+        task["id"], attempt_id=1, evidence={}, db_path=db_path
+    )
+
+    assert result["status"] == "failed"
+    assert "git push failed" in result["error"]
+
+
+def test_run_packet_parser_accepts_publish_flags() -> None:
+    parsed = builder_cli.build_parser().parse_args(
+        [
+            "initiative", "run-packet", "init-1", "p1",
+            "--publish", "--gate", "manual", "--json",
+        ]
+    )
+    assert parsed.publish is True
+    assert parsed.gate == "manual"
+
+
+def test_run_packet_parser_refuses_auto_gate() -> None:
+    with pytest.raises(SystemExit):
+        builder_cli.build_parser().parse_args(
+            ["initiative", "run-packet", "init-1", "p1", "--publish", "--gate", "auto"]
+        )
+
+
+def test_run_packet_handler_passes_publish_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict = {}
+
+    def fake_run_packet(*args: object, **kwargs: object) -> dict:
+        captured.update(kwargs)
+        return {
+            "outcome": "succeeded",
+            "initiative_id": "init-1",
+            "packet_id": "p1",
+            "task_id": "task-1",
+            "attempts": [],
+        }
+
+    monkeypatch.setattr(
+        builder_cli, "_resolve_loop_commands", lambda args: ([], None, None, {})
+    )
+    monkeypatch.setattr("gateway.builder_loop.run_packet", fake_run_packet)
+
+    args = argparse.Namespace(
+        id="init-1",
+        packet="p1",
+        worker="packet-loop",
+        free=False,
+        paid=False,
+        tier="cheap",
+        model=None,
+        provider=None,
+        timeout=10,
+        no_governor=True,
+        governor_db=None,
+        governor_override=None,
+        watch=False,
+        json=False,
+        publish=True,
+        gate="manual",
+    )
+    exit_code = builder_cli._cmd_initiative_run_packet(args)
+
+    assert exit_code == 0
+    assert captured["publish"] is True

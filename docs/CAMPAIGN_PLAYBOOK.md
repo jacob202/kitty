@@ -79,21 +79,20 @@ rejects `--worker-command`/`--review-command`/`--model`/`--provider`. A custom
 - **long / free** — `initiative run <init> --free --max-attempts 12` (prototype-gated if authored with one)
 - **long / paid** — `initiative run <init> --paid --max-attempts 12`
 
-`initiative run-packet` is **non-publishing (shadow)** — no push, no PR, no
-merge. `initiative run` accepts `--publish`; with it, `--gate auto` (the
-default) enables Builder's ADR 0018 / ADR 0021 evidence-gated low-risk
-auto-merge, and `--gate manual` parks each packet at `awaiting_review` for a
-human merge decision.
+`initiative run-packet` is **non-publishing (shadow)** unless `--publish` is
+present — no push, no PR, no merge. With `--publish`, `--gate manual` (the
+only gate this path accepts) attaches the succeeded packet's final report under
+its lease fence, pushes the task branch, and parks the PR at `awaiting_review`
+for a human merge. `--gate auto` remains the capability of the operator
+`initiative run` path only.
 
-Per-packet publication is **not implemented end-to-end yet**, so unattended
-dispatch runs shadow-mode. `initiative run-packet` has never accepted
-`--publish` or `--gate`, and the run path does not attach the task final report
-`publish_task` requires. Dispatching those flags before that wiring exists made
-every unattended launch die at argument parsing (PR #889); re-adding them is
-gated on the run path actually being able to publish. Jacob's 2026-09-16
-authorization for per-packet publication stands and is recorded in
-`docs/ACTIVE_MISSION.md`; the merge decision remains human and `--gate auto`
-stays off the unattended path.
+Unattended dispatch runs `--publish --gate manual`: every succeeded packet
+pushes its own branch and opens its own pull request, parked at
+`awaiting_review` — authorized 2026-09-16 and scoped in `docs/ACTIVE_MISSION.md`
+to opening a PR, never merging one. A publication failure never reclassifies
+the succeeded packet: it is recorded in the run result and the worktree is kept
+for the operator. PR #895 wired this end to end; #889 had dispatched the flags
+before the CLI accepted them, which made every unattended launch die on argv.
 
 Full detail and negative tests: `docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md` §3.
 
