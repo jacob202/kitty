@@ -95,6 +95,7 @@ resources:
     - gateway/routes/experts.py
     - gateway/routes/knowledge.py
     - tests/test_domain_router.py
+    - tests/test_expert_proactive.py
     - tests/test_knowledge.py
     - tests/test_knowledge_experts.py
     - tests/test_knowledge_routes.py
