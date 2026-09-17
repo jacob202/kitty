@@ -466,6 +466,43 @@ class TestSpendAndLifecycle:
         )
         assert fresh.session.reserved_spend_usd == pytest.approx(0.90)
 
+    def test_pre_ledger_exposure_is_carried_forward_once(self):
+        # The upgrade path: a session holding a reserved total but no
+        # reservation rows (the pre-ledger schema) must not silently lose
+        # that exposure, and replaying the migration must not duplicate it.
+        s = sessions.create_session()
+        import gateway.paths as gp
+
+        conn = sqlite3.connect(str(gp.KITTY_DB_FILE))
+        try:
+            conn.execute(
+                "UPDATE image_sessions SET reserved_spend_usd = 0.90 "
+                "WHERE session_id = ?",
+                (s.session_id,),
+            )
+            conn.execute("DELETE FROM image_session_reservations")
+            conn.commit()
+        finally:
+            conn.close()
+
+        sessions._ensure_db()
+        sessions._ensure_db()
+
+        conn = sqlite3.connect(str(gp.KITTY_DB_FILE))
+        try:
+            carried = conn.execute(
+                "SELECT COUNT(*) FROM image_session_reservations WHERE session_id = ?",
+                (s.session_id,),
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        assert carried == 1
+
+        with pytest.raises(sessions.SessionBudgetExceededError):
+            sessions.reserve_attempt(
+                s.session_id, cost_usd=0.90, max_attempts=4, max_spend_usd=1.00
+            )
+
     def test_fresh_reservation_is_not_swept_early(self):
         s = sessions.create_session()
         sessions.reserve_attempt(
