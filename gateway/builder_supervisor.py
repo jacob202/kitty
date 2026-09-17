@@ -45,6 +45,7 @@ from gateway import builder_attempt as ba
 from gateway import builder_autonomy as bau
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
+from gateway import builder_status as bstatus
 from gateway.builder_brief import default_branch_name
 from gateway.builder_queue_runs import RUN_ACTIVE_STATES
 from gateway.paths import BUILDER_QUEUE_DB
@@ -66,6 +67,8 @@ RUNWAY_TARGET_ENV = "KITTY_BUILDER_RUNWAY_TARGET"
 SLATE_AUTHOR_ARGV_ENV = "KITTY_BUILDER_SLATE_AUTHOR_ARGV_JSON"
 REPLENISHER_RECEIPT_FILE = "replenisher-status.json"
 REPLENISHER_LOG_FILE = "replenisher.log"
+LAUNCH_LOG_READ_BYTES = 16_384
+LAUNCH_LOG_DIAGNOSTIC_CAP = 2_000
 
 # The canonical run is the DSH adapter pair; it is the only executable the
 # supervisor may dispatch. Paid routes use these *same* scripts — only the
@@ -385,31 +388,47 @@ def _scheduler_enabled() -> bool | None:
     return None
 
 
-def _launch_log_tail(log_path: Path | None, *, limit: int = 12) -> str:
-    """Return the child's own last words, for a failure that is otherwise mute.
-
-    A dispatch that dies inside the launcher — stale checkout, rejected argv,
-    missing dependency — exits before it can claim, so the durable queue records
-    nothing and the only account of the cause is this log. Without it the
-    operator sees "child 54244 exited before durably claiming task X" for every
-    packet in the queue and cannot tell a broken checkout from a transient
-    fault, while the log held the argparse error the whole time.
-    """
+def _launch_log_tail(
+    log_path: Path | None, *, start_offset: int = 0, limit: int = 12
+) -> str:
+    """Return a bounded, redacted tail written by this launch only."""
     if log_path is None:
         return ""
     try:
-        text = Path(log_path).read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return ""
+        path = Path(log_path)
+        with path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            end_offset = handle.tell()
+            launch_offset = max(0, int(start_offset))
+            if end_offset <= launch_offset:
+                return ""
+            read_offset = max(launch_offset, end_offset - LAUNCH_LOG_READ_BYTES)
+            handle.seek(read_offset)
+            raw = handle.read(end_offset - read_offset)
+    except OSError as exc:
+        detail = bstatus.safe_operator_message(
+            f"{type(exc).__name__}: {exc}", cap=500
+        ) or type(exc).__name__
+        return f"launch log unavailable: {detail}"
+
+    text = raw.decode("utf-8", errors="replace")
     lines = [line for line in text.splitlines() if line.strip()]
     if not lines:
         return ""
-    return "\n".join(lines[-limit:])
+    selected = "\n".join(lines[-limit:])
+    safe = bstatus.safe_operator_message(
+        selected, cap=LAUNCH_LOG_READ_BYTES * 2
+    ) or ""
+    if len(safe) > LAUNCH_LOG_DIAGNOSTIC_CAP:
+        safe = "…" + safe[-(LAUNCH_LOG_DIAGNOSTIC_CAP - 1):]
+    return safe
 
 
-def _claim_failure(base: str, log_path: Path | None) -> str:
-    """Attach the child's output so the failure names its own cause."""
-    tail = _launch_log_tail(log_path)
+def _claim_failure(
+    base: str, log_path: Path | None, *, log_start_offset: int = 0
+) -> str:
+    """Attach only this child's bounded, sanitized output to the failure."""
+    tail = _launch_log_tail(log_path, start_offset=log_start_offset)
     if not tail:
         return base
     return f"{base}; child output (last lines):\n{tail}"
@@ -419,6 +438,7 @@ def _wait_for_durable_claim(
     task_id: str, process: subprocess.Popen[Any], *, initial_claim_version: int,
     db_path: Path | None, timeout_seconds: float = 60.0,
     log_path: Path | None = None,
+    log_start_offset: int = 0,
 ) -> dict[str, Any]:
     """Wait until the detached child has durably claimed its queue task."""
     deadline = time.monotonic() + timeout_seconds
@@ -432,6 +452,7 @@ def _wait_for_durable_claim(
                     f"Builder child {process.pid} exited before durably claiming "
                     f"task {task_id}",
                     log_path,
+                    log_start_offset=log_start_offset,
                 )
             )
         time.sleep(0.05)
@@ -453,6 +474,7 @@ def _wait_for_durable_claim(
             f"Builder child {process.pid} did not durably claim task {task_id} "
             f"within {timeout_seconds:g}s",
             log_path,
+            log_start_offset=log_start_offset,
         )
     )
 
@@ -834,6 +856,7 @@ def _launch_run(
                 f"task {task_id} already has a supervisor dispatch in progress"
             )
         with log_path.open("ab") as log_handle:
+            log_start_offset = os.fstat(log_handle.fileno()).st_size
             process = subprocess.Popen(
                 command,
                 cwd=str(root),
@@ -849,7 +872,7 @@ def _launch_run(
         dispatch_lock.handoff_to_child()
     claimed = _wait_for_durable_claim(
         task_id, process, initial_claim_version=initial_claim_version,
-        db_path=db_path, log_path=log_path,
+        db_path=db_path, log_path=log_path, log_start_offset=log_start_offset,
     )
     return {
         "status": "dispatched",
