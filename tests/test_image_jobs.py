@@ -488,3 +488,20 @@ class TestCancelQueued:
         _make_job(provider="drawthings", prompt="d1")
         count = jobs.cancel_queued(provider="comfyui")
         assert count == 1
+
+    def test_cancel_queued_by_character_id_preserves_full_migration_chain(self) -> None:
+        # character_id belongs to migration 026, while this module bootstraps
+        # only migration 023. A character-scoped cancel before 026 must be a
+        # harmless no-op without pre-adding the column and breaking migration
+        # 026 later with a duplicate-column failure.
+        import gateway.paths as gp
+        from gateway import db as kitty_db
+
+        _make_job(prompt="e1")
+        count = jobs.cancel_queued(character_id="char_does_not_exist")
+        assert count == 0
+
+        kitty_db.migrate(db_file=gp.KITTY_DB_FILE)
+        with sqlite3.connect(str(gp.KITTY_DB_FILE)) as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)")}
+        assert "character_id" in cols
