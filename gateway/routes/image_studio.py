@@ -998,7 +998,7 @@ async def studio_generate(req: StudioGenerateRequest):
                     intent_json=job_intent_json,
                     session_id=req.session_id if paid_attempt_reserved else None,
                     reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
-                reservation_id=paid_reservation_id,
+                    reservation_id=paid_reservation_id,
                     quality_tier=req.quality,
                 )
             else:
