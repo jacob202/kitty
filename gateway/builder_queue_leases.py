@@ -381,6 +381,29 @@ def operator_release_task(
     return result
 
 
+def _close_orphaned_runs(conn: sqlite3.Connection, task_id: str) -> None:
+    """Close out any run row still in an active state for a recovered task.
+
+    ``idx_runs_one_active_per_task`` (partial unique on
+    ``runs(task_id) WHERE state IN ('starting','running','cancel_requested')``)
+    has no expiry of its own. Recovering the task's lease without also
+    transitioning its dangling run row leaves that row permanently active,
+    so ``create_run`` rejects every future attempt for this task with
+    ``ActiveRunConflictError`` even though the task itself is free again.
+    """
+    conn.execute(
+        """
+        UPDATE runs
+        SET state = 'lease_lost',
+            ended_at = strftime('%Y-%m-%d %H:%M:%f', 'now'),
+            updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+        WHERE task_id = ?
+          AND state IN ('starting', 'running', 'cancel_requested')
+        """,
+        (task_id,),
+    )
+
+
 def recover_expired_leases(*, db_path: Path | None = None) -> dict[str, int]:
     """Recover expired worker leases in one transaction.
 
@@ -427,6 +450,7 @@ def recover_expired_leases(*, db_path: Path | None = None) -> dict[str, int]:
             )
             if cursor.rowcount == 1:
                 claimed_requeued += 1
+                _close_orphaned_runs(conn, row["id"])
                 _bq.append_event(
                     row["id"],
                     "released",
@@ -465,6 +489,7 @@ def recover_expired_leases(*, db_path: Path | None = None) -> dict[str, int]:
             )
             if cursor.rowcount == 1:
                 running_blocked += 1
+                _close_orphaned_runs(conn, row["id"])
                 _bq.append_event(
                     row["id"],
                     BLOCKED,

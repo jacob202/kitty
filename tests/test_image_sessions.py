@@ -8,6 +8,7 @@ the store.
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -284,36 +285,234 @@ class TestSpendAndLifecycle:
             s.session_id, cost_usd=0.08, max_attempts=4, max_spend_usd=1.00
         )
 
-        assert reserved.attempt_count == 1
-        assert reserved.spend_usd == 0.0
-        assert getattr(reserved, "reserved_spend_usd", None) == pytest.approx(0.08)
+        assert reserved.session.attempt_count == 1
+        assert reserved.session.spend_usd == 0.0
+        assert reserved.session.reserved_spend_usd == pytest.approx(0.08)
+        assert reserved.cost_usd == pytest.approx(0.08)
+        assert reserved.reservation_id
 
     def test_reconcile_moves_reservation_into_settled_spend(self):
         s = sessions.create_session()
-        sessions.reserve_attempt(
+        reserved = sessions.reserve_attempt(
             s.session_id, cost_usd=0.08, max_attempts=4, max_spend_usd=1.00
         )
 
         settled = sessions.reconcile_reserved_attempt_cost(
-            s.session_id, reserved_cost_usd=0.08, actual_cost_usd=0.04
+            s.session_id,
+            reservation_id=reserved.reservation_id,
+            actual_cost_usd=0.04,
         )
 
         assert settled.spend_usd == pytest.approx(0.04)
-        assert getattr(settled, "reserved_spend_usd", None) == 0.0
+        assert settled.reserved_spend_usd == 0.0
 
     def test_release_drops_definite_no_submit_reservation_only(self):
         s = sessions.create_session()
-        sessions.reserve_attempt(
+        reserved = sessions.reserve_attempt(
             s.session_id, cost_usd=0.08, max_attempts=4, max_spend_usd=1.00
         )
         release = getattr(sessions, "release_reserved_attempt_cost", None)
         assert callable(release), "image sessions need a definite-no-submit release operation"
 
-        released = release(s.session_id, reserved_cost_usd=0.08)
+        released = release(s.session_id, reservation_id=reserved.reservation_id)
 
         assert released.spend_usd == 0.0
         assert released.reserved_spend_usd == 0.0
         assert released.attempt_count == 1
+
+    def test_settling_a_reservation_twice_cannot_consume_another_attempt(self):
+        # Reproduces: settling by amount let a second settle of the SAME
+        # attempt subtract the other in-flight attempt's identical exposure,
+        # so the session budget admitted work it had already committed.
+        s = sessions.create_session()
+        first = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.05, max_attempts=4, max_spend_usd=1.00
+        )
+        second = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.05, max_attempts=4, max_spend_usd=1.00
+        )
+
+        sessions.reconcile_reserved_attempt_cost(
+            s.session_id, reservation_id=first.reservation_id, actual_cost_usd=0.05
+        )
+        with pytest.raises(ImageSessionError, match="not outstanding"):
+            sessions.reconcile_reserved_attempt_cost(
+                s.session_id, reservation_id=first.reservation_id, actual_cost_usd=0.05
+            )
+
+        live = sessions.require_session(s.session_id)
+        assert live.reserved_spend_usd == pytest.approx(0.05)
+        settled_second = sessions.reconcile_reserved_attempt_cost(
+            s.session_id, reservation_id=second.reservation_id, actual_cost_usd=0.02
+        )
+        assert settled_second.reserved_spend_usd == 0.0
+        assert settled_second.spend_usd == pytest.approx(0.07)
+
+    def test_abandoned_reservation_expires_instead_of_permanently_blocking_budget(self):
+        # Reproduces: a caller that reserves and then crashes before
+        # release/reconcile leaves its exposure stuck forever, permanently
+        # tripping the budget gate for work that was never dispatched.
+        s = sessions.create_session()
+        reserved = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.95, max_attempts=4, max_spend_usd=1.00
+        )
+        # Simulate the crash: back-date the reservation row past the
+        # staleness window with no matching release/reconcile ever happening.
+        stale_at = (
+            datetime.now(timezone.utc)
+            - timedelta(seconds=sessions.RESERVATION_STALE_AFTER_SECONDS + 5)
+        ).isoformat()
+        import gateway.paths as gp
+
+        conn = sqlite3.connect(str(gp.KITTY_DB_FILE))
+        try:
+            conn.execute(
+                "UPDATE image_session_reservations SET updated_at = ? "
+                "WHERE reservation_id = ?",
+                (stale_at, reserved.reservation_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # A second attempt would exceed budget if the stale reservation were
+        # still counted ($0.95 + $0.95 > $1.00); it must succeed instead.
+        fresh = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.95, max_attempts=4, max_spend_usd=1.00
+        )
+        assert fresh.session.reserved_spend_usd == pytest.approx(0.95)
+
+    def test_in_flight_dispatch_reservation_survives_the_stale_session_clock(self):
+        # Reproduces: the sweep judged staleness from the session's clock, so
+        # a reservation for a BFL job still in provider polling -- which can
+        # legitimately run 900s, longer than any session-wide TTL, without
+        # touching the session row -- was zeroed. Its exposure then vanished
+        # from budget admission and its eventual settlement failed.
+        s = sessions.create_session()
+        reserved = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.90, max_attempts=4, max_spend_usd=1.00
+        )
+        job = jobs.create_job(
+            provider="flux2",
+            operation="txt2img",
+            prompt="slow but live",
+            model_id="flux-2-klein-4b",
+        )
+        sessions.bind_reservation_to_job(s.session_id, reserved.reservation_id, job.job_id)
+        stale_at = (
+            datetime.now(timezone.utc)
+            - timedelta(seconds=sessions.RESERVATION_JOB_GRACE_SECONDS - 60)
+        ).isoformat()
+        import gateway.paths as gp
+
+        conn = sqlite3.connect(str(gp.KITTY_DB_FILE))
+        try:
+            conn.execute(
+                "UPDATE image_sessions SET updated_at = ? WHERE session_id = ?",
+                (stale_at, s.session_id),
+            )
+            conn.execute(
+                "UPDATE image_session_reservations SET updated_at = ? "
+                "WHERE reservation_id = ?",
+                (stale_at, reserved.reservation_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # The provider may still bill this job: the second attempt must be
+        # refused instead of quietly admitted over the session allowance.
+        with pytest.raises(sessions.SessionBudgetExceededError):
+            sessions.reserve_attempt(
+                s.session_id, cost_usd=0.50, max_attempts=4, max_spend_usd=1.00
+            )
+        live = sessions.require_session(s.session_id)
+        assert live.reserved_spend_usd == pytest.approx(0.90)
+
+    def test_unrecoverable_dispatch_exposure_self_heals_after_the_grace_window(self):
+        # The other side of the boundary: once the provider polling and
+        # recovery windows are both over, a settle that will never arrive
+        # must not deadlock the session budget forever.
+        s = sessions.create_session()
+        reserved = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.90, max_attempts=4, max_spend_usd=1.00
+        )
+        job = jobs.create_job(
+            provider="flux2",
+            operation="txt2img",
+            prompt="abandoned settle",
+            model_id="flux-2-klein-4b",
+        )
+        sessions.bind_reservation_to_job(s.session_id, reserved.reservation_id, job.job_id)
+        stale_at = (
+            datetime.now(timezone.utc)
+            - timedelta(seconds=sessions.RESERVATION_JOB_GRACE_SECONDS + 5)
+        ).isoformat()
+        import gateway.paths as gp
+
+        conn = sqlite3.connect(str(gp.KITTY_DB_FILE))
+        try:
+            conn.execute(
+                "UPDATE image_session_reservations SET updated_at = ? "
+                "WHERE reservation_id = ?",
+                (stale_at, reserved.reservation_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        fresh = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.90, max_attempts=4, max_spend_usd=1.00
+        )
+        assert fresh.session.reserved_spend_usd == pytest.approx(0.90)
+
+    def test_pre_ledger_exposure_is_carried_forward_once(self):
+        # The upgrade path: a session holding a reserved total but no
+        # reservation rows (the pre-ledger schema) must not silently lose
+        # that exposure, and replaying the migration must not duplicate it.
+        s = sessions.create_session()
+        import gateway.paths as gp
+
+        conn = sqlite3.connect(str(gp.KITTY_DB_FILE))
+        try:
+            conn.execute(
+                "UPDATE image_sessions SET reserved_spend_usd = 0.90 "
+                "WHERE session_id = ?",
+                (s.session_id,),
+            )
+            conn.execute("DELETE FROM image_session_reservations")
+            conn.commit()
+        finally:
+            conn.close()
+
+        sessions._ensure_db()
+        sessions._ensure_db()
+
+        conn = sqlite3.connect(str(gp.KITTY_DB_FILE))
+        try:
+            carried = conn.execute(
+                "SELECT COUNT(*) FROM image_session_reservations WHERE session_id = ?",
+                (s.session_id,),
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        assert carried == 1
+
+        with pytest.raises(sessions.SessionBudgetExceededError):
+            sessions.reserve_attempt(
+                s.session_id, cost_usd=0.90, max_attempts=4, max_spend_usd=1.00
+            )
+
+    def test_fresh_reservation_is_not_swept_early(self):
+        s = sessions.create_session()
+        sessions.reserve_attempt(
+            s.session_id, cost_usd=0.95, max_attempts=4, max_spend_usd=1.00
+        )
+
+        with pytest.raises(sessions.SessionBudgetExceededError):
+            sessions.reserve_attempt(
+                s.session_id, cost_usd=0.95, max_attempts=4, max_spend_usd=1.00
+            )
 
     def test_record_attempt_accumulates_count_and_cost(self):
         s = sessions.create_session()

@@ -91,6 +91,7 @@ def _entry_from_row(row: Any) -> dict[str, Any]:
         "before": json.loads(row["before_json"]),
         "after": json.loads(row["after_json"]),
         "undone": bool(row["undone"]),
+        "state": row["state"],
         "created_at": row["created_at"],
     }
 
@@ -298,42 +299,87 @@ def undo(journal_id: str) -> dict[str, Any]:
     if entry["undone"]:
         raise UndoError(f"journal entry already undone: {journal_id}")
 
-    # Conflict guard: refuse if any NEWER, still-pending entry exists for the same
-    # entity. Ordering uses rowid (monotonic insert order) rather than created_at,
-    # which can tie when several mutations land within the same clock tick.
+    # Claim this undo atomically before doing any restoration work.
+    # BEGIN IMMEDIATE takes SQLite's write lock across the conflict-check
+    # and the claim, so two concurrent undo() calls on the same journal_id
+    # cannot both pass the checks and both go on to call _restore(): the
+    # loser's conditional UPDATE affects zero rows and it raises before
+    # ever touching the restored entity.
+    #
+    # The claim moves pending -> restoring rather than flipping `undone`.
+    # `undone` means "restoration finished"; setting it here made the
+    # in-flight entry invisible to a concurrent older undo's conflict guard,
+    # which could then restore the same entity out of journal order (round-2
+    # review finding 5). Claiming into `restoring` keeps the entry a blocker
+    # until the restoration has actually completed.
     with _connect() as conn:
-        row = conn.execute(
-            "SELECT rowid FROM undo_journal WHERE id = ?", (journal_id,)
-        ).fetchone()
-    if row is None:
-        raise UndoNotFound(f"journal entry not found: {journal_id}")
-    entry_rowid = row["rowid"]
-    with _connect() as conn:
-        newer = conn.execute(
-            """
-            SELECT id FROM undo_journal
-             WHERE entity_type = ? AND entity_id = ?
-               AND id != ? AND undone = 0 AND rowid > ?
-             ORDER BY rowid DESC
-             LIMIT 1
-            """,
-            (entry["entity_type"], entry["entity_id"], journal_id, entry_rowid),
-        ).fetchone()
-    if newer is not None:
-        raise UndoConflict(
-            f"newer change {newer['id']!r} for "
-            f"{entry['entity_type']}/{entry['entity_id']} would be clobbered"
-        )
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = conn.execute(
+                "SELECT rowid, undone, state FROM undo_journal WHERE id = ?",
+                (journal_id,),
+            ).fetchone()
+            if row is None:
+                raise UndoNotFound(f"journal entry not found: {journal_id}")
+            if row["undone"] or row["state"] == "completed":
+                raise UndoError(f"journal entry already undone: {journal_id}")
+            if row["state"] == "restoring":
+                raise UndoError(f"journal entry is already being restored: {journal_id}")
+            entry_rowid = row["rowid"]
+            # Conflict guard: refuse if any NEWER entry for the same entity is
+            # still pending or mid-restore. Ordering uses rowid (monotonic
+            # insert order) rather than created_at, which can tie within the
+            # same clock tick.
+            newer = conn.execute(
+                """
+                SELECT id FROM undo_journal
+                 WHERE entity_type = ? AND entity_id = ?
+                   AND id != ? AND rowid > ?
+                   AND undone = 0 AND state IN ('pending', 'restoring')
+                 ORDER BY rowid DESC
+                 LIMIT 1
+                """,
+                (entry["entity_type"], entry["entity_id"], journal_id, entry_rowid),
+            ).fetchone()
+            if newer is not None:
+                raise UndoConflict(
+                    f"newer change {newer['id']!r} for "
+                    f"{entry['entity_type']}/{entry['entity_id']} would be clobbered"
+                )
+            cursor = conn.execute(
+                "UPDATE undo_journal SET state = 'restoring' "
+                "WHERE id = ? AND undone = 0 AND state = 'pending'",
+                (journal_id,),
+            )
+            if cursor.rowcount != 1:
+                raise UndoError(f"journal entry already undone: {journal_id}")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
-    result = _restore(entry)
+    try:
+        result = _restore(entry)
+    except Exception:
+        # Restoration failed after the claim landed: release it so the
+        # entry looks retryable instead of permanently (and wrongly) undone.
+        with _connect() as revert_conn:
+            revert_conn.execute(
+                "UPDATE undo_journal SET state = 'pending' "
+                "WHERE id = ? AND undone = 0 AND state = 'restoring'",
+                (journal_id,),
+            )
+            revert_conn.commit()
+        raise
+
     restoration_id = f"undo_{secrets.token_hex(8)}"
     with _connect() as conn:
-        conn.execute("UPDATE undo_journal SET undone = 1 WHERE id = ?", (journal_id,))
         conn.execute(
             """
             INSERT INTO undo_journal
-                (id, entity_type, entity_id, operation, before_json, after_json, undone, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+                (id, entity_type, entity_id, operation, before_json, after_json,
+                 undone, state, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, 'completed', ?)
             """,
             (
                 restoration_id,
@@ -344,6 +390,15 @@ def undo(journal_id: str) -> dict[str, Any]:
                 json.dumps(entry["before"], ensure_ascii=False),
                 time.time(),
             ),
+        )
+        # Restoration succeeded: only now is the entry done. A concurrent
+        # older undo re-checking the guard sees `pending`/`restoring` newer
+        # entries as blockers, so this transition is what opens the window
+        # for ordered restoration -- not the earlier claim.
+        conn.execute(
+            "UPDATE undo_journal SET state = 'completed', undone = 1 "
+            "WHERE id = ? AND undone = 0 AND state = 'restoring'",
+            (journal_id,),
         )
         conn.commit()
     result["journal_id"] = journal_id

@@ -489,6 +489,35 @@ def test_wait_for_durable_claim_timeout_terminates_the_detached_process_group(mo
     assert process.wait_timeout == 2.0
 
 
+def test_wait_for_durable_claim_does_not_kill_a_worker_that_claimed_in_the_final_instant(monkeypatch) -> None:
+    # Reproduces the TOCTOU: the child can durably claim its task in the gap
+    # between the loop's last poll and the timeout firing. A re-check right
+    # before the kill must see that and return the task instead of tearing
+    # down a worker that already owns it.
+    class FakeProcess:
+        pid = 4321
+        def poll(self):
+            return None
+        def terminate(self):
+            raise AssertionError("a worker that already claimed must not be killed")
+
+    process = FakeProcess()
+    # The loop's own polls never see the claim land; only the post-deadline
+    # re-check does, simulating the claim committing in that exact gap.
+    monkeypatch.setattr(bs.bq, "get_task", lambda *_args, **_kwargs: {"id": "task-1", "state": bq.CLAIMED, "claim_version": 4})
+    clock = iter([0.0, 5.0])  # deadline=1.0; first loop check (5.0) already past it
+    monkeypatch.setattr(bs.time, "monotonic", lambda: next(clock))
+    killed = []
+    monkeypatch.setattr(bs.os, "killpg", lambda pgid, sig: killed.append((pgid, sig)))
+
+    task = bs._wait_for_durable_claim(
+        "task-1", process, initial_claim_version=3, db_path=None, timeout_seconds=1.0
+    )
+
+    assert task["claim_version"] == 4
+    assert killed == []
+
+
 def test_wait_for_durable_claim_requires_claim_version_to_advance(monkeypatch) -> None:
     class FakeProcess:
         pid = 4321

@@ -300,6 +300,8 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "059_chat_message_evidence_items.sql",
         "060_automation_runs_retry_claim.sql",
         "061_automation_runs_single_flight_retry.sql",
+        "062_undo_journal_restore_state.sql",
+        "063_image_session_reservations.sql",
     ]
 
 

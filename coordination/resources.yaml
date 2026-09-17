@@ -32,6 +32,8 @@ resources:
     - gateway/builder_commands.py
     - gateway/builder_loop.py
     - gateway/builder_queue.py
+    - gateway/builder_queue_db.py
+    - gateway/builder_queue_leases.py
     - gateway/builder_status.py
     - gateway/builder_supervisor.py
     - gateway/compute_governor.py
@@ -117,6 +119,7 @@ resources:
     - gateway/storage_router.py
     - gateway/storage_sync.py
     - gateway/todo_store.py
+    - gateway/undo_journal.py
     - mcp/agent_room/**
     - tests/test_agent_room_global.py
     - tests/test_agent_room_presence.py
@@ -134,6 +137,7 @@ resources:
     - tests/test_storage_router.py
     - tests/test_storage_sync.py
     - tests/test_todo_store.py
+    - tests/test_undo_restore.py
   mission:runtime:
     paths:
     - gateway/mission_accept_cli.py

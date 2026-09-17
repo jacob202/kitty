@@ -1556,8 +1556,14 @@ class TestRecoveryExercise:
             # before the parent records PID/process identity; killing in that
             # gap tests the separate fresh-STARTING grace path instead of the
             # live-run recovery contract this exercise is meant to cover.
+            # Require two consecutive passing polls (debounced) rather than
+            # acting on the first one: a single poll can observe the DB
+            # write mid-commit and read a state that flips back on the very
+            # next check, which is exactly the gap the comment above warns
+            # about.
             wt = repo / ".worktrees" / "kittybuilder" / task_id
             deadline = time.monotonic() + 60
+            consecutive_passes = 0
             while time.monotonic() < deadline:
                 runs = bq.list_runs(task_id=task_id, db_path=db_path)
                 latest = runs[-1] if runs else None
@@ -1568,7 +1574,11 @@ class TestRecoveryExercise:
                     and latest.get("pid")
                     and latest.get("process_identity")
                 ):
-                    break
+                    consecutive_passes += 1
+                    if consecutive_passes >= 2:
+                        break
+                else:
+                    consecutive_passes = 0
                 time.sleep(0.1)
             else:
                 raise AssertionError("worker never reached durable running state")

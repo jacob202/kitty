@@ -35,13 +35,14 @@ async def api_models():
             headers={"Authorization": f"Bearer {LITELLM_KEY}"},
         )
         if resp.status_code != 200:
-            detail = getattr(resp, "text", "")[:500]
+            logger.warning(
+                "LiteLLM model discovery returned HTTP %s: %s",
+                resp.status_code,
+                getattr(resp, "text", "")[:500],
+            )
             raise HTTPException(
                 status_code=502,
-                detail=(
-                    f"LiteLLM model discovery returned HTTP {resp.status_code}"
-                    + (f": {detail}" if detail else "")
-                ),
+                detail="Model discovery is unavailable right now; see the server log for details.",
             )
 
         data = resp.json()
@@ -60,7 +61,7 @@ async def api_models():
         logger.warning("Failed to fetch models from LiteLLM: %s", exc)
         raise HTTPException(
             status_code=502,
-            detail=f"LiteLLM model discovery failed: {exc}",
+            detail="Model discovery is unavailable right now; see the server log for details.",
         ) from exc
 
 
