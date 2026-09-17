@@ -698,6 +698,52 @@ def _attach_job_to_session_before_dispatch(job_id: str, session_id: str | None) 
         raise ImageDispatchNotSubmittedError(str(exc)) from exc
 
 
+_BFL_POLL_DEADLINE_SECONDS = 900.0
+"""Wall-clock ceiling for BFL polling, up from a fixed 150*2s=300s. A
+legitimately slow render must get more time, not get misclassified as
+ImageProviderOutcomeUnknownError just because it outran an iteration count."""
+
+_BFL_POLL_MAX_DELAY_SECONDS = 10.0
+
+
+async def _poll_bfl_until_done(
+    client: "httpx.AsyncClient",
+    polling_url: str,
+    headers: dict[str, str],
+    *,
+    is_running,
+    raise_for_status: bool = False,
+) -> tuple[dict[str, Any], str, bool]:
+    """Poll a BFL job until it leaves a running state or the deadline passes.
+
+    Backs off from 2s up to ``_BFL_POLL_MAX_DELAY_SECONDS`` between polls
+    instead of hammering the provider at a fixed 2s cadence. Elapsed time is
+    tracked as the sum of intended sleep durations rather than a wall-clock
+    read: a test that mocks ``asyncio.sleep`` to a no-op (to exercise the
+    timeout path without actually waiting) still reaches the deadline in a
+    bounded number of fast iterations instead of spinning against real time
+    for ``_BFL_POLL_DEADLINE_SECONDS``. Returns ``(state, status,
+    timed_out)``; callers keep their own error handling and timeout
+    messaging.
+    """
+    elapsed = 0.0
+    delay = 2.0
+    state: dict[str, Any] = {}
+    status = ""
+    while elapsed < _BFL_POLL_DEADLINE_SECONDS:
+        poll = await client.get(polling_url, headers=headers)
+        if raise_for_status:
+            poll.raise_for_status()
+        state = poll.json()
+        status = str(state.get("status") or "")
+        if not is_running(status):
+            return state, status, False
+        await asyncio.sleep(delay)
+        elapsed += delay
+        delay = min(delay * 1.5, _BFL_POLL_MAX_DELAY_SECONDS)
+    return state, status, True
+
+
 async def recover_bfl_job(job_id: str) -> JobResult:
     """Recover one UNKNOWN BFL job from its durable receipt without resubmitting."""
     import httpx
@@ -738,15 +784,14 @@ async def recover_bfl_job(job_id: str) -> JobResult:
     headers = {"x-key": api_key}
     try:
         async with httpx.AsyncClient(timeout=180) as client:
-            for _ in range(150):
-                poll = await client.get(polling_url, headers=headers)
-                poll.raise_for_status()
-                state = poll.json()
-                status = str(state.get("status") or "")
-                if status not in {"Pending", "Queued", "Processing"}:
-                    break
-                await asyncio.sleep(2)
-            else:
+            state, status, timed_out = await _poll_bfl_until_done(
+                client,
+                polling_url,
+                headers,
+                is_running=lambda s: s in {"Pending", "Queued", "Processing"},
+                raise_for_status=True,
+            )
+            if timed_out:
                 message = f"job {job_id!r} BFL reconciliation timed out; outcome remains unknown"
                 _mark_unknown(job_id, message)
                 raise ImageProviderOutcomeUnknownError(message)
@@ -1497,16 +1542,13 @@ async def _run_flux(
 
             image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
             try:
-                for _ in range(150):
-                    poll = await client.get(
-                        polling_url, headers={"x-key": headers["x-key"]}
-                    )
-                    state = poll.json()
-                    status = state.get("status")
-                    if status not in {"Pending", "Queued", "Processing"}:
-                        break
-                    await _asyncio.sleep(2)
-                else:
+                state, status, timed_out = await _poll_bfl_until_done(
+                    client,
+                    polling_url,
+                    {"x-key": headers["x-key"]},
+                    is_running=lambda s: s in {"Pending", "Queued", "Processing"},
+                )
+                if timed_out:
                     message = "Flux provider outcome unknown after polling timeout"
                     _mark_unknown(job.job_id, message)
                     raise ImageProviderOutcomeUnknownError(message)
@@ -1642,16 +1684,13 @@ async def _run_flux2(
 
             image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
             try:
-                for _ in range(150):
-                    poll = await client.get(
-                        polling_url, headers={"x-key": headers["x-key"]}
-                    )
-                    state = poll.json()
-                    status = state.get("status", "")
-                    if not flux2_transport.is_running_status(status):
-                        break
-                    await _asyncio.sleep(2)
-                else:
+                state, status, timed_out = await _poll_bfl_until_done(
+                    client,
+                    polling_url,
+                    {"x-key": headers["x-key"]},
+                    is_running=flux2_transport.is_running_status,
+                )
+                if timed_out:
                     message = "BFL Direct provider outcome unknown after polling timeout"
                     _mark_unknown(job.job_id, message)
                     raise ImageProviderOutcomeUnknownError(message)

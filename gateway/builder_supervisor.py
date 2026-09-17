@@ -396,6 +396,13 @@ def _wait_for_durable_claim(
         if process.poll() is not None:
             raise SupervisorError(f"Builder child {process.pid} exited before durably claiming task {task_id}")
         time.sleep(0.05)
+    # Final re-check: the child can land its durable claim in the instant
+    # between the last loop iteration and here. Killing it in that gap would
+    # tear down a worker that already owns the task, leaving it CLAIMED with
+    # a live lease and no running process until the lease itself expires.
+    task = bq.get_task(task_id, db_path=db_path)
+    if task is not None and int(task.get("claim_version") or 0) > initial_claim_version:
+        return task
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:

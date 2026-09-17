@@ -8,6 +8,7 @@ the store.
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -314,6 +315,51 @@ class TestSpendAndLifecycle:
         assert released.spend_usd == 0.0
         assert released.reserved_spend_usd == 0.0
         assert released.attempt_count == 1
+
+    def test_abandoned_reservation_expires_instead_of_permanently_blocking_budget(self):
+        # Reproduces: reserve_attempt() has no TTL/sweep of its own -- a
+        # caller that reserves and then crashes before release/reconcile
+        # leaves reserved_spend_usd stuck forever, permanently tripping the
+        # budget gate for a session that never actually spent anything.
+        s = sessions.create_session()
+        sessions.reserve_attempt(
+            s.session_id, cost_usd=0.95, max_attempts=4, max_spend_usd=1.00
+        )
+        # Simulate the crash: back-date updated_at past the staleness window
+        # with no matching release/reconcile ever having happened.
+        stale_at = (
+            datetime.now(timezone.utc)
+            - timedelta(seconds=sessions.RESERVATION_STALE_AFTER_SECONDS + 5)
+        ).isoformat()
+        import gateway.paths as gp
+
+        conn = sqlite3.connect(str(gp.KITTY_DB_FILE))
+        try:
+            conn.execute(
+                "UPDATE image_sessions SET updated_at = ? WHERE session_id = ?",
+                (stale_at, s.session_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # A second attempt would exceed budget if the stale reservation were
+        # still counted ($0.95 + $0.95 > $1.00); it must succeed instead.
+        reserved = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.95, max_attempts=4, max_spend_usd=1.00
+        )
+        assert reserved.reserved_spend_usd == pytest.approx(0.95)
+
+    def test_fresh_reservation_is_not_swept_early(self):
+        s = sessions.create_session()
+        sessions.reserve_attempt(
+            s.session_id, cost_usd=0.95, max_attempts=4, max_spend_usd=1.00
+        )
+
+        with pytest.raises(sessions.SessionBudgetExceededError):
+            sessions.reserve_attempt(
+                s.session_id, cost_usd=0.95, max_attempts=4, max_spend_usd=1.00
+            )
 
     def test_record_attempt_accumulates_count_and_cost(self):
         s = sessions.create_session()

@@ -708,9 +708,38 @@ def test_models_endpoint_surfaces_litellm_http_failure() -> None:
                 await api_models()
             except HTTPException as exc:
                 assert exc.status_code == 502
-                assert "HTTP 401" in str(exc.detail)
+                # Raw upstream detail (status code, response body) must never
+                # reach the client -- it goes to the log instead.
+                assert "401" not in str(exc.detail)
+                assert "invalid master key" not in str(exc.detail)
             else:
                 raise AssertionError("api_models hid a LiteLLM HTTP failure")
+
+    asyncio.run(run_test())
+
+
+def test_models_endpoint_does_not_leak_raw_exception_text() -> None:
+    import asyncio
+
+    from fastapi import HTTPException
+
+    client = MagicMock()
+    client.get = AsyncMock(side_effect=RuntimeError("connect to 10.0.4.12:4000 refused"))
+
+    async def run_test() -> None:
+        with patch(
+            "gateway.routes.models.get_http_client",
+            new=AsyncMock(return_value=client),
+        ):
+            from gateway.routes.models import api_models
+
+            try:
+                await api_models()
+            except HTTPException as exc:
+                assert exc.status_code == 502
+                assert "10.0.4.12" not in str(exc.detail)
+            else:
+                raise AssertionError("api_models hid a LiteLLM connection failure")
 
     asyncio.run(run_test())
 

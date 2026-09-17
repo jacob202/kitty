@@ -638,6 +638,44 @@ def update_session(
     return require_session(session_id)
 
 
+RESERVATION_STALE_AFTER_SECONDS = 600
+"""How long a reservation can sit un-reconciled before it's treated as
+abandoned (the caller crashed between ``reserve_attempt`` and its matching
+``release``/``reconcile``) rather than genuinely in flight. Well above any
+real provider call, short enough to self-heal a stuck budget on next use."""
+
+
+def _sweep_stale_reservation(conn: Any, session_id: str, row: Any) -> float:
+    """Clear a reservation abandoned by a crashed caller; return the live reserved total.
+
+    ``reserved_spend_usd`` has no per-reservation record, only a running
+    total, so staleness is judged by ``updated_at`` -- the column every
+    ``reserve_attempt``/``release``/``reconcile`` call bumps. If nothing has
+    touched the session since a reservation was made, that reservation was
+    never released or reconciled and the caller that made it is gone.
+    """
+    reserved = float(row["reserved_spend_usd"] or 0.0)
+    if reserved <= 0:
+        return reserved
+    updated_at = row["updated_at"]
+    if not updated_at:
+        return reserved
+    try:
+        last_touch = datetime.fromisoformat(str(updated_at))
+    except ValueError:
+        return reserved
+    if last_touch.tzinfo is None:
+        last_touch = last_touch.replace(tzinfo=timezone.utc)
+    age = (datetime.now(timezone.utc) - last_touch).total_seconds()
+    if age < RESERVATION_STALE_AFTER_SECONDS:
+        return reserved
+    conn.execute(
+        "UPDATE image_sessions SET reserved_spend_usd = 0, updated_at = ? WHERE session_id = ?",
+        (_now_iso(), session_id),
+    )
+    return 0.0
+
+
 def reserve_attempt(
     session_id: str,
     *,
@@ -659,8 +697,8 @@ def reserve_attempt(
         _ensure_db(conn)
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            "SELECT status, attempt_count, spend_usd, reserved_spend_usd FROM image_sessions "
-            "WHERE session_id = ?",
+            "SELECT status, attempt_count, spend_usd, reserved_spend_usd, updated_at "
+            "FROM image_sessions WHERE session_id = ?",
             (session_id,),
         ).fetchone()
         if row is None:
@@ -669,7 +707,7 @@ def reserve_attempt(
             raise SessionEndedError(f"session {session_id!r} has ended")
         attempts = int(row["attempt_count"] or 0)
         spend = float(row["spend_usd"] or 0.0)
-        reserved = float(row["reserved_spend_usd"] or 0.0)
+        reserved = _sweep_stale_reservation(conn, session_id, row)
         if attempts >= max_attempts:
             raise SessionBudgetExceededError(
                 f"session {session_id!r} has used {attempts} of "

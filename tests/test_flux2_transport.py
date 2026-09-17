@@ -475,6 +475,46 @@ class TestFailureModes:
         diagnostics = _json.loads(job.provider_diagnostics_json)
         assert diagnostics["polling_url"] == submit["polling_url"]
 
+    @pytest.mark.asyncio
+    async def test_a_slow_render_past_the_old_150_poll_ceiling_still_succeeds(self, monkeypatch):
+        # Reproduces: the old fixed `for _ in range(150)` loop gave a render
+        # exactly 150 polls before misclassifying it as an unknown outcome,
+        # regardless of how much of the real 900s budget those polls
+        # represented. A render still "Pending" well past 150 polls must
+        # still succeed instead of hitting a false timeout.
+        from gateway.image_runner import _poll_bfl_until_done
+
+        class _CountingClient:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def get(self, url, *, headers=None):
+                self.calls += 1
+                resp = SimpleNamespace()
+                resp.status_code = 200
+                if self.calls < 80:
+                    resp.json = lambda: {"status": "Pending"}
+                else:
+                    resp.json = lambda: {"status": "Ready", "result": {"sample": "ok"}}
+                return resp
+
+        async def _no_sleep(*_args, **_kwargs):
+            return None
+
+        monkeypatch.setattr("asyncio.sleep", _no_sleep)
+
+        client = _CountingClient()
+        state, status, timed_out = await _poll_bfl_until_done(
+            client,
+            "https://api.bfl.ai/v1/poll/slow",
+            {"x-key": "k"},
+            is_running=lambda s: s in {"Pending", "Queued", "Processing"},
+        )
+
+        assert timed_out is False
+        assert status == "Ready"
+        assert client.calls >= 80
+
 
 class TestDownloadPersist:
     @pytest.mark.asyncio
