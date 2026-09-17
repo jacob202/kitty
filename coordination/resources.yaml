@@ -85,6 +85,7 @@ resources:
     - contracts/knowledge_pipeline.py
     - gateway/archivist.py
     - gateway/domain_router.py
+    - gateway/expert_proactive.py
     - gateway/hybrid_search.py
     - gateway/ingestion_queue.py
     - gateway/knowledge.py
@@ -92,6 +93,7 @@ resources:
     - gateway/pdf_pipeline.py
     - gateway/routes/knowledge.py
     - tests/test_domain_router.py
+    - tests/test_expert_proactive.py
     - tests/test_knowledge.py
     - tests/test_knowledge_experts.py
     - tests/test_knowledge_routes.py
