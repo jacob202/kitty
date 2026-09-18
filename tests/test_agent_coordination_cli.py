@@ -300,3 +300,120 @@ def test_preflight_preserves_a_stale_binding_and_names_the_real_fix(
     assert result.returncode != 0
     assert "kitty agent claim" in result.stderr
     assert binding.exists()
+
+
+def test_preflight_covers_a_literal_path_with_glob_metacharacters(
+    repo: Path, cli_env: dict[str, str]
+) -> None:
+    """A real filename containing '[' must be fenced by its own literal path.
+
+    ``_pattern_matches`` ran fnmatch over the staged filename, and fnmatch reads
+    '[' as the start of a character class, so this path could not be covered by
+    a fence that named it literally -- the commit was refused with "outside the
+    declared path fence" however much was claimed. The only workaround was to
+    declare a broader registry pattern too, i.e. to claim more than the work
+    needed, which is the opposite of what a fence is for.
+    """
+    literal = "docs/generated/modules/proxy_[___path]_route.ts.html"
+    (repo / "docs" / "generated" / "modules").mkdir(parents=True)
+    (repo / literal).write_text("generated\n", encoding="utf-8")
+    (repo / "coordination" / "resources.yaml").write_text(
+        yaml.safe_dump({"resources": {"docs:roadmap": {"paths": [literal]}}}, sort_keys=True),
+        encoding="utf-8",
+    )
+    _git(repo, "add", literal)
+    _git(repo, "commit", "-qm", "add generated file")
+
+    claim = _run(
+        repo, cli_env, "claim", "--resource", "docs:roadmap", "--role", "INTEGRATE",
+        "--paths", literal, "--json",
+    )
+    assert claim.returncode == 0, claim.stderr
+
+    (repo / literal).write_text("changed\n", encoding="utf-8")
+    _git(repo, "add", literal)
+
+    result = _run(repo, cli_env, "preflight", "--staged", "--json")
+    assert result.returncode == 0, result.stderr
+
+
+def test_merge_preflight_covers_the_branch_own_work_end_to_end(
+    repo: Path, cli_env: dict[str, str]
+) -> None:
+    """Merging must fence the branch's own work through the real preflight path.
+
+    The helper-level test below asserts what ``_staged_paths`` returns; this one
+    drives the merge through ``preflight --staged --json`` itself, so a
+    regression in repo-context detection, dispatch, or the wiring from
+    staged-path discovery into ``preflight_mutation`` fails here even if the
+    helper's return value stays green. Pre-fix, diffing the index against HEAD
+    during a merge staged every incoming path, so this merge demanded the
+    incoming resource and was refused with "resolves to unclaimed semantic
+    resource(s)".
+    """
+    (repo / "a").mkdir()
+    (repo / "b").mkdir()
+    (repo / "a" / "incoming.txt").write_text("from incoming\n", encoding="utf-8")
+    (repo / "b" / "mine.txt").write_text("seed\n", encoding="utf-8")
+    _git(repo, "add", "a", "b")
+    _git(repo, "commit", "-qm", "seed merge dirs")
+    _git(repo, "checkout", "-q", "-b", "incoming")
+    (repo / "a" / "incoming.txt").write_text("changed upstream\n", encoding="utf-8")
+    _git(repo, "add", "a/incoming.txt")
+    _git(repo, "commit", "-qm", "incoming change")
+
+    _git(repo, "checkout", "-q", "feature")
+    (repo / "b" / "mine.txt").write_text("my work\n", encoding="utf-8")
+    _git(repo, "add", "b/mine.txt")
+    _git(repo, "commit", "-qm", "my work")
+
+    subprocess.run(
+        ["git", "-C", str(repo), "merge", "--no-commit", "--no-ff", "incoming"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    claim = _run(
+        repo, cli_env, "claim", "--resource", "dest:files", "--role", "INTEGRATE",
+        "--paths", "b/**", "--json",
+    )
+    assert claim.returncode == 0, claim.stderr
+
+    result = _run(repo, cli_env, "preflight", "--staged", "--json")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["paths"] == ["b/mine.txt"]
+
+
+def test_staged_paths_during_a_merge_are_the_branch_own_work(repo: Path) -> None:
+    """A merge must not demand ownership of everything the merged branch brings.
+
+    Diffing the index against HEAD during a merge returns every incoming path,
+    so a main-merge staged 613 paths resolving to six resources and forced every
+    concurrent merge fleet-wide to serialise on the same claim bundle.
+    """
+    from gateway.agent_coordination_cli import _staged_paths
+
+    _git(repo, "checkout", "-q", "-b", "incoming")
+    (repo / "incoming.txt").write_text("from incoming\n", encoding="utf-8")
+    _git(repo, "add", "incoming.txt")
+    _git(repo, "commit", "-qm", "incoming file")
+
+    _git(repo, "checkout", "-q", "feature")
+    (repo / "mine.txt").write_text("my work\n", encoding="utf-8")
+    _git(repo, "add", "mine.txt")
+    _git(repo, "commit", "-qm", "my work")
+
+    subprocess.run(
+        ["git", "-C", str(repo), "merge", "--no-commit", "--no-ff", "incoming"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    staged = _staged_paths({"worktree": repo.resolve()})
+
+    assert "mine.txt" in staged
+    # Pre-fix this diffed against HEAD and returned the incoming path instead:
+    # content this branch did not author and should not have to own.
+    assert "incoming.txt" not in staged

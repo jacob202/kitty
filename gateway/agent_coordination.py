@@ -107,6 +107,16 @@ def _normalize_paths(values: Iterable[str]) -> list[str]:
 
 
 def _pattern_matches(path: str, pattern: str) -> bool:
+    # A literal path always matches itself, and that check has to come first:
+    # fnmatch reads '[' ']' '?' '*' as syntax, so a real tracked filename like
+    # docs/generated/modules/gateway_kitty-chat_src_app_proxy_[___path]_route.ts.html
+    # cannot be covered by a fence that names it literally. The commit was
+    # refused with "staged path ... is outside the declared path fence" no
+    # matter which resources were claimed, and the only workaround was to also
+    # declare a broader registry pattern -- i.e. to claim more than the work
+    # needed, which is the opposite of what a fence is for.
+    if path == pattern:
+        return True
     if pattern.endswith("/**"):
         prefix = pattern[:-3].rstrip("/")
         return path == prefix or path.startswith(prefix + "/")
