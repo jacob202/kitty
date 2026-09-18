@@ -18,6 +18,13 @@ async def submit_feedback(payload: Dict[str, Any]) -> Dict[str, bool]:
     return {"ok": True}
 
 
+@router.post("/feedback/preference")
+async def submit_preference(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Record explicit human A/B preference evidence for evaluation only."""
+    pair_ids = feedback.record_preference_pairs(payload)
+    return {"ok": True, "pair_ids": pair_ids}
+
+
 @router.post("/error")
 async def log_error_endpoint(payload: Dict[str, Any]) -> Dict[str, bool]:
     """Log a client-side error."""

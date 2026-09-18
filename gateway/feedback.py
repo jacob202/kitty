@@ -13,6 +13,7 @@ request-parsing / response-shaping wrapper around these functions.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -45,6 +46,90 @@ def log_feedback(feedback: dict) -> None:
     record["timestamp"] = time.time()
     with FEEDBACK_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def _require_preference_text(payload: dict, key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{key} must be a non-empty string")
+    return value.strip()
+
+
+def record_preference_pairs(payload: dict) -> list[str]:
+    """Record explicit human A/B choices as evaluation-only feedback evidence.
+
+    One chosen option may be paired against multiple rejected options. The
+    records deliberately carry no training/routing authority; downstream
+    evaluators may consume them as human evidence only.
+    """
+    record = _validate_record(payload, kind="preference")
+    allowed = {"experiment_id", "chosen_id", "rejected_ids", "context"}
+    unknown = sorted(set(record) - allowed)
+    if unknown:
+        raise ValueError(f"unknown preference keys: {unknown}")
+
+    experiment_id = _require_preference_text(record, "experiment_id")
+    chosen_id = _require_preference_text(record, "chosen_id")
+    rejected = record.get("rejected_ids")
+    if not isinstance(rejected, list) or not rejected:
+        raise ValueError("rejected_ids must be a non-empty list")
+    rejected_ids: list[str] = []
+    for value in rejected:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("rejected_ids must contain non-empty strings")
+        rejected_ids.append(value.strip())
+    if len(set(rejected_ids)) != len(rejected_ids):
+        raise ValueError("rejected_ids must be unique")
+    if chosen_id in rejected_ids:
+        raise ValueError("chosen_id cannot also be rejected")
+
+    context_raw = record.get("context", {})
+    if not isinstance(context_raw, dict):
+        raise ValueError("context must be an object")
+    context: dict[str, str] = {}
+    for key, value in context_raw.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("context keys must be non-empty strings")
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("context values must be non-empty strings")
+        context[key.strip()] = value.strip()
+
+    existing_pair_ids = {
+        str(row.get("pair_id"))
+        for row in _read_jsonl(FEEDBACK_LOG)
+        if isinstance(row, dict) and row.get("type") == "preference_pair" and row.get("pair_id")
+    }
+    pair_ids: list[str] = []
+    for rejected_id in rejected_ids:
+        identity = json.dumps(
+            {
+                "experiment_id": experiment_id,
+                "chosen_id": chosen_id,
+                "rejected_id": rejected_id,
+                "context": context,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        pair_id = "pref_" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+        if pair_id not in existing_pair_ids:
+            log_feedback(
+                {
+                    "type": "preference_pair",
+                    "schema_version": 1,
+                    "pair_id": pair_id,
+                    "experiment_id": experiment_id,
+                    "chosen_id": chosen_id,
+                    "rejected_id": rejected_id,
+                    "context": context,
+                    "source": "human_explicit",
+                    "use": "evaluation_only",
+                }
+            )
+            existing_pair_ids.add(pair_id)
+        pair_ids.append(pair_id)
+    return pair_ids
 
 
 def log_error(error: dict) -> None:

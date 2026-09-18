@@ -125,3 +125,86 @@ class TestStats:
         stats = feedback.get_feedback_stats()
         assert stats["total_feedback"] == 1
         assert stats["feedback_by_type"] == {"valid": 1}
+
+
+class TestPreferencePairs:
+    def test_records_one_evaluation_pair_per_rejected_option(
+        self, isolated_logs: tuple[Path, Path]
+    ) -> None:
+        fb_path, _ = isolated_logs
+        pair_ids = feedback.record_preference_pairs(
+            {
+                "experiment_id": "image-lab-james-v1",
+                "chosen_id": "artifact-good",
+                "rejected_ids": ["artifact-a", "artifact-b"],
+                "context": {"surface": "image-lab", "criterion": "identity"},
+            }
+        )
+
+        rows = [json.loads(line) for line in fb_path.read_text().splitlines()]
+        assert len(pair_ids) == 2
+        assert [row["pair_id"] for row in rows] == pair_ids
+        assert {row["rejected_id"] for row in rows} == {"artifact-a", "artifact-b"}
+        assert all(row["chosen_id"] == "artifact-good" for row in rows)
+        assert all(row["source"] == "human_explicit" for row in rows)
+        assert all(row["use"] == "evaluation_only" for row in rows)
+        assert all(row["type"] == "preference_pair" for row in rows)
+
+    def test_pair_id_is_deterministic(self, isolated_logs: tuple[Path, Path]) -> None:
+        payload = {
+            "experiment_id": "prompt-v2",
+            "chosen_id": "candidate",
+            "rejected_ids": ["baseline"],
+            "context": {"scorer": "jacob"},
+        }
+        first = feedback.record_preference_pairs(payload)
+        second = feedback.record_preference_pairs(payload)
+        assert first == second
+        fb_path, _ = isolated_logs
+        assert len(fb_path.read_text(encoding="utf-8").strip().splitlines()) == 1
+
+    @pytest.mark.parametrize(
+        ("patch", "message"),
+        [
+            ({"rejected_ids": []}, "rejected_ids"),
+            ({"rejected_ids": ["same"], "chosen_id": "same"}, "cannot also be rejected"),
+            ({"rejected_ids": ["a", "a"]}, "unique"),
+            ({"context": {"surface": 3}}, "context values"),
+            ({"automatic_training": True}, "unknown preference keys"),
+        ],
+    )
+    def test_invalid_preference_evidence_fails_loud(
+        self,
+        isolated_logs: tuple[Path, Path],
+        patch: dict,
+        message: str,
+    ) -> None:
+        payload = {
+            "experiment_id": "exp",
+            "chosen_id": "winner",
+            "rejected_ids": ["loser"],
+            "context": {},
+        }
+        payload.update(patch)
+        with pytest.raises(ValueError, match=message):
+            feedback.record_preference_pairs(payload)
+
+    def test_route_returns_pair_ids(
+        self, isolated_logs: tuple[Path, Path]
+    ) -> None:
+        import asyncio
+
+        from gateway.routes import feedback as feedback_route
+
+        result = asyncio.run(
+            feedback_route.submit_preference(
+                {
+                    "experiment_id": "exp",
+                    "chosen_id": "winner",
+                    "rejected_ids": ["loser"],
+                    "context": {"surface": "image-lab"},
+                }
+            )
+        )
+        assert result["ok"] is True
+        assert len(result["pair_ids"]) == 1

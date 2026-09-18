@@ -172,6 +172,7 @@ resources:
     - gateway/agent_room_cli.py
     - gateway/app.py
     - gateway/doctor.py
+    - gateway/feedback.py
     - gateway/health_surface.py
     - gateway/kitty-chat/.gitignore
     - gateway/kitty-chat/next.config.ts
@@ -186,6 +187,7 @@ resources:
     - gateway/model_routing.py
     - gateway/prompts.py
     - gateway/requirements.litellm.txt
+    - gateway/routes/feedback.py
     - gateway/routes/register.py
     - gateway/routes/runtime.py
     - gateway/routes/session_context.py
@@ -222,6 +224,7 @@ resources:
     - tests/test_doctor.py
     - tests/test_doctor_freshness.py
     - tests/test_env_loader.py
+    - tests/test_feedback.py
     - tests/test_gate_lock.py
     - tests/test_gate_provenance.py
     - tests/test_gateway_runtime_paths.py
