@@ -462,6 +462,83 @@ def test_review_chunk_falls_back_to_different_model_once(monkeypatch: pytest.Mon
     assert [timeout for _command, timeout in calls] == [240, 240]
 
 
+def test_blank_fallback_response_gets_a_second_attempt_before_the_review_is_voided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: PR #917, 2026-09-17.
+
+    The primary reviewer timed out and the fallback exited 0 with empty stdout.
+    The run voided the whole review, and three consecutive reruns reproduced it
+    with no new information. A blank response is a transport failure, so the
+    fallback -- which never timed out -- gets one more attempt before the review
+    is thrown away. A model that timed out is still never retried (PR #880).
+    """
+    answers = iter(["", APPROVE_REVIEW_JSON + "\n"])
+    attempted: list[str] = []
+
+    class Result:
+        returncode = 0
+        stderr = ""
+
+        def __init__(self, stdout: str) -> None:
+            self.stdout = stdout
+
+    def fake_run(command, **_kwargs):
+        review_model = command[command.index("--model") + 1]
+        attempted.append(review_model)
+        if "deepseek" in review_model:
+            raise pr_review.subprocess.TimeoutExpired(cmd=command, timeout=240)
+        return Result(next(answers))
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/deepseek/deepseek-v4-flash", "openrouter/minimax/minimax-m3"),
+    )
+
+    assert pr_review.review_diff("diff") == pr_review.NO_FINDINGS
+    assert attempted == [
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/minimax/minimax-m3",
+        "openrouter/minimax/minimax-m3",
+    ]
+
+
+def test_reviewer_that_kept_failing_after_its_retry_still_produces_no_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A blank response from every reviewer, twice over, is still no verdict.
+
+    The bounded retry must never invent evidence: this is the exact shape of the
+    PR #917 reruns, where nothing answered and the head stayed unapproved.
+    """
+    attempted: list[str] = []
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **_kwargs):
+        attempted.append(command[command.index("--model") + 1])
+        return Result()
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/deepseek/deepseek-v4-flash", "openrouter/minimax/minimax-m3"),
+    )
+
+    assert pr_review.review_diff("diff") is None
+    assert attempted == [
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/minimax/minimax-m3",
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/minimax/minimax-m3",
+    ]
+
 
 def test_get_pr_diff_binds_diff_to_live_current_head(tmp_path, monkeypatch) -> None:
     import json
@@ -602,6 +679,98 @@ def test_failure_body_is_not_exact_head_review_evidence() -> None:
     body = pr_review.render_review_body(pr_review.REVIEW_FAILED, "a" * 40)
     assert "Reviewed commit" not in body
     assert "neither an approval nor a finding" in body
+
+
+def test_no_verdict_run_names_the_failed_attempts_in_the_published_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: PR #917, 2026-09-17 -- the failure must name its cause.
+
+    The timeout and the blank fallback existed only as log lines, so the durable
+    failure comment on the PR said that no verdict existed and nothing about why;
+    three reruns surfaced the same nothing. The comment now names each attempt
+    that failed, using our own wording rather than the model's response text, and
+    stays non-evidence.
+    """
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **_kwargs):
+        if "deepseek" in command[command.index("--model") + 1]:
+            raise pr_review.subprocess.TimeoutExpired(cmd=command, timeout=240)
+        return Result()
+
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/deepseek/deepseek-v4-flash", "openrouter/minimax/minimax-m3"),
+    )
+
+    assert pr_review.review_diff("diff") is None
+
+    body = pr_review.render_review_body(pr_review.REVIEW_FAILED, "a" * 40)
+
+    assert "openrouter/deepseek/deepseek-v4-flash" in body
+    assert "timed out after" in body
+    assert "openrouter/minimax/minimax-m3" in body
+    assert "without producing a response" in body
+    assert "Reviewed commit" not in body
+    assert pr_review.NO_FINDINGS not in body
+    assert not pr_review._has_findings(body)
+
+
+def test_main_reports_why_a_no_verdict_run_failed(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end, the reported rerun scenario: hard exit, fail-closed comment, named cause.
+
+    PR #917 (2026-09-17) ran the real thing three times. Nothing answered, the
+    head was left unapproved -- correctly -- and neither the run nor the PR named
+    the timeout or the blank fallback, so a rerun could not even tell what to
+    retry. The review job is deliberately non-blocking, so this asserts the run's
+    own channel as well as the failure comment.
+    """
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **_kwargs):
+        if "deepseek" in command[command.index("--model") + 1]:
+            raise pr_review.subprocess.TimeoutExpired(cmd=command, timeout=240)
+        return Result()
+
+    seen: list[str] = []
+    monkeypatch.setattr(pr_review, "get_pr_diff", lambda: ("diff", 12, "owner", "repo", "a" * 40))
+    monkeypatch.setattr(pr_review, "get_exact_head_override", lambda _sha: None)
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        pr_review, "upsert_review", lambda review, *_args: seen.append(review) or True
+    )
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/deepseek/deepseek-v4-flash", "openrouter/minimax/minimax-m3"),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        pr_review.main()
+
+    assert exc.value.code == 1
+    assert seen == [pr_review.REVIEW_PENDING, pr_review.REVIEW_FAILED]
+    written = summary.read_text(encoding="utf-8")
+    assert "openrouter/deepseek/deepseek-v4-flash" in written
+    assert "timed out after" in written
+    assert "openrouter/minimax/minimax-m3" in written
+    assert "without producing a response" in written
 
 
 def test_model_timeout_is_reclipped_to_the_remaining_budget(
