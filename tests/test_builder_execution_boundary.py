@@ -179,6 +179,25 @@ pathlib.Path(os.environ['TEST_RESULT']).write_text(json.dumps({'created': create
     assert created.startswith(str(run_dir.resolve())), created
 
 
+def test_subscription_token_reaches_only_the_claude_adapter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each lane's credential goes to its own command, never to every worker."""
+    run_dir = tmp_path / "run"
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-sentinel")
+
+    claude = ["bash", "-c", "exec python3 scripts/kittybuilder_claude_adapter.py worker"]
+    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in env, "boundary must strip ambient secrets"
+    builder_runner._inject_claude_subscription_token(env, claude, tmp_path)
+    assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat01-sentinel"
+
+    dsh = ["bash", "scripts/kittybuilder_dsh_worker.sh"]
+    other = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+    builder_runner._inject_claude_subscription_token(other, dsh, tmp_path)
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in other
+
+
 def test_worker_claude_trust_is_seeded_under_the_resolved_worktree(
     tmp_path: Path,
 ) -> None:
