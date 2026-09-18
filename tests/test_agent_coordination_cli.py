@@ -337,6 +337,54 @@ def test_preflight_covers_a_literal_path_with_glob_metacharacters(
     assert result.returncode == 0, result.stderr
 
 
+def test_merge_preflight_covers_the_branch_own_work_end_to_end(
+    repo: Path, cli_env: dict[str, str]
+) -> None:
+    """Merging must fence the branch's own work through the real preflight path.
+
+    The helper-level test below asserts what ``_staged_paths`` returns; this one
+    drives the merge through ``preflight --staged --json`` itself, so a
+    regression in repo-context detection, dispatch, or the wiring from
+    staged-path discovery into ``preflight_mutation`` fails here even if the
+    helper's return value stays green. Pre-fix, diffing the index against HEAD
+    during a merge staged every incoming path, so this merge demanded the
+    incoming resource and was refused with "resolves to unclaimed semantic
+    resource(s)".
+    """
+    (repo / "a").mkdir()
+    (repo / "b").mkdir()
+    (repo / "a" / "incoming.txt").write_text("from incoming\n", encoding="utf-8")
+    (repo / "b" / "mine.txt").write_text("seed\n", encoding="utf-8")
+    _git(repo, "add", "a", "b")
+    _git(repo, "commit", "-qm", "seed merge dirs")
+    _git(repo, "checkout", "-q", "-b", "incoming")
+    (repo / "a" / "incoming.txt").write_text("changed upstream\n", encoding="utf-8")
+    _git(repo, "add", "a/incoming.txt")
+    _git(repo, "commit", "-qm", "incoming change")
+
+    _git(repo, "checkout", "-q", "feature")
+    (repo / "b" / "mine.txt").write_text("my work\n", encoding="utf-8")
+    _git(repo, "add", "b/mine.txt")
+    _git(repo, "commit", "-qm", "my work")
+
+    subprocess.run(
+        ["git", "-C", str(repo), "merge", "--no-commit", "--no-ff", "incoming"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    claim = _run(
+        repo, cli_env, "claim", "--resource", "dest:files", "--role", "INTEGRATE",
+        "--paths", "b/**", "--json",
+    )
+    assert claim.returncode == 0, claim.stderr
+
+    result = _run(repo, cli_env, "preflight", "--staged", "--json")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["paths"] == ["b/mine.txt"]
+
+
 def test_staged_paths_during_a_merge_are_the_branch_own_work(repo: Path) -> None:
     """A merge must not demand ownership of everything the merged branch brings.
 
