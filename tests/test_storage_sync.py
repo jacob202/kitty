@@ -791,3 +791,114 @@ def test_export_to_file_and_import_from_file_round_trip(tmp_path, monkeypatch):
     assert counts["todos"] == 1
     assert plugin_registry._load_db_settings() == {"alpha": True}
     assert todo_store.get()[0]["content"] == "z"
+
+
+def _isolate_journal(tmp_path, monkeypatch):
+    db_file = tmp_path / "journal.db"
+    monkeypatch.setattr(kitty_db, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
+    return db_file
+
+
+def test_restoring_the_same_journal_snapshot_twice_does_not_duplicate(tmp_path, monkeypatch):
+    """A restore is idempotent; it used to append, so each pass added a full copy."""
+    _isolate_journal(tmp_path, monkeypatch)
+    journal_store.append_entry(ts=1.0, entry="first", theme="work")
+    journal_store.append_entry(ts=2.0, entry="second", session_id="s1")
+
+    snapshot = storage_sync.export_journal_entries()
+    assert len(snapshot) == 2
+
+    storage_sync.import_journal_entries(snapshot)
+    assert journal_store.count_entries() == 2
+
+    storage_sync.import_journal_entries(snapshot)
+    assert journal_store.count_entries() == 2
+
+    restored = {(e["ts"], e["entry"]) for e in journal_store.list_entries(limit=10)}
+    assert restored == {(1.0, "first"), (2.0, "second")}
+
+
+def test_journal_restore_drops_entries_absent_from_the_snapshot(tmp_path, monkeypatch):
+    """Replace semantics: rows omitted from the snapshot are gone afterwards."""
+    _isolate_journal(tmp_path, monkeypatch)
+    journal_store.append_entry(ts=1.0, entry="keep")
+    snapshot = storage_sync.export_journal_entries()
+    journal_store.append_entry(ts=2.0, entry="written after the snapshot")
+    assert journal_store.count_entries() == 2
+
+    storage_sync.import_journal_entries(snapshot)
+
+    assert journal_store.count_entries() == 1
+    assert journal_store.list_entries(limit=10)[0]["entry"] == "keep"
+
+
+def test_journal_export_is_not_capped_at_a_page(tmp_path, monkeypatch):
+    """A capped export feeding a replace-restore would silently truncate."""
+    _isolate_journal(tmp_path, monkeypatch)
+    for i in range(1005):
+        journal_store.append_entry(ts=float(i), entry=f"entry {i}")
+
+    snapshot = storage_sync.export_journal_entries()
+
+    assert len(snapshot) == 1005
+    storage_sync.import_journal_entries(snapshot)
+    assert journal_store.count_entries() == 1005
+
+
+def test_journal_export_keeps_old_rows_during_concurrent_append(tmp_path, monkeypatch):
+    """One export read cannot let a concurrent append displace an older row."""
+    _isolate_journal(tmp_path, monkeypatch)
+    journal_store.append_entry(ts=1.0, entry="oldest")
+    journal_store.append_entry(ts=2.0, entry="newest")
+
+    real_count = journal_store.count_entries
+    real_list_all = journal_store.list_all_entries
+
+    def count_then_append():
+        count = real_count()
+        journal_store.append_entry(ts=3.0, entry="concurrent")
+        return count
+
+    def append_then_list_all():
+        journal_store.append_entry(ts=3.0, entry="concurrent")
+        return real_list_all()
+
+    # The old count-then-LIMIT implementation takes the first path and drops
+    # "oldest". The single-read implementation takes the second and retains all
+    # rows visible when its SELECT starts.
+    monkeypatch.setattr(journal_store, "count_entries", count_then_append)
+    monkeypatch.setattr(journal_store, "list_all_entries", append_then_list_all)
+
+    snapshot = storage_sync.export_journal_entries()
+
+    assert {item["entry"] for item in snapshot} == {
+        "oldest",
+        "newest",
+        "concurrent",
+    }
+
+
+def test_later_import_failure_does_not_replace_journal(tmp_path, monkeypatch):
+    """A rejected restore must not commit destructive journal replacement."""
+    _isolate_journal(tmp_path, monkeypatch)
+    journal_store.append_entry(ts=1.0, entry="original")
+
+    def fail_plugin_settings(_payload):
+        raise RuntimeError("simulated later importer failure")
+
+    monkeypatch.setitem(
+        storage_sync._IMPORTERS, "plugin_settings", fail_plugin_settings
+    )
+    snapshot = {
+        "format_version": storage_sync.FORMAT_VERSION,
+        "stores": {
+            "journal_entries": [{"ts": 2.0, "entry": "replacement"}],
+            "plugin_settings": {},
+        },
+    }
+
+    with pytest.raises(RuntimeError, match="simulated later importer failure"):
+        storage_sync.import_all(snapshot)
+
+    assert [item["entry"] for item in journal_store.list_all_entries()] == ["original"]

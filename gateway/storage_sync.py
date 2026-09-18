@@ -56,7 +56,10 @@ def export_memories() -> list[dict]:
 
 
 def export_journal_entries() -> list[dict]:
-    return journal_store.list_entries(limit=1000)
+    # A replace-restore must export one coherent, uncapped SQLite snapshot.
+    # Count-then-list uses separate connections; a concurrent append between
+    # them can consume a LIMIT slot and silently omit an older row.
+    return journal_store.list_all_entries()
 
 
 def export_todos() -> list[dict]:
@@ -167,33 +170,10 @@ def import_memories(payload: list[dict]) -> int:
 def import_journal_entries(payload: list[dict]) -> int:
     if not isinstance(payload, list):
         raise ValueError(f"journal_entries payload must be a list, got {type(payload).__name__}")
-    added = 0
     for record in payload:
         if not isinstance(record, dict):
             raise ValueError(f"journal record must be a dict, got {type(record).__name__}")
-        entry_text = record.get("entry", "")
-        if not entry_text:
-            continue
-        theme = record.get("theme")
-        session_id = record.get("session_id")
-        ts = record.get("ts")
-        if isinstance(ts, (int, float)):
-            journal_store.append_entry(
-                ts=float(ts),
-                entry=entry_text,
-                theme=theme,
-                session_id=session_id,
-            )
-        else:
-            import time as _time
-            journal_store.append_entry(
-                ts=_time.time(),
-                entry=entry_text,
-                theme=theme,
-                session_id=session_id,
-            )
-        added += 1
-    return added
+    return journal_store.restore(payload)
 
 
 def import_projects(payload: list[dict]) -> int:
@@ -239,7 +219,6 @@ def import_preferences(payload: dict) -> int:
 
 _IMPORTERS: dict[str, Callable[..., int]] = {
     "memories": import_memories,
-    "journal_entries": import_journal_entries,
     # Projects must land before todos: todo_store.restore() validates every
     # todo's project_id against the destination projects table, so a todo
     # owned by a user-created project can only round-trip if that project is
@@ -248,6 +227,10 @@ _IMPORTERS: dict[str, Callable[..., int]] = {
     "todos": import_todos,
     "plugin_settings": import_plugin_settings,
     "preferences": import_preferences,
+    # Journal restore is destructive replace semantics in its own transaction.
+    # Keep it last so a later importer cannot reject the restore after journal
+    # rows have already been deleted and committed.
+    "journal_entries": import_journal_entries,
 }
 
 _REQUIRED_PAYLOAD_TYPES: dict[str, type] = {
@@ -281,9 +264,9 @@ def _validate_snapshot_payloads(stores: dict[str, Any]) -> None:
 def _validate_snapshot_references(stores: dict[str, Any]) -> None:
     """Reject an un-restorable snapshot before any store is written.
 
-    ``_IMPORTERS`` restores memories, journal entries, and projects ahead of
-    todos, so a todo payload that only fails inside ``todo_store.restore`` would
-    leave those earlier stores committed against a rejected snapshot. Every
+    ``_IMPORTERS`` restores memories and projects ahead of todos, so a todo
+    payload that only fails inside ``todo_store.restore`` would leave those
+    earlier stores committed against a rejected snapshot. Every
     precondition restore enforces is therefore checked here first.
 
     The cross-store reference check needs a ``projects`` store. A v1 snapshot
@@ -400,8 +383,8 @@ def _validate_memories(payload: list[Any]) -> None:
 def _validate_real_writes(stores: dict[str, Any]) -> None:
     """Dry-run every store that writes before a later one could fail.
 
-    ``_IMPORTERS`` runs Memories, Journal, Projects, Todos, then plugin
-    settings. Hand-written type checks cannot stay in step with what the real
+    ``_IMPORTERS`` runs Memories, Projects, Todos, plugin settings,
+    Preferences, then Journal. Hand-written type checks cannot stay in step with what the real
     statements accept, so each owning store is asked to execute its own write
     path in a transaction that is always rolled back. Any failure rejects the
     whole snapshot before a single row is committed.
@@ -453,7 +436,13 @@ def _reject_if_unrestorable(name: str, validate: Callable[[], None]) -> None:
 
 
 def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
-    """Replace every migrated store with the contents of ``snapshot``.
+    """Restore every migrated store from ``snapshot``.
+
+    Projects, Todos, journal entries and plugin settings are *replaced*:
+    rows omitted from the snapshot are absent afterwards. Memories are
+    *merged* — they live in Mem0, whose ``add`` reports a ``NONE`` event for
+    content it already holds, so re-importing is a no-op rather than a
+    duplicate, but memories absent from the snapshot are retained.
 
     Validates the format version. Returns a count of records imported
     per store. Raises ``ValueError`` on a missing or unknown store key
