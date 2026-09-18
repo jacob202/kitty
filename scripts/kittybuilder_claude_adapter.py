@@ -233,7 +233,10 @@ def _fingerprint() -> str:
 
 def _probe_auth(bin_path: Path, model: str) -> tuple[str, str]:
     """Return (ok|unavailable|error, detail) for the no-op Claude probe."""
-    timeout = float(os.environ.get("KITTYBUILDER_CLAUDE_PROBE_TIMEOUT", "30"))
+    # The probe is a real completion, and the first call in a fresh sandbox
+    # home pays cold-start on top of it. At 30s that timed out and burned an
+    # attempt; this stays bounded enough to still catch a hung binary.
+    timeout = float(os.environ.get("KITTYBUILDER_CLAUDE_PROBE_TIMEOUT", "120"))
     try:
         result = subprocess.run(
             [str(bin_path), "-p", "--model", model, PROBE_PROMPT],
