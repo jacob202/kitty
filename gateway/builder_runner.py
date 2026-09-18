@@ -90,6 +90,32 @@ class RunnerError(RuntimeError):
     """Raised for worktree or run-orchestration failures."""
 
 
+def _seed_worker_claude_trust(child_env: dict[str, str], worktree: Path) -> None:
+    """Pre-trust the packet worktree for a Claude Code worker or reviewer.
+
+    The boundary redirects HOME into the run directory, so Claude Code starts
+    from an empty config and treats the worktree as untrusted. Untrusted does
+    not fail loudly: it silently *ignores* the packet's `.claude/settings.json`
+    permission allow-list, so the child loses every tool it was granted and
+    stalls without naming the reason. This is the non-interactive equivalent of
+    accepting the trust dialog once, and grants nothing the packet's own
+    settings did not already grant.
+    """
+    config = Path(child_env["HOME"]) / ".claude.json"
+    payload = {
+        "hasCompletedOnboarding": True,
+        "projects": {str(worktree.resolve()): {"hasTrustDialogAccepted": True}},
+    }
+    try:
+        config.write_text(
+            json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+        )
+    except OSError as exc:
+        raise RunnerError(
+            f"cannot seed the worker Claude trust config {config}: {exc}"
+        ) from exc
+
+
 def _existing_parent(path: Path) -> Path:
     """Return the nearest existing parent for a path we may create later."""
     candidate = path
@@ -1599,6 +1625,7 @@ def run_worker(
     assert run is not None
 
     child_env = beb.build_child_environment(os.environ, run_dir=run_dir)
+    _seed_worker_claude_trust(child_env, wt_path)
     validation_venv, validation_read_roots = _validation_toolchain(root)
     child_env["GH_CONFIG_DIR"] = str(gh_config_dir)
     child_env["GIT_CONFIG_GLOBAL"] = os.devnull

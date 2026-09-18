@@ -14,12 +14,17 @@ Strictness contract:
   reviewer one Opus model; a failed run is never retried against a different
   model. Defaults are overridable only through explicit env vars
   (``KITTYBUILDER_CLAUDE_WORKER_MODEL`` / ``KITTYBUILDER_CLAUDE_REVIEW_MODEL``).
-- **Exit 75 with no output and no change** when the ``claude`` executable is
+- **Exit 75 with no artifact and no change** when the ``claude`` executable is
   unavailable or authentication fails. The adapter probes auth with a tiny
   no-op request before any real work; a missing binary or a failed probe exits
   75 without writing a result, without leaving staging files, and without
   touching the worktree. Exit 75 is the loop's established provider-exhaustion
-  code (``builder_loop.PROVIDER_EXHAUSTED_EXIT_CODE``).
+  code (``builder_loop.PROVIDER_EXHAUSTED_EXIT_CODE``), which renders as "all
+  providers unavailable", so the reason is written to stderr on the way out.
+
+Subscription auth is headless: ``claude setup-token`` mints a long-lived,
+inference-scoped token that Builder passes as ``CLAUDE_CODE_OAUTH_TOKEN``.
+Nothing reads Jacob's ``~/.claude`` credential store.
 - **Strict contracts.** Worker results and review results are validated against
   the same bounded JSON contracts as the OpenCode adapters (bundle/context hash
   binding, ``contract_version`` 1, fixed status/verdict enums).
@@ -77,6 +82,18 @@ class AdapterError(RuntimeError):
 def _fail(message: str) -> int:
     print(f"ERROR: {message}", file=sys.stderr)
     return EXIT_CONTRACT
+
+
+def _unavailable(role: str, reason: str) -> int:
+    """Name the cause on the way out; exit 75 alone reads as a dead provider.
+
+    The loop maps 75 to provider exhaustion, so a missing binary or an
+    unauthenticated CLI surfaces to the operator as "all providers
+    unavailable" — a message that has repeatedly sent debugging at the model
+    catalog instead of at this host.
+    """
+    print(f"claude {role} unavailable: {reason}", file=sys.stderr)
+    return EXIT_UNAVAILABLE
 
 
 def _require_env(name: str) -> str:
@@ -356,7 +373,7 @@ def _run_worker() -> int:
 
     bin_path = _resolve_claude_bin()
     if bin_path is None:
-        return EXIT_UNAVAILABLE
+        return _unavailable("worker", "no usable claude executable")
 
     staged = _stage(attempt_id, ["bundle", "context", "result"])
     try:
@@ -379,7 +396,7 @@ def _run_worker() -> int:
         )
         probe_status, probe_detail = _probe_auth(bin_path, model)
         if probe_status == "unavailable":
-            return EXIT_UNAVAILABLE
+            return _unavailable("worker", "not authenticated; run `claude setup-token` once and pass the token to Builder as CLAUDE_CODE_OAUTH_TOKEN")
         if probe_status == "error":
             return _fail(probe_detail)
 
@@ -390,7 +407,7 @@ def _run_worker() -> int:
         if not staged["result"].exists():
             return _fail("claude worker exited 0 without writing the result file")
         try:
-            result = _validate_worker_result(staged["result"])
+            _validate_worker_result(staged["result"])
         except (AdapterError, json.JSONDecodeError) as exc:
             return _fail(str(exc))
 
@@ -418,7 +435,7 @@ def _run_review() -> int:
 
     bin_path = _resolve_claude_bin()
     if bin_path is None:
-        return EXIT_UNAVAILABLE
+        return _unavailable("reviewer", "no usable claude executable")
 
     note_path_raw = os.environ.get("KB_REVIEW_NOTE_PATH")
     try:
@@ -464,7 +481,7 @@ def _run_review() -> int:
         )
         probe_status, probe_detail = _probe_auth(bin_path, model)
         if probe_status == "unavailable":
-            return EXIT_UNAVAILABLE
+            return _unavailable("reviewer", "not authenticated; run `claude setup-token` once and pass the token to Builder as CLAUDE_CODE_OAUTH_TOKEN")
         if probe_status == "error":
             return _fail(probe_detail)
 

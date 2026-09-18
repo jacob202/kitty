@@ -12,11 +12,13 @@ resources:
   agent-runtime:containment:
     paths:
     - gateway/builder_contract_gate.py
+    - gateway/builder_execution_boundary.py
     - gateway/builder_identity.py
     - gateway/builder_runner.py
     - gateway/run_workspace.py
     - integrations/discord_command_center/service.py
     - integrations/discord_command_center/workspace.py
+    - scripts/kittybuilder_claude_adapter.py
     - scripts/kittybuilder_dsh.sh
     - scripts/kittybuilder_dsh_reviewer.sh
     - scripts/kittybuilder_dsh_worker.sh
@@ -26,6 +28,7 @@ resources:
     - tests/test_builder_models.py
     - tests/test_builder_runner.py
     - tests/test_discord_command_center_phase0.py
+    - tests/test_kittybuilder_claude_adapter.py
     - tests/test_run_workspace.py
   builder:initiative-lifecycle:
     paths:
