@@ -212,14 +212,16 @@ Why: isolated worktrees prevent git conflicts between parallel workers. Each bra
 
 ## Kitty-Specific Rules When Orchestrating
 
-1. **Never auto-merge.** All PRs from orchestrated work need Jacob's review (T2).
-2. **`env -u GITHUB_TOKEN`** on every `gh` and `git push` call — stale ambient token overrides keyring.
-3. **Read `.claude/STATE.md` and `.claude/HANDOFF.md`** fresh before writing — concurrent agents stomp these files (L-CAND-16).
-4. **`./kitty builder initiative doctor --json`** before any execution-sensitive work — Builder owns execution state.
-5. **No two workers on the same file** without a dependency edge. Parallel workers editing the same file will collision.
-6. **Circuit breaker**: after 3 consecutive failures on a task, stop and escalate. No infinite retry loops.
-7. **Free workers only**: use the `--free` preset or the free-model ladder. Paid models only for packet authoring or Jacob's review.
-8. **T0 work auto-approves.** T1 needs a separate model review. T2 stalls until Jacob resolves.
+1. **Preflight every spawn batch.** From the exact target worktree, run `bash scripts/preflight.sh --agent-spawn --probe-claude-quota` immediately before creating worker terminals. It proves CLI auth and spends one tiny turn to catch a quota wall before an expensive fan-out. The check always reports whether that worktree has `.env`; add `--require-dotenv` when the worker will start Kitty, run runtime/product acceptance, or otherwise needs Kitty config. Code-only/read-only workers do not need secrets copied into every worktree. Re-run preflight if the target worktree changes. A failed spawn preflight means do not spawn.
+2. **Guard optional infrastructure expansion.** Before creating new infrastructure/tooling tasks that are not already an explicit assignment, run `python3 scripts/product_gain_guard.py --enforce`. A ratio failure does not cancel Jacob's explicit task; it blocks inventing additional infrastructure work until the current product gain is named and evidenced.
+3. **Never auto-merge.** All PRs from orchestrated work need Jacob's review (T2).
+4. **`env -u GITHUB_TOKEN`** on every `gh` and `git push` call — stale ambient token overrides keyring.
+5. **Read `.claude/STATE.md` and `.claude/HANDOFF.md`** fresh before writing — concurrent agents stomp these files (L-CAND-16).
+6. **`./kitty builder initiative doctor --json`** before any execution-sensitive work — Builder owns execution state.
+7. **No two workers on the same file** without a dependency edge. Parallel workers editing the same file will collision.
+8. **Circuit breaker**: after 3 consecutive failures on a task, stop and escalate. No infinite retry loops.
+9. **Free workers only**: use the `--free` preset or the free-model ladder. Paid models only for packet authoring or Jacob's review.
+10. **T0 work auto-approves.** T1 needs a separate model review. T2 stalls until Jacob resolves.
 
 ---
 

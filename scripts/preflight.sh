@@ -14,7 +14,7 @@
 # Exit 0 = safe to proceed (warnings may still be printed).
 # Exit 1 = at least one hard check failed; fix it before a long run.
 #
-# Usage: bash scripts/preflight.sh [--quiet]
+# Usage: bash scripts/preflight.sh [--quiet] [--agent-spawn] [--probe-claude-quota] [--require-dotenv]
 
 set -uo pipefail
 
@@ -23,7 +23,21 @@ cd "${ROOT_DIR}"
 
 CANONICAL_CHECKOUT="${KITTY_EXPECTED_CANONICAL_CHECKOUT:-$HOME/Projects/kitty}"
 QUIET=0
-[[ "${1:-}" == "--quiet" ]] && QUIET=1
+AGENT_SPAWN=0
+PROBE_CLAUDE_QUOTA=0
+REQUIRE_DOTENV=0
+for arg in "$@"; do
+  case "$arg" in
+    --quiet) QUIET=1 ;;
+    --agent-spawn) AGENT_SPAWN=1 ;;
+    --probe-claude-quota) AGENT_SPAWN=1; PROBE_CLAUDE_QUOTA=1 ;;
+    --require-dotenv) AGENT_SPAWN=1; REQUIRE_DOTENV=1 ;;
+    *)
+      printf 'usage: %s [--quiet] [--agent-spawn] [--probe-claude-quota] [--require-dotenv]\n' "$0" >&2
+      exit 2
+      ;;
+  esac
+done
 
 FAILURES=0
 WARNINGS=0
@@ -102,6 +116,47 @@ if git config --get credential.helper >/dev/null 2>&1; then
   ok "git credential helper configured"
 else
   warn "no git credential helper; if a push fails use: git -c credential.helper='!gh auth git-credential' push"
+fi
+
+# ── Agent spawn readiness ──────────────────────────────────────────────────
+# Detached agent launches repeatedly failed for reasons that were knowable
+# before launch: logged-out Claude, exhausted quota, or a worktree missing the
+# canonical .env. Keep the expensive quota probe opt-in for ordinary preflight,
+# but orchestration skills invoke it immediately before a fan-out.
+if [[ $AGENT_SPAWN -eq 1 ]]; then
+  section "Agent spawn readiness"
+
+  if command -v claude >/dev/null 2>&1; then
+    if claude auth status 2>/dev/null | jq -e '.loggedIn == true' >/dev/null 2>&1; then
+      ok "Claude CLI authenticated"
+    else
+      fail "Claude CLI is not authenticated; do not spawn a Claude worker"
+    fi
+  else
+    fail "claude CLI not on PATH"
+  fi
+
+  if [[ -f "${ROOT_DIR}/.env" ]]; then
+    ok "target worktree has .env"
+  elif [[ $REQUIRE_DOTENV -eq 1 ]]; then
+    fail "target worktree has no .env but this spawn requires Kitty runtime config"
+  elif [[ -f "${CANONICAL_CHECKOUT}/.env" ]]; then
+    warn "target worktree has no .env; code-only/read-only work is fine, but runtime work must rerun with --require-dotenv after wiring the intended env"
+  else
+    warn "no .env found in target or canonical checkout; only spawn work that needs no Kitty runtime secrets/config"
+  fi
+
+  if [[ $PROBE_CLAUDE_QUOTA -eq 1 ]]; then
+    quota_probe="$(claude -p --tools "" 'Reply exactly AVAILABLE' 2>&1)"
+    quota_rc=$?
+    if [[ $quota_rc -eq 0 && "$quota_probe" == *"AVAILABLE"* ]]; then
+      ok "Claude one-turn quota probe passed"
+    else
+      fail "Claude one-turn probe failed; auth/quota is not healthy enough for an expensive spawn"
+    fi
+  else
+    warn "Claude quota was not probed; use --probe-claude-quota before an expensive fan-out"
+  fi
 fi
 
 # ── Stale background work ───────────────────────────────────────────────────

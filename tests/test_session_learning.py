@@ -12,9 +12,11 @@ from scripts.session_learning import (
     Store,
     compare_capability_runs,
     fingerprint,
+    load_resolutions,
     load_signals,
     record_evaluation_signal,
     record_signal,
+    resolve_signal,
     summarize_signals,
 )
 
@@ -340,3 +342,126 @@ def test_tampered_positive_evaluation_cannot_create_learning_signal(tmp_path: Pa
         )
 
     assert load_signals(tmp_path) == []
+
+
+
+def test_resolution_writes_pointer_without_rewriting_observations(tmp_path: Path) -> None:
+    store = Store(tmp_path, "test")
+    first = record_signal(payload(), store=store, now=NOW)
+    second = record_signal(
+        payload(source_session="second-session"),
+        store=store,
+        now=NOW.replace(hour=21),
+    )
+    before = {
+        Path(first["path"]): Path(first["path"]).read_bytes(),
+        Path(second["path"]): Path(second["path"]).read_bytes(),
+    }
+
+    result = resolve_signal(
+        "duplicate-chat-foundation-work",
+        status="implemented",
+        resolution_ref="commit:abc123",
+        store=store,
+        now=NOW.replace(hour=22),
+    )
+
+    assert result["updated"] is True
+    assert result["resolved_count"] == 2
+    for path, content in before.items():
+        assert path.read_bytes() == content
+    resolution_path = Path(result["path"])
+    assert resolution_path.parent == tmp_path / "resolutions"
+    assert resolution_path.exists()
+    resolutions = load_resolutions(tmp_path)
+    assert len(resolutions) == 1
+    assert resolutions[0]["resolution_status"] == "implemented"
+    assert resolutions[0]["resolution_ref"] == "commit:abc123"
+
+    signals = load_signals(tmp_path)
+    summary = summarize_signals(
+        signals,
+        resolutions=resolutions,
+        now=NOW.replace(hour=23),
+    )
+    assert summary["promoted"] == []
+    assert summary["observed"] == []
+    assert summary["resolved"][0]["stable_key"] == "duplicate-chat-foundation-work"
+    assert summary["resolved"][0]["promotion_status"] == "promote"
+
+
+def test_observation_after_resolution_reopens_the_family(tmp_path: Path) -> None:
+    store = Store(tmp_path, "test")
+    record_signal(payload(), store=store, now=NOW)
+    resolve_signal(
+        "duplicate-chat-foundation-work",
+        status="implemented",
+        resolution_ref="commit:abc123",
+        store=store,
+        now=NOW.replace(hour=21),
+    )
+    record_signal(
+        payload(source_session="regression-session"),
+        store=store,
+        now=NOW.replace(hour=22),
+    )
+
+    summary = summarize_signals(
+        load_signals(tmp_path),
+        resolutions=load_resolutions(tmp_path),
+        now=NOW.replace(hour=23),
+    )
+
+    assert summary["resolved"] == []
+    assert summary["promoted"][0]["stable_key"] == "duplicate-chat-foundation-work"
+    assert summary["promoted"][0]["resolution_status"] == "open"
+
+
+def test_resolution_is_idempotent_but_conflicting_terminal_change_fails(tmp_path: Path) -> None:
+    store = Store(tmp_path, "test")
+    record_signal(payload(), store=store, now=NOW)
+    first = resolve_signal(
+        "duplicate-chat-foundation-work",
+        status="superseded",
+        resolution_ref="docs/archive/example.md",
+        store=store,
+        now=NOW.replace(hour=22),
+    )
+    second = resolve_signal(
+        "duplicate-chat-foundation-work",
+        status="superseded",
+        resolution_ref="docs/archive/example.md",
+        store=store,
+        now=NOW.replace(hour=23),
+    )
+    assert first["updated"] is True
+    assert second["updated"] is False
+    assert len(load_resolutions(tmp_path)) == 1
+
+    with pytest.raises(SignalError, match="already resolved"):
+        resolve_signal(
+            "duplicate-chat-foundation-work",
+            status="implemented",
+            resolution_ref="commit:different",
+            store=store,
+            now=NOW.replace(hour=23),
+        )
+
+
+def test_resolution_pointer_corruption_fails_loud(tmp_path: Path) -> None:
+    store = Store(tmp_path, "test")
+    record_signal(payload(), store=store, now=NOW)
+    result = resolve_signal(
+        "duplicate-chat-foundation-work",
+        status="implemented",
+        resolution_ref="commit:abc123",
+        store=store,
+        now=NOW.replace(hour=22),
+    )
+    path = Path(result["path"])
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw["resolution_ref"] = "commit:tampered"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+
+    with pytest.raises(SignalError, match="has id"):
+        load_resolutions(tmp_path)

@@ -198,7 +198,9 @@ resources:
     - scripts/kb_effectiveness.py
     - scripts/kitty_backup.py
     - scripts/preflight.sh
+    - scripts/product_gain_guard.py
     - scripts/scan.py
+    - scripts/session_learning.py
     - scripts/start_builder_supervisor.sh
     - tests/conftest.py
     - tests/test_agent_coordination_acceptance.py
@@ -228,9 +230,12 @@ resources:
     - tests/test_mcp_builder_repo_tools.py
     - tests/test_paths_builder_canonical.py
     - tests/test_pre_push_gate.py
+    - tests/test_preflight_script.py
+    - tests/test_product_gain_guard.py
     - tests/test_runtime_manifest.py
     - tests/test_session_context_route.py
     - tests/test_session_end_audit.py
+    - tests/test_session_learning.py
     - tests/test_skill_registry.py
     - tests/test_start_ui_script.py
     - tests/test_surface_convergence_decision.py
