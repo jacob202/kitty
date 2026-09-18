@@ -213,36 +213,65 @@ def test_propose_route_rejects_empty_allowed_paths(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-def test_propose_route_translates_raw_planning_artifact_error(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+def test_propose_route_returns_the_producers_plain_failure_copy(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    """A raw exception string from the repo/planning-artifact layer must never
-    reach the chat UI -- only the stable error_code and a plain-language
-    message. See DEFECTS-rc0.md's raw-error-copy class of finding."""
+    """The route forwards `error` untouched; it no longer rewrites receipts.
 
-    def fake_propose(**kwargs):
-        return {
-            "ok": False,
-            "state": "needs_decision",
-            "error_code": "planning_artifact_failed",
-            "error": "GitCommandError: git commit -m docs: save MCP design conv-x exited 1: "
-            "ERROR: no Kitty agent session is established for this worktree; run kitty agent claim first",
-            "next_action": "Resolve the planning-artifact error and propose again.",
-        }
+    The producer (``gateway/conversation_handoff.py``) is the single source of
+    the user-facing copy for these codes --
+    ``tests/test_conversation_handoff.py::test_generic_failures_keep_raw_exception_text_out_of_the_receipt``
+    asserts there that it never emits the exception class or its text. Here the
+    HTTP body must be exactly what the producer returned, for both codes.
+    """
 
-    monkeypatch.setattr(conversation_handoff, "propose", fake_propose)
+    class RepoHeadUnavailable(RuntimeError):
+        pass
 
-    response = client.post(
+    def _unavailable_head() -> str:
+        raise RepoHeadUnavailable("SENTINEL repo head exploded under /private/secret")
+
+    monkeypatch.setattr(conversation_handoff.repo_tools, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(conversation_handoff.repo_tools, "repo_head", _unavailable_head)
+
+    unavailable = client.post(
         "/builder/conversation/propose",
         json={"objective": "Fix the bug", "instructions": "Do the fix", "allowed_paths": ["gateway/"]},
-    )
+    ).json()
 
-    body = response.json()
-    assert response.status_code == 200
-    assert body["error_code"] == "planning_artifact_failed"
-    assert body["next_action"] == "Resolve the planning-artifact error and propose again."
-    assert "GitCommandError" not in body["error"]
-    assert "kitty agent claim" not in body["error"]
+    assert unavailable["ok"] is False
+    assert unavailable["error_code"] == "repo_unavailable"
+    assert unavailable["state"] == "unavailable"
+    assert unavailable["next_action"] == (
+        "Resolve the repository/base-SHA error before proposing work."
+    )
+    assert unavailable["error"] == (
+        "Kitty could not reach the repository to prepare this job. Try again in a moment."
+    )
+    assert "RepoHeadUnavailable" not in unavailable["error"]
+    assert "SENTINEL" not in unavailable["error"]
+
+    produced = {
+        "ok": False,
+        "operation": "conversation_propose",
+        "state": "needs_decision",
+        "error_code": "planning_artifact_failed",
+        "error": (
+            "Kitty could not save this proposal's plan. Try again, or ask to "
+            "resolve the coordination lock if this keeps happening."
+        ),
+        "next_action": "Resolve the planning-artifact error and propose again.",
+    }
+    monkeypatch.setattr(conversation_handoff, "propose", lambda **_: dict(produced))
+
+    planning = client.post(
+        "/builder/conversation/propose",
+        json={"objective": "Fix the bug", "instructions": "Do the fix", "allowed_paths": ["gateway/"]},
+    ).json()
+
+    assert planning == produced
+    assert "PlanningWriteDenied" not in planning["error"]
+    assert "SENTINEL" not in planning["error"]
 
 
 def test_propose_route_translates_unhandled_exception(
