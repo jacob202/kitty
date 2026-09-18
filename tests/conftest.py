@@ -1,4 +1,5 @@
 import atexit
+import itertools
 import os
 import shutil
 import site
@@ -96,6 +97,95 @@ def isolate_gateway_auth_env(monkeypatch):
     monkeypatch.setenv("GATEWAY_SECRET", "")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _migrated_store_templates(tmp_path_factory):
+    """Apply each migration chain once per worker; seed fresh stores by copy.
+
+    Nearly every module-level database fixture in this suite builds its store by
+    calling `gateway.db.migrate()` against a fresh file: `_fresh_db`,
+    `override_db`, `room_db`, `workspace_db`, `automation_db`, `_tmp_db` and
+    friends. That is pure schema work with a fixed input — the same SQL files,
+    the same resulting schema — yet it was the single largest setup cost in the
+    run (~26 ms per store on an idle machine and several times that under eight
+    workers, because SQLite DDL serialises and the filesystem is the bottleneck).
+
+    So run the real chain once per worker into a template, then satisfy later
+    requests for a *fresh* store by copying that template. The copy is the exact
+    bytes the chain produces, including the `schema_migrations` ledger, so
+    schema/code divergence still fails tests exactly as before (the reason
+    `override_db` insists on real migrations).
+
+    Nothing about store ownership changes: each caller still receives its own
+    file, so no test can observe another test's rows. Anything that is not a
+    fresh store still goes through the real implementation — an existing file,
+    an unknown or changed migrations directory, a missing directory — and the
+    returned list of applied migrations is the one the real chain produced.
+    """
+    import shutil
+    import sqlite3
+    from pathlib import Path
+
+    import gateway.db as kitty_db
+
+    real_migrate = kitty_db.migrate
+    templates: dict[object, tuple[Path, list[str]]] = {}
+    root = tmp_path_factory.mktemp("migrated-store-templates")
+
+    def _fingerprint(migration_path: Path) -> tuple:
+        # Include the directory's contents so a test that adds, edits or removes
+        # a migration file never reuses a stale template.
+        return (
+            str(migration_path),
+            tuple(
+                sorted(
+                    (path.name, path.stat().st_size, path.stat().st_mtime_ns)
+                    for path in migration_path.glob("*.sql")
+                )
+            ),
+        )
+
+    def migrate(db_file=kitty_db.KITTY_DB_FILE, migrations_dir=kitty_db.DB_MIGRATIONS_DIR):
+        target = Path(db_file)
+        migration_path = Path(migrations_dir)
+        if not migration_path.exists():
+            return real_migrate(db_file=target, migrations_dir=migration_path)
+        if target.exists() and target.stat().st_size:
+            # Not a fresh store: the real chain decides what is still pending.
+            return real_migrate(db_file=target, migrations_dir=migration_path)
+        key = _fingerprint(migration_path)
+        entry = templates.get(key)
+        if entry is None:
+            template = root / f"template-{len(templates)}.db"
+            try:
+                applied = real_migrate(db_file=template, migrations_dir=migration_path)
+            except Exception:
+                # A chain that cannot run must fail the caller with its own
+                # database named in the message, exactly as before.
+                return real_migrate(db_file=target, migrations_dir=migration_path)
+            # Fold the chain into the main file so a single-file copy carries it.
+            connection = sqlite3.connect(template, isolation_level=None)
+            try:
+                connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            finally:
+                connection.close()
+            entry = templates[key] = (template, list(applied))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # A copy must be as fresh as a new file: a test that deletes its store
+        # leaves the -wal/-shm behind, and writing a new main file beside them
+        # lets SQLite replay the dead journal and resurrect deleted rows. The
+        # real path never sees this because opening a missing file starts over.
+        for suffix in ("-wal", "-shm", "-journal"):
+            stale = target.with_name(target.name + suffix)
+            if stale.exists():
+                stale.unlink()
+        shutil.copyfile(entry[0], target)
+        return list(entry[1])
+
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(kitty_db, "migrate", migrate)
+        yield
+
+
 @pytest.fixture(autouse=True)
 def isolated_governor_db(tmp_path, monkeypatch):
     """Never let a test write compute-governor receipts into the real store.
@@ -110,8 +200,37 @@ def isolated_governor_db(tmp_path, monkeypatch):
     )
 
 
+_STORE_SEQUENCE = itertools.count()
+
+
+@pytest.fixture(scope="session")
+def _autonomy_state_template(tmp_path_factory):
+    """One schema-only autonomy store per worker, copied once per test.
+
+    Building the store from scratch per test costs a directory, two CREATE
+    TABLE statements and a WAL handshake; under eight-way load that measured
+    ~4.3 ms of wall per test and was almost entirely SQLite/IO contention. A
+    prepared file copied per test does the same job in one filesystem call
+    while keeping the per-test property the isolation depends on.
+    """
+    import gateway.autonomy_state as autonomy_state
+    from gateway.db import connect as db_connect
+
+    template = tmp_path_factory.mktemp("autonomy-template") / "template.db"
+    previous = autonomy_state.STATE_DB
+    autonomy_state.STATE_DB = template
+    try:
+        autonomy_state.init_db()
+    finally:
+        autonomy_state.STATE_DB = previous
+    # Fold the schema back into the main file so a single-file copy carries it.
+    with db_connect(template) as conn:
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    return template
+
+
 @pytest.fixture(autouse=True)
-def isolated_autonomy_state_db(tmp_path_factory, monkeypatch):
+def isolated_autonomy_state_db(_autonomy_state_template, monkeypatch):
     """Give every test its own autonomy session store, schema included.
 
     `agent_runner._run_agent_loop` returns before its first model call unless
@@ -123,21 +242,22 @@ def isolated_autonomy_state_db(tmp_path_factory, monkeypatch):
     need a session must persist one themselves.
 
     A gateway process initializes the store before the first session exists, so
-    the fresh store is created here rather than left absent — several callers
-    (`start_new`) read the table without creating it.
+    the fresh store carries the schema rather than being absent — several
+    callers (`start_new`) read the table without creating it. Each test still
+    gets a file of its own: nothing a test writes is visible to any other.
 
-    The store lives beside `tmp_path` rather than inside it: tests that assert
-    their own directory holds nothing but what they wrote must not see this
-    file either.
+    The store lives outside `tmp_path`: tests that assert their own directory
+    holds nothing but what they wrote must not see this file either.
     """
+    import shutil
+
     import gateway.autonomy_state as autonomy_state
 
-    monkeypatch.setattr(
-        autonomy_state,
-        "STATE_DB",
-        tmp_path_factory.mktemp("autonomy-state") / "autonomy_state.db",
+    destination = (
+        _autonomy_state_template.parent / f"autonomy-{next(_STORE_SEQUENCE)}.db"
     )
-    autonomy_state.init_db()
+    shutil.copyfile(_autonomy_state_template, destination)
+    monkeypatch.setattr(autonomy_state, "STATE_DB", destination)
 
 
 @pytest.fixture(autouse=True)
