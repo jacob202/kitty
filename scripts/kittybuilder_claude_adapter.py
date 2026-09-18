@@ -21,15 +21,18 @@ Strictness contract:
   touching the worktree. Exit 75 is the loop's established provider-exhaustion
   code (``builder_loop.PROVIDER_EXHAUSTED_EXIT_CODE``), which renders as "all
   providers unavailable", so the reason is written to stderr on the way out.
-
-Subscription auth is headless: ``claude setup-token`` mints a long-lived,
-inference-scoped token that Builder passes as ``CLAUDE_CODE_OAUTH_TOKEN``.
-Nothing reads Jacob's ``~/.claude`` credential store.
 - **Strict contracts.** Worker results and review results are validated against
   the same bounded JSON contracts as the OpenCode adapters (bundle/context hash
   binding, ``contract_version`` 1, fixed status/verdict enums).
 - **Reviewer immutability.** The reviewer fingerprints HEAD and worktree status
   before and after the model run; any mutation aborts with no review published.
+- **Least tools.** Non-interactive Claude Code silently denies any tool the
+  workspace has not allowed and answers in prose, so each role is granted
+  exactly the tools its contract needs.
+
+Subscription auth is headless: ``claude setup-token`` mints a long-lived,
+inference-scoped token that Builder passes as ``CLAUDE_CODE_OAUTH_TOKEN``.
+No worker reads the operator's ``~/.claude`` credential store.
 
 The test-suite drives this adapter with a fake ``claude`` executable found on
 ``PATH`` (or pinned via ``KITTYBUILDER_CLAUDE_BIN``), so no live Claude
@@ -53,6 +56,16 @@ EXIT_CONTRACT = 1
 DEFAULT_WORKER_MODEL = "claude-sonnet-4-5"
 DEFAULT_REVIEWER_MODEL = "claude-opus-4-6"
 PROBE_PROMPT = "Reply with exactly: ok"
+
+# Non-interactive Claude Code denies any tool the workspace has not allowed,
+# and then answers in prose rather than failing: the worker exits 0 having
+# changed nothing and the attempt dies on a missing result file. The Seatbelt
+# boundary is the real control here -- no secrets, no loopback, writes confined
+# to the worktree -- so each role is granted exactly the tools its contract
+# needs. The reviewer gets Write for its own staged review JSON only; any
+# actual mutation is still caught by the immutability fingerprint.
+_WORKER_TOOLS = "Read,Edit,MultiEdit,Write,Glob,Grep,Bash"
+_REVIEWER_TOOLS = "Read,Glob,Grep,Bash,Write"
 
 _WORKER_REQUIRED_ENV = (
     "KB_BUNDLE_PATH",
@@ -246,10 +259,21 @@ def _probe_auth(bin_path: Path, model: str) -> tuple[str, str]:
     return "error", f"claude probe failed for model {model} (exit {result.returncode}): {detail}"
 
 
-def _run_model(bin_path: Path, model: str, prompt: str, timeout: float) -> int:
+def _run_model(
+    bin_path: Path, model: str, prompt: str, timeout: float, tools: str
+) -> int:
     try:
         result = subprocess.run(
-            [str(bin_path), "-p", "--model", model, prompt],
+            [
+                str(bin_path),
+                "-p",
+                "--model",
+                model,
+                f"--allowedTools={tools}",
+                "--permission-mode",
+                "acceptEdits",
+                prompt,
+            ],
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
@@ -401,7 +425,7 @@ def _run_worker() -> int:
             return _fail(probe_detail)
 
         timeout = float(os.environ.get("KB_WORKER_TIMEOUT_SECONDS", "3600"))
-        rc = _run_model(bin_path, model, _worker_prompt(staged), timeout)
+        rc = _run_model(bin_path, model, _worker_prompt(staged), timeout, _WORKER_TOOLS)
         if rc != 0:
             return _fail(f"claude worker exited {rc}; no fallback to another model")
         if not staged["result"].exists():
@@ -486,7 +510,9 @@ def _run_review() -> int:
             return _fail(probe_detail)
 
         timeout = float(os.environ.get("KB_REVIEW_TIMEOUT_SECONDS", "900"))
-        rc = _run_model(bin_path, model, _reviewer_prompt(staged), timeout)
+        rc = _run_model(
+            bin_path, model, _reviewer_prompt(staged), timeout, _REVIEWER_TOOLS
+        )
         if rc != 0:
             return _fail(f"claude reviewer exited {rc}; no fallback to another model")
         if not staged["review"].exists():

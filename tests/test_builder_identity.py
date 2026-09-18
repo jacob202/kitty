@@ -453,6 +453,35 @@ class TestWorkerIdentity:
         )
         assert not any(finding.category == "scope_drift" for finding in findings)
 
+    @pytest.mark.parametrize(
+        "staged",
+        [
+            ".kittybuilder-claude-bundle-298.json",
+            ".kittybuilder-claude-context-298.json",
+            ".kittybuilder-claude-result-298.json",
+            ".kittybuilder-claude-review-298.json",
+        ],
+    )
+    def test_claude_adapter_staging_residue_is_not_scope_drift(
+        self, repo: Path, db_path: Path, staged: str
+    ) -> None:
+        """The Claude adapter stages under its own names, which this list missed.
+
+        The live worktree monitor read them as drift and killed the worker
+        mid-attempt, so the adapter's own cleanup never ran -- leaving exactly
+        the residue it had just been killed for.
+        """
+        lease = self._valid_identity(repo, db_path)
+        (repo / staged).write_text("staged\n", encoding="utf-8")
+        findings = verify_worker_identity(
+            INITIATIVE,
+            PACKET,
+            repo_root=repo,
+            db_path=db_path,
+            expected_lease_id=lease["lease_id"],
+        )
+        assert not any(finding.category == "scope_drift" for finding in findings)
+
     @pytest.mark.parametrize("stored", ["{", "{}", "[]", '["."]'])
     def test_corrupt_or_unbounded_allowlist_fails_closed(
         self, repo: Path, db_path: Path, stored: str

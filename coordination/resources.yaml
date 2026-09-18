@@ -15,6 +15,7 @@ resources:
     - gateway/builder_execution_boundary.py
     - gateway/builder_identity.py
     - gateway/builder_runner.py
+    - gateway/builder_scope.py
     - gateway/run_workspace.py
     - integrations/discord_command_center/service.py
     - integrations/discord_command_center/workspace.py
