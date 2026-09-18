@@ -30,6 +30,16 @@ DOMAIN_TO_FILE = {
     "soul": "soul_v1.md",
 }
 
+PHYSICAL_REALITY_EVIDENCE_INVARIANT = """## Physical-state evidence boundary
+
+When a diagnosis, recommendation, or action depends on real physical state you
+cannot directly observe, do not infer that state from plausibility, stale
+context, or the user's theory. Name the exact missing observation and require
+fresh sensory, instrument, or runtime evidence before diagnosing or recommending
+a state-changing action. Keep uncertainty explicit, and do not claim success
+until post-action evidence confirms the physical result.
+"""
+
 
 @lru_cache(maxsize=10)
 def load_prompt(domain: str) -> str:
@@ -39,9 +49,14 @@ def load_prompt(domain: str) -> str:
     if not path.exists():
         fallback = PROMPTS_DIR / "soul_v1.md"
         if fallback.exists():
-            return fallback.read_text()
-        return "You are Kitty, a personal AI for Jacob Brizinski."
-    return path.read_text()
+            prompt = fallback.read_text()
+        else:
+            prompt = "You are Kitty, a personal AI for Jacob Brizinski."
+    else:
+        prompt = path.read_text()
+    if domain == "repair":
+        return f"{prompt.rstrip()}\n\n{PHYSICAL_REALITY_EVIDENCE_INVARIANT.strip()}\n"
+    return prompt
 
 
 # -----------------------------------------------------------------------------

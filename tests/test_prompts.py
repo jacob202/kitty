@@ -50,3 +50,19 @@ def test_parts_prompt_contains_all_four_parts():
 def test_inventory_prompt_requires_json_output():
     assert "JSON" in prompts.INVENTORY_PHOTO_PROMPT
     assert "part_number" in prompts.INVENTORY_PHOTO_PROMPT
+
+def test_repair_prompt_requires_fresh_physical_evidence() -> None:
+    prompts.load_prompt.cache_clear()
+    prompt = prompts.load_prompt("repair")
+
+    assert "Physical-state evidence boundary" in prompt
+    assert "exact missing observation" in prompt
+    assert "fresh sensory, instrument, or runtime evidence" in prompt
+    assert "post-action evidence" in prompt
+
+
+def test_non_repair_prompt_does_not_get_physical_evidence_invariant() -> None:
+    prompts.load_prompt.cache_clear()
+    prompt = prompts.load_prompt("soul")
+
+    assert "Physical-state evidence boundary" not in prompt

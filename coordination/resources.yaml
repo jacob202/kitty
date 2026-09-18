@@ -184,6 +184,7 @@ resources:
     - gateway/llm_client.py
     - gateway/local_review.py
     - gateway/model_routing.py
+    - gateway/prompts.py
     - gateway/requirements.litellm.txt
     - gateway/routes/register.py
     - gateway/routes/runtime.py
@@ -238,6 +239,7 @@ resources:
     - tests/test_paths_builder_canonical.py
     - tests/test_pre_push_gate.py
     - tests/test_prompt_experiment.py
+    - tests/test_prompts.py
     - tests/test_runtime_manifest.py
     - tests/test_session_context_route.py
     - tests/test_session_end_audit.py
