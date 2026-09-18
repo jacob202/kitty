@@ -181,6 +181,17 @@ def list_entries(limit: int = 50, theme: str | None = None) -> list[dict]:
     return [_row_to_entry(r) for r in rows]
 
 
+def list_all_entries() -> list[dict]:
+    """Return the full journal in one SQLite read snapshot, newest first."""
+    init_db()
+    with kitty_db.connect(JOURNAL_DB_FILE) as conn:
+        rows = conn.execute(
+            "SELECT id, ts, theme, entry, session_id, created_at "
+            "FROM journal_entries ORDER BY ts DESC, id DESC"
+        ).fetchall()
+    return [_row_to_entry(r) for r in rows]
+
+
 def count_entries(theme: str | None = None) -> int:
     """Total entries, optionally filtered by theme."""
     init_db()

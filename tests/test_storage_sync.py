@@ -844,3 +844,61 @@ def test_journal_export_is_not_capped_at_a_page(tmp_path, monkeypatch):
     assert len(snapshot) == 1005
     storage_sync.import_journal_entries(snapshot)
     assert journal_store.count_entries() == 1005
+
+
+def test_journal_export_keeps_old_rows_during_concurrent_append(tmp_path, monkeypatch):
+    """One export read cannot let a concurrent append displace an older row."""
+    _isolate_journal(tmp_path, monkeypatch)
+    journal_store.append_entry(ts=1.0, entry="oldest")
+    journal_store.append_entry(ts=2.0, entry="newest")
+
+    real_count = journal_store.count_entries
+    real_list_all = journal_store.list_all_entries
+
+    def count_then_append():
+        count = real_count()
+        journal_store.append_entry(ts=3.0, entry="concurrent")
+        return count
+
+    def append_then_list_all():
+        journal_store.append_entry(ts=3.0, entry="concurrent")
+        return real_list_all()
+
+    # The old count-then-LIMIT implementation takes the first path and drops
+    # "oldest". The single-read implementation takes the second and retains all
+    # rows visible when its SELECT starts.
+    monkeypatch.setattr(journal_store, "count_entries", count_then_append)
+    monkeypatch.setattr(journal_store, "list_all_entries", append_then_list_all)
+
+    snapshot = storage_sync.export_journal_entries()
+
+    assert {item["entry"] for item in snapshot} == {
+        "oldest",
+        "newest",
+        "concurrent",
+    }
+
+
+def test_later_import_failure_does_not_replace_journal(tmp_path, monkeypatch):
+    """A rejected restore must not commit destructive journal replacement."""
+    _isolate_journal(tmp_path, monkeypatch)
+    journal_store.append_entry(ts=1.0, entry="original")
+
+    def fail_plugin_settings(_payload):
+        raise RuntimeError("simulated later importer failure")
+
+    monkeypatch.setitem(
+        storage_sync._IMPORTERS, "plugin_settings", fail_plugin_settings
+    )
+    snapshot = {
+        "format_version": storage_sync.FORMAT_VERSION,
+        "stores": {
+            "journal_entries": [{"ts": 2.0, "entry": "replacement"}],
+            "plugin_settings": {},
+        },
+    }
+
+    with pytest.raises(RuntimeError, match="simulated later importer failure"):
+        storage_sync.import_all(snapshot)
+
+    assert [item["entry"] for item in journal_store.list_all_entries()] == ["original"]
