@@ -791,3 +791,56 @@ def test_export_to_file_and_import_from_file_round_trip(tmp_path, monkeypatch):
     assert counts["todos"] == 1
     assert plugin_registry._load_db_settings() == {"alpha": True}
     assert todo_store.get()[0]["content"] == "z"
+
+
+def _isolate_journal(tmp_path, monkeypatch):
+    db_file = tmp_path / "journal.db"
+    monkeypatch.setattr(kitty_db, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
+    return db_file
+
+
+def test_restoring_the_same_journal_snapshot_twice_does_not_duplicate(tmp_path, monkeypatch):
+    """A restore is idempotent; it used to append, so each pass added a full copy."""
+    _isolate_journal(tmp_path, monkeypatch)
+    journal_store.append_entry(ts=1.0, entry="first", theme="work")
+    journal_store.append_entry(ts=2.0, entry="second", session_id="s1")
+
+    snapshot = storage_sync.export_journal_entries()
+    assert len(snapshot) == 2
+
+    storage_sync.import_journal_entries(snapshot)
+    assert journal_store.count_entries() == 2
+
+    storage_sync.import_journal_entries(snapshot)
+    assert journal_store.count_entries() == 2
+
+    restored = {(e["ts"], e["entry"]) for e in journal_store.list_entries(limit=10)}
+    assert restored == {(1.0, "first"), (2.0, "second")}
+
+
+def test_journal_restore_drops_entries_absent_from_the_snapshot(tmp_path, monkeypatch):
+    """Replace semantics: rows omitted from the snapshot are gone afterwards."""
+    _isolate_journal(tmp_path, monkeypatch)
+    journal_store.append_entry(ts=1.0, entry="keep")
+    snapshot = storage_sync.export_journal_entries()
+    journal_store.append_entry(ts=2.0, entry="written after the snapshot")
+    assert journal_store.count_entries() == 2
+
+    storage_sync.import_journal_entries(snapshot)
+
+    assert journal_store.count_entries() == 1
+    assert journal_store.list_entries(limit=10)[0]["entry"] == "keep"
+
+
+def test_journal_export_is_not_capped_at_a_page(tmp_path, monkeypatch):
+    """A capped export feeding a replace-restore would silently truncate."""
+    _isolate_journal(tmp_path, monkeypatch)
+    for i in range(1005):
+        journal_store.append_entry(ts=float(i), entry=f"entry {i}")
+
+    snapshot = storage_sync.export_journal_entries()
+
+    assert len(snapshot) == 1005
+    storage_sync.import_journal_entries(snapshot)
+    assert journal_store.count_entries() == 1005
