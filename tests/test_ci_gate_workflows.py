@@ -116,14 +116,22 @@ def test_required_checks_run_in_the_merge_queue() -> None:
         assert "github.event_name == 'merge_group'" in condition, name
 
 
-def test_agent_review_uses_paid_model_fallbacks_and_bounded_timeout() -> None:
+def test_agent_review_uses_the_subscription_route_and_bounded_timeout() -> None:
     text, workflow = _workflow("pr-agent-review.yml")
-    env = workflow["jobs"]["agent-review"]["steps"][-1]["env"]
+    produce = workflow["jobs"]["agent-review"]["steps"][-1]
+    env = produce["env"]
 
-    assert env["PR_REVIEW_MODEL"] == "openrouter/deepseek/deepseek-v4-flash"
-    assert env["PR_REVIEW_FALLBACK_MODEL"] == "openrouter/minimax/minimax-m3"
-    assert env["PR_REVIEW_DEEPSEEK_MODEL"] == "openrouter/minimax/minimax-m3"
-    assert env["PR_REVIEW_DEEPSEEK_FALLBACK_MODEL"] == "openrouter/qwen/qwen3.7-plus"
+    # The reviewer route is the subscription: it must not need OpenRouter credit,
+    # and the credential that authenticates it must reach the step. The paid rungs
+    # stay behind it in the harness ladder.
+    assert env["PR_REVIEW_MODEL"] == "opencode-go/muse-spark-1.3-contributor"
+    assert env["PR_REVIEW_FALLBACK_MODEL"] == "opencode-go/minimax-m3"
+    assert env["PR_REVIEW_DEEPSEEK_MODEL"] == "opencode-go/muse-spark-1.3-contributor"
+    assert env["PR_REVIEW_DEEPSEEK_FALLBACK_MODEL"] == "opencode-go/minimax-m3"
+    assert env["OPENCODE_API_KEY"] == "${{ secrets.OPENCODE_API_KEY }}"
+    # The paid account is no longer the route, but it is still wired so the
+    # harness's retained OpenRouter fallback can run.
+    assert env["OPENROUTER_API_KEY"] == "${{ secrets.OPENROUTER_API_KEY }}"
     assert env["PR_REVIEW_MODEL_TIMEOUT_SECONDS"] == "240"
     # The whole review must be bounded below the job cap, because the permitted
     # 12-chunk worst case can never fit inside any reasonable job timeout.
@@ -165,7 +173,7 @@ def test_change_scope_comes_from_the_canonical_classifier() -> None:
         assert key in outputs, key
 
 
-def test_model_review_uses_paid_flash_for_merge_boundaries_and_sensitive_heads() -> None:
+def test_model_review_uses_the_subscription_route_for_merge_boundaries_and_sensitive_heads() -> None:
     text, workflow = _workflow("pr-agent-review.yml")
     review = workflow["jobs"]["agent-review"]
     review_if = str(review["if"])
@@ -185,9 +193,11 @@ def test_model_review_uses_paid_flash_for_merge_boundaries_and_sensitive_heads()
 
     produce = next(step for step in review["steps"] if step.get("id") == "produce")
     assert produce["run"] == "python scripts/pr_review.py"
-    assert produce["env"]["PR_REVIEW_MODEL"] == "openrouter/deepseek/deepseek-v4-flash"
+    # The route is the subscription; the paid key stays wired only so the
+    # harness's retained OpenRouter fallback can still run.
+    assert produce["env"]["PR_REVIEW_MODEL"] == "opencode-go/muse-spark-1.3-contributor"
+    assert produce["env"]["OPENCODE_API_KEY"] == "${{ secrets.OPENCODE_API_KEY }}"
     assert "OPENROUTER_API_KEY" in produce["env"]
-    assert "OPENCODE_API_KEY" not in produce["env"]
     assert "claude" not in text.lower()
 
 def test_legacy_claude_code_review_workflow_is_removed() -> None:

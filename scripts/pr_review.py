@@ -18,10 +18,22 @@ from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-DEFAULT_REVIEW_MODEL = "openrouter/deepseek/deepseek-v4-flash"
-DEFAULT_REVIEW_FALLBACK_MODEL = "openrouter/minimax/minimax-m3"
-DEEPSEEK_REVIEW_MODEL = "openrouter/minimax/minimax-m3"
-DEEPSEEK_REVIEW_FALLBACK_MODEL = "openrouter/qwen/qwen3.7-plus"
+# Reviewer ladder, subscription first. `opencode-go/*` is billed to the OpenCode
+# subscription through OPENCODE_API_KEY and needs no OpenRouter credit: proven on
+# 2026-09-17, when the OpenRouter account ran out, every rung failed with
+# "requires more credits", and every PR was left with no verdict at all -- the
+# deterministic gate then blocks with "No trusted exact-head review approval
+# exists" for a head nothing could review. The paid OpenRouter rungs stay behind
+# the subscription route as the retained fallback: an unused rung costs nothing,
+# and a review still completes if a subscription model is unavailable. Every rung
+# remains env-overridable, so the route is a workflow decision, not a code edit.
+DEFAULT_REVIEW_MODEL = "opencode-go/muse-spark-1.3-contributor"
+DEFAULT_REVIEW_FALLBACK_MODEL = "opencode-go/minimax-m3"
+# A deepseek implementer must not be reviewed by a deepseek model. Both
+# subscription defaults are independent of that family, so the deepseek route
+# stays credit-free too; the knobs remain so an operator can route it elsewhere.
+DEEPSEEK_REVIEW_MODEL = "opencode-go/muse-spark-1.3-contributor"
+DEEPSEEK_REVIEW_FALLBACK_MODEL = "opencode-go/minimax-m3"
 DEFAULT_REVIEW_AGENT = "pr-reviewer"
 REVIEW_MODEL = os.environ.get("PR_REVIEW_MODEL", DEFAULT_REVIEW_MODEL)
 REVIEW_FALLBACK_MODEL = os.environ.get(
@@ -32,6 +44,22 @@ DEEPSEEK_INDEPENDENT_MODEL = os.environ.get(
 )
 DEEPSEEK_INDEPENDENT_FALLBACK_MODEL = os.environ.get(
     "PR_REVIEW_DEEPSEEK_FALLBACK_MODEL", DEEPSEEK_REVIEW_FALLBACK_MODEL
+)
+# The paid rungs, kept in the ladder behind whatever the configured route is. They
+# are not the route any more; they are the safety net that was the whole ladder
+# before the subscription existed.
+OPENROUTER_REVIEW_LADDER = (
+    "openrouter/deepseek/deepseek-v4-flash",
+    "openrouter/minimax/minimax-m3",
+)
+# Which credential each route authenticates with. A rung whose key is absent is
+# skipped rather than voiding the review -- an unavailable route must cost one
+# rung, not the verdict -- and a ladder with no usable rung still fails closed and
+# says which credential is missing.
+REVIEW_ROUTE_CREDENTIALS = (
+    ("openrouter/", "OPENROUTER_API_KEY"),
+    ("opencode-go/", "OPENCODE_API_KEY"),
+    ("opencode/", "OPENCODE_API_KEY"),
 )
 REVIEW_MODEL_TIMEOUT_SECONDS = int(os.environ.get("PR_REVIEW_MODEL_TIMEOUT_SECONDS", "240"))
 # Hard ceiling on one whole review, across every chunk and every fallback model.
@@ -113,17 +141,27 @@ Every finding must contain all five finding fields as non-empty strings. Do not 
 
 
 def _model_family(model: str | None) -> str | None:
-    """Return a coarse provider/model family for independence checks."""
+    """Return a coarse provider/model family for independence checks.
+
+    A route prefix is not identity, and a reasoning-effort suffix selects a
+    variant of the same model rather than a different one: `opencode-go/<id>:medium`
+    and `opencode-go/<id>:max` are one model. Both are stripped before the family
+    is derived, so a reviewer running the implementer's own model at a different
+    effort level cannot pass the independence check.
+    """
     value = (model or "").strip().lower()
     if not value:
         return None
     parts = [part for part in value.split("/") if part]
-    if len(parts) >= 3 and parts[0] in {"openrouter", "opencode"}:
-        return parts[1]
+    if len(parts) >= 3 and parts[0] in {"openrouter", "opencode", "opencode-go"}:
+        name = parts[1]
+    else:
+        name = parts[-1]
+    name = name.split(":", 1)[0]
     for family in ("deepseek", "qwen", "minimax", "xiaomi", "nvidia"):
-        if family in value:
+        if family in name:
             return family
-    return parts[-1] if parts else None
+    return name or None
 
 
 def select_review_models(
@@ -131,15 +169,27 @@ def select_review_models(
     fallback_model: str,
     implementation_model: str | None,
 ) -> tuple[str, ...]:
-    """Return a bounded reviewer pair that is independent from the implementer."""
+    """Return a bounded reviewer ladder that is independent from the implementer.
+
+    The configured route leads (subscription-backed by default) and the retained
+    paid OpenRouter rungs follow, so the review completes on the subscription and
+    degrades to the paid route only if that fails. Any rung whose family wrote the
+    code is dropped wherever it sits, which is what keeps the reviewer independent
+    of the implementer in both routes.
+    """
     implementation_family = _model_family(implementation_model)
     if implementation_family == "deepseek":
         candidates = (
             DEEPSEEK_INDEPENDENT_MODEL,
             DEEPSEEK_INDEPENDENT_FALLBACK_MODEL,
+            *OPENROUTER_REVIEW_LADDER,
         )
     else:
-        candidates = (preferred_model, fallback_model)
+        candidates = (
+            preferred_model,
+            fallback_model,
+            *OPENROUTER_REVIEW_LADDER,
+        )
 
     selected: list[str] = []
     for model in candidates:
@@ -658,12 +708,34 @@ def _review_chunk(
                     file=sys.stderr,
                 )
             review_models = responsive
-    if any(model.startswith("openrouter/") for model in review_models) and not os.environ.get(
-        "OPENROUTER_API_KEY"
-    ):
-        print("OPENROUTER_API_KEY not set — current-head OpenCode review cannot run.", file=sys.stderr)
-        _record_review_failure("OPENROUTER_API_KEY is not set, so the OpenCode review could not run.")
+    usable: list[str] = []
+    unavailable: list[tuple[str, str]] = []
+    for model in review_models:
+        credential = next(
+            (env_var for prefix, env_var in REVIEW_ROUTE_CREDENTIALS if model.startswith(prefix)),
+            None,
+        )
+        if credential and not os.environ.get(credential):
+            unavailable.append((model, credential))
+        else:
+            usable.append(model)
+    if unavailable:
+        print(
+            "Skipping reviewer(s) whose route has no credential: "
+            + ", ".join(f"{model} ({credential})" for model, credential in unavailable),
+            file=sys.stderr,
+        )
+    if not usable:
+        needed = ", ".join(sorted({credential for _, credential in unavailable}))
+        print(
+            f"No reviewer route has a credential in this environment: {needed} is not set.",
+            file=sys.stderr,
+        )
+        _record_review_failure(
+            f"No reviewer route has a credential in this environment ({needed} is not set)."
+        )
         return None
+    review_models = tuple(usable)
 
     agent = os.environ.get("PR_REVIEW_AGENT", DEFAULT_REVIEW_AGENT)
     prompt = (
