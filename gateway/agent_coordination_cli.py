@@ -226,13 +226,29 @@ def _print_status_table(rows: list[dict[str, Any]]) -> None:
 
 
 def _staged_paths(context: dict[str, Any]) -> list[str]:
+    """Return the paths this commit is responsible for.
+
+    During a merge the index holds everything the merged branch brings in, so
+    diffing against HEAD asked an agent to own every file it was merging: a
+    main-merge staged 613 paths resolving to six resources, which made every
+    concurrent main-merge fleet-wide serialise on the same bundle. Diffing
+    against MERGE_HEAD instead yields the branch's own work — plus any conflict
+    resolution, which by definition differs from both sides. Content arriving
+    from the merged branch was not authored here and is not fenced.
+    """
+    worktree = Path(context["worktree"])
+    merge_head = _git(
+        worktree, "rev-parse", "--verify", "--quiet", "MERGE_HEAD", required=False
+    )
+    base = "MERGE_HEAD" if merge_head.strip() else "HEAD"
     output = _git(
-        Path(context["worktree"]),
+        worktree,
         "diff",
         "--cached",
         "--name-only",
         "--no-renames",
         "--diff-filter=ACMRD",
+        base,
     )
     return [line for line in output.splitlines() if line.strip()]
 
