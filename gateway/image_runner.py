@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -1411,6 +1412,152 @@ def flux2_images_available() -> tuple[bool, str]:
     return True, ""
 
 
+@dataclass(frozen=True)
+class _BflLaneWording:
+    """Operator-visible wording for one BFL lane, kept verbatim per provider."""
+
+    submit_transport_unknown: Callable[[BaseException], str]
+    http_error: Callable[[Any], str]
+    polling_timeout_unknown: str
+    polling_error_unknown: Callable[[BaseException], str]
+    did_not_produce: Callable[[str], str]
+    ready_without_image: str
+
+
+_FLUX_WORDING = _BflLaneWording(
+    submit_transport_unknown=lambda exc: (
+        f"Flux provider outcome unknown after submit transport error: {exc}"
+    ),
+    http_error=lambda submit: (
+        f"Flux returned HTTP {submit.status_code}: {submit.text[:300]}"
+    ),
+    polling_timeout_unknown="Flux provider outcome unknown after polling timeout",
+    polling_error_unknown=lambda exc: (
+        f"Flux provider outcome unknown after polling error: {exc}"
+    ),
+    did_not_produce=lambda status: f"Flux did not produce an image: {status}",
+    ready_without_image="Flux reported Ready but returned no image",
+)
+
+_FLUX2_WORDING = _BflLaneWording(
+    submit_transport_unknown=lambda exc: (
+        "BFL Direct provider outcome unknown after submit transport error: "
+        f"{exc}"
+    ),
+    http_error=lambda submit: (
+        f"BFL Direct returned HTTP {submit.status_code}: {submit.text[:300]}"
+    ),
+    polling_timeout_unknown="BFL Direct provider outcome unknown after polling timeout",
+    polling_error_unknown=lambda exc: (
+        f"BFL Direct provider outcome unknown after polling error: {exc}"
+    ),
+    did_not_produce=lambda status: f"BFL Direct did not produce an image: {status}",
+    ready_without_image="BFL Direct reported Ready but returned no image",
+)
+
+
+async def _run_bfl_polling_lifecycle(
+    job_id: str,
+    *,
+    wording: _BflLaneWording,
+    submit_headers: Callable[[], dict[str, str]],
+    submit: Callable[[Any, dict[str, str]], Awaitable[Any]],
+    read_status: Callable[[dict[str, Any]], Any],
+    is_running: Callable[[Any], bool],
+    sample_url: Callable[[dict[str, Any]], str | None],
+    parse_cost: Callable[[dict[str, Any]], float | None],
+    after_result: Callable[[dict[str, Any]], None] | None = None,
+    project_id: int | None = None,
+    session_id: str | None = None,
+    reserved_cost_usd: float | None = None,
+) -> tuple[str, float | None]:
+    """Run one BFL submit -> receipt -> poll -> download -> persist lifecycle.
+
+    Both Flux lanes are submit-then-poll against Black Forest Labs and differ
+    only in endpoint, payload, result decoding and wording. The lifecycle --
+    including the poll loop and its timeout and transport handling -- is the
+    same in both, so it lives here once instead of twice in the module that
+    spends the provider's money. Every provider-specific piece (submit headers,
+    submit call, status reading, run predicate, sample URL, cost rule,
+    post-result hook) arrives as a parameter; every operator-visible message
+    comes from the lane's own wording record. Returns the artifact path and the
+    reported cost.
+    """
+    import httpx
+
+    try:
+        _attach_job_to_session_before_dispatch(job_id, session_id)
+        image_jobs.transition(job_id, ImageJobStatus.SUBMITTED)
+        request_headers = submit_headers()
+        async with httpx.AsyncClient(timeout=180) as client:
+            try:
+                submit_response = await submit(client, request_headers)
+            except httpx.HTTPError as exc:
+                message = wording.submit_transport_unknown(exc)
+                _mark_unknown(job_id, message)
+                raise ImageProviderOutcomeUnknownError(message) from exc
+            if submit_response.status_code != 200:
+                raise ImageRunnerError(wording.http_error(submit_response))
+            submit_payload = submit_response.json()
+            try:
+                polling_url = _persist_bfl_receipt(
+                    job_id,
+                    submit_payload,
+                    project_id=project_id,
+                    session_id=session_id,
+                    reserved_cost_usd=reserved_cost_usd,
+                )
+            except ImageProviderOutcomeUnknownError as exc:
+                _mark_unknown(job_id, str(exc))
+                raise
+            cost_usd = parse_cost(submit_payload)
+
+            image_jobs.transition(job_id, ImageJobStatus.RUNNING)
+            try:
+                for _ in range(150):
+                    poll = await client.get(
+                        polling_url, headers={"x-key": request_headers["x-key"]}
+                    )
+                    state = poll.json()
+                    status = read_status(state)
+                    if not is_running(status):
+                        break
+                    await asyncio.sleep(2)
+                else:
+                    message = wording.polling_timeout_unknown
+                    _mark_unknown(job_id, message)
+                    raise ImageProviderOutcomeUnknownError(message)
+            except httpx.HTTPError as exc:
+                message = wording.polling_error_unknown(exc)
+                _mark_unknown(job_id, message)
+                raise ImageProviderOutcomeUnknownError(message) from exc
+
+        if status != "Ready":
+            # "Request Moderated" and "Content Moderated" arrive here. Say which.
+            raise ImageRunnerError(wording.did_not_produce(status))
+        result = state.get("result") or {}
+        sample = sample_url(result)
+        if not sample:
+            raise ImageRunnerError(wording.ready_without_image)
+        if after_result is not None:
+            after_result(result)
+
+        async with httpx.AsyncClient(timeout=180) as client:
+            download = await client.get(sample)
+            download.raise_for_status()
+            data = download.content
+
+        path = _persist_artifact(job_id, f"{job_id}.png", data)
+        image_jobs.update_job(job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job_id, project_id=project_id)
+        image_jobs.transition(job_id, ImageJobStatus.SUCCEEDED)
+    except Exception as exc:
+        _mark_failed(job_id, str(exc)[:500])
+        raise
+
+    return str(path), cost_usd
+
+
 async def _run_flux(
     prompt: str,
     *,
@@ -1429,10 +1576,7 @@ async def _run_flux(
     comes back as a status rather than an error — both are surfaced verbatim so
     a refusal never reads as a crash.
     """
-    import asyncio as _asyncio
     import base64
-
-    import httpx
 
     enabled, reason = flux_images_available()
     if not enabled:
@@ -1459,85 +1603,35 @@ async def _run_flux(
         intent_json=intent_json,
     )
 
-    try:
-        _attach_job_to_session_before_dispatch(job.job_id, session_id)
-        image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
-        headers = {"x-key": os.environ["BFL_API_KEY"], "Content-Type": "application/json"}
-        async with httpx.AsyncClient(timeout=180) as client:
-            try:
-                submit = await client.post(
-                    f"{FLUX_API}/{model}", headers=headers, json=payload
-                )
-            except httpx.HTTPError as exc:
-                message = f"Flux provider outcome unknown after submit transport error: {exc}"
-                _mark_unknown(job.job_id, message)
-                raise ImageProviderOutcomeUnknownError(message) from exc
-            if submit.status_code != 200:
-                raise ImageRunnerError(
-                    f"Flux returned HTTP {submit.status_code}: {submit.text[:300]}"
-                )
-            submit_payload = submit.json()
-            try:
-                polling_url = _persist_bfl_receipt(
-                    job.job_id,
-                    submit_payload,
-                    project_id=project_id,
-                    session_id=session_id,
-                    reserved_cost_usd=reserved_cost_usd,
-                )
-            except ImageProviderOutcomeUnknownError as exc:
-                _mark_unknown(job.job_id, str(exc))
-                raise
-            raw_cost_credits = submit_payload.get("cost")
-            cost_usd = (
-                float(raw_cost_credits) * 0.01
-                if isinstance(raw_cost_credits, (int, float)) and raw_cost_credits >= 0
-                else None
-            )
+    def _submit_headers() -> dict[str, str]:
+        return {"x-key": os.environ["BFL_API_KEY"], "Content-Type": "application/json"}
 
-            image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
-            try:
-                for _ in range(150):
-                    poll = await client.get(
-                        polling_url, headers={"x-key": headers["x-key"]}
-                    )
-                    state = poll.json()
-                    status = state.get("status")
-                    if status not in {"Pending", "Queued", "Processing"}:
-                        break
-                    await _asyncio.sleep(2)
-                else:
-                    message = "Flux provider outcome unknown after polling timeout"
-                    _mark_unknown(job.job_id, message)
-                    raise ImageProviderOutcomeUnknownError(message)
-            except httpx.HTTPError as exc:
-                message = f"Flux provider outcome unknown after polling error: {exc}"
-                _mark_unknown(job.job_id, message)
-                raise ImageProviderOutcomeUnknownError(message) from exc
+    def _provider_reported_cost(submit_payload: dict[str, Any]) -> float | None:
+        credits = submit_payload.get("cost")
+        if isinstance(credits, (int, float)) and credits >= 0:
+            return float(credits) * 0.01
+        return None
 
-        if status != "Ready":
-            # "Request Moderated" and "Content Moderated" arrive here. Say which.
-            raise ImageRunnerError(f"Flux did not produce an image: {status}")
-        sample = (state.get("result") or {}).get("sample")
-        if not sample:
-            raise ImageRunnerError("Flux reported Ready but returned no image")
+    async def _submit(client: Any, headers: dict[str, str]) -> Any:
+        return await client.post(f"{FLUX_API}/{model}", headers=headers, json=payload)
 
-        async with httpx.AsyncClient(timeout=180) as client:
-            download = await client.get(sample)
-            download.raise_for_status()
-            data = download.content
-
-        path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
-        image_jobs.update_job(job.job_id, output_path=str(path))
-        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
-        image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
-    except Exception as exc:
-        _mark_failed(job.job_id, str(exc)[:500])
-        raise
+    path, cost_usd = await _run_bfl_polling_lifecycle(
+        job.job_id,
+        wording=_FLUX_WORDING,
+        submit_headers=_submit_headers,
+        submit=_submit,
+        read_status=lambda state: state.get("status"),
+        is_running=lambda status: status in {"Pending", "Queued", "Processing"},
+        sample_url=lambda result: result.get("sample"),
+        parse_cost=_provider_reported_cost,
+        project_id=project_id,
+        session_id=session_id,
+        reserved_cost_usd=reserved_cost_usd,
+    )
 
     return JobResult(
         job_id=job.job_id,
-        filename=str(path),
+        filename=path,
         engine="flux",
         recipe=recipe.recipe_id if recipe else None,
         cost_usd=cost_usd,
@@ -1570,10 +1664,6 @@ async def _run_flux2(
     never reach BFL Direct — even in a retry or reroute — and this lane never
     silently falls back to another hosted engine.
     """
-    import asyncio as _asyncio
-
-    import httpx
-
     from gateway import flux2_transport
 
     enabled, reason = flux2_images_available()
@@ -1606,98 +1696,47 @@ async def _run_flux2(
         intent_json=intent_json,
     )
 
-    try:
-        _attach_job_to_session_before_dispatch(job.job_id, session_id)
-        image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
-        headers = flux2_transport.submit_headers()
-        async with httpx.AsyncClient(timeout=180) as client:
-            try:
-                submit = await client.post(
-                    flux2_transport.endpoint_for(target), headers=headers, json=payload
-                )
-            except httpx.HTTPError as exc:
-                message = (
-                    "BFL Direct provider outcome unknown after submit transport error: "
-                    f"{exc}"
-                )
-                _mark_unknown(job.job_id, message)
-                raise ImageProviderOutcomeUnknownError(message) from exc
-            if submit.status_code != 200:
-                raise ImageRunnerError(
-                    f"BFL Direct returned HTTP {submit.status_code}: {submit.text[:300]}"
-                )
-            submit_payload = submit.json()
-            try:
-                polling_url = _persist_bfl_receipt(
-                    job.job_id,
-                    submit_payload,
-                    project_id=project_id,
-                    session_id=session_id,
-                    reserved_cost_usd=reserved_cost_usd,
-                )
-            except ImageProviderOutcomeUnknownError as exc:
-                _mark_unknown(job.job_id, str(exc))
-                raise
-            cost_usd = flux2_transport.parse_cost_usd(submit_payload)
-
-            image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
-            try:
-                for _ in range(150):
-                    poll = await client.get(
-                        polling_url, headers={"x-key": headers["x-key"]}
-                    )
-                    state = poll.json()
-                    status = state.get("status", "")
-                    if not flux2_transport.is_running_status(status):
-                        break
-                    await _asyncio.sleep(2)
-                else:
-                    message = "BFL Direct provider outcome unknown after polling timeout"
-                    _mark_unknown(job.job_id, message)
-                    raise ImageProviderOutcomeUnknownError(message)
-            except httpx.HTTPError as exc:
-                message = f"BFL Direct provider outcome unknown after polling error: {exc}"
-                _mark_unknown(job.job_id, message)
-                raise ImageProviderOutcomeUnknownError(message) from exc
-
-        if status != "Ready":
-            # "Request Moderated" and "Content Moderated" arrive here. Say which.
-            raise ImageRunnerError(f"BFL Direct did not produce an image: {status}")
-        result = state.get("result") or {}
-        sample = flux2_transport.sample_url_from_result(result)
-        if not sample:
-            raise ImageRunnerError("BFL Direct reported Ready but returned no image")
+    def _record_reported_seed(result: dict[str, Any]) -> None:
         seed = flux2_transport.seed_from_result(result)
+        if seed is None or compiled_request.seed is not None:
+            return
+        current = image_jobs.get_job(job.job_id)
+        diagnostics = (
+            json.loads(current.provider_diagnostics_json or "{}")
+            if current is not None
+            else {}
+        )
+        if not isinstance(diagnostics, dict):
+            diagnostics = {}
+        diagnostics["seed"] = seed
+        image_jobs.update_job(
+            job.job_id,
+            provider_diagnostics_json=json.dumps(diagnostics, sort_keys=True),
+        )
 
-        if seed is not None and compiled_request.seed is None:
-            current = image_jobs.get_job(job.job_id)
-            diagnostics = json.loads(
-                current.provider_diagnostics_json or "{}"
-            ) if current is not None else {}
-            if not isinstance(diagnostics, dict):
-                diagnostics = {}
-            diagnostics["seed"] = seed
-            image_jobs.update_job(
-                job.job_id,
-                provider_diagnostics_json=json.dumps(diagnostics, sort_keys=True),
-            )
+    async def _submit(client: Any, headers: dict[str, str]) -> Any:
+        return await client.post(
+            flux2_transport.endpoint_for(target), headers=headers, json=payload
+        )
 
-        async with httpx.AsyncClient(timeout=180) as client:
-            download = await client.get(sample)
-            download.raise_for_status()
-            data = download.content
-
-        path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
-        image_jobs.update_job(job.job_id, output_path=str(path))
-        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
-        image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
-    except Exception as exc:
-        _mark_failed(job.job_id, str(exc)[:500])
-        raise
+    path, cost_usd = await _run_bfl_polling_lifecycle(
+        job.job_id,
+        wording=_FLUX2_WORDING,
+        submit_headers=flux2_transport.submit_headers,
+        submit=_submit,
+        read_status=lambda state: state.get("status", ""),
+        is_running=flux2_transport.is_running_status,
+        sample_url=flux2_transport.sample_url_from_result,
+        parse_cost=flux2_transport.parse_cost_usd,
+        after_result=_record_reported_seed,
+        project_id=project_id,
+        session_id=session_id,
+        reserved_cost_usd=reserved_cost_usd,
+    )
 
     return JobResult(
         job_id=job.job_id,
-        filename=str(path),
+        filename=path,
         engine="flux2",
         recipe=recipe.recipe_id if recipe else None,
         cost_usd=cost_usd,
