@@ -1391,6 +1391,75 @@ class TestInitiativeFreePreset:
         assert kwargs["worker"] == "dsh-free"
 
 
+class TestInitiativeClaudePreset:
+    _RESULT = {
+        "outcome": "succeeded",
+        "initiative_id": "init-1",
+        "packet_id": "p1",
+        "task_id": "kb_123",
+        "attempts": [],
+    }
+    _SUMMARY = {
+        "outcome": "idle",
+        "reason": None,
+        "processed": [],
+        "succeeded": 0,
+        "exhausted": 0,
+    }
+
+    def test_run_packet_claude_dispatches_subscription_adapter(self):
+        with patch(
+            "gateway.builder_loop.run_packet", return_value=self._RESULT
+        ) as mock_rp:
+            rc = main([
+                "initiative", "run-packet", "init-1", "p1", "--claude", "--json"
+            ])
+
+        assert rc == 0
+        kwargs = mock_rp.call_args.kwargs
+        assert Path(kwargs["worker_command"][1]).name == "kittybuilder_claude_adapter.py"
+        assert kwargs["worker_command"][-1] == "worker"
+        assert Path(kwargs["review_command"][1]).name == "kittybuilder_claude_adapter.py"
+        assert kwargs["review_command"][-1] == "review"
+        assert kwargs["worker"] == "claude-subscription"
+        assert kwargs["governor_db"] is None
+
+    def test_initiative_run_claude_dispatches_without_hand_built_commands(self):
+        with patch(
+            "gateway.builder_run.run_initiative", return_value=self._SUMMARY
+        ) as mock_run:
+            rc = main(["initiative", "run", "init-1", "--claude", "--json"])
+
+        assert rc == 0
+        kwargs = mock_run.call_args.kwargs
+        assert Path(kwargs["worker_command"][1]).name == "kittybuilder_claude_adapter.py"
+        assert kwargs["worker_command"][-1] == "worker"
+        assert kwargs["review_command"][-1] == "review"
+        assert kwargs["worker"] == "claude-subscription"
+        assert kwargs["governor_db"] is None
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            ["--free"],
+            ["--paid"],
+            ["--worker-command", '["true"]'],
+            ["--model", "claude-sonnet-4-5"],
+            ["--provider", "anthropic"],
+            ["--tier", "frontier"],
+        ],
+    )
+    def test_claude_rejects_ambiguous_execution_overrides(self, extra, capsys):
+        rc = main([
+            "initiative", "run-packet", "init-1", "p1", "--claude", *extra
+        ])
+
+        assert rc == 1
+        error = capsys.readouterr().err
+        assert "--claude" in error or "--tier requires --paid" in error
+
+
+
 class TestInitiativeRunExitContract:
     """Shell-level exit contract for ``initiative run``.
 

@@ -66,6 +66,7 @@ _FREE_ADAPTER_SCRIPTS = (
     "scripts/kittybuilder_dsh_worker.sh",
     "scripts/kittybuilder_dsh_reviewer.sh",
 )
+_CLAUDE_ADAPTER_SCRIPT = "scripts/kittybuilder_claude_adapter.py"
 
 
 def _free_adapter_commands() -> tuple[list[str], list[str]]:
@@ -78,6 +79,18 @@ def _free_adapter_commands() -> tuple[list[str], list[str]]:
             raise ValueError(f"free adapter script missing: {script}")
         commands.append(["bash", str(script)])
     return commands[0], commands[1]
+
+
+def _claude_adapter_commands() -> tuple[list[str], list[str]]:
+    """Resolve the fixed-model Claude subscription adapter in this checkout."""
+    root = Path(__file__).resolve().parents[1]
+    script = root / _CLAUDE_ADAPTER_SCRIPT
+    if not script.is_file():
+        raise ValueError(f"Claude adapter script missing: {script}")
+    return (
+        [sys.executable, str(script), "worker"],
+        [sys.executable, str(script), "review"],
+    )
 
 
 def _free_adapter_env(model: str | None = None) -> dict[str, str]:
@@ -113,8 +126,10 @@ def _resolve_loop_commands(
     args: argparse.Namespace,
 ) -> tuple[list[str], list[str] | None, Any | None, dict[str, str]]:
     """Resolve loop commands plus child-only adapter environment."""
-    if args.free and args.paid:
-        raise ValueError("--free and --paid are mutually exclusive")
+    claude = bool(getattr(args, "claude", False))
+    selected_presets = int(bool(args.free)) + int(bool(args.paid)) + int(claude)
+    if selected_presets > 1:
+        raise ValueError("--free, --paid, and --claude are mutually exclusive")
     if args.paid:
         if getattr(args, "no_governor", False):
             raise ValueError("--paid requires the compute governor; remove --no-governor")
@@ -140,13 +155,23 @@ def _resolve_loop_commands(
             )
         worker_command, review_command = _free_adapter_commands()
         return worker_command, review_command, None, _free_adapter_env(args.model)
+    if claude:
+        if args.worker_command or args.review_command or args.model or args.provider:
+            raise ValueError(
+                "--claude selects the fixed Claude subscription worker/reviewer; "
+                "drop --worker-command/--review-command/--model/--provider or drop --claude"
+            )
+        if args.tier != "cheap":
+            raise ValueError("--tier requires --paid")
+        worker_command, review_command = _claude_adapter_commands()
+        return worker_command, review_command, None, {}
     if args.tier != "cheap":
         raise ValueError("--tier requires --paid")
     custom_worker_command = _parse_json_array(args.worker_command)
     custom_review_command = _parse_json_array(args.review_command)
     if not custom_worker_command:
         raise ValueError(
-            "provide --free, --paid, or a non-empty --worker-command JSON array"
+            "provide --free, --paid, --claude, or a non-empty --worker-command JSON array"
         )
     return custom_worker_command, custom_review_command, None, {}
 
@@ -1507,6 +1532,8 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
     worker = args.worker
     if args.free and worker == "packet-loop":
         worker = "dsh-free"
+    elif args.claude and worker == "packet-loop":
+        worker = "claude-subscription"
     elif paid_route is not None and worker == "packet-loop":
         worker = f"dsh-paid-{paid_route.tier}"
     selected_model = paid_route.worker_model if paid_route is not None else args.model
@@ -1541,7 +1568,9 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             timeout_seconds=args.timeout,
             # Governed by default at the CLI boundary: a real dispatch pays real
             # money, so the receipt check is opt-out, not opt-in.
-            governor_db=None if args.no_governor else _governor_db_path(args),
+            governor_db=(
+                None if args.no_governor or args.claude else _governor_db_path(args)
+            ),
             governor_override=args.governor_override,
             publish=args.publish,
         )
@@ -1579,6 +1608,8 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
     worker = args.worker
     if args.free and worker == "packet-loop":
         worker = "dsh-free"
+    elif args.claude and worker == "packet-loop":
+        worker = "claude-subscription"
     elif paid_route is not None and worker == "packet-loop":
         worker = f"dsh-paid-{paid_route.tier}"
     selected_model = paid_route.worker_model if paid_route is not None else args.model
@@ -1613,7 +1644,9 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             max_runtime_seconds=args.max_runtime,
             # The autonomous runner is the path most likely to repeat itself:
             # it picks the next eligible packet without a human in the loop.
-            governor_db=None if args.no_governor else _governor_db_path(args),
+            governor_db=(
+                None if args.no_governor or args.claude else _governor_db_path(args)
+            ),
         )
     except (ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -2109,6 +2142,7 @@ COMMANDS: list[CommandSpec] = [
                  _a("packet", "packet ID"),
                  _a("--free", "use the free DSH adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
                  _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
+                 _a("--claude", "use the fixed-model Claude subscription adapter (Sonnet worker, Opus reviewer)", action="store_true"),
                  _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--publish", "after a succeeded packet, attach its final report under the task lease fence and push its branch + PR; a publication failure keeps the worktree and never reclassifies the packet", action="store_true"),
                  _a("--gate", "with --publish: 'manual' only — the PR parks at awaiting_review for a human merge; auto-merge is available on the operator 'initiative run' path, not this one", choices=["manual"], default="manual"),
@@ -2142,6 +2176,7 @@ COMMANDS: list[CommandSpec] = [
                 [_a("id", "initiative ID"),
                  _a("--free", "use the free DSH adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
                  _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
+                 _a("--claude", "use the fixed-model Claude subscription adapter (Sonnet worker, Opus reviewer)", action="store_true"),
                  _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
                  _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
