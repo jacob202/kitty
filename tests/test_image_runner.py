@@ -615,6 +615,9 @@ class TestDirectHostedProvenance:
                 return submit_payload
 
         class Client:
+            def __init__(self):
+                self.post_calls = 0
+
             async def __aenter__(self):
                 return self
 
@@ -622,6 +625,7 @@ class TestDirectHostedProvenance:
                 return False
 
             async def post(self, *_args, **_kwargs):
+                self.post_calls += 1
                 return Response()
 
             async def get(self, url, **_kwargs):
@@ -629,14 +633,18 @@ class TestDirectHostedProvenance:
                     raise httpx.ReadTimeout("poll response lost")
                 raise AssertionError(f"unexpected download before recovery: {url}")
 
+        client = Client()
         monkeypatch.setenv("BFL_API_KEY", "test-key")
         monkeypatch.setattr("gateway.image_runner.flux_images_available", lambda: (True, ""))
-        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: Client())
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: client)
 
         with pytest.raises(ImageRunnerError) as exc:
             await run("flux", "a portrait")
 
         assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
+        assert client.post_calls == 1, (
+            "a failed poll must never resubmit: exactly one paid submission per attempt"
+        )
         job = image_jobs.list_recent(limit=1)[0]
         assert job.status is ImageJobStatus.UNKNOWN
         assert job.provider_job_id == "legacy-bfl-123"
