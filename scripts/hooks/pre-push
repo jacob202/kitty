@@ -219,13 +219,32 @@ export KITTY_EXPECTED_TEST_HEAD="$(git rev-parse HEAD)"
 GATE_TMP_ROOT="${TMPDIR:-/tmp}"
 GATE_TMP_ROOT="${GATE_TMP_ROOT%/}"
 GATE_TMP_BASE="$(mktemp -d "${GATE_TMP_ROOT}/kitty-gate-pytest-XXXXXXXX")"
+# No `-e` here: without this check a failed mktemp reaches pytest as
+# `--basetemp=""`, which pytest rejects with a usage error that names the
+# argument rather than the real cause, and the run reports as an ordinary
+# test failure instead of an infrastructure one. Never run the gate against
+# a temp tree it did not create.
+if [[ -z "${GATE_TMP_BASE}" || ! -d "${GATE_TMP_BASE}" ]]; then
+  say "${RED}Push blocked — cannot create a private pytest temp base under ${GATE_TMP_ROOT}.${OFF}"
+  say "The tests gate will not run against a shared temp tree. Fix that directory or set TMPDIR elsewhere, then retry."
+  exit 75
+fi
 cleanup_gate_tmp_base() {
   [[ -n "${GATE_TMP_BASE:-}" && -d "${GATE_TMP_BASE}" ]] || return 0
+  local chmod_diag rm_diag
   # Tests create read-only directories, and rm cannot descend into those without
   # write permission; without this the removal silently leaves the base behind.
-  chmod -R u+w "${GATE_TMP_BASE}" 2>/dev/null
-  rm -rf "${GATE_TMP_BASE}" 2>/dev/null
-  [[ -d "${GATE_TMP_BASE}" ]] && say "  ${YELLOW}note${OFF}  temp base could not be removed: ${GATE_TMP_BASE}"
+  chmod_diag="$(chmod -R u+w "${GATE_TMP_BASE}" 2>&1)" || true
+  rm_diag="$(rm -rf "${GATE_TMP_BASE}" 2>&1)" || true
+  [[ -d "${GATE_TMP_BASE}" ]] || return 0
+  say "  ${YELLOW}note${OFF}  temp base could not be removed: ${GATE_TMP_BASE}"
+  # This hook's doctrine is that a gate which hides its reason is worse than no
+  # gate, so the cause is printed rather than discarded.
+  [[ -n "${chmod_diag}" ]] && printf '%s\n' "${chmod_diag}" >&2
+  [[ -n "${rm_diag}" ]] && printf '%s\n' "${rm_diag}" >&2
+  # Deliberately not a push failure: leftover files under ${GATE_TMP_ROOT} do not
+  # make the gate's verdict wrong, and blocking a good push over housekeeping
+  # would manufacture the false red this change exists to remove.
   return 0
 }
 trap cleanup_gate_tmp_base EXIT
