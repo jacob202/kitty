@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
+from gateway import builder_cli
+from gateway import builder_execution_boundary as beb
 from gateway.builder_cli import build_parser, main
 
 # ---------------------------------------------------------------------------
@@ -1389,6 +1391,123 @@ class TestInitiativeFreePreset:
             "scripts/kittybuilder_dsh_reviewer.sh"
         )
         assert kwargs["worker"] == "dsh-free"
+
+
+class TestInitiativeClaudePreset:
+    _RESULT = {
+        "outcome": "succeeded",
+        "initiative_id": "init-1",
+        "packet_id": "p1",
+        "task_id": "kb_123",
+        "attempts": [],
+    }
+    _SUMMARY = {
+        "outcome": "idle",
+        "reason": None,
+        "processed": [],
+        "succeeded": 0,
+        "exhausted": 0,
+    }
+
+    @pytest.fixture
+    def claude_adapter(self, tmp_path: Path):
+        """A fake resolved (script, claude binary) pair, isolated from the host.
+
+        The real resolver depends on the operator's machine having Claude
+        Code installed on PATH; mocking it here keeps these tests hermetic
+        instead of depending on that.
+        """
+        script = tmp_path / "kittybuilder_claude_adapter.py"
+        script.write_text("#!/usr/bin/env python3\n")
+        claude_bin = tmp_path / "claude-bin" / "claude"
+        claude_bin.parent.mkdir()
+        claude_bin.write_text("#!/bin/sh\n")
+        claude_bin.chmod(0o755)
+        with patch(
+            "gateway.builder_cli._resolve_claude_adapter",
+            return_value=(script, claude_bin),
+        ):
+            yield script, claude_bin
+
+    def test_run_packet_claude_dispatches_subscription_adapter(
+        self, claude_adapter
+    ):
+        script, claude_bin = claude_adapter
+        with patch(
+            "gateway.builder_loop.run_packet", return_value=self._RESULT
+        ) as mock_rp:
+            rc = main([
+                "initiative", "run-packet", "init-1", "p1", "--claude", "--json"
+            ])
+
+        assert rc == 0
+        kwargs = mock_rp.call_args.kwargs
+        worker_command = kwargs["worker_command"]
+        assert worker_command[:2] == ["bash", "-c"]
+        assert worker_command[-2:] == [str(script), "worker"]
+        # Validation-gated only: the reviewer role runs through a separate
+        # code path (_run_review_command) that never receives
+        # CLAUDE_CODE_OAUTH_TOKEN, so a Claude review_command would exit 75
+        # unauthenticated on every attempt rather than actually review.
+        assert kwargs["review_command"] is None
+        assert kwargs["worker"] == "claude-subscription"
+        assert kwargs["governor_db"] is None
+        assert kwargs["adapter_env"] == {"KITTYBUILDER_CLAUDE_BIN": str(claude_bin)}
+
+    def test_initiative_run_claude_dispatches_without_hand_built_commands(
+        self, claude_adapter
+    ):
+        script, claude_bin = claude_adapter
+        with patch(
+            "gateway.builder_run.run_initiative", return_value=self._SUMMARY
+        ) as mock_run:
+            rc = main(["initiative", "run", "init-1", "--claude", "--json"])
+
+        assert rc == 0
+        kwargs = mock_run.call_args.kwargs
+        assert kwargs["worker_command"][-2:] == [str(script), "worker"]
+        assert kwargs["review_command"] is None
+        assert kwargs["worker"] == "claude-subscription"
+        assert kwargs["governor_db"] is None
+
+    def test_claude_binary_earns_a_sandbox_read_grant(self, claude_adapter):
+        """Behavioral, not structural: the boundary must actually grant it.
+
+        The claude binary never appears in the adapter's own argv (the
+        adapter reads KITTYBUILDER_CLAUDE_BIN instead); it rides in the
+        command list solely so builder_execution_boundary's static scan
+        grants its installation directory. Assert that grant directly rather
+        than trusting the command's shape.
+        """
+        script, claude_bin = claude_adapter
+        worker_command, _ = builder_cli._claude_adapter_commands(script, claude_bin)
+        granted = beb._command_support_read_paths(
+            worker_command, worktree=Path("/nonexistent-worktree")
+        )
+        assert str(claude_bin.parent) in granted
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            ["--free"],
+            ["--paid"],
+            ["--worker-command", '["true"]'],
+            ["--model", "claude-sonnet-4-5"],
+            ["--provider", "anthropic"],
+            ["--tier", "frontier"],
+        ],
+    )
+    def test_claude_rejects_ambiguous_execution_overrides(
+        self, extra, capsys, claude_adapter
+    ):
+        rc = main([
+            "initiative", "run-packet", "init-1", "p1", "--claude", *extra
+        ])
+
+        assert rc == 1
+        error = capsys.readouterr().err
+        assert "--claude" in error or "--tier requires --paid" in error
+
 
 
 class TestInitiativeRunExitContract:

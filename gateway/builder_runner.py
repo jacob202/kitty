@@ -90,6 +90,72 @@ class RunnerError(RuntimeError):
     """Raised for worktree or run-orchestration failures."""
 
 
+_CLAUDE_ADAPTER_MARKER = "kittybuilder_claude_adapter"
+
+
+def _inject_claude_subscription_token(
+    child_env: dict[str, str], command: list[str], repo_root: Path
+) -> None:
+    """Hand the Claude adapter its inference-scoped subscription token.
+
+    The boundary strips every ambient secret, so each lane's own credential is
+    re-supplied explicitly — the same shape as the OpenRouter key injection in
+    ``builder_loop``, and scoped here to the one command that needs it. The
+    token comes from ``claude setup-token``; it can do nothing but inference,
+    and no worker ever reads the operator's ``~/.claude`` credential store.
+    """
+    if not any(_CLAUDE_ADAPTER_MARKER in part for part in command):
+        return
+    token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").strip()
+    if not token:
+        # Unattended launches do not inherit an operator shell, so fall back to
+        # the repo .env that already carries OPENROUTER_API_KEY for the DSH lane.
+        try:
+            from dotenv import dotenv_values
+
+            token = (
+                dotenv_values(repo_root / ".env").get("CLAUDE_CODE_OAUTH_TOKEN") or ""
+            ).strip()
+        except Exception:  # noqa: BLE001 - absent/unreadable .env is not fatal
+            token = ""
+    if token:
+        child_env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+
+
+def _seed_worker_claude_trust(
+    child_env: dict[str, str], worktree: Path, repo_root: Path
+) -> None:
+    """Pre-trust the packet worktree for a Claude Code worker or reviewer.
+
+    The boundary redirects HOME into the run directory, so Claude Code starts
+    from an empty config and treats the workspace as untrusted. Untrusted does
+    not fail loudly: it silently *ignores* the packet's `.claude/settings.json`
+    permission allow-list, so the child loses every tool it was granted and
+    stalls without naming the reason. This is the non-interactive equivalent of
+    accepting the trust dialog once, and grants nothing the packet's own
+    settings did not already grant.
+
+    Both the worktree and the canonical checkout are trusted. A linked worktree
+    reaches its `.git` through the main repository, and Claude Code resolved
+    the workspace to the canonical checkout in some runs and to the worktree in
+    others; trusting only one left the worker tool-less on the other.
+    """
+    config = Path(child_env["HOME"]) / ".claude.json"
+    trusted = {str(worktree.resolve()), str(repo_root.resolve())}
+    payload = {
+        "hasCompletedOnboarding": True,
+        "projects": {path: {"hasTrustDialogAccepted": True} for path in sorted(trusted)},
+    }
+    try:
+        config.write_text(
+            json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+        )
+    except OSError as exc:
+        raise RunnerError(
+            f"cannot seed the worker Claude trust config {config}: {exc}"
+        ) from exc
+
+
 def _existing_parent(path: Path) -> Path:
     """Return the nearest existing parent for a path we may create later."""
     candidate = path
@@ -1599,6 +1665,8 @@ def run_worker(
     assert run is not None
 
     child_env = beb.build_child_environment(os.environ, run_dir=run_dir)
+    _seed_worker_claude_trust(child_env, wt_path, root)
+    _inject_claude_subscription_token(child_env, command, root)
     validation_venv, validation_read_roots = _validation_toolchain(root)
     child_env["GH_CONFIG_DIR"] = str(gh_config_dir)
     child_env["GIT_CONFIG_GLOBAL"] = os.devnull

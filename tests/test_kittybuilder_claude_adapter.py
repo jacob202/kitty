@@ -192,6 +192,47 @@ def test_worker_missing_claude_exits_75(repo: Path, tmp_path: Path) -> None:
     assert not result_path.exists()
 
 
+def test_exit_75_names_the_host_cause_not_a_dead_provider(
+    repo: Path, tmp_path: Path
+) -> None:
+    """75 renders as "all providers unavailable"; stderr must say what really broke.
+
+    A silent 75 sent three separate debugging sessions at the model catalog
+    when the real fault was this host: no binary, or no subscription token.
+    """
+    task_id = "task_abc"
+    attempt_id = "123"
+    bundle_path, manifest_path, _ = _bundle(tmp_path, task_id, attempt_id)
+
+    env = os.environ.copy()
+    env["KB_BUNDLE_PATH"] = str(bundle_path)
+    env["KB_RESULT_PATH"] = str(tmp_path / "result.json")
+    env["KB_CONTEXT_MANIFEST_PATH"] = str(manifest_path)
+    env["KB_ATTEMPT_ID"] = attempt_id
+    env["KB_TASK_ID"] = task_id
+
+    missing = dict(env, KITTYBUILDER_CLAUDE_BIN="/nonexistent/claude")
+    result = subprocess.run(
+        [sys.executable, str(_ADAPTER), "worker"],
+        cwd=repo, env=missing, capture_output=True, text=True,
+    )
+    assert result.returncode == 75
+    assert "no usable claude executable" in result.stderr
+
+    unauthenticated = dict(
+        env,
+        KITTYBUILDER_CLAUDE_BIN=str(_fake_claude(tmp_path, probe_ok=False)),
+        KITTYBUILDER_CLAUDE_PROBE_TIMEOUT="5",
+    )
+    result = subprocess.run(
+        [sys.executable, str(_ADAPTER), "worker"],
+        cwd=repo, env=unauthenticated, capture_output=True, text=True,
+    )
+    assert result.returncode == 75
+    assert "setup-token" in result.stderr
+    assert "CLAUDE_CODE_OAUTH_TOKEN" in result.stderr
+
+
 def test_worker_probe_fail_exits_75(repo: Path, tmp_path: Path) -> None:
     """Worker probe failure exits 75 without result."""
     fake = _fake_claude(tmp_path, probe_ok=False)
