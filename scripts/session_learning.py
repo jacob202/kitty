@@ -13,7 +13,9 @@ Promotion is deliberately conservative:
   least two sessions within the rolling window.
 
 Session-end owns extraction from the conversation. This module owns validation,
-stable identity, repeat counting, and a machine-readable summary.
+stable identity, repeat counting, and a machine-readable summary. Resolutions are
+append-only pointer records under ``workflow-signals/resolutions``: closing a
+signal never rewrites its observations, and a later observation reopens it.
 """
 
 from __future__ import annotations
@@ -36,6 +38,8 @@ from typing import Any, Iterable, Mapping
 SCHEMA_VERSION = 1
 DEFAULT_WINDOW_DAYS = 30
 PROMOTION_STATUSES = frozenset({"observe", "promote"})
+RESOLUTION_STATUSES = frozenset({"open", "implemented", "superseded"})
+TERMINAL_RESOLUTION_STATUSES = RESOLUTION_STATUSES - {"open"}
 
 CATEGORIES = frozenset(
     {
@@ -323,6 +327,113 @@ def load_signals(root: Path) -> list[dict[str, Any]]:
         identities.add(identity)
     _validate_occurrence_counts(signals)
     return signals
+
+
+def _resolution_id(
+    resolved_at: datetime, stable_key: str, resolution_ref: str
+) -> str:
+    timestamp = resolved_at.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ref_hash = hashlib.sha256(resolution_ref.encode("utf-8")).hexdigest()[:12]
+    return f"wfr_{timestamp.lower()}_{fingerprint(stable_key)}_{ref_hash}"
+
+
+def _resolution_dir(root: Path) -> Path:
+    return root / "resolutions"
+
+
+def _resolution_path(root: Path, resolution: dict[str, Any]) -> Path:
+    resolved_at = parse_timestamp(resolution["resolved_at"], field="resolved_at")
+    timestamp = resolved_at.strftime("%Y%m%dT%H%M%SZ")
+    ref_hash = hashlib.sha256(
+        str(resolution["resolution_ref"]).encode("utf-8")
+    ).hexdigest()[:12]
+    return _resolution_dir(root) / (
+        f"{timestamp}-{resolution['stable_key']}-{ref_hash}.json"
+    )
+
+
+def _validate_resolution(raw: Any, *, path: Path) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise SignalError(f"resolution {path} must contain a JSON object")
+    expected_keys = {
+        "schema_version",
+        "id",
+        "stable_key",
+        "fingerprint",
+        "resolution_status",
+        "resolution_ref",
+        "resolved_at",
+        "store_scope",
+    }
+    unknown = sorted(set(raw) - expected_keys)
+    missing = sorted(expected_keys - set(raw))
+    if unknown or missing:
+        raise SignalError(
+            f"resolution {path} has unknown={unknown} missing={missing}"
+        )
+    if raw["schema_version"] != SCHEMA_VERSION:
+        raise SignalError(
+            f"resolution {path} has unsupported schema_version "
+            f"{raw['schema_version']!r}"
+        )
+    stable_key = raw["stable_key"]
+    if not isinstance(stable_key, str) or not _STABLE_KEY_RE.fullmatch(stable_key):
+        raise SignalError(f"resolution {path} has invalid stable_key")
+    if raw["fingerprint"] != fingerprint(stable_key):
+        raise SignalError(f"resolution {path} has a mismatched fingerprint")
+    status = raw["resolution_status"]
+    if status not in TERMINAL_RESOLUTION_STATUSES:
+        raise SignalError(
+            f"resolution {path} status must be one of "
+            f"{sorted(TERMINAL_RESOLUTION_STATUSES)}"
+        )
+    ref = raw["resolution_ref"]
+    if not isinstance(ref, str) or not ref.strip():
+        raise SignalError(f"resolution {path} requires a non-empty resolution_ref")
+    ref = ref.strip()
+    resolved_at = parse_timestamp(
+        raw["resolved_at"], field=f"{path}:resolved_at"
+    )
+    expected_id = _resolution_id(resolved_at, stable_key, ref)
+    if raw["id"] != expected_id:
+        raise SignalError(
+            f"resolution {path} has id {raw['id']!r}; expected {expected_id!r}"
+        )
+    if not isinstance(raw["store_scope"], str) or not raw["store_scope"].strip():
+        raise SignalError(f"resolution {path} has invalid store_scope")
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "id": expected_id,
+        "stable_key": stable_key,
+        "fingerprint": raw["fingerprint"],
+        "resolution_status": status,
+        "resolution_ref": ref,
+        "resolved_at": resolved_at.isoformat().replace("+00:00", "Z"),
+        "store_scope": raw["store_scope"].strip(),
+    }
+
+
+def load_resolutions(root: Path) -> list[dict[str, Any]]:
+    resolution_dir = _resolution_dir(root)
+    if not resolution_dir.exists():
+        return []
+    if not resolution_dir.is_dir():
+        raise SignalError(f"resolution store is not a directory: {resolution_dir}")
+    resolutions: list[dict[str, Any]] = []
+    ids: set[str] = set()
+    for path in sorted(resolution_dir.glob("*.json")):
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            raise SignalError(f"cannot read resolution {path}: {exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise SignalError(f"resolution {path} is invalid JSON: {exc}") from exc
+        resolution = _validate_resolution(raw, path=path)
+        if resolution["id"] in ids:
+            raise SignalError(f"duplicate resolution id {resolution['id']!r}")
+        ids.add(resolution["id"])
+        resolutions.append(resolution)
+    return resolutions
 
 
 def _in_window(
@@ -619,6 +730,106 @@ def record_signal(
             fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
 
 
+def resolve_signal(
+    stable_key: str,
+    *,
+    status: str,
+    resolution_ref: str,
+    store: Store,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Append a terminal pointer stub without rewriting observation evidence."""
+    if not isinstance(stable_key, str) or not _STABLE_KEY_RE.fullmatch(stable_key):
+        raise SignalError(
+            "stable_key must be 3-80 lowercase letters, digits, or hyphens"
+        )
+    if status not in TERMINAL_RESOLUTION_STATUSES:
+        raise SignalError(
+            f"resolution status must be one of {sorted(TERMINAL_RESOLUTION_STATUSES)}"
+        )
+    if not isinstance(resolution_ref, str) or not resolution_ref.strip():
+        raise SignalError(
+            "resolution_ref must be a non-empty commit/path/evidence reference"
+        )
+    ref = resolution_ref.strip()
+    resolved_at = (now or utc_now()).astimezone(timezone.utc)
+
+    store.root.mkdir(parents=True, exist_ok=True)
+    lock_path = store.root / ".workflow-signals.lock"
+    with lock_path.open("a+", encoding="utf-8") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        try:
+            signals = load_signals(store.root)
+            matches = [
+                signal for signal in signals if signal["stable_key"] == stable_key
+            ]
+            if not matches:
+                raise SignalError(f"no signal found for stable_key {stable_key!r}")
+            latest_signal_at = max(
+                parse_timestamp(signal["recorded_at"], field="recorded_at")
+                for signal in matches
+            )
+            if resolved_at < latest_signal_at:
+                raise SignalError(
+                    "resolution time cannot precede the latest observation for "
+                    f"{stable_key!r}"
+                )
+
+            existing = [
+                resolution
+                for resolution in load_resolutions(store.root)
+                if resolution["stable_key"] == stable_key
+                and parse_timestamp(
+                    resolution["resolved_at"], field="resolved_at"
+                )
+                >= latest_signal_at
+            ]
+            if existing:
+                latest_resolution = max(
+                    existing,
+                    key=lambda item: parse_timestamp(
+                        item["resolved_at"], field="resolved_at"
+                    ),
+                )
+                if (
+                    latest_resolution["resolution_status"] == status
+                    and latest_resolution["resolution_ref"] == ref
+                ):
+                    return {
+                        "updated": False,
+                        **latest_resolution,
+                        "resolved_count": len(matches),
+                        "path": str(_resolution_path(store.root, latest_resolution)),
+                    }
+                raise SignalError(
+                    f"signal {stable_key!r} is already resolved as "
+                    f"{latest_resolution['resolution_status']!r} at "
+                    f"{latest_resolution['resolution_ref']!r}"
+                )
+
+            record = {
+                "schema_version": SCHEMA_VERSION,
+                "id": _resolution_id(resolved_at, stable_key, ref),
+                "stable_key": stable_key,
+                "fingerprint": fingerprint(stable_key),
+                "resolution_status": status,
+                "resolution_ref": ref,
+                "resolved_at": resolved_at.isoformat().replace("+00:00", "Z"),
+                "store_scope": store.scope,
+            }
+            path = _resolution_path(store.root, record)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _write_resolution_atomically(path, record)
+            return {
+                "updated": True,
+                **record,
+                "resolved_count": len(matches),
+                "path": str(path),
+            }
+        finally:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+
+
 def _signal_path(root: Path, signal: dict[str, Any]) -> Path:
     recorded_at = parse_timestamp(signal["recorded_at"], field="recorded_at")
     timestamp = recorded_at.strftime("%Y%m%dT%H%M%SZ")
@@ -654,9 +865,36 @@ def _write_signal_atomically(path: Path, record: dict[str, Any]) -> None:
             pass
 
 
+def _write_resolution_atomically(path: Path, record: dict[str, Any]) -> None:
+    """Publish one immutable resolution pointer without rewriting observations."""
+    temp_fd, temp_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as handle:
+            json.dump(record, handle, indent=2, sort_keys=True, allow_nan=False)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.link(temp_name, path)
+        except FileExistsError as exc:
+            raise SignalError(
+                f"refusing to overwrite existing resolution collision: {path}"
+            ) from exc
+    except OSError as exc:
+        raise SignalError(f"cannot atomically write resolution {path}: {exc}") from exc
+    finally:
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
+
+
 def summarize_signals(
     signals: Iterable[dict[str, Any]],
     *,
+    resolutions: Iterable[dict[str, Any]] = (),
     now: datetime | None = None,
     window_days: int = DEFAULT_WINDOW_DAYS,
 ) -> dict[str, Any]:
@@ -669,6 +907,10 @@ def summarize_signals(
     for signal in signals:
         if _in_window(signal, now=observed_at, window=window):
             grouped[str(signal["stable_key"])].append(signal)
+
+    resolution_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for resolution in resolutions:
+        resolution_groups[str(resolution["stable_key"])].append(resolution)
 
     items: list[dict[str, Any]] = []
     for stable_key, entries in grouped.items():
@@ -685,6 +927,25 @@ def summarize_signals(
             severity=max_severity,
             occurrence_count=len(entries),
         )
+        latest_recorded_at = parse_timestamp(
+            latest["recorded_at"], field="recorded_at"
+        )
+        applicable_resolutions = [
+            resolution
+            for resolution in resolution_groups.get(stable_key, [])
+            if parse_timestamp(resolution["resolved_at"], field="resolved_at")
+            >= latest_recorded_at
+        ]
+        latest_resolution = (
+            max(
+                applicable_resolutions,
+                key=lambda item: parse_timestamp(
+                    item["resolved_at"], field="resolved_at"
+                ),
+            )
+            if applicable_resolutions
+            else None
+        )
         items.append(
             {
                 "stable_key": stable_key,
@@ -697,6 +958,21 @@ def summarize_signals(
                 "suggested_change": latest["suggested_change"],
                 "promotion_status": status,
                 "promotion_reason": reason,
+                "resolution_status": (
+                    latest_resolution["resolution_status"]
+                    if latest_resolution
+                    else "open"
+                ),
+                "resolution_ref": (
+                    latest_resolution["resolution_ref"]
+                    if latest_resolution
+                    else None
+                ),
+                "resolved_at": (
+                    latest_resolution["resolved_at"]
+                    if latest_resolution
+                    else None
+                ),
             }
         )
 
@@ -715,8 +991,21 @@ def summarize_signals(
         "window_days": window_days,
         "total_signals": sum(len(entries) for entries in grouped.values()),
         "unique_signals": len(items),
-        "promoted": [item for item in items if item["promotion_status"] == "promote"],
-        "observed": [item for item in items if item["promotion_status"] == "observe"],
+        "promoted": [
+            item
+            for item in items
+            if item["promotion_status"] == "promote"
+            and item["resolution_status"] == "open"
+        ],
+        "observed": [
+            item
+            for item in items
+            if item["promotion_status"] == "observe"
+            and item["resolution_status"] == "open"
+        ],
+        "resolved": [
+            item for item in items if item["resolution_status"] != "open"
+        ],
     }
 
 
@@ -747,6 +1036,20 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--payload-json")
     record.add_argument("--payload-file", type=Path)
 
+    resolve = subparsers.add_parser(
+        "resolve", help="append a terminal pointer for one stable signal family"
+    )
+    resolve.add_argument("--stable-key", required=True)
+    resolve.add_argument(
+        "--status", required=True, choices=sorted(TERMINAL_RESOLUTION_STATUSES)
+    )
+    resolve.add_argument(
+        "--ref",
+        required=True,
+        dest="resolution_ref",
+        help="commit SHA, path, ADR, or other durable evidence reference",
+    )
+
     subparsers.add_parser("summary", help="summarize recent signals")
     return parser
 
@@ -761,12 +1064,21 @@ def main(argv: list[str] | None = None) -> int:
                 store=store,
                 window_days=args.window_days,
             )
+        elif args.command == "resolve":
+            result = resolve_signal(
+                args.stable_key,
+                status=args.status,
+                resolution_ref=args.resolution_ref,
+                store=store,
+            )
         else:
             result = {
                 "store": str(store.root),
                 "store_scope": store.scope,
                 **summarize_signals(
-                    load_signals(store.root), window_days=args.window_days
+                    load_signals(store.root),
+                    resolutions=load_resolutions(store.root),
+                    window_days=args.window_days,
                 ),
             }
     except SignalError as exc:
