@@ -84,12 +84,13 @@ resources:
     - gateway/routes/image_studio.py
     - gateway/routes/image_studio_jobs.py
     - gateway/runpod_worker.py
-    - mcp/imagen/requirements.txt
+    - mcp/imagen/**
     - scripts/image_lab_acceptance_scene.py
     - tests/test_comfy_worker_stuck_running_on_oserror.py
     - tests/test_flux2_transport.py
     - tests/test_image_*.py
     - tests/test_imagelab_iteration.py
+    - tests/test_imagen/**
     - tests/test_runpod_control.py
     - tests/test_runpod_worker_error_sanitization.py
     - tests/test_runpod_worker_smoke_test.py
