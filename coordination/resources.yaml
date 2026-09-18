@@ -296,7 +296,6 @@ resources:
     paths:
     - .github/pull_request_template.md
     - .github/workflows/pr-agent-review.yml
-    - .github/workflows/qodo-pr-agent.yml
     - scripts/pr_policy.py
     - scripts/pr_review.py
     - scripts/pr_review_gate.py
