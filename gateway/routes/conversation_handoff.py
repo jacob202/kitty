@@ -18,26 +18,6 @@ from gateway import conversation_handoff, mission_runtime
 logger = logging.getLogger("kitty.conversation_handoff_routes")
 router = APIRouter(tags=["conversation-handoff"])
 
-# conversation_handoff.propose()/approve()/resume() carry a raw
-# f"{type(exc).__name__}: {exc}" string in `error` for these codes -- useful
-# for an MCP client's diagnostics, but a raw exception dump violates Kitty's
-# user-facing-copy rule when this same receipt reaches the chat UI. Translate
-# only what a person needs to know; the original text still reaches the logs.
-_USER_FACING_ERROR_COPY: dict[str, str] = {
-    "repo_unavailable": "Kitty could not reach the repository to prepare this job. Try again in a moment.",
-    "planning_artifact_failed": "Kitty could not save this proposal's plan. Try again, or ask to resolve the coordination lock if this keeps happening.",
-}
-
-
-def _translate_receipt_error(result: dict) -> dict:
-    if isinstance(result, dict) and result.get("ok") is False:
-        code = result.get("error_code")
-        safe_copy = _USER_FACING_ERROR_COPY.get(code) if isinstance(code, str) else None
-        if safe_copy is not None:
-            logger.warning("conversation handoff %s: %s", code, result.get("error"))
-            result = {**result, "error": safe_copy}
-    return result
-
 
 class CompileRequest(BaseModel):
     request: str = Field(min_length=1, max_length=8000)
@@ -88,7 +68,7 @@ def compile_builder_request(body: CompileRequest) -> dict:
 def propose_builder_job(body: ProposeRequest, background_tasks: BackgroundTasks) -> dict:
     """Prepare one Mission candidate and automatically request independent plan review."""
     try:
-        result = _translate_receipt_error(conversation_handoff.propose(**body.model_dump()))
+        result = conversation_handoff.propose(**body.model_dump())
         gateway_mission_id = result.get("gateway_mission_id") if result.get("ok") else None
         if isinstance(gateway_mission_id, str) and gateway_mission_id:
             background_tasks.add_task(mission_runtime.request_plan_review, gateway_mission_id)
@@ -106,7 +86,7 @@ def propose_builder_job(body: ProposeRequest, background_tasks: BackgroundTasks)
 def approve_builder_job(body: ApproveRequest) -> dict:
     """Create the durable Builder job. Refuses unless ``confirmed`` is explicitly true."""
     try:
-        return _translate_receipt_error(conversation_handoff.approve(**body.model_dump()))
+        return conversation_handoff.approve(**body.model_dump())
     except Exception:
         logger.exception("conversation approve failed")
         return {
@@ -124,9 +104,7 @@ def resume_builder_job(
 ) -> dict:
     """Recover durable state and reconcile a finished Builder result into Mission."""
     try:
-        result = _translate_receipt_error(
-            conversation_handoff.resume(mission_id=mission_id, task_id=task_id)
-        )
+        result = conversation_handoff.resume(mission_id=mission_id, task_id=task_id)
         acceptance = result.get("mission_acceptance") if isinstance(result, dict) else None
         gateway_mission_id = acceptance.get("mission_id") if isinstance(acceptance, dict) else None
         # Gate on the exact Builder/Mission facts, not the aggregate receipt.
