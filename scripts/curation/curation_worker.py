@@ -19,6 +19,8 @@ from gateway.config import (
     OWUI_URL,
 )
 
+DB_PATH = Path("data/curation_status.db")
+
 
 # --- OpenWebUI Helpers ---
 def owui_login():
@@ -162,7 +164,7 @@ async def process_and_upload(book_id: str, source_path: Path):
                 file_id = up_resp.json().get("id")
 
                 # Add to KB
-                add_resp = requests.post(f"{creds['url']}/api/v1/knowledge/{kb_id}/file/add",
+                add_resp = requests.post(f"{OWUI_URL}/api/v1/knowledge/{kb_id}/file/add",
                                          headers={"Authorization": f"Bearer {token}"},
                                          json={"file_id": file_id},
                                          timeout=120)
