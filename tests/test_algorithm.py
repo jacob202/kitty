@@ -68,34 +68,28 @@ class _FakeState:
         self.status = status
 
 
-def _seed_active_session(session_id: int) -> None:
-    """Persist an active session — the precondition the loop's guard reads.
+def _start_active_session(goal: str) -> int:
+    """Start the session the loop's guard reads, through the public API.
 
     `_run_agent_loop` returns before the first model call unless
-    autonomy_state.STATE_DB reports this session as active, so a test asserting
-    on the framed prompt has to create that row itself. Inheriting it from
+    autonomy_state.STATE_DB reports the session as active, so a test asserting
+    on the framed prompt has to create that session itself. Inheriting it from
     whichever test ran earlier in the same process made these assertions pass in
-    a serial run and fail under `pytest -n auto`.
+    a serial run and fail under `pytest -n auto`. Creating it the way a caller
+    does keeps the test on the interface rather than on the table.
     """
-    import sqlite3
-    import time
+    from gateway.autonomy_state import AutonomyState
 
-    from gateway import autonomy_state
-
-    autonomy_state.init_db()
-    now = time.time()
-    with sqlite3.connect(autonomy_state.STATE_DB) as conn:
-        conn.execute(
-            "INSERT INTO autonomy_sessions (id, goal, status, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (session_id, "do the thing", "active", now, now),
-        )
+    session = AutonomyState.start_new(goal)
+    if session.session_id is None:
+        raise RuntimeError("AutonomyState.start_new did not allocate a session_id")
+    return session.session_id
 
 
 def _wire_loop(monkeypatch, response):
     """Patch the loop's runtime deps; return (captured, state) for assertions."""
     captured: dict = {}
-    state = _FakeState(session_id=1)
+    state = _FakeState(session_id=_start_active_session("do the thing"))
 
     def fake_call_llm(**kwargs):
         captured["messages"] = kwargs["messages"]
@@ -104,7 +98,6 @@ def _wire_loop(monkeypatch, response):
     monkeypatch.setattr("gateway.llm_client.call_llm", fake_call_llm)
     monkeypatch.setattr("gateway.llm_client.route_model", lambda goal: "test-model")
     monkeypatch.setattr("gateway.autonomy_state.AutonomyState", lambda session_id: state)
-    _seed_active_session(state.session_id)
     return captured, state
 
 
@@ -113,7 +106,9 @@ async def test_run_agent_loop_frames_prompt_and_tags_phase(monkeypatch):
     from gateway.agent_runner import _run_agent_loop
 
     captured, state = _wire_loop(monkeypatch, "## PHASE: DECIDE\nhere is the plan")
-    await _run_agent_loop(1, "do the thing", "BASE PROMPT", "test-model", 1, 0.2, True)
+    await _run_agent_loop(
+        state.session_id, "do the thing", "BASE PROMPT", "test-model", 1, 0.2, True
+    )
 
     system_prompt = captured["messages"][0]["content"]
     assert "## The Algorithm" in system_prompt
@@ -129,8 +124,42 @@ async def test_run_agent_loop_leaves_prompt_unframed_when_disabled(monkeypatch):
     from gateway.agent_runner import _run_agent_loop
 
     captured, state = _wire_loop(monkeypatch, "## PHASE: DECIDE\nplan")
-    await _run_agent_loop(1, "do the thing", "BASE PROMPT", "test-model", 1, 0.2, False)
+    await _run_agent_loop(
+        state.session_id, "do the thing", "BASE PROMPT", "test-model", 1, 0.2, False
+    )
 
     assert captured["messages"][0]["content"] == "BASE PROMPT"
     assistant = [s for s in state.steps if s["role"] == "assistant"]
     assert assistant and not assistant[-1]["thinking"].startswith("[")
+
+
+@pytest.mark.asyncio
+async def test_run_agent_loop_returns_before_the_model_when_the_session_is_not_active(
+    monkeypatch,
+):
+    """The precondition the per-test store exists to satisfy, made explicit.
+
+    A session that is no longer `active` must not reach the model: that guard is
+    what the tests above depend on, and what a shared store used to supply by
+    accident.
+    """
+    from gateway.agent_runner import _run_agent_loop
+    from gateway.autonomy_state import AutonomyState
+
+    session_id = _start_active_session("do the thing")
+    AutonomyState(session_id).finish("completed")
+
+    calls: list[dict] = []
+    state = _FakeState(session_id=session_id)
+    monkeypatch.setattr(
+        "gateway.llm_client.call_llm", lambda **kwargs: calls.append(kwargs)
+    )
+    monkeypatch.setattr("gateway.llm_client.route_model", lambda goal: "test-model")
+    monkeypatch.setattr("gateway.autonomy_state.AutonomyState", lambda session_id: state)
+
+    await _run_agent_loop(
+        session_id, "do the thing", "BASE PROMPT", "test-model", 1, 0.2, True
+    )
+
+    assert calls == []
+    assert state.steps == []

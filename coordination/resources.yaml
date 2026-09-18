@@ -203,6 +203,7 @@ resources:
     - scripts/kb_effectiveness.py
     - scripts/kitty_backup.py
     - scripts/preflight.sh
+    - scripts/provider_credit_checks.sh
     - scripts/scan.py
     - scripts/start_builder_supervisor.sh
     - tests/conftest.py
