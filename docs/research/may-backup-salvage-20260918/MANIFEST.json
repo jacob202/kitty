@@ -1,0 +1,36 @@
+{
+  "current_kitty_main_sha": "72ccb20b74484a7dc9f1c829322b8c841daf62dd",
+  "files": {
+    "01-local-comfyui-identity-backend.md": {
+      "bytes": 6034,
+      "sha256": "331ac3e359c0ae2083a54726cab4906f82bc6b39ea9d4aa3bf7ba4aba9eaf9f7"
+    },
+    "02-governed-prompt-experiments.md": {
+      "bytes": 5574,
+      "sha256": "9a3f35c70b405b87e2cf9ae925a0d6123b3c7bb904d05730f7ef57c909d850d0"
+    },
+    "03-physical-reality-evidence-invariant.md": {
+      "bytes": 4677,
+      "sha256": "94a66ed1d47face1a2fe41f7483cb0e68341b6d0aed04c6e38a64e031f515a07"
+    },
+    "04-human-preference-evidence.md": {
+      "bytes": 4421,
+      "sha256": "c06f9d64686c739fb5e76d3f9c0798f41035eb38a40c24ea2ba40e8e93207b09"
+    },
+    "README.md": {
+      "bytes": 3181,
+      "sha256": "8a56bf608fc463679449e76952a0059f7cd9d61e558f6209337d2e04be86a66d"
+    }
+  },
+  "integrated_against_main_sha": "99a9153a551f46dc077ba8c858e6eb1cd02d7702",
+  "restored_kitty_head_sha": "d8f05fc73d23ff52302700e54fe4df19428f7c15",
+  "schema_version": 1,
+  "sources": [
+    "/Users/jacobbrizinnski/Projects (from backup)/imagegen/gen_face_final.py",
+    "/Users/jacobbrizinnski/Projects (from backup)/imagegen/generate_my_face_auto.py",
+    "backup-kitty git 6a7900a^:src/utils/meta_prompt_optimizer.py",
+    "backup-kitty git ff62251^:src/core/physical_reality_router.py",
+    "backup-kitty git ba10080^:src/eval/rlhf_collection.py"
+  ],
+  "status": "integrated_research_reference"
+}
