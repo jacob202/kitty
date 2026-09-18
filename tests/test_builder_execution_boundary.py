@@ -213,12 +213,16 @@ def test_worker_claude_trust_is_seeded_under_the_resolved_worktree(
     linked_worktree = tmp_path / "linked-worktree"
     linked_worktree.symlink_to(real_worktree)
 
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
     env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
-    builder_runner._seed_worker_claude_trust(env, linked_worktree)
+    builder_runner._seed_worker_claude_trust(env, linked_worktree, repo_root)
 
     config = json.loads((Path(env["HOME"]) / ".claude.json").read_text())
     assert config["projects"] == {
-        str(real_worktree.resolve()): {"hasTrustDialogAccepted": True}
+        str(real_worktree.resolve()): {"hasTrustDialogAccepted": True},
+        str(repo_root.resolve()): {"hasTrustDialogAccepted": True},
     }
 
 

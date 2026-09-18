@@ -122,21 +122,29 @@ def _inject_claude_subscription_token(
         child_env["CLAUDE_CODE_OAUTH_TOKEN"] = token
 
 
-def _seed_worker_claude_trust(child_env: dict[str, str], worktree: Path) -> None:
+def _seed_worker_claude_trust(
+    child_env: dict[str, str], worktree: Path, repo_root: Path
+) -> None:
     """Pre-trust the packet worktree for a Claude Code worker or reviewer.
 
     The boundary redirects HOME into the run directory, so Claude Code starts
-    from an empty config and treats the worktree as untrusted. Untrusted does
+    from an empty config and treats the workspace as untrusted. Untrusted does
     not fail loudly: it silently *ignores* the packet's `.claude/settings.json`
     permission allow-list, so the child loses every tool it was granted and
     stalls without naming the reason. This is the non-interactive equivalent of
     accepting the trust dialog once, and grants nothing the packet's own
     settings did not already grant.
+
+    Both the worktree and the canonical checkout are trusted. A linked worktree
+    reaches its `.git` through the main repository, and Claude Code resolved
+    the workspace to the canonical checkout in some runs and to the worktree in
+    others; trusting only one left the worker tool-less on the other.
     """
     config = Path(child_env["HOME"]) / ".claude.json"
+    trusted = {str(worktree.resolve()), str(repo_root.resolve())}
     payload = {
         "hasCompletedOnboarding": True,
-        "projects": {str(worktree.resolve()): {"hasTrustDialogAccepted": True}},
+        "projects": {path: {"hasTrustDialogAccepted": True} for path in sorted(trusted)},
     }
     try:
         config.write_text(
@@ -1657,7 +1665,7 @@ def run_worker(
     assert run is not None
 
     child_env = beb.build_child_environment(os.environ, run_dir=run_dir)
-    _seed_worker_claude_trust(child_env, wt_path)
+    _seed_worker_claude_trust(child_env, wt_path, root)
     _inject_claude_subscription_token(child_env, command, root)
     validation_venv, validation_read_roots = _validation_toolchain(root)
     child_env["GH_CONFIG_DIR"] = str(gh_config_dir)
