@@ -110,11 +110,20 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The reviewer route is the OpenCode subscription: it needs no OpenRouter
+          # credit, and on 2026-09-17 the OpenRouter account running dry left every
+          # PR with no verdict at all. The paid rungs stay configured because the
+          # harness keeps them behind the subscription as a fallback; unused rungs
+          # cost nothing.
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PR_REVIEW_MODEL: "openrouter/deepseek/deepseek-v4-flash"
-          PR_REVIEW_FALLBACK_MODEL: "openrouter/minimax/minimax-m3"
-          PR_REVIEW_DEEPSEEK_MODEL: "openrouter/minimax/minimax-m3"
-          PR_REVIEW_DEEPSEEK_FALLBACK_MODEL: "openrouter/qwen/qwen3.7-plus"
+          PR_REVIEW_MODEL: "opencode-go/muse-spark-1.3-contributor"
+          PR_REVIEW_FALLBACK_MODEL: "opencode-go/minimax-m3"
+          # Both subscription rungs are independent of a deepseek implementer, so a
+          # Builder PR (whose final report names a deepseek model) is reviewed
+          # credit-free as well.
+          PR_REVIEW_DEEPSEEK_MODEL: "opencode-go/muse-spark-1.3-contributor"
+          PR_REVIEW_DEEPSEEK_FALLBACK_MODEL: "opencode-go/minimax-m3"
           # Measured on a real 53 KB review chunk (PR #853, 106 KB / 2 chunks):
           # deepseek-v4-flash answered in 163s. The previous 90s ceiling meant the
           # primary model timed out on every sufficiently large diff, the fallback

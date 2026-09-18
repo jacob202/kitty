@@ -226,18 +226,66 @@ def test_prompt_rejects_generic_speculative_review_noise() -> None:
     assert "exact input" in prompt or "exact state" in prompt
 
 
-def test_default_github_reviewer_uses_paid_flash_model() -> None:
-    assert pr_review.DEFAULT_REVIEW_MODEL == "openrouter/deepseek/deepseek-v4-flash"
+def test_default_github_reviewer_prefers_the_subscription_route() -> None:
+    """The reviewer route must not depend on OpenRouter credit.
+
+    The default moved from `openrouter/deepseek/deepseek-v4-flash` to the
+    subscription route on 2026-09-17: the OpenRouter account ran out, every rung
+    failed with "requires more credits", and no PR could obtain the exact-head
+    verdict its policy requires. The paid rungs are still in the ladder, behind the
+    subscription, so the assertion below pins both halves.
+    """
+    assert pr_review.DEFAULT_REVIEW_MODEL == "opencode-go/muse-spark-1.3-contributor"
+    assert pr_review.DEFAULT_REVIEW_FALLBACK_MODEL == "opencode-go/minimax-m3"
+    assert pr_review.OPENROUTER_REVIEW_LADDER == (
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/minimax/minimax-m3",
+    )
+    ladder = pr_review.select_review_models(
+        pr_review.DEFAULT_REVIEW_MODEL,
+        pr_review.DEFAULT_REVIEW_FALLBACK_MODEL,
+        None,
+    )
+    assert ladder[:2] == (
+        "opencode-go/muse-spark-1.3-contributor",
+        "opencode-go/minimax-m3",
+    )
+    assert ladder[2:] == pr_review.OPENROUTER_REVIEW_LADDER
 
 
-def test_deepseek_implementation_routes_to_independent_paid_pair() -> None:
-    assert pr_review.select_review_models(
+def test_deepseek_implementation_routes_to_an_independent_subscription_ladder() -> None:
+    """A deepseek implementer must still never be reviewed by a deepseek model.
+
+    The subscription route leads for both implementer families -- otherwise a
+    Builder PR (whose final report names a deepseek model) would still need the
+    exhausted OpenRouter account -- and the paid rungs follow as the fallback. The
+    family filter is asserted directly, so moving the default can never quietly
+    let a model review its own work.
+    """
+    ladder = pr_review.select_review_models(
         "openrouter/deepseek/deepseek-v4-flash",
         "openrouter/minimax/minimax-m3",
         "openrouter/deepseek/deepseek-v4-pro",
-    ) == (
+    )
+    assert ladder == (
+        "opencode-go/muse-spark-1.3-contributor",
+        "opencode-go/minimax-m3",
         "openrouter/minimax/minimax-m3",
-        "openrouter/qwen/qwen3.7-plus",
+    )
+    assert "openrouter/deepseek/deepseek-v4-flash" not in ladder
+    assert all(pr_review._model_family(model) != "deepseek" for model in ladder)
+    # The implementer's own model is dropped wherever it sits in the ladder, and a
+    # different reasoning-effort variant of it is the same model.
+    same_model = pr_review.select_review_models(
+        "opencode-go/muse-spark-1.3-contributor:medium",
+        "opencode-go/minimax-m3",
+        "opencode-go/muse-spark-1.3-contributor:max",
+    )
+    implementer_family = pr_review._model_family("opencode-go/muse-spark-1.3-contributor:max")
+    assert "opencode-go/muse-spark-1.3-contributor:medium" not in same_model
+    assert same_model[0] == "opencode-go/minimax-m3"
+    assert all(
+        pr_review._model_family(model) != implementer_family for model in same_model
     )
 
 
@@ -875,6 +923,57 @@ def test_nonzero_exit_with_a_stderr_diagnostic_is_reported_as_a_process_failure(
     body = pr_review.render_review_body(pr_review.REVIEW_FAILED, "a" * 40)
     assert "provider authentication failed" not in body
     assert "`openrouter/minimax/minimax-m3` failed with exit 2" in body
+
+
+def test_route_without_a_credential_is_skipped_and_the_review_still_verdicts(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rung whose route has no credential must not void the review.
+
+    With only the subscription credential present, the retained OpenRouter rungs
+    cannot run at all; skipping them is what lets the subscription produce the
+    verdict instead of aborting on `OPENROUTER_API_KEY is not set` (which is how
+    the old route check behaved, and which would have made the route change
+    useless anywhere the paid key is absent).
+    """
+    attempted: list[str] = []
+
+    class Result:
+        returncode = 0
+        stdout = APPROVE_REVIEW_JSON + "\n"
+        stderr = ""
+
+    def fake_run(command, **_kwargs):
+        attempted.append(command[command.index("--model") + 1])
+        return Result()
+
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("OPENCODE_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
+
+    assert pr_review.review_diff("diff") == pr_review.NO_FINDINGS
+    assert attempted == ["opencode-go/muse-spark-1.3-contributor"]
+    assert "OPENROUTER_API_KEY" in capsys.readouterr().err
+
+
+def test_no_usable_route_still_fails_closed_and_names_the_missing_credential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing authenticated means no verdict, and the reason says what is missing."""
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
+    monkeypatch.setattr(
+        pr_review.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("no reviewer may run without a credential"),
+    )
+
+    assert pr_review.review_diff("diff") is None
+
+    body = pr_review.render_review_body(pr_review.REVIEW_FAILED, "a" * 40)
+    assert "OPENCODE_API_KEY" in body
+    assert "OPENROUTER_API_KEY" in body
+    assert "Reviewed commit" not in body
 
 
 def test_model_timeout_is_reclipped_to_the_remaining_budget(
