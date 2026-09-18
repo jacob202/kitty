@@ -86,7 +86,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio pytest-cov
+          # pytest-xdist supplies the `-n auto --dist loadfile` that pytest.ini's
+          # addopts pass to this suite. The integration and nightly jobs override
+          # addopts, so they run serially and do not need it.
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist
 
       - name: Run fast test suite
         run: |

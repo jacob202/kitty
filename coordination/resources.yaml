@@ -164,6 +164,7 @@ resources:
     - .claude/hooks/**
     - .env.example
     - .githooks/**
+    - .github/workflows/tests.yml
     - Makefile
     - coordination/**
     - gateway/agent_coordination*.py
