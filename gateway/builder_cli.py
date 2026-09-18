@@ -1532,7 +1532,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
     worker = args.worker
     if args.free and worker == "packet-loop":
         worker = "dsh-free"
-    elif args.claude and worker == "packet-loop":
+    elif getattr(args, "claude", False) and worker == "packet-loop":
         worker = "claude-subscription"
     elif paid_route is not None and worker == "packet-loop":
         worker = f"dsh-paid-{paid_route.tier}"
@@ -1569,7 +1569,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             # Governed by default at the CLI boundary: a real dispatch pays real
             # money, so the receipt check is opt-out, not opt-in.
             governor_db=(
-                None if args.no_governor or args.claude else _governor_db_path(args)
+                None if args.no_governor or getattr(args, "claude", False) else _governor_db_path(args)
             ),
             governor_override=args.governor_override,
             publish=args.publish,
@@ -1608,7 +1608,7 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
     worker = args.worker
     if args.free and worker == "packet-loop":
         worker = "dsh-free"
-    elif args.claude and worker == "packet-loop":
+    elif getattr(args, "claude", False) and worker == "packet-loop":
         worker = "claude-subscription"
     elif paid_route is not None and worker == "packet-loop":
         worker = f"dsh-paid-{paid_route.tier}"
@@ -1645,7 +1645,7 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             # The autonomous runner is the path most likely to repeat itself:
             # it picks the next eligible packet without a human in the loop.
             governor_db=(
-                None if args.no_governor or args.claude else _governor_db_path(args)
+                None if args.no_governor or getattr(args, "claude", False) else _governor_db_path(args)
             ),
         )
     except (ValueError, RuntimeError) as exc:
