@@ -87,6 +87,47 @@ def append_entry(
     return record
 
 
+def restore(items: list[dict]) -> int:
+    """Replace journal entries with snapshot state.
+
+    Snapshot restore has the opposite contract to ``append_entry``: entries
+    omitted from the snapshot are absent afterwards, and restoring the same
+    snapshot twice is a no-op rather than a second copy. ``append_entry`` is a
+    bare INSERT and ``journal_entries`` carries no uniqueness constraint, so
+    importing through it duplicated every row on each restore. This mirrors the
+    precedent ``project_store.restore`` and ``todo_store.restore`` set.
+    """
+    init_db()
+    rows = []
+    for record in items:
+        entry_text = record.get("entry", "")
+        if not entry_text:
+            continue
+        ts = record.get("ts")
+        rows.append(
+            (
+                float(ts) if isinstance(ts, (int, float)) else time.time(),
+                record.get("theme"),
+                entry_text,
+                record.get("session_id"),
+            )
+        )
+    with kitty_db.connect(JOURNAL_DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute("DELETE FROM journal_entries")
+            conn.executemany(
+                "INSERT INTO journal_entries (ts, theme, entry, session_id) "
+                "VALUES (?, ?, ?, ?)",
+                rows,
+            )
+        except Exception:
+            conn.rollback()
+            raise
+        conn.commit()
+    return len(rows)
+
+
 def validate_records(payload: list) -> None:
     """Prove these records can be appended, changing nothing.
 

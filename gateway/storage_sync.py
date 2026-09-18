@@ -56,7 +56,9 @@ def export_memories() -> list[dict]:
 
 
 def export_journal_entries() -> list[dict]:
-    return journal_store.list_entries(limit=1000)
+    # A capped export feeding a replace-restore would silently drop every
+    # entry past the cap, so export the whole table.
+    return journal_store.list_entries(limit=journal_store.count_entries() or 1)
 
 
 def export_todos() -> list[dict]:
@@ -167,33 +169,10 @@ def import_memories(payload: list[dict]) -> int:
 def import_journal_entries(payload: list[dict]) -> int:
     if not isinstance(payload, list):
         raise ValueError(f"journal_entries payload must be a list, got {type(payload).__name__}")
-    added = 0
     for record in payload:
         if not isinstance(record, dict):
             raise ValueError(f"journal record must be a dict, got {type(record).__name__}")
-        entry_text = record.get("entry", "")
-        if not entry_text:
-            continue
-        theme = record.get("theme")
-        session_id = record.get("session_id")
-        ts = record.get("ts")
-        if isinstance(ts, (int, float)):
-            journal_store.append_entry(
-                ts=float(ts),
-                entry=entry_text,
-                theme=theme,
-                session_id=session_id,
-            )
-        else:
-            import time as _time
-            journal_store.append_entry(
-                ts=_time.time(),
-                entry=entry_text,
-                theme=theme,
-                session_id=session_id,
-            )
-        added += 1
-    return added
+    return journal_store.restore(payload)
 
 
 def import_projects(payload: list[dict]) -> int:
@@ -453,7 +432,13 @@ def _reject_if_unrestorable(name: str, validate: Callable[[], None]) -> None:
 
 
 def import_all(snapshot: dict[str, Any]) -> dict[str, int]:
-    """Replace every migrated store with the contents of ``snapshot``.
+    """Restore every migrated store from ``snapshot``.
+
+    Projects, Todos, journal entries and plugin settings are *replaced*:
+    rows omitted from the snapshot are absent afterwards. Memories are
+    *merged* — they live in Mem0, whose ``add`` reports a ``NONE`` event for
+    content it already holds, so re-importing is a no-op rather than a
+    duplicate, but memories absent from the snapshot are retained.
 
     Validates the format version. Returns a count of records imported
     per store. Raises ``ValueError`` on a missing or unknown store key
