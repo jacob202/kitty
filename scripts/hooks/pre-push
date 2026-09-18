@@ -224,7 +224,12 @@ GATE_TMP_BASE="$(mktemp -d "${GATE_TMP_ROOT}/kitty-gate-pytest-XXXXXXXX")"
 # argument rather than the real cause, and the run reports as an ordinary
 # test failure instead of an infrastructure one. Never run the gate against
 # a temp tree it did not create.
-if [[ -z "${GATE_TMP_BASE}" || ! -d "${GATE_TMP_BASE}" ]]; then
+#
+# `-w` and not just `-d`: mktemp can return a directory this process cannot
+# write into when umask clears owner write (umask 0200 gives dr-x------), and
+# pytest would then fail inside that base with permission errors — exactly the
+# ordinary-test-failure shape this guard exists to replace with exit 75.
+if [[ -z "${GATE_TMP_BASE}" || ! -d "${GATE_TMP_BASE}" || ! -w "${GATE_TMP_BASE}" ]]; then
   say "${RED}Push blocked — cannot create a private pytest temp base under ${GATE_TMP_ROOT}.${OFF}"
   say "The tests gate will not run against a shared temp tree. Fix that directory or set TMPDIR elsewhere, then retry."
   exit 75
