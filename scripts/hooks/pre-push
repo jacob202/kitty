@@ -208,14 +208,14 @@ fi
 export KITTY_EXPECTED_TEST_CHECKOUT="${ROOT_DIR}"
 export KITTY_EXPECTED_TEST_HEAD="$(git rev-parse HEAD)"
 
-# Give this invocation a pytest temp base of its own, and remove it when the
-# run ends. pytest otherwise keeps `pytest-of-<user>/pytest-<n>` directories and
-# prunes all but the newest three at session start, so two sessions running at
-# once on one host delete each other's directories mid-run: the victim's tests
-# fail on paths that no longer exist, in a shape that looks like an I/O or
-# database fault on a single worker and passes on retry. A private base also
-# means the run's temp data — previously tens of gigabytes of per-test stores —
-# leaves with the run instead of accumulating until the disk fills.
+# Give this invocation a pytest temp base of its own, and remove it when the run
+# ends. pytest's default is a shared `pytest-of-<user>` tree: it only evicts a
+# base whose lock is stale (about three days), so concurrent sessions do not
+# normally disturb each other, but a shared base is still exposed to external
+# deletion (a disk-pressure cleanup of that tree — this repository has done
+# that to itself), to collisions, and to unbounded growth: it reached 10 GB here
+# and filled the disk, voiding a benchmark run with Errno 28. A private base
+# removes all three, and leaves with its run.
 GATE_TMP_ROOT="${TMPDIR:-/tmp}"
 GATE_TMP_ROOT="${GATE_TMP_ROOT%/}"
 GATE_TMP_BASE="$(mktemp -d "${GATE_TMP_ROOT}/kitty-gate-pytest-XXXXXXXX")"
@@ -228,7 +228,11 @@ cleanup_gate_tmp_base() {
   [[ -d "${GATE_TMP_BASE}" ]] && say "  ${YELLOW}note${OFF}  temp base could not be removed: ${GATE_TMP_BASE}"
   return 0
 }
-trap cleanup_gate_tmp_base EXIT INT TERM
+trap cleanup_gate_tmp_base EXIT
+# An interrupt must still leave the gate: a handler that merely returns would
+# resume the script, and a Ctrl-C between gates would be swallowed and the push
+# could continue on gates the operator meant to stop.
+trap 'cleanup_gate_tmp_base; exit 130' INT TERM
 say "  ${DIM}pytest temp base: ${GATE_TMP_BASE}${OFF}"
 
 run_gate "tests" "${PYTHON_BIN}" -m pytest tests/ -q --tb=short \
