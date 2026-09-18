@@ -1,5 +1,7 @@
 """Focused contracts for durable chat-conversation metadata."""
 
+import types
+
 from gateway import chat_lifecycle
 
 
@@ -77,8 +79,15 @@ def test_list_conversation_does_not_use_per_turn_getter(monkeypatch, tmp_path):
 def test_list_project_conversations_is_scoped_recent_and_bounded(monkeypatch, tmp_path):
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
+    # Patch this module's clock, not the process-wide `time.time`. Installed
+    # globally, a one-shot iterator of timestamps is consumed by any unrelated
+    # caller in the same process — a telemetry or log-flusher thread, pytest
+    # machinery — and the next call inside the test raises StopIteration.
+    # Scoped to the module under test, only the code under test can consume it.
     ticks = iter([100.0, 200.0, 300.0])
-    monkeypatch.setattr(chat_lifecycle.time, "time", lambda: next(ticks))
+    monkeypatch.setattr(
+        chat_lifecycle, "time", types.SimpleNamespace(time=lambda: next(ticks))
+    )
 
     for conversation_id, project_id, title in [
         ("chat-old", 7, "Older project chat"),

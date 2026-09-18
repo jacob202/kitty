@@ -39,6 +39,12 @@ class PublishError(RuntimeError):
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 120
 GIT_PUSH_TIMEOUT_SECONDS = 1200
 COMMAND_KILL_GRACE_SECONDS = 5
+# A `ps` sweep is fast; the bound exists so a wedged `ps` cannot become the hang
+# this cleanup path is trying to prevent.
+GROUP_PROBE_TIMEOUT_SECONDS = 5
+# After the group has been killed, draining the captured pipes is the last thing
+# that can block. A descendant that escaped the group would hold them open.
+COMMAND_OUTPUT_DRAIN_SECONDS = 5
 
 
 def _command_timeout_seconds(args: list[str]) -> int:
@@ -47,26 +53,114 @@ def _command_timeout_seconds(args: list[str]) -> int:
     return DEFAULT_COMMAND_TIMEOUT_SECONDS
 
 
-def _stop_process_group(proc: subprocess.Popen[str]) -> None:
+def _group_members(pgid: int) -> list[int] | None:
+    """Live pids still in `pgid`, or None when the host will not report them.
+
+    Zombies do not count. Measured on macOS 27: a group whose leader has exited
+    and whose members are all reaped-or-exiting answers `killpg` with EPERM
+    while `ps` still lists the leader with stat `Z` — and a zombie is exactly the
+    state the leader is in when this question is being asked, so counting one as
+    "still there" would turn the benign teardown into a spurious failure.
+
+    Probing the group with signal 0 cannot answer this question at all: EPERM is
+    the very answer being disambiguated.
+    """
+    try:
+        result = subprocess.run(
+            ["ps", "-A", "-o", "pid=,pgid=,stat="],
+            capture_output=True,
+            text=True,
+            timeout=GROUP_PROBE_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    members: list[int] = []
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) != 3 or not fields[0].isdigit() or not fields[1].isdigit():
+            continue
+        pid, group, stat = int(fields[0]), int(fields[1]), fields[2]
+        if group == pgid and not stat.startswith("Z"):
+            members.append(pid)
+    return members
+
+
+def _confirmed_stopped(proc: subprocess.Popen[str], pgid: int) -> tuple[bool, str]:
+    """(True, "") only when the leader is reaped and no live member is left."""
+    if proc.poll() is None:
+        return False, f"leader pid {proc.pid} is still running"
+    members = _group_members(pgid)
+    if members is None:
+        return False, "this host did not report the process table"
+    if members:
+        return False, f"live pids {members} remain in process group {pgid}"
+    return True, ""
+
+
+def _wait_bounded(proc: subprocess.Popen[str], timeout: float) -> bool:
+    """Wait for the leader, bounded. True when it has exited."""
+    if proc.poll() is not None:
+        return True
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return False
+    return True
+
+
+def _raise_unless_stopped(
+    proc: subprocess.Popen[str], exc: OSError | None, reason: str
+) -> None:
+    """Return when the group is verifiably gone; fail loud when it is not."""
+    stopped, detail = _confirmed_stopped(proc, proc.pid)
+    if stopped:
+        return
+    denial = (
+        f"{type(exc).__name__}: {exc}"
+        if exc is not None
+        else f"process group {proc.pid} survived SIGKILL"
+    )
+    raise PublishError(
+        f"{reason}: could not stop process group {proc.pid} ({denial}; {detail})"
+    ) from exc
+
+
+def _stop_process_group(proc: subprocess.Popen[str], *, reason: str) -> None:
+    """Stop the child's process group, or raise when that cannot be confirmed.
+
+    Darwin answers EPERM, not ESRCH, when the group is being torn down: the
+    leader has been reaped and the last member is exiting, so the group id no
+    longer resolves to processes this one may signal. Measured on macOS 27 in
+    isolation (1 in 50 sends against a group whose members had just exited) and
+    on demand under the load of a parallel test run.
+
+    EPERM is also what a genuinely denied signal looks like, and the two are not
+    the same thing: the first is proof the group is gone, the second can mean the
+    leader is still alive holding the captured pipes open. So neither errno is
+    read as "nothing left to kill" until the leader has been reaped *and* the
+    process table shows no live member of the group. Anything else raises
+    `PublishError`, because waiting forever on a signal that may never be
+    delivered hangs publication, which is the one outcome this path must not
+    produce. Every wait below is bounded for the same reason.
+    """
     try:
         os.killpg(proc.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        if proc.poll() is None:
-            proc.wait()
+    except (ProcessLookupError, PermissionError) as exc:
+        _raise_unless_stopped(proc, exc, reason)
         return
-    try:
-        proc.wait(timeout=COMMAND_KILL_GRACE_SECONDS)
-    except subprocess.TimeoutExpired:
-        pass
     # The session leader may exit on SIGTERM while a hook/test descendant
     # ignores it and keeps stdout/stderr pipes open. Escalate against the
     # process group regardless of the leader's exit state.
+    _wait_bounded(proc, COMMAND_KILL_GRACE_SECONDS)
     try:
         os.killpg(proc.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    if proc.poll() is None:
-        proc.wait()
+    except (ProcessLookupError, PermissionError) as exc:
+        _raise_unless_stopped(proc, exc, reason)
+        return
+    if not _wait_bounded(proc, COMMAND_KILL_GRACE_SECONDS):
+        _raise_unless_stopped(proc, None, reason)
 
 
 def _default_run(
@@ -96,11 +190,27 @@ def _default_run(
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
-        _stop_process_group(proc)
-        stdout, stderr = proc.communicate()
+        _stop_process_group(
+            proc, reason=f"command timed out after {timeout}s: {args!r}"
+        )
+        # The group is gone, so this only waits on the captured pipes. A
+        # descendant that escaped the group would hold them open, and reading
+        # them must not become the hang the cleanup just removed.
+        try:
+            stdout, stderr = proc.communicate(timeout=COMMAND_OUTPUT_DRAIN_SECONDS)
+        except subprocess.TimeoutExpired:
+            raise PublishError(
+                f"command timed out after {timeout}s and left its output pipes"
+                f" open: {args!r}"
+            ) from exc
         raise PublishError(f"command timed out after {timeout}s: {args!r}") from exc
     except KeyboardInterrupt:
-        _stop_process_group(proc)
+        try:
+            _stop_process_group(proc, reason="interrupted while running")
+        except PublishError as cleanup_error:
+            # An interrupt stays an interrupt: report the cleanup that could not
+            # be confirmed and let the caller's KeyboardInterrupt through.
+            logger.error("%s", cleanup_error)
         raise
     result = subprocess.CompletedProcess(args, proc.returncode, stdout, stderr)
     if check and result.returncode != 0:

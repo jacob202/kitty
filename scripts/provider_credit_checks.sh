@@ -5,6 +5,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-/opt/homebrew/bin/python3.12 -m pytest tests/test_agentrouter_config.py tests/test_llm_routing.py tests/test_token_spend_report.py -q --tb=short
+# This sweep is three files on an interpreter the repository does not provision,
+# so it opts out of the global addopts rather than requiring pytest-xdist there.
+/opt/homebrew/bin/python3.12 -m pytest tests/test_agentrouter_config.py tests/test_llm_routing.py tests/test_token_spend_report.py -q --tb=short -o addopts="--strict-markers"
 python3 scripts/spend_report.py "$@"
 python3 scripts/spend_report.py --provider agentrouter --credits 150 "$@"

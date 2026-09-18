@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import types
 from pathlib import Path
 
 import pytest
@@ -451,8 +452,12 @@ class TestTaskId:
     def test_ids_preserve_timestamp_order(self, db_path: Path, monkeypatch):
         # Freeze two known millisecond timestamps so ordering is deterministic
         # and independent of scheduler delays or wall-clock resolution.
+        # Scope the frozen clock to the module under test; installed on the
+        # shared `time` module, any unrelated caller would consume a stamp.
         stamps = iter((1_700_000_000.001, 1_700_000_000.002))
-        monkeypatch.setattr(_id_helpers.time, "time", lambda: next(stamps))
+        monkeypatch.setattr(
+            _id_helpers, "time", types.SimpleNamespace(time=lambda: next(stamps))
+        )
 
         t1 = bq.create_task("a", db_path=db_path)
         t2 = bq.create_task("b", db_path=db_path)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import signal
@@ -748,7 +749,7 @@ def test_stop_process_group_kills_descendant_when_leader_exits_on_term(tmp_path:
             time.sleep(0.01)
         assert child_pid.exists()
         pid = int(child_pid.read_text())
-        bp._stop_process_group(proc)
+        bp._stop_process_group(proc, reason="command timed out after 1.0s")
         state = ""
         for _ in range(200):
             state = subprocess.run(
@@ -817,3 +818,139 @@ def test_default_run_timeout_reaps_descendant_process_group(
         text=True,
     ).stdout.strip()
     assert not state or state.startswith("Z"), state
+
+
+class _GroupProc:
+    """Minimal stand-in for the Popen the teardown path is handed."""
+
+    def __init__(self, pid: int, *, alive: bool, exit_after_wait: bool = False):
+        self.pid = pid
+        self.returncode = None if alive else -signal.SIGTERM
+        self._exit_after_wait = exit_after_wait
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self, timeout: float | None = None) -> int:
+        if self.returncode is not None:
+            return self.returncode
+        if self._exit_after_wait and timeout is not None:
+            self.returncode = -signal.SIGKILL
+            return self.returncode
+        raise subprocess.TimeoutExpired(cmd="reap", timeout=timeout)
+
+
+def _refusing_killpg(sent: list[int]):
+    """killpg that records the signal and reports Darwin's denied-signal errno."""
+
+    def killpg(pid: int, sig: int) -> None:
+        sent.append(sig)
+        raise PermissionError(errno.EPERM, "Operation not permitted")
+
+    return killpg
+
+
+def test_stop_process_group_treats_a_verified_gone_group_as_stopped(monkeypatch):
+    """Darwin answers EPERM, not ESRCH, for a group it is already tearing down.
+
+    Observed on this host when a timed-out command's members had all exited: the
+    leader was reaped, `ps` listed no live member of the group, and the signal
+    still raised EPERM. Shutdown has to read that as "the group is gone", the
+    same conclusion it already drew from ESRCH, or an ordinary timeout surfaces
+    as a permission error on the publish path.
+    """
+    sent: list[int] = []
+    monkeypatch.setattr(bp.os, "killpg", _refusing_killpg(sent))
+    monkeypatch.setattr(bp, "_group_members", lambda pgid: [])
+
+    bp._stop_process_group(
+        _GroupProc(4242, alive=False), reason="command timed out after 1.0s"
+    )  # type: ignore[arg-type]
+
+    assert sent == [signal.SIGTERM]
+
+
+def test_stop_process_group_raises_when_the_denied_signal_leaves_a_live_leader(
+    monkeypatch,
+):
+    """A denied signal with the leader alive is not the teardown case.
+
+    Reading every EPERM as "the group is gone" is what let this path wait on a
+    process it may never signal; the denial has to stay visible instead.
+    """
+    sent: list[int] = []
+    monkeypatch.setattr(bp.os, "killpg", _refusing_killpg(sent))
+    monkeypatch.setattr(bp, "_group_members", lambda pgid: [])
+
+    with pytest.raises(bp.PublishError) as excinfo:
+        bp._stop_process_group(
+            _GroupProc(4242, alive=True), reason="command timed out after 1.0s"
+        )  # type: ignore[arg-type]
+
+    message = str(excinfo.value)
+    assert "could not stop process group 4242" in message
+    assert "PermissionError" in message
+    assert "still running" in message
+    assert sent == [signal.SIGTERM]
+
+
+def test_stop_process_group_raises_when_a_member_outlives_the_leader(monkeypatch):
+    """A descendant that ignores the signal keeps the captured pipes open."""
+    monkeypatch.setattr(bp.os, "killpg", _refusing_killpg([]))
+    monkeypatch.setattr(bp, "_group_members", lambda pgid: [777])
+
+    with pytest.raises(bp.PublishError) as excinfo:
+        bp._stop_process_group(
+            _GroupProc(4243, alive=False), reason="interrupted while running"
+        )  # type: ignore[arg-type]
+
+    assert "live pids [777] remain in process group 4243" in str(excinfo.value)
+
+
+def test_stop_process_group_raises_when_the_process_table_is_unavailable(monkeypatch):
+    """Without the process table the group cannot be confirmed gone."""
+    monkeypatch.setattr(bp.os, "killpg", _refusing_killpg([]))
+    monkeypatch.setattr(bp, "_group_members", lambda pgid: None)
+
+    with pytest.raises(bp.PublishError, match="did not report the process table"):
+        bp._stop_process_group(
+            _GroupProc(4244, alive=False), reason="command timed out after 1.0s"
+        )  # type: ignore[arg-type]
+
+
+def test_stop_process_group_escalates_and_returns_once_the_group_is_empty(monkeypatch):
+    """The ordinary path: SIGTERM, bounded wait, SIGKILL, group confirmed empty."""
+    sent: list[int] = []
+    monkeypatch.setattr(bp.os, "killpg", lambda pid, sig: sent.append(sig))
+    monkeypatch.setattr(bp, "_group_members", lambda pgid: [])
+
+    bp._stop_process_group(
+        _GroupProc(4245, alive=True, exit_after_wait=True),
+        reason="command timed out after 1.0s",
+    )  # type: ignore[arg-type]
+
+    assert sent == [signal.SIGTERM, signal.SIGKILL]
+
+
+def test_default_run_timeout_fails_loud_when_output_pipes_stay_open(monkeypatch):
+    """The drain after cleanup is bounded too: it must not become the hang."""
+
+    class _StuckPipes:
+        pid = 5150
+        returncode = None
+
+        def communicate(self, *, timeout: float):
+            raise subprocess.TimeoutExpired(cmd="git push", timeout=timeout)
+
+        def poll(self):
+            return -signal.SIGKILL
+
+        def wait(self, timeout: float | None = None):
+            return -signal.SIGKILL
+
+    monkeypatch.setattr(bp.subprocess, "Popen", lambda *a, **k: _StuckPipes())
+    monkeypatch.setattr(bp.os, "killpg", lambda pid, sig: None)
+    monkeypatch.setattr(bp, "_group_members", lambda pgid: [])
+
+    with pytest.raises(bp.PublishError, match="left its output pipes open"):
+        bp._default_run(["git", "push"])

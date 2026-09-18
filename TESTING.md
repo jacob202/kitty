@@ -16,7 +16,7 @@ The Python suite has a deliberate latency split. Cheap hermetic behavior, API, p
 
 `browser` and `merge_gate` are not pytest tiers. Browser tests live under `gateway/kitty-chat/tests/smoke/` and use Playwright. `merge-gate` is the GitHub Actions aggregation job for required deterministic evidence.
 
-Python commands assume the repository's Python 3.12 environment has `requirements.txt`, pytest, pytest-asyncio, and pytest-cov installed. Frontend commands assume `npm ci` has been run and Playwright Chromium is installed.
+Python commands assume the repository's Python 3.12 environment has `requirements.txt`, pytest, pytest-asyncio, pytest-cov, and pytest-xdist installed — the last supplies the `-n auto --dist loadfile` that `pytest.ini` adds to every command below, so a command that wants to run serially opts out with `-o addopts="--strict-markers"` the way the integration tier does. Frontend commands assume `npm ci` has been run and Playwright Chromium is installed.
 
 ## Python: fast required suite
 

@@ -72,7 +72,8 @@ history, which is why nothing could name the slow tests. The nightly
 `suite-profile` job now records `--durations=50` on every run, so the next pass at
 suite speed starts from data instead of a guess. No parallelism was introduced:
 this repository has SQLite and runtime-isolation-heavy tests and unsafe
-parallelisation manufactures flakes.
+parallelisation manufactures flakes. (Superseded 2026-09-17 — see the amendment
+at the end of this document.)
 
 ## What this baseline cannot answer
 
@@ -83,3 +84,30 @@ parallelisation manufactures flakes.
 
 `scripts/ci_metrics.py` reports these as `null` with the reason attached rather
 than estimating them.
+
+## Amendment — 2026-09-17: the parallelism objection was answered
+
+The paragraph above declined parallelism on a real hazard. That hazard was
+answered, not overridden.
+
+Run under `pytest -n auto --dist loadfile`, the suite did surface two failures.
+Neither was a race; both were tests depending on process-global state:
+
+- `agent_runner._run_agent_loop` returns before its first model call unless
+  `autonomy_state.STATE_DB` reports the session as active, so those assertions
+  were passing on a row left behind by whichever test ran earlier in the same
+  process. Every test now gets its own store (autouse fixture in
+  `tests/conftest.py`), and the two tests that need a session persist their own.
+- Three tests installed a one-shot iterator on the global `time` module, so any
+  unrelated `time.time()` caller in the process consumed a tick and the test's
+  next call raised `StopIteration`. Each now patches the clock on the module
+  under test only.
+
+Both are isolated by construction — per-test stores, module-scoped patching —
+rather than by retry or by serialisation: `--dist loadfile` keeps a module whole
+on one worker, so intra-module ordering is unchanged. Nothing was skipped,
+deselected or deleted, and the `fail_under = 73` floor is untouched.
+
+Gate wall clock on this host fell from 324.87 s to 88.28 s (min of two timed runs
+on an isolated worktree). Parallelism is most of that; the last leg is the
+coverage backend, `core = "sysmon"` under `[tool.coverage.run]`.
