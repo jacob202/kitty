@@ -207,7 +207,60 @@ fi
 
 export KITTY_EXPECTED_TEST_CHECKOUT="${ROOT_DIR}"
 export KITTY_EXPECTED_TEST_HEAD="$(git rev-parse HEAD)"
+
+# Give this invocation a pytest temp base of its own, and remove it when the run
+# ends. pytest's default is a shared `pytest-of-<user>` tree: it only evicts a
+# base whose lock is stale (about three days), so concurrent sessions do not
+# normally disturb each other, but a shared base is still exposed to external
+# deletion (a disk-pressure cleanup of that tree — this repository has done
+# that to itself), to collisions, and to unbounded growth: it reached 10 GB here
+# and filled the disk, voiding a benchmark run with Errno 28. A private base
+# removes all three, and leaves with its run.
+GATE_TMP_ROOT="${TMPDIR:-/tmp}"
+GATE_TMP_ROOT="${GATE_TMP_ROOT%/}"
+GATE_TMP_BASE="$(mktemp -d "${GATE_TMP_ROOT}/kitty-gate-pytest-XXXXXXXX")"
+# No `-e` here: without this check a failed mktemp reaches pytest as
+# `--basetemp=""`, which pytest rejects with a usage error that names the
+# argument rather than the real cause, and the run reports as an ordinary
+# test failure instead of an infrastructure one. Never run the gate against
+# a temp tree it did not create.
+#
+# `-w` and not just `-d`: mktemp can return a directory this process cannot
+# write into when umask clears owner write (umask 0200 gives dr-x------), and
+# pytest would then fail inside that base with permission errors — exactly the
+# ordinary-test-failure shape this guard exists to replace with exit 75.
+if [[ -z "${GATE_TMP_BASE}" || ! -d "${GATE_TMP_BASE}" || ! -w "${GATE_TMP_BASE}" ]]; then
+  say "${RED}Push blocked — cannot create a private pytest temp base under ${GATE_TMP_ROOT}.${OFF}"
+  say "The tests gate will not run against a shared temp tree. Fix that directory or set TMPDIR elsewhere, then retry."
+  exit 75
+fi
+cleanup_gate_tmp_base() {
+  [[ -n "${GATE_TMP_BASE:-}" && -d "${GATE_TMP_BASE}" ]] || return 0
+  local chmod_diag rm_diag
+  # Tests create read-only directories, and rm cannot descend into those without
+  # write permission; without this the removal silently leaves the base behind.
+  chmod_diag="$(chmod -R u+w "${GATE_TMP_BASE}" 2>&1)" || true
+  rm_diag="$(rm -rf "${GATE_TMP_BASE}" 2>&1)" || true
+  [[ -d "${GATE_TMP_BASE}" ]] || return 0
+  say "  ${YELLOW}note${OFF}  temp base could not be removed: ${GATE_TMP_BASE}"
+  # This hook's doctrine is that a gate which hides its reason is worse than no
+  # gate, so the cause is printed rather than discarded.
+  [[ -n "${chmod_diag}" ]] && printf '%s\n' "${chmod_diag}" >&2
+  [[ -n "${rm_diag}" ]] && printf '%s\n' "${rm_diag}" >&2
+  # Deliberately not a push failure: leftover files under ${GATE_TMP_ROOT} do not
+  # make the gate's verdict wrong, and blocking a good push over housekeeping
+  # would manufacture the false red this change exists to remove.
+  return 0
+}
+trap cleanup_gate_tmp_base EXIT
+# An interrupt must still leave the gate: a handler that merely returns would
+# resume the script, and a Ctrl-C between gates would be swallowed and the push
+# could continue on gates the operator meant to stop.
+trap 'cleanup_gate_tmp_base; exit 130' INT TERM
+say "  ${DIM}pytest temp base: ${GATE_TMP_BASE}${OFF}"
+
 run_gate "tests" "${PYTHON_BIN}" -m pytest tests/ -q --tb=short \
+  --basetemp="${GATE_TMP_BASE}" \
   --cov=gateway --cov-report=term-missing --cov-fail-under=73
 
 say ""
