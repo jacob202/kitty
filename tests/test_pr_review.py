@@ -773,6 +773,40 @@ def test_main_reports_why_a_no_verdict_run_failed(
     assert "without producing a response" in written
 
 
+def test_reviewer_failure_detail_names_the_provider_error_not_ansi_noise(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: PR #930, 2026-09-17 -- the log must show the real error.
+
+    opencode left a bare ANSI reset on stderr and the provider's message on
+    stdout, so the old ``stderr or stdout`` detail printed ": ^[[0m" as the whole
+    failure. The real cause -- an OpenRouter credit ceiling on the fallback model
+    -- appeared nowhere, which is why the gate kept failing silently.
+    """
+
+    class Result:
+        returncode = 1
+        stdout = (
+            "> pr-reviewer · minimax/minimax-m3\n"
+            "Error: This request requires more credits, or fewer max_tokens. "
+            "You requested up to 32000 tokens, but can only afford 916\n"
+        )
+        stderr = "\x1b[0m"
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review.subprocess, "run", lambda _command, **_kwargs: Result())
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/minimax/minimax-m3",),
+    )
+
+    assert pr_review.review_diff("diff") is None
+
+    logged = capsys.readouterr().err
+    assert "requires more credits" in logged
+    assert "\x1b[0m" not in logged
+
+
 def test_model_timeout_is_reclipped_to_the_remaining_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

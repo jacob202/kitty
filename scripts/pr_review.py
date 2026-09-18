@@ -500,6 +500,29 @@ def _record_review_failure(reason: str) -> None:
     _REVIEW_FAILURES.append(reason)
 
 
+# Terminal control sequences, not diagnostics. opencode decorates its output with
+# ANSI colour, which is how a bare colour reset came to be reported as an entire
+# failure detail.
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def _output_detail(*streams: str) -> str:
+    """Reviewer output for the operator log, without terminal control noise.
+
+    Every cleaned stream is kept, stdout first, because either one can carry the
+    real error: on PR #930 (2026-09-17) opencode left a colour reset on stderr and
+    the provider's message -- "This request requires more credits, or fewer
+    max_tokens ... can only afford 916" -- on stdout, and the old
+    ``stderr or stdout`` choice reported the reset as the whole story.
+    """
+    parts = [
+        cleaned
+        for cleaned in (_ANSI_ESCAPE.sub("", stream).strip() for stream in streams if stream)
+        if cleaned
+    ]
+    return " | ".join(parts)[:300]
+
+
 def _run_reviewer(
     review_model: str,
     prompt: str,
@@ -567,7 +590,7 @@ def _run_reviewer(
             False,
         )
 
-    detail = (result.stderr or result.stdout).strip()[:300]
+    detail = _output_detail(result.stdout, result.stderr)
     print(
         f"DSH reviewer {review_model} failed (exit {result.returncode})"
         + (f": {detail}" if detail else ""),
