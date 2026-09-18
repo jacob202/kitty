@@ -97,6 +97,33 @@ def isolate_gateway_auth_env(monkeypatch):
     monkeypatch.setenv("GATEWAY_SECRET", "")
 
 
+def _install_store_copy(template, target):
+    """Put `template` at `target` atomically, with no predecessor's journal.
+
+    `sqlite3.connect()` creates a zero-length file immediately, so a store can
+    legitimately exist and be "empty" while another connection holds it. A plain
+    `copyfile` there replaces a live file with a partially written one, which a
+    concurrent opener reads as `file is not a database`. Writing beside it and
+    renaming makes the swap atomic: openers see the old file or the finished
+    copy, never a torn one.
+    """
+    import os
+    import shutil
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    for suffix in ("-wal", "-shm", "-journal"):
+        stale = target.with_name(target.name + suffix)
+        if stale.exists():
+            stale.unlink()
+    staging = target.with_name(f"{target.name}.staging-{os.getpid()}")
+    try:
+        shutil.copyfile(template, staging)
+        os.replace(staging, target)
+    finally:
+        if staging.exists():
+            staging.unlink()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _migrated_store_templates(tmp_path_factory):
     """Apply each migration chain once per worker; seed fresh stores by copy.
@@ -121,7 +148,6 @@ def _migrated_store_templates(tmp_path_factory):
     an unknown or changed migrations directory, a missing directory — and the
     returned list of applied migrations is the one the real chain produced.
     """
-    import shutil
     import sqlite3
     from pathlib import Path
 
@@ -169,16 +195,7 @@ def _migrated_store_templates(tmp_path_factory):
             finally:
                 connection.close()
             entry = templates[key] = (template, list(applied))
-        target.parent.mkdir(parents=True, exist_ok=True)
-        # A copy must be as fresh as a new file: a test that deletes its store
-        # leaves the -wal/-shm behind, and writing a new main file beside them
-        # lets SQLite replay the dead journal and resurrect deleted rows. The
-        # real path never sees this because opening a missing file starts over.
-        for suffix in ("-wal", "-shm", "-journal"):
-            stale = target.with_name(target.name + suffix)
-            if stale.exists():
-                stale.unlink()
-        shutil.copyfile(entry[0], target)
+        _install_store_copy(entry[0], target)
         return list(entry[1])
 
     with pytest.MonkeyPatch.context() as patched:
@@ -249,14 +266,12 @@ def isolated_autonomy_state_db(_autonomy_state_template, monkeypatch):
     The store lives outside `tmp_path`: tests that assert their own directory
     holds nothing but what they wrote must not see this file either.
     """
-    import shutil
-
     import gateway.autonomy_state as autonomy_state
 
     destination = (
         _autonomy_state_template.parent / f"autonomy-{next(_STORE_SEQUENCE)}.db"
     )
-    shutil.copyfile(_autonomy_state_template, destination)
+    _install_store_copy(_autonomy_state_template, destination)
     monkeypatch.setattr(autonomy_state, "STATE_DB", destination)
 
 
