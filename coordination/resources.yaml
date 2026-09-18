@@ -38,6 +38,7 @@ resources:
     - gateway/builder_cli.py
     - gateway/builder_commands.py
     - gateway/builder_loop.py
+    - gateway/builder_publish.py
     - gateway/builder_queue.py
     - gateway/builder_status.py
     - gateway/builder_supervisor.py
@@ -46,6 +47,7 @@ resources:
     - tests/test_builder_interrupted_projection_regression.py
     - tests/test_builder_loop.py
     - tests/test_builder_publication_infrastructure.py
+    - tests/test_builder_publish.py
     - tests/test_builder_queue.py
     - tests/test_builder_report.py
     - tests/test_builder_run.py
@@ -193,6 +195,8 @@ resources:
     - mcp/builder/commands.py
     - mcp/builder/context.py
     - mcp/builder/repo_tools.py
+    - pyproject.toml
+    - pytest.ini
     - scripts/desktop/start_ui.sh
     - scripts/hooks/**
     - scripts/kb_effectiveness.py
@@ -206,6 +210,7 @@ resources:
     - tests/test_agent_room_cli.py
     - tests/test_agent_room_lifecycle_hooks.py
     - tests/test_agent_room_lifecycle_review_regressions.py
+    - tests/test_algorithm.py
     - tests/test_app_lifespan_hermetic.py
     - tests/test_builder_doctor.py
     - tests/test_builder_scope_registration.py

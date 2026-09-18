@@ -68,6 +68,30 @@ class _FakeState:
         self.status = status
 
 
+def _seed_active_session(session_id: int) -> None:
+    """Persist an active session — the precondition the loop's guard reads.
+
+    `_run_agent_loop` returns before the first model call unless
+    autonomy_state.STATE_DB reports this session as active, so a test asserting
+    on the framed prompt has to create that row itself. Inheriting it from
+    whichever test ran earlier in the same process made these assertions pass in
+    a serial run and fail under `pytest -n auto`.
+    """
+    import sqlite3
+    import time
+
+    from gateway import autonomy_state
+
+    autonomy_state.init_db()
+    now = time.time()
+    with sqlite3.connect(autonomy_state.STATE_DB) as conn:
+        conn.execute(
+            "INSERT INTO autonomy_sessions (id, goal, status, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (session_id, "do the thing", "active", now, now),
+        )
+
+
 def _wire_loop(monkeypatch, response):
     """Patch the loop's runtime deps; return (captured, state) for assertions."""
     captured: dict = {}
@@ -80,6 +104,7 @@ def _wire_loop(monkeypatch, response):
     monkeypatch.setattr("gateway.llm_client.call_llm", fake_call_llm)
     monkeypatch.setattr("gateway.llm_client.route_model", lambda goal: "test-model")
     monkeypatch.setattr("gateway.autonomy_state.AutonomyState", lambda session_id: state)
+    _seed_active_session(state.session_id)
     return captured, state
 
 

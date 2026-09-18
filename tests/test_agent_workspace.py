@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import types
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
@@ -561,8 +562,13 @@ def test_mission_list_returns_durable_rows_most_recent_first(tmp_path, monkeypat
     from gateway import memory_mission
 
     db_path = tmp_path / "kitty.db"
+    # Patch this module's clock, not the process-wide `time.time`: a one-shot
+    # iterator installed globally is consumed by any unrelated caller in the
+    # process, and the next call here would raise StopIteration.
     stamps = iter((100.0, 200.0))
-    monkeypatch.setattr(memory_mission.time, "time", lambda: next(stamps))
+    monkeypatch.setattr(
+        memory_mission, "time", types.SimpleNamespace(time=lambda: next(stamps))
+    )
 
     memory_mission.create_mission(
         mission_id="mission-older",

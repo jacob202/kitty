@@ -48,9 +48,19 @@ def _command_timeout_seconds(args: list[str]) -> int:
 
 
 def _stop_process_group(proc: subprocess.Popen[str]) -> None:
+    """Signal the child's process group, tolerating a group that is already gone.
+
+    Darwin answers EPERM, not ESRCH, when the group is being torn down: the
+    leader has been reaped and the last member is exiting, so the group id no
+    longer resolves to processes this one may signal. Measured on macOS 27 in
+    isolation (1 in 50 sends against a group whose members had just exited) and
+    on demand under the load of a parallel test run. Neither errno is a
+    permission problem for a group started here with `start_new_session=True`,
+    so both mean the same thing: there is nothing left to kill.
+    """
     try:
         os.killpg(proc.pid, signal.SIGTERM)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         if proc.poll() is None:
             proc.wait()
         return
@@ -63,7 +73,7 @@ def _stop_process_group(proc: subprocess.Popen[str]) -> None:
     # process group regardless of the leader's exit state.
     try:
         os.killpg(proc.pid, signal.SIGKILL)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
     if proc.poll() is None:
         proc.wait()

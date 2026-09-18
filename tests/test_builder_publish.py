@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import signal
@@ -817,3 +818,58 @@ def test_default_run_timeout_reaps_descendant_process_group(
         text=True,
     ).stdout.strip()
     assert not state or state.startswith("Z"), state
+
+
+def test_stop_process_group_treats_an_unsignalable_group_as_stopped(monkeypatch):
+    """Darwin answers EPERM, not ESRCH, for a group it is already tearing down.
+
+    Observed on this host when a timed-out command's members had all exited: the
+    leader was reaped, `ps` listed no member of the group, and the escalation's
+    killpg still raised EPERM. Shutdown has to read that as "the group is gone",
+    the same conclusion it already drew from ESRCH, or an ordinary timeout
+    surfaces as a permission error on the publish path.
+    """
+    sent: list[int] = []
+
+    class _ExitingGroup:
+        pid = 4242
+
+        def poll(self) -> None:
+            return None
+
+        def wait(self, timeout: float | None = None) -> int:
+            if timeout is not None:
+                raise subprocess.TimeoutExpired(cmd="reap", timeout=timeout)
+            return -signal.SIGKILL
+
+    def refuse_escalation(pid: int, sig: int) -> None:
+        sent.append(sig)
+        if sig == signal.SIGKILL:
+            raise PermissionError(errno.EPERM, "Operation not permitted")
+
+    monkeypatch.setattr(bp.os, "killpg", refuse_escalation)
+    bp._stop_process_group(_ExitingGroup())  # type: ignore[arg-type]
+
+    assert sent == [signal.SIGTERM, signal.SIGKILL]
+
+    # The first signal can land in the same window, so it reports the vanished
+    # group too: nothing is signalled and nothing is raised.
+    sent.clear()
+
+    class _AlreadyReaped:
+        pid = 4243
+
+        def poll(self) -> int:
+            return -signal.SIGTERM
+
+        def wait(self, timeout: float | None = None) -> int:
+            return -signal.SIGTERM
+
+    def refuse_all(pid: int, sig: int) -> None:
+        sent.append(sig)
+        raise PermissionError(errno.EPERM, "Operation not permitted")
+
+    monkeypatch.setattr(bp.os, "killpg", refuse_all)
+    bp._stop_process_group(_AlreadyReaped())  # type: ignore[arg-type]
+
+    assert sent == [signal.SIGTERM]

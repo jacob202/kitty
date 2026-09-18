@@ -111,6 +111,36 @@ def isolated_governor_db(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_autonomy_state_db(tmp_path_factory, monkeypatch):
+    """Give every test its own autonomy session store, schema included.
+
+    `agent_runner._run_agent_loop` returns before its first model call unless
+    autonomy_state.STATE_DB reports that session as active, so any test that
+    drives the loop depends on a persisted session row. One store per process
+    made that row a leftover from whichever test ran earlier: the assertions
+    held in a serial run and failed in a fresh process, or in whichever
+    parallel worker did not happen to run the test that created it. Tests that
+    need a session must persist one themselves.
+
+    A gateway process initializes the store before the first session exists, so
+    the fresh store is created here rather than left absent — several callers
+    (`start_new`) read the table without creating it.
+
+    The store lives beside `tmp_path` rather than inside it: tests that assert
+    their own directory holds nothing but what they wrote must not see this
+    file either.
+    """
+    import gateway.autonomy_state as autonomy_state
+
+    monkeypatch.setattr(
+        autonomy_state,
+        "STATE_DB",
+        tmp_path_factory.mktemp("autonomy-state") / "autonomy_state.db",
+    )
+    autonomy_state.init_db()
+
+
+@pytest.fixture(autouse=True)
 def isolate_provider_prefs(tmp_path, monkeypatch):
     """Keep the saved provider order out of tests — and tests out of it.
 
