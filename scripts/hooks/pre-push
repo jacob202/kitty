@@ -207,7 +207,32 @@ fi
 
 export KITTY_EXPECTED_TEST_CHECKOUT="${ROOT_DIR}"
 export KITTY_EXPECTED_TEST_HEAD="$(git rev-parse HEAD)"
+
+# Give this invocation a pytest temp base of its own, and remove it when the
+# run ends. pytest otherwise keeps `pytest-of-<user>/pytest-<n>` directories and
+# prunes all but the newest three at session start, so two sessions running at
+# once on one host delete each other's directories mid-run: the victim's tests
+# fail on paths that no longer exist, in a shape that looks like an I/O or
+# database fault on a single worker and passes on retry. A private base also
+# means the run's temp data — previously tens of gigabytes of per-test stores —
+# leaves with the run instead of accumulating until the disk fills.
+GATE_TMP_ROOT="${TMPDIR:-/tmp}"
+GATE_TMP_ROOT="${GATE_TMP_ROOT%/}"
+GATE_TMP_BASE="$(mktemp -d "${GATE_TMP_ROOT}/kitty-gate-pytest-XXXXXXXX")"
+cleanup_gate_tmp_base() {
+  [[ -n "${GATE_TMP_BASE:-}" && -d "${GATE_TMP_BASE}" ]] || return 0
+  # Tests create read-only directories, and rm cannot descend into those without
+  # write permission; without this the removal silently leaves the base behind.
+  chmod -R u+w "${GATE_TMP_BASE}" 2>/dev/null
+  rm -rf "${GATE_TMP_BASE}" 2>/dev/null
+  [[ -d "${GATE_TMP_BASE}" ]] && say "  ${YELLOW}note${OFF}  temp base could not be removed: ${GATE_TMP_BASE}"
+  return 0
+}
+trap cleanup_gate_tmp_base EXIT INT TERM
+say "  ${DIM}pytest temp base: ${GATE_TMP_BASE}${OFF}"
+
 run_gate "tests" "${PYTHON_BIN}" -m pytest tests/ -q --tb=short \
+  --basetemp="${GATE_TMP_BASE}" \
   --cov=gateway --cov-report=term-missing --cov-fail-under=73
 
 say ""
