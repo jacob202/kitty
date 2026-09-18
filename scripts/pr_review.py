@@ -54,14 +54,22 @@ REVIEW_OVERRIDE_LABEL = "review/override-approved"
 MAX_REVIEW_CHARS = int(os.environ.get("PR_REVIEW_CHUNK_CHARS", "60000"))
 MAX_REVIEW_CHUNKS = int(os.environ.get("PR_REVIEW_MAX_CHUNKS", "12"))
 # One chunk may be attempted twice. A reviewer that produced no verdict without
-# timing out gets a second, genuinely independent attempt spent from the same
-# bounded budget: live evidence on PR #917 (2026-09-17) is a single blank
-# fallback response voiding a whole 2-chunk review, and a blank response is a
-# transport failure, not a review the model declined to give. A reviewer that
-# timed out is never retried -- see PR #880, where re-paying a stalled model per
-# chunk consumed the one shared budget. This is a behaviour rule rather than a
-# budget knob, so it is deliberately not read from the environment.
+# timing out gets a second attempt spent from the same bounded budget: live
+# evidence on PR #917 (2026-09-17) is a single blank fallback response voiding a
+# whole 2-chunk review, and a blank response is a transport failure, not a review
+# the model declined to give. A reviewer that timed out is never retried -- see
+# PR #880, where re-paying a stalled model per chunk consumed the one shared
+# budget. This is a behaviour rule rather than a budget knob, so it is
+# deliberately not read from the environment.
 MAX_REVIEW_PASSES = 2
+# Every submission is a paid OpenRouter request -- `opencode run` exposes no
+# provider idempotency key, so a re-submission after an ambiguous response can be
+# billed again even when the first reply was empty. One extra submission per
+# chunk is therefore the whole retry allowance: the ladder is walked once, and a
+# single responsive reviewer may be asked again (review finding, PR #930). Without
+# the cap a 12-chunk diff (MAX_REVIEW_CHUNKS) could double every failing chunk's
+# spend, which is exactly what the retry must not cost.
+MAX_REVIEW_RETRIES_PER_CHUNK = 1
 # Why this run has no verdict. One process reviews one head, so the record is
 # process-scoped: every attempt that produced no answer appends one line, and the
 # failure comment renders them. PR #917 (2026-09-17) is the reason it exists --
@@ -70,6 +78,10 @@ MAX_REVIEW_PASSES = 2
 # reviewer broke or how, so the real problem never surfaced anywhere a human or a
 # rerun could act on it.
 _REVIEW_FAILURES: list[str] = []
+# Every paid submission this run made, in order. The failure summary reports the
+# total, because the retry's cost is invisible in a per-attempt log line and the
+# account is billed per submission (PR #930 review finding).
+_REVIEW_SUBMISSIONS: list[str] = []
 
 SYSTEM_PROMPT = """You are a strict independent code reviewer. Review only the supplied PR diff chunk.
 
@@ -577,20 +589,36 @@ def _run_reviewer(
     if result.returncode == 0 and verdict:
         return verdict, None, False
 
+    # Either stream can carry the real diagnostic -- `opencode run` writes its
+    # banner and provider errors to stdout and has left a bare colour reset on
+    # stderr -- so a failure never reports just one of them (PR #930 finding).
+    detail = _output_detail(result.stdout, result.stderr)
+    if result.returncode != 0:
+        # A nonzero exit is the process failing, not the model answering. It is
+        # named as such and keeps its diagnostic: on PR #930 (2026-09-17) both
+        # rungs died with an OpenRouter credit ceiling and the harness reported
+        # only "failed (exit 1): ^[[0m" while the real error sat in stdout.
+        print(
+            f"DSH reviewer {review_model} process failed (exit {result.returncode})"
+            + (f": {detail}" if detail else "."),
+            file=sys.stderr,
+        )
+        return None, f"`{review_model}` failed with exit {result.returncode}", False
+
     answer = result.stdout.strip()
     if not answer:
         print(
             f"DSH reviewer {review_model} infrastructure error: "
-            f"exited {result.returncode} without producing a response.",
+            f"exited 0 without producing a response"
+            + (f": {detail}" if detail else "."),
             file=sys.stderr,
         )
         return (
             None,
-            f"`{review_model}` exited {result.returncode} without producing a response",
+            f"`{review_model}` exited 0 without producing a response",
             False,
         )
 
-    detail = _output_detail(result.stdout, result.stderr)
     print(
         f"DSH reviewer {review_model} failed (exit {result.returncode})"
         + (f": {detail}" if detail else ""),
@@ -598,7 +626,7 @@ def _run_reviewer(
     )
     return (
         None,
-        f"`{review_model}` exited {result.returncode} without a schema-valid verdict "
+        f"`{review_model}` answered without a schema-valid verdict "
         f"({len(answer)} chars)",
         False,
     )
@@ -646,6 +674,7 @@ def _review_chunk(
     )
 
     timed_out_models: set[str] = set()
+    chunk_submissions = 0
     for pass_index in range(1, MAX_REVIEW_PASSES + 1):
         for index, review_model in enumerate(review_models, start=1):
             attempt_timeout = _model_timeout(deadline)
@@ -659,6 +688,8 @@ def _review_chunk(
                     f"before `{review_model}` could be tried."
                 )
                 return None
+            chunk_submissions += 1
+            _REVIEW_SUBMISSIONS.append(review_model)
             verdict, failure, timed_out = _run_reviewer(
                 review_model, prompt, agent, attempt_timeout
             )
@@ -683,13 +714,17 @@ def _review_chunk(
             for model in review_models
             if model not in timed_out_models
             and (not unresponsive or model not in unresponsive)
-        )
+        )[-MAX_REVIEW_RETRIES_PER_CHUNK:]
+        # The ladder walked once, plus the one extra submission the retry is
+        # allowed: the cap the operator sees in the progression line below.
+        chunk_attempt_cap = len(review_models) + MAX_REVIEW_RETRIES_PER_CHUNK
         if pass_index >= MAX_REVIEW_PASSES or not retry_models:
             return None
         print(
-            "No reviewer produced a verdict for this chunk; retrying "
-            + ", ".join(retry_models)
-            + ".",
+            f"No reviewer produced a verdict for this chunk; retrying "
+            f"{', '.join(retry_models)} (pass {pass_index + 1}/{MAX_REVIEW_PASSES}, "
+            f"attempt {chunk_submissions + 1}/{chunk_attempt_cap} for this chunk, "
+            "the only extra paid submission it is allowed).",
             file=sys.stderr,
         )
         review_models = retry_models
@@ -748,6 +783,7 @@ def _review_chunks(diff: str) -> list[str]:
 def review_diff(diff: str) -> str | None:
     """Review every byte of the diff in bounded, file-aware chunks."""
     del _REVIEW_FAILURES[:]
+    del _REVIEW_SUBMISSIONS[:]
     try:
         chunks = _review_chunks(diff)
     except ValueError as exc:
@@ -786,7 +822,13 @@ def review_diff(diff: str) -> str | None:
             )
             return None
         print(f"Reviewing diff chunk {index}/{len(chunks)} ({len(chunk)} chars).")
+        submitted_before = len(_REVIEW_SUBMISSIONS)
         verdict = _review_chunk(chunk, deadline=deadline, unresponsive=unresponsive)
+        print(
+            f"Chunk {index}/{len(chunks)} used "
+            f"{len(_REVIEW_SUBMISSIONS) - submitted_before} paid reviewer submission(s).",
+            file=sys.stderr,
+        )
         if not verdict:
             return None
         if verdict.strip() != NO_FINDINGS:
@@ -1012,7 +1054,7 @@ def upsert_review(
     return True
 
 
-def _write_run_summary() -> None:
+def _write_run_summary() -> bool:
     """Name the failed attempts in the run summary as well as the failure comment.
 
     The review job is deliberately non-blocking -- the deterministic policy gate
@@ -1020,20 +1062,27 @@ def _write_run_summary() -> None:
     failure otherwise lives only in the log. This is the run-level channel that
     makes the cause visible where a rerun is started; the same causes are
     published on the PR itself by the failure comment.
+
+    Returns True only when this run's causes actually reached a summary file, so
+    ``main`` cannot claim a channel that skipped or failed (PR #930 finding).
     """
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not path or not _REVIEW_FAILURES:
-        return
+        return False
     try:
         with open(path, "a", encoding="utf-8") as summary:
             summary.write(
                 "## Agent PR Review: no verdict\n\n"
                 "The current head has no review evidence. Failed reviewer attempts:\n\n"
                 + "\n".join(f"- {reason}" for reason in _REVIEW_FAILURES)
-                + "\n"
+                + "\n\n"
+                f"Paid reviewer submissions this run: {len(_REVIEW_SUBMISSIONS)} "
+                f"(one retry at most per chunk).\n"
             )
     except OSError as exc:
         print(f"Could not write the review failure summary: {exc}", file=sys.stderr)
+        return False
+    return True
 
 
 def main() -> None:
@@ -1079,13 +1128,25 @@ def main() -> None:
         # with no verdict must read as visibly unapproved, not silently ambiguous.
         # The attempt failures go to the run summary first, so the cause survives
         # even when the comment cannot be written (for example, a moved head).
-        _write_run_summary()
-        if not upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha):
+        # The final line names only the channels that actually carried the cause:
+        # a success claim for a skipped summary write or a declined comment is
+        # exactly the false status this reporting exists to remove (PR #930).
+        summary_written = _write_run_summary()
+        failure_published = upsert_review(REVIEW_FAILED, pr_number, owner, repo, head_sha)
+        if not failure_published:
             print(f"PR head moved past {head_sha}; failure not published.", file=sys.stderr)
+        causes = len(_REVIEW_FAILURES)
+        if causes and summary_written and failure_published:
+            reported_in = f"the failure comment and the run summary ({causes} attempt(s))"
+        elif causes and failure_published:
+            reported_in = f"the failure comment ({causes} attempt(s))"
+        elif causes and summary_written:
+            reported_in = f"the run summary ({causes} attempt(s))"
+        else:
+            reported_in = "the workflow log above"
         print(
             "Current-head agent review did not produce a verdict; "
-            f"{len(_REVIEW_FAILURES)} reviewer attempt failure(s) are named in the failure "
-            "comment and the run summary.",
+            f"the causes are named in {reported_in}.",
             file=sys.stderr,
         )
         raise SystemExit(1)

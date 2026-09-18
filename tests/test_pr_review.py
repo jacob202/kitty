@@ -463,7 +463,7 @@ def test_review_chunk_falls_back_to_different_model_once(monkeypatch: pytest.Mon
 
 
 def test_blank_fallback_response_gets_a_second_attempt_before_the_review_is_voided(
-    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Regression: PR #917, 2026-09-17.
 
@@ -503,15 +503,22 @@ def test_blank_fallback_response_gets_a_second_attempt_before_the_review_is_void
         "openrouter/minimax/minimax-m3",
         "openrouter/minimax/minimax-m3",
     ]
+    # The retry is one extra paid submission, and its progression is on the log
+    # where an operator can see how close the chunk came to exhaustion.
+    logged = capsys.readouterr().err
+    assert "pass 2/2" in logged
+    assert "attempt 3/3 for this chunk" in logged
+    assert "Chunk 1/1 used 3 paid reviewer submission(s)." in logged
 
 
 def test_reviewer_that_kept_failing_after_its_retry_still_produces_no_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A blank response from every reviewer, twice over, is still no verdict.
+    """A blank response from every reviewer costs one bounded retry, then no verdict.
 
-    The bounded retry must never invent evidence: this is the exact shape of the
-    PR #917 reruns, where nothing answered and the head stayed unapproved.
+    The retry must never invent evidence, and it must never spend more than the
+    ladder plus one extra paid submission: this is the exact shape of the PR #917
+    reruns, where nothing answered and the head stayed unapproved.
     """
     attempted: list[str] = []
 
@@ -532,10 +539,9 @@ def test_reviewer_that_kept_failing_after_its_retry_still_produces_no_verdict(
     )
 
     assert pr_review.review_diff("diff") is None
-    assert attempted == [
+    assert pr_review._REVIEW_SUBMISSIONS == [
         "openrouter/deepseek/deepseek-v4-flash",
         "openrouter/minimax/minimax-m3",
-        "openrouter/deepseek/deepseek-v4-flash",
         "openrouter/minimax/minimax-m3",
     ]
 
@@ -724,7 +730,7 @@ def test_no_verdict_run_names_the_failed_attempts_in_the_published_report(
 
 
 def test_main_reports_why_a_no_verdict_run_failed(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
+    tmp_path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """End to end, the reported rerun scenario: hard exit, fail-closed comment, named cause.
 
@@ -771,6 +777,35 @@ def test_main_reports_why_a_no_verdict_run_failed(
     assert "timed out after" in written
     assert "openrouter/minimax/minimax-m3" in written
     assert "without producing a response" in written
+    assert "the failure comment and the run summary" in capsys.readouterr().err
+
+
+def test_main_does_not_claim_a_channel_that_never_received_the_failure(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: PR #930 review -- no success claim for a channel that skipped.
+
+    With no run summary configured and the failure comment declined (the head
+    moved, or more conservative evidence is already recorded for it), the causes
+    reached neither channel. The final line must send the operator to the workflow
+    log instead of claiming both publications succeeded.
+    """
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    published = iter([True, False])  # pending marker published, failure declined
+    monkeypatch.setattr(pr_review, "get_pr_diff", lambda: ("diff", 12, "owner", "repo", "a" * 40))
+    monkeypatch.setattr(pr_review, "get_exact_head_override", lambda _sha: None)
+    monkeypatch.setattr(pr_review, "_head_still_current", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(pr_review, "upsert_review", lambda *_args, **_kwargs: next(published))
+    monkeypatch.setattr(pr_review, "review_diff", lambda _diff: None)
+
+    with pytest.raises(SystemExit) as exc:
+        pr_review.main()
+
+    assert exc.value.code == 1
+    logged = capsys.readouterr().err
+    assert "the workflow log above" in logged
+    assert "run summary" not in logged
+    assert "failure comment" not in logged
 
 
 def test_reviewer_failure_detail_names_the_provider_error_not_ansi_noise(
@@ -805,6 +840,41 @@ def test_reviewer_failure_detail_names_the_provider_error_not_ansi_noise(
     logged = capsys.readouterr().err
     assert "requires more credits" in logged
     assert "\x1b[0m" not in logged
+
+
+def test_nonzero_exit_with_a_stderr_diagnostic_is_reported_as_a_process_failure(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: PR #930 review -- a nonzero exit must keep its stderr cause.
+
+    The blank-stdout branch used to classify every empty stdout as "without
+    producing a response" and drop the captured stderr, so an `opencode` failure
+    that reports only on stderr (a missing key, a refused model) was reported as
+    a silent no-answer.
+    """
+
+    class Result:
+        returncode = 2
+        stdout = ""
+        stderr = "Error: provider authentication failed for openrouter"
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review.subprocess, "run", lambda _command, **_kwargs: Result())
+    monkeypatch.setattr(
+        pr_review, "review_models_for_current_event",
+        lambda: ("openrouter/minimax/minimax-m3",),
+    )
+
+    assert pr_review.review_diff("diff") is None
+
+    logged = capsys.readouterr().err
+    assert "process failed (exit 2)" in logged
+    assert "provider authentication failed" in logged
+    # The durable reason stays workflow-authored: no raw process text is promoted
+    # into the workflow-owned failure comment.
+    body = pr_review.render_review_body(pr_review.REVIEW_FAILED, "a" * 40)
+    assert "provider authentication failed" not in body
+    assert "`openrouter/minimax/minimax-m3` failed with exit 2" in body
 
 
 def test_model_timeout_is_reclipped_to_the_remaining_budget(
