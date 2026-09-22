@@ -31,44 +31,30 @@ mutation gate. Read `config/PREFERENCES.md` once per session for Jacob-specific
 interaction and taste defaults; preferences are personal context, not
 architecture/runtime evidence, and never override verified repository truth. Use staged loading from
 `docs/reference/CONTEXT_ENGINEERING.md`; read only the authority required by
-the task. Inspect Builder only when the task involves Builder state, ownership,
-execution, or collision risk.
+the task. Builder and GAR are suspended as defaults; inspect them only when
+explicit historical, rollback, or Builder-specific work requires it.
 
-## Global Agent Room
+## Suspended default operating model
 
-`workspace_global` is the primary mutable cross-agent communication channel for
-Kitty work. After checkout/Git verification at start or resume, consume the
-shared Room Briefing first with `./kitty room briefing --as <identity>
---session-id <current-session> --json` (or the MCP `room_status` briefing view).
-Room Briefing is a view of the shared orientation domain; clients must not
-independently reconstruct assignment, ownership, Builder, Git, runtime,
-presence, or GAR truth. Participant-wide directs are attention only unless
-exact structural correlation independently resolves the current assignment.
-Presence is liveness only and never establishes assignment or ownership. When
-Room Briefing resolves or identifies a durable locator for an exact thread or
-handoff, load that exact conversation with `room_thread` or `./kitty room thread
-<message_id> --json`. The unread direct inbox remains an attention/receipt
-surface after briefing; inspect it with `./kitty room inbox --as <identity>
---unread --direct-only --json` or MCP
-`room_inbox(unread_only=True, direct_only=True)`. It is not an assignment
-authority. Use `room_recent`
-only for bounded situational context; the newest global window is not an
-assignment index. If briefing cannot resolve continuation and legacy checkpoint
-fallback is genuinely required, run the
-strict `./kitty context --agent` receipt and use the checkpoint only when that
-validation succeeds. A legacy-skipping receipt never validates a legacy
-fallback. Acknowledge only messages actually consumed; acknowledgement means
-received, not completed. Use direct messages for a specific owner, broadcasts
-for shared context, and replies for an existing thread.
+Builder is not the default executor and GAR is not mandatory recall, lifecycle,
+or handoff infrastructure. Normal work begins from live Git/GitHub/runtime state
+and the current assignment.
 
-Before ending or handing off substantial work, post a concise verified result or
-handoff to the room with exact SHA/evidence, blockers, and next action when
-relevant. Publish the final handoff only after final validation so its evidence
-matches the state another agent will resume. Mutable handoffs, current-lane
-status, and cross-agent questions belong in the room instead of being duplicated
-across startup markdown. Do not infer online presence from `registered`. Builder
-remains execution/task/lease authority, GitHub issue #490 remains interactive
-ownership/collision authority, and Git/GitHub remain publication evidence.
+Before mutating a shared Kitty worktree, acquire the smallest local ownership
+claim that covers the paths you intend to change:
+
+`python3 scripts/work_claim.py claim --owner <id> --task <task> --path <scope>`
+
+Claims live only in the repository's shared Git metadata. They have explicit
+expiry, block overlapping active scopes, allow non-overlapping work, and require
+no daemon or database. Use `status`, `renew`, `release`, and `reap` as
+needed. Do not kill, clean, move, or delete another session's worktree or files.
+Do not use `/tmp` for durable worktrees. Commit recoverable WIP before stopping
+long-running work.
+
+Git/GitHub remain publication authority. GAR and Builder history stay preserved
+for archaeology and rollback, but ordinary completion must not create GAR
+traffic, lifecycle receipts, or Builder work merely to satisfy bookkeeping.
 
 ## Scope and code quality
 
@@ -95,8 +81,8 @@ outcome contract is verified against the exact running candidate or, for a
 non-runtime documentation/process task, the exact repository state and the
 reader/operator behavior the task was meant to change. Material course
 corrections to how agents work must be persisted into load-bearing doctrine,
-preferences, tests, or enforcement before closeout; a chat or GAR message alone
-is not enough.
+preferences, tests, or enforcement before closeout; a transient chat message
+alone is not enough.
 
 ## Reviewer routing
 
@@ -139,40 +125,28 @@ Do not enable or rely on auto-merge for dependency/lockfile, CI, auth/security,
 destructive/schema, human-judgment, collision, unverifiable-gate, or scope-
 expansion changes.
 
-## Builder ownership
+## Builder compatibility
 
-Builder owns durable initiative, packet, lease, attempt, worker, review,
-recovery, and publication state. Product intent remains in the versioned
-Mission. Use supported Builder projections, never infer state from prose or UI
-emptiness, and never join Builder tables into another state machine.
+Builder code, data, task history, leases, attempts, and publication records are
+preserved. Builder runs only when Jacob explicitly requests Builder work or a
+rollback experiment requires it. A normal interactive session must not select,
+schedule, supervise, drain, repair, or depend on Builder.
 
-Interactive and Builder work are separate lanes. Every implementation has one
-owner: `interactive` or `builder`. A manual session does not consume Builder's
-queue. Ownership changes only by explicit user instruction or a valid supported
-transfer. Never let two lanes implement the same work. Builder workers may use
-replaceable tools, but the same worker never approves itself; T0 is automatic,
-T1 needs separate model approval, and T2 needs Jacob for publication, deletion,
-auth/secrets/env, spending, heavy dependencies, and the irreversible subset of
-sensitive scope. Broad-scope but reversible changes are not T2: they clear
-deterministically on a trusted exact-head review (see `IRREVERSIBLE_PATTERNS` in
-`scripts/pr_scope.py` and `scripts/pr_policy.py`).
+If explicitly reviewing historical Builder output, use its supported projections
+and preserve its recorded evidence. Do not translate dormant Builder state into
+new work automatically.
 
 ## Special commands
 
 When the user says bare `next`, `continue`, `resume`, or `do the next thing`,
-execute `.agents/skills/next/SKILL.md`: continue only the current interactive
-assignment, inspect Builder only for collision awareness, and leave an explicit
-no-op when no valid assignment exists. Explicit `builder next`, `builder
-status`, or `review builder` are different intents.
+execute `.agents/skills/next/SKILL.md`: continue only the current assignment
+from the conversation and verified live repository state. Do not inspect Builder
+or GAR merely to manufacture a continuation.
 
-When a substantial interactive assignment is genuinely verified complete,
-execute `.agents/skills/session-end/SKILL.md` automatically before the final
-closeout response; the user does not need to ask for session end. Also execute
-it when the user explicitly says `session end`, `wrap up`, or equivalent. It
-owns the live survey, exact evidence, KB receipt, continuity updates, learning
-signals, validation, and stop rule; it must not create an automatic issue or
-start another assignment. Do not trigger it for an ordinary turn, a question,
-a checkpoint, pending review/CI, or any case where assigned work remains.
+Normal completion is simply: verify the requested outcome, report the evidence,
+and stop. `.agents/skills/session-end/SKILL.md` is suspended compatibility
+documentation and must not run automatically or create GAR/STATE/HANDOFF/KB
+bookkeeping.
 
 For implementation, repair, review, or completion claims, use
 `.agents/skills/verified-delivery/SKILL.md`. For modernization or maintenance

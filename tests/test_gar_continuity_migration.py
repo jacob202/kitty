@@ -77,27 +77,26 @@ def test_context_cli_accepts_skip_legacy_continuity(monkeypatch, capsys):
     assert "\"ok\": true" in capsys.readouterr().out.lower()
 
 
-def test_session_end_posts_room_handoff_after_final_validation():
+def test_session_end_is_preserved_only_as_suspended_compatibility():
     text = SESSION_END.read_text(encoding="utf-8")
-    validate_at = text.index("check_continuity_state.py")
-    final_post_at = text.index("Post the final Global Agent Room handoff")
 
-    assert validate_at < final_post_at
-    tail = text[final_post_at:]
-    assert "If validation fails" in tail
-    assert "blocked" in tail or "failed" in tail
+    assert "Suspended Compatibility Skill" in text
+    assert "Do not invoke this skill automatically" in text
+    assert "Do not post GAR handoffs" in text
+    assert "STATE.md" in text
+    assert "HANDOFF.md" in text
 
 
-def test_bootloader_uses_deterministic_room_discovery_before_recent_context():
+def test_bootloader_uses_live_git_and_local_claims_without_room_discovery():
     agents = AGENTS.read_text(encoding="utf-8")
     start_here = START_HERE.read_text(encoding="utf-8")
 
     for text in (agents, start_here):
-        assert "--unread" in text
-        assert "room_thread" in text
-        assert "durable locator" in text
-        assert "strict" in text
-    assert "--skip-legacy-continuity" in start_here
+        assert "scripts/work_claim.py" in text
+        assert "Git/GitHub" in text
+    assert "room briefing" not in start_here.lower()
+    assert "--skip-legacy-continuity" not in start_here
+    assert "Do not use Builder or GAR during ordinary startup" in start_here
 
 
 def test_context_engineering_preserves_verified_delivery_contract():

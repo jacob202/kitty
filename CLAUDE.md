@@ -12,44 +12,24 @@ Start here: `START_HERE.md`.
 
 ## Cold-start bootloader
 
-`START_HERE.md` owns the cold-start procedure: checkout/worktree verification,
-live Git state, the context receipt (GAR `--skip-legacy-continuity` vs. strict
-legacy fallback), the authority reading order, and the final mutation gate. Run
-it before relying on inherited context instead of restating it here.
+`START_HERE.md` owns checkout/worktree verification, live Git state, the
+authority reading order, and the mutation gate. Start from current Git/GitHub/
+runtime evidence instead of inherited handoff prose.
 
-## Global Agent Room
+## Suspended defaults
 
-For Kitty work, `workspace_global` is the default durable communication channel
-with Jacob, ChatGPT, Codex, and Kitty. With the configured Agent Room MCP, use
-`room_status`, `room_recent`, `room_inbox`, `room_thread`, `room_post`,
-`room_reply`, and `room_ack`. The MCP identity is pinned; do not impersonate
-another participant.
+Builder is suspended as the default executor. GAR is suspended as mandatory
+recall, lifecycle, and handoff infrastructure. Do not query either system during
+ordinary startup or completion merely because the tooling exists.
 
-At start/resume, use unread direct messages and a known thread id as the durable
-locator for the assignment; do not assume the newest global messages contain an
-older active handoff. During work, use direct messages for a specific owner,
-broadcasts when everyone needs the information, and thread replies for
-continuations. Before stopping substantial work, post the final verified result
-or handoff only after final validation. `registered` means membership only,
-never online presence. The room is communication, not execution: Builder owns
-engineering tasks/leases, #490 owns interactive collision/ownership, and
-Git/GitHub own publication evidence.
+Interactive implementation uses an isolated worktree plus the local claim
+mechanism in `scripts/work_claim.py`. Claims cover repository-relative paths,
+expire explicitly, and are shared by linked worktrees through Git metadata.
+Git/GitHub remain publication truth. Builder/GAR history is preserved for
+explicit inspection, rollback, or compatibility work.
 
-## Context engineering default
-
-Follow `docs/reference/CONTEXT_ENGINEERING.md`. With a known GAR handoff/thread,
-begin with `./kitty context --agent --skip-legacy-continuity`, load the minimum
-authority set for the task type, and expand only for unresolved evidence
-questions. If no durable GAR locator exists and legacy fallback is required, or
-if GAR is unavailable, use strict `./kitty context --agent` before trusting the
-checkpoint. For code changes, finish the full canonical reading order before
-mutation.
-
-## Two execution lanes
-
-Builder vs. interactive ownership is shared doctrine: `AGENTS.md` owns the
-Builder ownership rules and the single-owner lane contract. Claude-specific
-defaults follow.
+Follow `docs/reference/CONTEXT_ENGINEERING.md` only for task-relevant authority;
+do not require a GAR locator or legacy checkpoint to begin normal work.
 
 ## Execution defaults
 
@@ -59,8 +39,9 @@ defaults follow.
   `.agents/skills/next/SKILL.md`. Continue only this interactive assignment from
   its valid checkpoint. Do not apply initiatives, claim packets, drain Builder,
   duplicate another worker, or invent unrelated work.
-- Explicit Builder phrases use Builder's governed workflow instead; they are not
-  aliases for bare `next`.
+- Explicit Builder requests are compatibility work: inspect the preserved Builder
+  state and run Builder only when Jacob clearly requests it. Bare `next` never
+  activates Builder.
 - After a non-trivial code change, run the narrowest tests that cover it and
   report exact pass/fail counts. Full suite, lint, typecheck, and build are `/qg`
   or CI unless Jacob explicitly requests them. `AGENTS.md` states the same rule.
@@ -186,9 +167,8 @@ or don't?"* and *"I can't keep track of all the shit you offhandedly mention."*
 5. **Never end a reply with an unowned problem.** If it is not worth fixing, it
    is not worth mentioning.
 
-This bans deferring work you could have done. It does not ban the session-end
-deferred recommendation, which exists for genuine blockers — a required artifact,
-a real collision, pending authorization. Those keep their safe release check.
+This bans deferring work you could have done. Genuine blockers — a required
+artifact, a real collision, pending authorization — remain valid blockers.
 "Someone should copy this file" is not a blocker; "this needs Jacob's approval"
 is.
 
@@ -241,34 +221,20 @@ Proceed with every unblocked part before asking.
 ## Non-negotiables
 
 The shared engineering limits — fail loud, verify before claiming, focused
-diffs, no force-push/history-rewrite/secret/auth/env/irreversible actions, the
-Builder publication carve-out, auto-merge prohibitions, ADR/workflow-signal
-routing, the challenge/clarification discipline, the rule that implementation
-evidence is not user-outcome completion, and automatic substantial-task
-session-end routing — are owned by `AGENTS.md`. Do not restate them; apply them.
+diffs, no force-push/history-rewrite/secret/auth/env/irreversible actions,
+auto-merge prohibitions, ADR/workflow-signal routing, the challenge/clarification
+discipline, and the rule that implementation evidence is not user-outcome
+completion — are owned by `AGENTS.md`. Do not restate them; apply them.
 
 ## Continuity compatibility
 
-`workspace_global` is the primary live cross-agent and cross-session continuity
-surface. Prefer unread direct handoffs and known threads over loading a whole
-shared checkpoint file. Mutable current status and handoffs should be posted
-there only after their final validation evidence is known.
+Current conversation plus live Git/GitHub/runtime state own ordinary continuity.
+GAR remains historical/optional evidence, not a required resume surface.
 
-`.claude/STATE.md` and `.claude/HANDOFF.md` remain tracked compatibility
-artifacts while existing validators, adapters, and the session-end workflow still
-consume them. They are not the default source for current coordination and must
-never override fresher room, Git, GitHub, Builder, or runtime evidence. Do not
-manually rewrite them during ordinary work. If no durable room locator exists
-yet and legacy fallback is required, run the strict context receipt and trust
-them only when that validation succeeds. If the session-end skill requires a
-compatibility snapshot, write it once at the end, validate it, and keep it
-minimal. Builder workers edit these files only when their packet explicitly owns
-those paths.
-
-If a legacy checkpoint is used, verify branch, HEAD, worktree, PR, timestamp,
-and invalidation conditions before relying on it. The `merge=ours` driver remains
-a compatibility safeguard for those files, not a reason to use them as a live
-multi-agent mailbox.
+`.claude/STATE.md` and `.claude/HANDOFF.md` are preserved compatibility
+snapshots only. They must not establish current assignment, ownership, branch,
+or next action and must not be rewritten during normal work. Their `merge=ours`
+driver is only a legacy safeguard.
 
 ## Token discipline
 
@@ -311,8 +277,7 @@ bash scripts/preflight.sh
 ./kitty up
 ./kitty status
 ./kitty doctor --json
-./kitty builder initiative doctor --json
-python3 scripts/kb_effectiveness.py summary --window-days 30 --report
+python3 scripts/work_claim.py status
 python3.12 -m pytest tests/ -q --tb=short
 make ui-test && make ui-build
 make agent-wrap
@@ -335,11 +300,11 @@ If a command fails, report it exactly. Do not round up to passing.
 - "free workers" / "the free train" → `docs/FREE_WORKERS.md`
 - "mission" → `docs/ACTIVE_MISSION.md`
 - "roadmap" → `docs/ROADMAP.md`
-- "execution state" → Builder's supported projections
+- "execution state" → live Git/runtime state unless an explicit Builder task is being inspected
 - "next" → continue the current interactive assignment
-- "builder next" → explicit governed Builder work selection/execution
-- "review builder" → interactive independent review without ownership transfer
-- "session end" → evidence, KB effectiveness, learning, continuity, then stop
+- "builder next" → explicit compatibility request to run Builder
+- "review builder" → inspect preserved Builder output without activating it
+- "session end" → verify the bounded outcome, report it, and stop
 - "Goose" → external chat tool, not part of Kitty runtime
 - "Honcho" → `gateway/honcho.py`
 

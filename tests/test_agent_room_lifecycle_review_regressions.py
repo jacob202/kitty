@@ -1,213 +1,42 @@
 from __future__ import annotations
 
-import json
-import os
-import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SETTINGS = ROOT / ".claude/settings.json"
-START_HOOK = ROOT / ".claude/hooks/session-start.sh"
-STOP_HOOK = ROOT / ".claude/hooks/session-stop.sh"
-END_HOOK = ROOT / ".claude/hooks/session-end.sh"
 
 
-def _hook_entries(event: str) -> list[dict[str, object]]:
-    settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
-    return [
-        hook
-        for group in settings["hooks"].get(event, [])
-        for hook in group.get("hooks", [])
-    ]
+def test_doctrine_suspends_builder_and_gar_without_retiring_kitty() -> None:
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    start = (ROOT / "START_HERE.md").read_text(encoding="utf-8")
+
+    assert "Builder is not the default executor" in agents
+    assert "GAR is not mandatory recall" in agents
+    assert "Builder is suspended as the default executor" in claude
+    assert "Do not use Builder or GAR during ordinary startup" in start
+    assert "retire Kitty" not in agents.lower()
 
 
-def _stub_cli(tmp_path: Path) -> tuple[Path, Path]:
-    log = tmp_path / "room.log"
-    script = tmp_path / "kitty-room-stub"
-    script.write_text(
-        """#!/usr/bin/env bash
-set -u
-printf '%s\\n' "$*" >> "$KITTY_STUB_LOG"
-case "$1 $2" in
-  "room briefing") printf '%s\n' "${KITTY_STUB_BRIEFING:-}"; printf '%s' "${KITTY_STUB_BRIEFING_ERR:-}" >&2; exit "${KITTY_STUB_BRIEFING_RC:-0}" ;;
-  "room recent") printf '%s\\n' "${KITTY_STUB_RECENT:-[]}"; printf '%s' "${KITTY_STUB_RECENT_ERR:-}" >&2; exit "${KITTY_STUB_RECENT_RC:-0}" ;;
-  "room inbox") printf '%s\\n' "${KITTY_STUB_INBOX:-[]}"; printf '%s' "${KITTY_STUB_INBOX_ERR:-}" >&2; exit "${KITTY_STUB_INBOX_RC:-0}" ;;
-  "room post") exit "${KITTY_STUB_POST_RC:-0}" ;;
-esac
-exit 1
-""",
-        encoding="utf-8",
-    )
-    script.chmod(0o755)
-    return script, log
+def test_legacy_state_files_are_explicitly_non_authoritative() -> None:
+    for name in ("STATE.md", "HANDOFF.md"):
+        text = (ROOT / ".claude" / name).read_text(encoding="utf-8")
+        assert "SUSPENDED COMPATIBILITY SNAPSHOT" in text
+        assert "Do not use this file to establish current assignment" in text
 
 
-def _env(tmp_path: Path, **overrides: str) -> dict[str, str]:
-    cli, log = _stub_cli(tmp_path)
-    env = os.environ.copy()
-    env.update(
-        {
-            "KITTY_ROOM_CLI": str(cli),
-            "KITTY_STUB_LOG": str(log),
-            "KITTY_GAR_STATE_DIR": str(tmp_path / "state"),
-            "KITTY_GAR_OUTBOX_DIR": str(tmp_path / "outbox"),
-        }
-    )
-    env.update(overrides)
-    return env
+def test_session_end_skill_cannot_recreate_suspended_lifecycle() -> None:
+    text = (ROOT / ".agents/skills/session-end/SKILL.md").read_text(encoding="utf-8")
+    assert "do not invoke this skill automatically" in text.lower()
+    assert "Do not post GAR handoffs" in text
+    assert "rewrite `.claude/STATE.md`" in text
 
 
-def _run(hook: Path, payload: dict[str, object], tmp_path: Path, **overrides: str):
-    return subprocess.run(
-        ["bash", str(hook)],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        cwd=ROOT,
-        env=_env(tmp_path, **overrides),
-    )
-
-
-def _briefing() -> dict[str, object]:
-    return {
-        "schema_version": 1,
-        "kind": "room_briefing",
-        "identity": "claude",
-        "degraded": False,
-        "assignment": {"state": "unresolved", "scope": None, "authority_source": None},
-        "sources": {},
-        "attention": [],
-    }
-
-
-def test_stop_uses_completion_prompt_instead_of_unconditional_session_end() -> None:
-    prompts = [entry for entry in _hook_entries("Stop") if entry.get("type") == "prompt"]
-    assert len(prompts) == 1
-    prompt = str(prompts[0]["prompt"])
-    assert "$ARGUMENTS" in prompt
-    assert "ordinary turn" in prompt.lower()
-    assert "/session-end" in prompt
-    assert "gar-session:" in prompt
-    assert "last_assistant_message" in prompt
-
-    stop_text = STOP_HOOK.read_text(encoding="utf-8")
-    assert '"decision":"block"' not in stop_text.replace(" ", "")
-    assert "/session-end" not in stop_text
-
-
-def test_real_session_end_has_durable_fallback_hook() -> None:
-    entries = _hook_entries("SessionEnd")
-    command = next(
-        entry for entry in entries
-        if entry.get("command") == "bash .claude/hooks/session-end.sh"
-    )
-    assert command.get("type") == "command"
-    assert int(command.get("timeout", 0)) >= 5
-    assert END_HOOK.exists()
-
-
-def test_session_start_requests_direct_unread_separately() -> None:
-    text = START_HOOK.read_text(encoding="utf-8")
-    assert "room inbox --as claude --unread --direct-only" in text
-
-
-def test_session_start_reports_command_failures(tmp_path: Path) -> None:
-    briefing_down = _run(
-        START_HOOK,
-        {"session_id": "sess-errors", "hook_event_name": "SessionStart"},
-        tmp_path,
-        KITTY_STUB_BRIEFING_RC="1",
-        KITTY_STUB_BRIEFING_ERR="database locked",
-        KITTY_STUB_INBOX_RC="2",
-        KITTY_STUB_INBOX_ERR="permission denied",
-    )
-    assert briefing_down.returncode == 0
-    assert "briefing failed (exit 1): database locked" in briefing_down.stdout
-
-    direct_down = _run(
-        START_HOOK,
-        {"session_id": "sess-errors", "hook_event_name": "SessionStart"},
-        tmp_path,
-        KITTY_STUB_BRIEFING=json.dumps(_briefing()),
-        KITTY_STUB_INBOX_RC="2",
-        KITTY_STUB_INBOX_ERR="permission denied",
-    )
-    assert direct_down.returncode == 0
-    assert "direct inbox failed (exit 2): permission denied" in direct_down.stdout
-
-
-def test_session_start_bounds_and_deduplicates_context(tmp_path: Path) -> None:
-    huge = "x" * 5000
-    briefing = _briefing()
-    briefing["attention"] = [
-        {
-            "kind": "direct_attention",
-            "message_id": "message_same",
-            "sender_id": "jacob",
-            "trust": "untrusted",
-            "reason": huge,
-        }
-    ]
-    result = _run(
-        START_HOOK,
-        {"session_id": "sess-budget", "hook_event_name": "SessionStart"},
-        tmp_path,
-        KITTY_STUB_BRIEFING=json.dumps(briefing),
-        KITTY_STUB_INBOX=f"message_same: jacob: {huge}\nmessage_direct: jacob: {huge}",
-    )
-    assert result.returncode == 0
-    assert "message_direct:" in result.stdout
-    # Both the briefing projection and the attention surface stay bounded.
-    assert len(result.stdout) < 14000
-
-
-def test_session_end_queues_fallback_when_gar_post_fails(tmp_path: Path) -> None:
-    transcript = tmp_path / "transcript.jsonl"
-    transcript.write_text(
-        json.dumps(
-            {
-                "type": "assistant",
-                "message": {"content": [{"type": "text", "text": "Verified work is complete."}]},
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    result = _run(
-        END_HOOK,
-        {
-            "session_id": "sess-durable",
-            "transcript_path": str(transcript),
-            "hook_event_name": "SessionEnd",
-            "reason": "other",
-        },
-        tmp_path,
-        KITTY_STUB_RECENT_RC="1",
-        KITTY_STUB_POST_RC="1",
-    )
-    assert result.returncode == 0
-    queued = list((tmp_path / "outbox").glob("*.json"))
-    assert len(queued) == 1
-    payload = json.loads(queued[0].read_text(encoding="utf-8"))
-    assert "gar-session:sess-durable" in payload["content"]
-    assert "Verified work is complete." in payload["content"]
-
-
-def test_session_start_flushes_durable_outbox_before_reading_room(tmp_path: Path) -> None:
-    outbox = tmp_path / "outbox"
-    outbox.mkdir()
-    queued = outbox / "sess-pending.json"
-    queued.write_text(
-        json.dumps({"content": "[gar-session:sess-pending] recovered handoff"}),
-        encoding="utf-8",
-    )
-    result = _run(
-        START_HOOK,
-        {"session_id": "sess-new", "hook_event_name": "SessionStart"},
-        tmp_path,
-    )
-    assert result.returncode == 0
-    log = (tmp_path / "room.log").read_text(encoding="utf-8")
-    assert "room post --as claude --kind handoff" in log
-    assert "recovered handoff" in log
-    assert not queued.exists()
+def test_catchup_uses_live_state_not_legacy_handoffs() -> None:
+    for path in (
+        ROOT / ".agents/skills/catchup/SKILL.md",
+        ROOT / ".claude/skills/catchup/SKILL.md",
+    ):
+        text = path.read_text(encoding="utf-8")
+        assert "Catchup is read-only" in text
+        assert "STATE.md` and `.claude/HANDOFF.md` are preserved compatibility" in text
+        assert "They are not catchup inputs" in text

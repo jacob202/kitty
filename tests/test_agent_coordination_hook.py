@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-import shutil
 import stat
 import subprocess
 import sys
@@ -12,26 +10,25 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 HOOK = ROOT / ".githooks" / "pre-commit"
 PUSH_HOOK = ROOT / ".githooks" / "pre-push"
+CLAIM = ROOT / "scripts" / "work_claim.py"
 
 
 def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", "-C", str(repo), *args],
-        capture_output=True,
-        text=True,
-        check=check,
-        timeout=30,
+        ["git", "-C", str(repo), *args], capture_output=True, text=True,
+        check=check, timeout=30,
     )
 
 
-def test_tracked_precommit_is_executable_and_runs_coordination_preflight() -> None:
+def test_tracked_precommit_uses_local_worktree_claim_preflight() -> None:
     assert HOOK.exists()
     assert HOOK.stat().st_mode & stat.S_IXUSR
     text = HOOK.read_text(encoding="utf-8")
-    assert "./kitty agent preflight --staged --json" in text
+    assert "scripts/work_claim.py preflight --staged" in text
+    assert "kitty agent preflight" not in text
 
 
-def test_hooks_setup_uses_tracked_githooks_directory() -> None:
+def test_hooks_setup_keeps_remote_pre_push_gate() -> None:
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
     assert "git config core.hooksPath .githooks" in makefile
     assert PUSH_HOOK.exists()
@@ -39,88 +36,39 @@ def test_hooks_setup_uses_tracked_githooks_directory() -> None:
     assert "scripts/hooks/pre-push" in PUSH_HOOK.read_text(encoding="utf-8")
 
 
-def _copy_runtime(repo: Path) -> None:
-    (repo / "gateway" / "lib").mkdir(parents=True)
-    for relative in (
-        "gateway/__init__.py",
-        "gateway/agent_coordination.py",
-        "gateway/agent_coordination_cli.py",
-        "gateway/agent_workspace.py",
-        "gateway/db.py",
-        "gateway/paths.py",
-        "gateway/lib/load_env_safe.sh",
-        "kitty",
-    ):
-        target = repo / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(ROOT / relative, target)
-    shutil.copytree(ROOT / "coordination", repo / "coordination")
-    shutil.copytree(ROOT / ".githooks", repo / ".githooks")
-
-
-def _seed_repo(repo: Path) -> None:
+@pytest.mark.integration
+def test_fresh_worktree_hook_blocks_staged_path_outside_claim(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
     repo.mkdir()
-    _git(repo, "init", "-q")
+    _git(repo, "init", "-b", "main")
     _git(repo, "config", "user.name", "Kitty Test")
     _git(repo, "config", "user.email", "kitty-test@example.invalid")
-    _copy_runtime(repo)
+    (repo / "scripts").mkdir()
+    (repo / ".githooks").mkdir()
     (repo / "docs").mkdir()
-    (repo / "docs" / "ROADMAP.md").write_text("roadmap\n", encoding="utf-8")
-    (repo / "README.md").write_text("seed\n", encoding="utf-8")
+    (repo / "README.md").write_text("seed\n")
+    (repo / "docs" / "owned.md").write_text("owned\n")
+    (repo / "scripts" / "work_claim.py").write_bytes(CLAIM.read_bytes())
+    (repo / ".githooks" / "pre-commit").write_bytes(HOOK.read_bytes())
+    (repo / ".githooks" / "pre-commit").chmod(0o755)
     _git(repo, "add", ".")
-    _git(repo, "commit", "--no-verify", "-qm", "seed")
-    _git(repo, "branch", "-M", "main")
+    _git(repo, "commit", "--no-verify", "-m", "seed")
     _git(repo, "config", "core.hooksPath", ".githooks")
 
-
-def _agent_env(tmp_path: Path) -> dict[str, str]:
-    return {
-        **os.environ,
-        "PYTHON_BIN": sys.executable,
-        "KITTY_AGENT_SESSION_ID": "fresh-worktree-owner",
-        "KITTY_AGENT_PARTICIPANT": "chatgpt",
-        "KITTY_DATA_ROOT": str(tmp_path / "data"),
-    }
-
-
-@pytest.mark.integration
-def test_fresh_worktree_inherits_hook_and_blocks_unauthorized_staged_mutation(
-    tmp_path: Path,
-) -> None:
-    repo = tmp_path / "repo"
     fresh = tmp_path / "fresh"
-    _seed_repo(repo)
-    _git(repo, "worktree", "add", "-qb", "feature", str(fresh), "main")
-    assert _git(fresh, "config", "--get", "core.hooksPath").stdout.strip() == ".githooks"
-
-    env = _agent_env(tmp_path)
+    _git(repo, "worktree", "add", "-b", "feature", str(fresh), "main")
     claim = subprocess.run(
-        [
-            str(fresh / "kitty"), "agent", "claim",
-            "--resource", "docs:roadmap",
-            "--role", "OWN",
-            "--paths", "docs/ROADMAP.md",
-            "--json",
-        ],
-        cwd=fresh,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=30,
+        [sys.executable, str(fresh / "scripts/work_claim.py"), "claim",
+         "--owner", "alpha", "--task", "test", "--path", "docs"],
+        cwd=fresh, capture_output=True, text=True, timeout=30,
     )
     assert claim.returncode == 0, claim.stderr
 
-    (fresh / "README.md").write_text("seed\nunauthorized\n", encoding="utf-8")
+    (fresh / "README.md").write_text("seed\nunauthorized\n")
     _git(fresh, "add", "README.md")
     commit = subprocess.run(
-        ["git", "commit", "-m", "unauthorized mutation"],
-        cwd=fresh,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=30,
+        ["git", "commit", "-m", "unauthorized"], cwd=fresh,
+        capture_output=True, text=True, timeout=30,
     )
     assert commit.returncode != 0
-    combined = commit.stdout + commit.stderr
-    assert "MUTATION BLOCKED" in combined
-    assert "outside the declared path fence" in combined
+    assert "outside claim" in (commit.stdout + commit.stderr)

@@ -1,5 +1,7 @@
 # Kitty Agent State
 
+> **SUSPENDED COMPATIBILITY SNAPSHOT — 2026-09-22.** Preserve for history only. Do not use this file to establish current assignment, ownership, branch, next action, or project truth; re-read live Git/GitHub/runtime state instead.
+
 <!-- kitty-state
 {
   "active_mission": "docs/ACTIVE_MISSION.md",

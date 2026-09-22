@@ -115,19 +115,16 @@ def test_openwebui_onboarding_artifacts_are_explicitly_historical() -> None:
     assert "Status: historical handoff, not current operating guidance" in handoff
     assert "All “current” and “verified” claims below are scoped to the 2026-08-02 session" in handoff
 
-def test_shared_doctrine_challenges_premises_and_closes_substantial_work_automatically() -> None:
+def test_shared_doctrine_challenges_premises_without_mandatory_closeout() -> None:
     start_here = " ".join(_read("START_HERE.md").lower().split())
     agents = " ".join(_read("AGENTS.md").lower().split())
     preferences = " ".join(_read("config/PREFERENCES.md").lower().split())
     session_end = " ".join(_read(".agents/skills/session-end/SKILL.md").lower().split())
 
-    assert ".agents/skills/session-end/skill.md" in start_here
-    assert "do not wait for the user to say `session end`" in start_here
+    assert "no mandatory session-end workflow follows" in start_here
     assert "challenge unsupported premises" in agents
     assert "never claim understanding when material ambiguity remains" in agents
     assert "clarifying question" in agents
-    assert "substantial interactive assignment" in agents
-    assert "session-end" in agents
     assert "never poll ci" in agents
     assert "gh pr checks <n> --watch" in agents
     assert "config/preferences.md" in agents
@@ -137,9 +134,9 @@ def test_shared_doctrine_challenges_premises_and_closes_substantial_work_automat
     assert "never invent facts or certainty" in preferences
     assert "meaningful clarification" in preferences
 
-    assert "substantial assigned work is genuinely complete" in session_end
-    assert "does not need to ask" in session_end
-    assert "ordinary turn" in session_end
+    assert "suspended compatibility skill" in session_end
+    assert "do not invoke this skill automatically" in session_end
+    assert "do not post gar handoffs" in session_end
 
 
 def test_completion_templates_treat_implementation_as_evidence_only() -> None:
@@ -214,25 +211,24 @@ def test_docs_index_names_current_support_surfaces_without_becoming_a_ledger() -
     ):
         assert name in index
 
-def test_session_end_requires_formal_completion_review_before_acceptance() -> None:
-    skill = " ".join(_read(".agents/skills/session-end/SKILL.md").lower().split())
+def test_verified_delivery_preserves_formal_completion_review() -> None:
+    skill = " ".join(_read(".agents/skills/verified-delivery/SKILL.md").lower().split())
 
     for required in (
         "formal completion review",
         "original user request",
-        "all explicit requirements",
+        "every explicit requirement",
         "unsupported assumptions",
         "reasoning or process flaws",
         "actionable finding reopens the task",
-        "fix the finding",
-        "re-run the affected verification",
-        "repeat the formal completion review",
-        "completed_unreviewed",
+        "fix it",
+        "rerun affected verification",
+        "repeat this review",
     ):
         assert required in skill
 
-    assert "accepted requires a passing formal completion review" in skill
-    assert "do not publish the final closeout" in skill
+    assert "green suite" in skill
+    assert "cannot substitute for outcome-level review" in skill
 
 
 def test_documentation_consolidation_plan_records_task7_completion() -> None:
@@ -249,43 +245,32 @@ def test_documentation_consolidation_plan_records_task7_completion() -> None:
     assert "0 broken local links" in task7.lower()
 
 
-def test_agent_room_doctrine_keeps_broadcast_feed_out_of_assignment_inbox() -> None:
+def test_default_doctrine_uses_tiny_local_claims_not_agent_room_assignment() -> None:
     start_here = " ".join(_read("START_HERE.md").lower().split())
     agents = " ".join(_read("AGENTS.md").lower().split())
     next_skill = " ".join(_read(".agents/skills/next/SKILL.md").lower().split())
-    coordination = " ".join(_read("docs/reference/MULTI_AGENT_COORDINATION.md").lower().split())
 
-    assert "--unread --direct-only --json" in start_here
-    assert "--unread --direct-only --json" in agents
-    assert "--unread --direct-only --json" in next_skill
-    mcp_direct = "room_inbox(unread_only=true, direct_only=true)"
-    assert mcp_direct in start_here
-    assert mcp_direct in agents
-    assert mcp_direct in next_skill
-    assert "broadcast status and result messages are shared context, not assignment inbox items" in coordination
-    assert "reply in the existing thread" in coordination
-    assert "do not bulk-ack" in coordination
-    assert "presence is presence only" in coordination
-    assert "does not replace builder execution state" in coordination
+    for text in (start_here, agents, next_skill):
+        assert "scripts/work_claim.py" in text
+    assert "room briefing" not in start_here
+    assert "room briefing" not in next_skill
+    assert "gar is not mandatory recall" in agents
+    assert "overlapping active scopes" in start_here
 
 
-def test_cross_client_startup_uses_shared_room_briefing_as_orientation_owner() -> None:
+def test_cross_client_startup_uses_live_state_without_mandatory_gar() -> None:
     start_here = " ".join(_read("START_HERE.md").lower().split())
     agents = " ".join(_read("AGENTS.md").lower().split())
 
     for text in (start_here, agents):
-        assert "room briefing" in text
-        assert "participant-wide" in text
-        assert "attention" in text
-        assert "presence" in text
-        assert "never" in text
+        assert "git/github" in text
+        assert "builder" in text
+        assert "gar" in text
 
-    assert "./kitty room briefing --as <identity> --session-id <current-session> --json" in start_here
-    assert "shared orientation" in start_here
-    assert "native cloud chatgpt" in start_here
-    assert "local bridge" in start_here
-    assert "direct inbox first" not in agents
-    assert "unread direct inbox first" not in start_here
+    assert "do not use builder or gar during ordinary startup" in start_here
+    assert "room briefing" not in start_here
+    assert "builder is not the default executor" in agents
+    assert "ordinary completion must not create gar traffic" in agents
 
 
 # --- Skill-health contracts (skill registry authority, 2026-09-16) ---
