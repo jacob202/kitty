@@ -17,11 +17,17 @@ def test_doctrine_suspends_builder_and_gar_without_retiring_kitty() -> None:
     assert "retire Kitty" not in agents.lower()
 
 
-def test_legacy_state_files_are_explicitly_non_authoritative() -> None:
-    for name in ("STATE.md", "HANDOFF.md"):
-        text = (ROOT / ".claude" / name).read_text(encoding="utf-8")
-        assert "SUSPENDED COMPATIBILITY SNAPSHOT" in text
-        assert "Do not use this file to establish current assignment" in text
+def test_authority_map_makes_legacy_state_files_non_authoritative() -> None:
+    authority = (ROOT / "docs/AUTHORITY_MAP.md").read_text(encoding="utf-8")
+    assert (
+        "| `session_checkpoint` | `.claude/STATE.md` | Historical compatibility snapshot "
+        "preserved for rollback/archaeology during ADR 0043"
+    ) in authority
+    assert (
+        "| `continuation` | `.claude/HANDOFF.md` | Historical compatibility handoff "
+        "preserved for rollback/archaeology during ADR 0043"
+    ) in authority
+    assert "Current assignment, ownership, branch, next action, or project truth" in authority
 
 
 def test_session_end_skill_cannot_recreate_suspended_lifecycle() -> None:
