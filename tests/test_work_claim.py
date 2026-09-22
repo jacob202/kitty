@@ -46,6 +46,37 @@ def worktrees(tmp_path: Path) -> tuple[Path, Path, Path]:
     return repo, first, second
 
 
+@pytest.mark.parametrize("ttl", ["nan", "inf", "-inf"])
+def test_claim_rejects_non_finite_ttl(
+    worktrees: tuple[Path, Path, Path], ttl: str,
+) -> None:
+    _repo, first, _second = worktrees
+
+    result = _run(
+        first, "claim", "--owner", "alpha", "--task", "invalid-ttl",
+        "--path", "gateway", f"--ttl-minutes={ttl}",
+    )
+
+    assert result.returncode == 2
+    assert "finite and greater than zero" in result.stderr
+
+
+def test_renew_rejects_non_finite_ttl(
+    worktrees: tuple[Path, Path, Path],
+) -> None:
+    _repo, first, _second = worktrees
+    claimed = _run(
+        first, "claim", "--owner", "alpha", "--task", "renew",
+        "--path", "gateway",
+    )
+    assert claimed.returncode == 0, claimed.stderr
+
+    renewed = _run(first, "renew", "--ttl-minutes", "nan")
+
+    assert renewed.returncode == 2
+    assert "finite and greater than zero" in renewed.stderr
+
+
 def test_overlapping_claim_is_blocked_but_parallel_scope_is_allowed(
     worktrees: tuple[Path, Path, Path],
 ) -> None:
@@ -115,6 +146,28 @@ def test_preflight_requires_claim_coverage(
     _git(first, "add", "docs/note.md")
     blocked = _run(first, "preflight", "--staged")
     assert blocked.returncode == 2
+    assert "outside claim" in blocked.stderr
+
+
+def test_preflight_blocks_typechange_outside_claim(
+    worktrees: tuple[Path, Path, Path],
+) -> None:
+    _repo, first, _second = worktrees
+    claimed = _run(
+        first, "claim", "--owner", "alpha", "--task", "typechange",
+        "--path", "gateway",
+    )
+    assert claimed.returncode == 0, claimed.stderr
+
+    note = first / "docs" / "note.md"
+    note.unlink()
+    note.symlink_to("../gateway/a.py")
+    _git(first, "add", "docs/note.md")
+
+    blocked = _run(first, "preflight", "--staged")
+
+    assert blocked.returncode == 2
+    assert "docs/note.md" in blocked.stderr
     assert "outside claim" in blocked.stderr
 
 

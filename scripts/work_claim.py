@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import math
 import subprocess
 import sys
 import time
@@ -115,8 +116,8 @@ def _claim(args: argparse.Namespace) -> dict:
     task = args.task.strip()
     if not owner or not task:
         raise ClaimError("owner and task must be non-empty")
-    if args.ttl_minutes <= 0:
-        raise ClaimError("ttl-minutes must be greater than zero")
+    if not math.isfinite(args.ttl_minutes) or args.ttl_minutes <= 0:
+        raise ClaimError("ttl-minutes must be finite and greater than zero")
     paths = sorted({_normalize_path(value) for value in args.path})
     if not paths:
         raise ClaimError("at least one --path is required")
@@ -168,8 +169,8 @@ def _status(_args: argparse.Namespace) -> dict:
     return {"claims": claims}
 def _renew(args: argparse.Namespace) -> dict:
     ctx = _context()
-    if args.ttl_minutes <= 0:
-        raise ClaimError("ttl-minutes must be greater than zero")
+    if not math.isfinite(args.ttl_minutes) or args.ttl_minutes <= 0:
+        raise ClaimError("ttl-minutes must be finite and greater than zero")
     now = time.time()
     with _locked(Path(ctx["common"])) as directory:
         claim = _find_current_claim(_read_claims(directory, now), Path(ctx["root"]))
@@ -209,7 +210,7 @@ def _reap(_args: argparse.Namespace) -> dict:
 def _staged_paths(root: Path) -> list[str]:
     output = _git(
         root, "diff", "--cached", "--name-only", "--no-renames",
-        "--diff-filter=ACMRD", "HEAD",
+        "--diff-filter=ACMRDT", "HEAD",
     )
     return [_normalize_path(line) for line in output.splitlines() if line.strip()]
 

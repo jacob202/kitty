@@ -119,3 +119,17 @@ and deep Builder/GAR deletion are separate decisions.
   not loaded and no supervisor process is running;
 - supervisor logs have not advanced since 2026-09-21 14:21:51 (stdout) and
   21:06:58 (stderr).
+
+## Independent review repair — PR #941
+
+The repository's exact-head `agent-review` found two valid fence defects on
+commit `d1571ce9`:
+
+- non-finite TTL values such as `nan` could report claim creation success while
+  immediately behaving as stale;
+- Git type-changes were omitted from the staged-path diff filter and could bypass
+  the claimed-path fence.
+
+Both findings were fixed before merge. The claim/renew path now rejects
+non-finite TTLs, staged type-changes are included in preflight, and regression
+tests cover both failure modes.
