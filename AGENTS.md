@@ -45,10 +45,13 @@ claim that covers the paths you intend to change:
 
 `python3 scripts/work_claim.py claim --owner <id> --task <task> --path <scope>`
 
-Claims live only in the repository's shared Git metadata. They have explicit
+Claims live only in the repository's shared Git metadata. They have bounded
 expiry, block overlapping active scopes, allow non-overlapping work, and require
-no daemon or database. Use `status`, `renew`, `release`, and `reap` as
-needed. Do not kill, clean, move, or delete another session's worktree or files.
+no daemon or database. If a task discovers additional files, grow the same claim
+atomically with `python3 scripts/work_claim.py extend --path <scope>`; do not
+release/reclaim merely to widen scope. Use `status`, `renew`, `release`, and
+`reap` as needed. Do not kill, clean, move, or delete another session's worktree
+or files.
 Do not use `/tmp` for durable worktrees. Commit recoverable WIP before stopping
 long-running work.
 

@@ -20,6 +20,8 @@ from pathlib import Path, PurePosixPath
 from typing import Iterator
 
 DEFAULT_TTL_MINUTES = 120.0
+MAX_TTL_MINUTES = 7 * 24 * 60.0
+EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 CLAIM_DIR_NAME = "kitty-work-claims"
 
 
@@ -110,14 +112,30 @@ def _write_claim(directory: Path, claim: dict) -> None:
     temp = directory / f".{claim['claim_id']}.{uuid.uuid4().hex}.tmp"
     temp.write_text(json.dumps(claim, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temp.replace(target)
+
+
+def _expiration(now: float, ttl_minutes: float) -> float:
+    if (
+        not math.isfinite(ttl_minutes)
+        or ttl_minutes <= 0
+        or ttl_minutes > MAX_TTL_MINUTES
+    ):
+        raise ClaimError(
+            "ttl-minutes must be finite, greater than zero, and no more than "
+            f"{MAX_TTL_MINUTES:g}"
+        )
+    expires_at = now + (ttl_minutes * 60.0)
+    if not math.isfinite(expires_at):
+        raise ClaimError("computed claim expiration must be finite")
+    return expires_at
+
+
 def _claim(args: argparse.Namespace) -> dict:
     ctx = _context()
     owner = args.owner.strip()
     task = args.task.strip()
     if not owner or not task:
         raise ClaimError("owner and task must be non-empty")
-    if not math.isfinite(args.ttl_minutes) or args.ttl_minutes <= 0:
-        raise ClaimError("ttl-minutes must be finite and greater than zero")
     paths = sorted({_normalize_path(value) for value in args.path})
     if not paths:
         raise ClaimError("at least one --path is required")
@@ -146,7 +164,7 @@ def _claim(args: argparse.Namespace) -> dict:
             "branch": str(ctx["branch"]),
             "paths": paths,
             "created_at": now,
-            "expires_at": now + (args.ttl_minutes * 60.0),
+            "expires_at": _expiration(now, args.ttl_minutes),
         }
         _write_claim(directory, claim)
     return claim
@@ -169,8 +187,6 @@ def _status(_args: argparse.Namespace) -> dict:
     return {"claims": claims}
 def _renew(args: argparse.Namespace) -> dict:
     ctx = _context()
-    if not math.isfinite(args.ttl_minutes) or args.ttl_minutes <= 0:
-        raise ClaimError("ttl-minutes must be finite and greater than zero")
     now = time.time()
     with _locked(Path(ctx["common"])) as directory:
         claim = _find_current_claim(_read_claims(directory, now), Path(ctx["root"]))
@@ -178,7 +194,34 @@ def _renew(args: argparse.Namespace) -> dict:
             raise ClaimError("this worktree has no active claim; claim it again")
         claim.pop("_file", None)
         claim.pop("state", None)
-        claim["expires_at"] = now + (args.ttl_minutes * 60.0)
+        claim["expires_at"] = _expiration(now, args.ttl_minutes)
+        _write_claim(directory, claim)
+    return claim
+
+
+def _extend(args: argparse.Namespace) -> dict:
+    ctx = _context()
+    additions = sorted({_normalize_path(value) for value in args.path})
+    if not additions:
+        raise ClaimError("at least one --path is required")
+    now = time.time()
+    with _locked(Path(ctx["common"])) as directory:
+        claims = _read_claims(directory, now)
+        claim = _find_current_claim(claims, Path(ctx["root"]))
+        if claim is None:
+            raise ClaimError("this worktree has no active claim to extend")
+        combined = sorted(set(claim["paths"]) | set(additions))
+        for other in claims:
+            if other["state"] != "active" or other["worktree"] == str(ctx["root"]):
+                continue
+            if any(_overlaps(a, b) for a in combined for b in other["paths"]):
+                raise ClaimError(
+                    f"ownership conflict with {other['owner']} on "
+                    f"{other['paths']} (claim {other['claim_id']})"
+                )
+        claim.pop("_file", None)
+        claim.pop("state", None)
+        claim["paths"] = combined
         _write_claim(directory, claim)
     return claim
 
@@ -208,9 +251,10 @@ def _reap(_args: argparse.Namespace) -> dict:
 
 
 def _staged_paths(root: Path) -> list[str]:
+    base = "HEAD" if _git(root, "rev-parse", "--verify", "HEAD", required=False) else EMPTY_TREE_SHA
     output = _git(
         root, "diff", "--cached", "--name-only", "--no-renames",
-        "--diff-filter=ACMRDT", "HEAD",
+        "--diff-filter=ACMRDT", base,
     )
     return [_normalize_path(line) for line in output.splitlines() if line.strip()]
 
@@ -248,6 +292,8 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("status")
     renew = sub.add_parser("renew")
     renew.add_argument("--ttl-minutes", type=float, default=DEFAULT_TTL_MINUTES)
+    extend = sub.add_parser("extend")
+    extend.add_argument("--path", action="append", default=[])
     sub.add_parser("release")
     sub.add_parser("reap")
     preflight = sub.add_parser("preflight")
@@ -261,6 +307,7 @@ def main(argv: list[str] | None = None) -> int:
         "claim": _claim,
         "status": _status,
         "renew": _renew,
+        "extend": _extend,
         "release": _release,
         "reap": _reap,
         "preflight": _preflight,

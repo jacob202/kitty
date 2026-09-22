@@ -19,6 +19,8 @@ live evidence; it does not duplicate current state.
 5. Acquire one explicit claim covering the paths you intend to change:
    `python3 scripts/work_claim.py claim --owner <id> --task <task> --path <scope>`.
    Overlapping active scopes are blocked; non-overlapping work remains allowed.
+   If scope grows, use `python3 scripts/work_claim.py extend --path <scope>` so
+   existing ownership is never released just to add paths.
 6. Do not use Builder or GAR during ordinary startup. Inspect either only for an
    explicit Builder/GAR task, rollback, or historical evidence request.
 7. Immediately before mutation, re-check branch, HEAD, dirty paths, scope,
@@ -71,6 +73,7 @@ git status --short --branch
 git worktree list --porcelain
 python3 scripts/work_claim.py status
 python3 scripts/work_claim.py claim --owner <id> --task <task> --path <scope>
+python3 scripts/work_claim.py extend --path <additional-scope>
 ```
 
 Use focused tests for focused changes; reserve full quality gates for an

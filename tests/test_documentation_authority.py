@@ -273,6 +273,28 @@ def test_cross_client_startup_uses_live_state_without_mandatory_gar() -> None:
     assert "ordinary completion must not create gar traffic" in agents
 
 
+def test_adr_0043_aligns_suspension_authorities() -> None:
+    adr = " ".join(_read("docs/adr/0043-suspend-builder-gar-defaults.md").lower().split())
+    decisions = " ".join(_read("docs/DECISIONS.md").lower().split())
+    authority = " ".join(_read("docs/AUTHORITY_MAP.md").lower().split())
+
+    assert "accepted — operational suspension experiment" in adr
+    assert "builder is suspended as kitty's default executor" in adr
+    assert "gar is suspended as mandatory lifecycle and recall infrastructure" in adr
+    assert "adr 0021's proactive/default builder execution is suspended" in adr
+    assert "adr 0023's automatic session-end carry-forward behavior is suspended" in adr
+    assert "does **not**" in adr
+    assert "amend the constitution" in adr
+
+    assert "d41" in decisions
+    assert "0043-suspend-builder-gar-defaults.md" in decisions
+    assert "default/proactive activation suspended by d41" in decisions
+
+    assert "current assignment plus live git/github/runtime evidence under adr 0043" in authority
+    assert "historical compatibility snapshot preserved for rollback/archaeology during adr 0043" in authority
+    assert "adr 0043 is the later accepted decision" in authority
+
+
 # --- Skill-health contracts (skill registry authority, 2026-09-16) ---
 # Strict frontmatter, spec limits, registry sync, glossary includes, and
 # natural-request trigger routing. A skill that stops satisfying these

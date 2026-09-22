@@ -10,6 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/work_claim.py"
+HOOK = ROOT / ".githooks/pre-commit"
 
 
 def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -25,6 +26,8 @@ def _git(cwd: Path, *args: str) -> str:
         capture_output=True, text=True, check=True,
     )
     return result.stdout.strip()
+
+
 @pytest.fixture
 def worktrees(tmp_path: Path) -> tuple[Path, Path, Path]:
     repo = tmp_path / "repo"
@@ -46,7 +49,7 @@ def worktrees(tmp_path: Path) -> tuple[Path, Path, Path]:
     return repo, first, second
 
 
-@pytest.mark.parametrize("ttl", ["nan", "inf", "-inf"])
+@pytest.mark.parametrize("ttl", ["nan", "inf", "-inf", "1e308"])
 def test_claim_rejects_non_finite_ttl(
     worktrees: tuple[Path, Path, Path], ttl: str,
 ) -> None:
@@ -58,7 +61,7 @@ def test_claim_rejects_non_finite_ttl(
     )
 
     assert result.returncode == 2
-    assert "finite and greater than zero" in result.stderr
+    assert "ttl-minutes must be finite" in result.stderr
 
 
 def test_renew_rejects_non_finite_ttl(
@@ -71,10 +74,10 @@ def test_renew_rejects_non_finite_ttl(
     )
     assert claimed.returncode == 0, claimed.stderr
 
-    renewed = _run(first, "renew", "--ttl-minutes", "nan")
-
-    assert renewed.returncode == 2
-    assert "finite and greater than zero" in renewed.stderr
+    for ttl in ("nan", "1e308"):
+        renewed = _run(first, "renew", "--ttl-minutes", ttl)
+        assert renewed.returncode == 2
+        assert "ttl-minutes must be finite" in renewed.stderr
 
 
 def test_overlapping_claim_is_blocked_but_parallel_scope_is_allowed(
@@ -99,6 +102,50 @@ def test_overlapping_claim_is_blocked_but_parallel_scope_is_allowed(
         "--path", "docs",
     )
     assert parallel.returncode == 0, parallel.stderr
+
+
+def test_extend_adds_scope_without_releasing_existing_claim(
+    worktrees: tuple[Path, Path, Path],
+) -> None:
+    _repo, first, _second = worktrees
+    claimed = _run(
+        first, "claim", "--owner", "alpha", "--task", "grow",
+        "--path", "gateway",
+    )
+    assert claimed.returncode == 0, claimed.stderr
+    claim_id = json.loads(claimed.stdout)["claim_id"]
+
+    extended = _run(first, "extend", "--path", "docs")
+
+    assert extended.returncode == 0, extended.stderr
+    payload = json.loads(extended.stdout)
+    assert payload["claim_id"] == claim_id
+    assert payload["paths"] == ["docs", "gateway"]
+
+
+def test_extend_conflict_is_atomic_and_preserves_existing_scope(
+    worktrees: tuple[Path, Path, Path],
+) -> None:
+    _repo, first, second = worktrees
+    first_claim = _run(
+        first, "claim", "--owner", "alpha", "--task", "grow",
+        "--path", "gateway",
+    )
+    assert first_claim.returncode == 0, first_claim.stderr
+    second_claim = _run(
+        second, "claim", "--owner", "beta", "--task", "parallel",
+        "--path", "docs",
+    )
+    assert second_claim.returncode == 0, second_claim.stderr
+
+    blocked = _run(first, "extend", "--path", "docs")
+    assert blocked.returncode == 2
+    assert "ownership conflict with beta" in blocked.stderr
+
+    status = json.loads(_run(first, "status").stdout)["claims"]
+    alpha = next(claim for claim in status if claim["owner"] == "alpha")
+    assert alpha["state"] == "active"
+    assert alpha["paths"] == ["gateway"]
 
 
 def test_expired_claim_is_visible_and_does_not_block_recovery(
@@ -169,6 +216,37 @@ def test_preflight_blocks_typechange_outside_claim(
     assert blocked.returncode == 2
     assert "docs/note.md" in blocked.stderr
     assert "outside claim" in blocked.stderr
+
+
+def test_preflight_supports_initial_commit_with_covering_claim(tmp_path: Path) -> None:
+    repo = tmp_path / "new-repo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.name", "Kitty Test")
+    _git(repo, "config", "user.email", "kitty@example.invalid")
+    (repo / "scripts").mkdir()
+    (repo / ".githooks").mkdir()
+    (repo / "scripts" / "work_claim.py").write_bytes(SCRIPT.read_bytes())
+    (repo / ".githooks" / "pre-commit").write_bytes(HOOK.read_bytes())
+    (repo / ".githooks" / "pre-commit").chmod(0o755)
+    (repo / "README.md").write_text("initial\n", encoding="utf-8")
+    _git(repo, "config", "core.hooksPath", ".githooks")
+    _git(repo, "add", ".")
+
+    claim = subprocess.run(
+        [
+            sys.executable, str(repo / "scripts/work_claim.py"), "claim",
+            "--owner", "alpha", "--task", "initial", "--path", ".",
+        ],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert claim.returncode == 0, claim.stderr
+
+    commit = subprocess.run(
+        ["git", "commit", "-m", "initial"],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    assert commit.returncode == 0, commit.stdout + commit.stderr
 
 
 def test_release_allows_another_owner_to_take_same_scope(

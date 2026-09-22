@@ -1,6 +1,6 @@
 # Handoff
 
-> **SUSPENDED COMPATIBILITY SNAPSHOT — 2026-09-22.** Preserve for history only. Do not use this file to establish current assignment, ownership, branch, next action, or project truth; re-read live Git/GitHub/runtime state instead.
+> **SUSPENDED COMPATIBILITY SNAPSHOT — 2026-09-22.** Authority for this suspension banner: ADR 0043 / PR #941. Preserve the underlying snapshot for history only. Do not use this file to establish current assignment, ownership, branch, next action, or project truth; re-read live Git/GitHub/runtime state instead.
 
 <!-- kitty-handoff
 {

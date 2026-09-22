@@ -133,3 +133,26 @@ commit `d1571ce9`:
 Both findings were fixed before merge. The claim/renew path now rejects
 non-finite TTLs, staged type-changes are included in preflight, and regression
 tests cover both failure modes.
+
+## Independent review convergence — PR #941
+
+GitHub's exact-head agent review on `d1571ce9` found two valid ownership-fence
+defects: non-finite TTL false-success and omitted Git type changes. Commit
+`51550d4` fixed both with regression tests.
+
+Qodo then identified three additional issues that materially affect the narrow
+suspension experiment:
+
+- scope growth required release/reclaim, creating an ownership gap;
+- preflight could not handle an unborn `HEAD` on a repository's first commit;
+- current operating doctrine conflicted with `AUTHORITY_MAP` and older accepted
+  Builder/session-end ADRs.
+
+The follow-up repair adds atomic `extend`, bounded/overflow-safe TTL handling,
+unborn-HEAD support using Git's empty tree, and regression tests for each
+behavior. ADR 0043 now records the suspension as an accepted operational
+experiment and narrowly amends the older default/proactive Builder and
+session-end behavior without changing the Constitution or broader architecture.
+`AUTHORITY_MAP`, `DECISIONS`, the ADR index, and the compatibility snapshot
+banners route to ADR 0043 so normal startup/continuation no longer receives
+conflicting authority.
