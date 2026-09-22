@@ -91,18 +91,77 @@ def _locked(common: Path) -> Iterator[Path]:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
+def _validated_claim(path: Path, raw: object) -> dict:
+    if not isinstance(raw, dict):
+        raise ClaimError(f"invalid claim file {path}: expected a JSON object")
+
+    required = {
+        "schema_version",
+        "claim_id",
+        "owner",
+        "task",
+        "worktree",
+        "branch",
+        "paths",
+        "created_at",
+        "expires_at",
+    }
+    missing = sorted(required - raw.keys())
+    if missing:
+        raise ClaimError(
+            f"invalid claim file {path}: missing required fields {missing}"
+        )
+
+    for field in ("claim_id", "owner", "task", "worktree", "branch"):
+        value = raw[field]
+        if not isinstance(value, str) or not value.strip():
+            raise ClaimError(
+                f"invalid claim file {path}: {field} must be a non-empty string"
+            )
+
+    if raw["schema_version"] != 1:
+        raise ClaimError(
+            f"invalid claim file {path}: unsupported schema_version "
+            f"{raw['schema_version']!r}"
+        )
+
+    paths = raw["paths"]
+    if (
+        not isinstance(paths, list)
+        or not paths
+        or not all(isinstance(value, str) and value.strip() for value in paths)
+    ):
+        raise ClaimError(
+            f"invalid claim file {path}: paths must be a non-empty string list"
+        )
+
+    for field in ("created_at", "expires_at"):
+        try:
+            value = float(raw[field])
+        except (TypeError, ValueError) as exc:
+            raise ClaimError(
+                f"invalid claim file {path}: {field} must be numeric"
+            ) from exc
+        if not math.isfinite(value):
+            raise ClaimError(
+                f"invalid claim file {path}: {field} must be finite"
+            )
+        raw[field] = value
+
+    return raw
+
+
 def _read_claims(directory: Path, now: float | None = None) -> list[dict]:
     moment = time.time() if now is None else now
     claims: list[dict] = []
     for path in sorted(directory.glob("*.json")):
         try:
-            claim = json.loads(path.read_text(encoding="utf-8"))
+            raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ClaimError(f"unreadable claim file {path}: {exc}") from exc
+        claim = _validated_claim(path, raw)
         claim["_file"] = str(path)
-        claim["state"] = (
-            "active" if float(claim["expires_at"]) > moment else "stale"
-        )
+        claim["state"] = "active" if claim["expires_at"] > moment else "stale"
         claims.append(claim)
     return claims
 

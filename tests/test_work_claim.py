@@ -28,6 +28,13 @@ def _git(cwd: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def _claims_dir(cwd: Path) -> Path:
+    common = Path(
+        _git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    )
+    return common / "kitty-work-claims"
+
+
 @pytest.fixture
 def worktrees(tmp_path: Path) -> tuple[Path, Path, Path]:
     repo = tmp_path / "repo"
@@ -100,6 +107,44 @@ def test_claim_and_renew_reject_excessive_finite_ttl(
     renewed = _run(first, "renew", "--ttl-minutes", "1e308")
     assert renewed.returncode == 2
     assert "no more than" in renewed.stderr
+
+
+def test_status_fails_cleanly_for_claim_missing_required_fields(
+    worktrees: tuple[Path, Path, Path],
+) -> None:
+    _repo, first, _second = worktrees
+    directory = _claims_dir(first)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "broken.json").write_text("{}\n", encoding="utf-8")
+
+    result = _run(first, "status")
+
+    assert result.returncode == 2
+    assert "CLAIM BLOCKED: invalid claim file" in result.stderr
+    assert "missing required fields" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_status_fails_cleanly_for_non_numeric_expiration(
+    worktrees: tuple[Path, Path, Path],
+) -> None:
+    _repo, first, _second = worktrees
+    claimed = _run(
+        first, "claim", "--owner", "alpha", "--task", "corrupt",
+        "--path", "gateway",
+    )
+    assert claimed.returncode == 0, claimed.stderr
+    claim_file = next(_claims_dir(first).glob("*.json"))
+    payload = json.loads(claim_file.read_text(encoding="utf-8"))
+    payload["expires_at"] = "not-a-number"
+    claim_file.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    result = _run(first, "status")
+
+    assert result.returncode == 2
+    assert "CLAIM BLOCKED: invalid claim file" in result.stderr
+    assert "expires_at must be numeric" in result.stderr
+    assert "Traceback" not in result.stderr
 
 
 def test_overlapping_claim_is_blocked_but_parallel_scope_is_allowed(
