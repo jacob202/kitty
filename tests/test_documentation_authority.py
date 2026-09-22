@@ -273,6 +273,16 @@ def test_cross_client_startup_uses_live_state_without_mandatory_gar() -> None:
     assert "ordinary completion must not create gar traffic" in agents
 
 
+def test_catchup_allows_its_local_claim_status_command() -> None:
+    for path in (
+        ".agents/skills/catchup/SKILL.md",
+        ".claude/skills/catchup/SKILL.md",
+    ):
+        text = _read(path)
+        assert "python3 scripts/work_claim.py status" in text
+        assert "Bash(python3 scripts/work_claim.py *)" in text
+
+
 def test_adr_0043_aligns_suspension_authorities() -> None:
     adr = " ".join(_read("docs/adr/0043-suspend-builder-gar-defaults.md").lower().split())
     decisions = " ".join(_read("docs/DECISIONS.md").lower().split())

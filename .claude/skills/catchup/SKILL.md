@@ -9,6 +9,7 @@ allowed-tools:
   - Bash(git diff *)
   - Bash(git branch *)
   - Bash(git merge-base *)
+  - Bash(python3 scripts/work_claim.py *)
 ---
 
 # Catch Up

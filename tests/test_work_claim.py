@@ -49,7 +49,7 @@ def worktrees(tmp_path: Path) -> tuple[Path, Path, Path]:
     return repo, first, second
 
 
-@pytest.mark.parametrize("ttl", ["nan", "inf", "-inf", "1e308"])
+@pytest.mark.parametrize("ttl", ["nan", "inf", "-inf"])
 def test_claim_rejects_non_finite_ttl(
     worktrees: tuple[Path, Path, Path], ttl: str,
 ) -> None:
@@ -74,10 +74,32 @@ def test_renew_rejects_non_finite_ttl(
     )
     assert claimed.returncode == 0, claimed.stderr
 
-    for ttl in ("nan", "1e308"):
-        renewed = _run(first, "renew", "--ttl-minutes", ttl)
+    for ttl in ("nan", "inf", "-inf"):
+        renewed = _run(first, "renew", f"--ttl-minutes={ttl}")
         assert renewed.returncode == 2
         assert "ttl-minutes must be finite" in renewed.stderr
+
+
+def test_claim_and_renew_reject_excessive_finite_ttl(
+    worktrees: tuple[Path, Path, Path],
+) -> None:
+    _repo, first, _second = worktrees
+
+    claimed = _run(
+        first, "claim", "--owner", "alpha", "--task", "too-long",
+        "--path", "gateway", "--ttl-minutes", "1e308",
+    )
+    assert claimed.returncode == 2
+    assert "no more than" in claimed.stderr
+
+    normal = _run(
+        first, "claim", "--owner", "alpha", "--task", "renew-too-long",
+        "--path", "gateway",
+    )
+    assert normal.returncode == 0, normal.stderr
+    renewed = _run(first, "renew", "--ttl-minutes", "1e308")
+    assert renewed.returncode == 2
+    assert "no more than" in renewed.stderr
 
 
 def test_overlapping_claim_is_blocked_but_parallel_scope_is_allowed(
