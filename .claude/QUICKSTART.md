@@ -1,15 +1,14 @@
-# Kitty Quickstart — 3 commands
+# Kitty Quickstart
 
 | What | Command |
-|------|---------|
-| Continue where you left off | `catch me up` |
-| Ship current work | `ship it` |
+|---|---|
+| Continue current work | `continue` or `/catchup` |
+| Inspect local ownership | `python3 scripts/work_claim.py status` |
+| Claim mutation scope | `python3 scripts/work_claim.py claim --owner <id> --task <task> --path <scope>` |
 | Run quality gates | `/qg` (or `/qg all`) |
 
-## How it works
+Normal work does not require Builder, GAR, a session-end ritual, or legacy
+STATE/HANDOFF updates. Builder/GAR remain preserved compatibility systems.
 
-- Tests only run in CI (on PRs). I won't run them mid-session unless you say `/qg`.
-- Say `catch me up` at the start of every session to rebuild context.
-- Say `ship it` when you're done — it commits, pushes, creates the PR with a description.
-- Every PR gets auto-reviewed by an agent (posts a review comment).
-- Session-end protocol runs automatically on `ship it` or `i'm done`.
+Use live Git/GitHub/runtime evidence for mutable technical truth. Release the
+local work claim when the bounded task is safely complete.

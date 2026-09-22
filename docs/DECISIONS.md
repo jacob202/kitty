@@ -21,13 +21,13 @@ A plan, issue, packet, report, metric, or chat statement does not become archite
 | D13 | Magic Kitty cross-project insight | [0014](adr/0014-magic-kitty-cross-project-insight.md) |
 | D14 | Resume loop and Builder boundary | [0015](adr/0015-resume-loop-and-builder-boundary.md) |
 | D15 | Life-first ordering | [0016](adr/0016-life-first-ordering.md) |
-| D16 | Kitty → Mission → KittyBuilder boundary | [0017](adr/0017-kitty-mission-builder-control-plane.md) |
+| D16 | Kitty → Mission → KittyBuilder boundary — retained for explicit Builder work; default routing suspended by D41 | [0017](adr/0017-kitty-mission-builder-control-plane.md) |
 | D17 | Evidence-gated Builder auto-merge policy | [0018](adr/0018-builder-campaign-auto-merge.md) |
 | D18 | Audit-harvest ratifications | [0019](adr/0019-audit-harvest-ratifications.md) |
 | D19 | One canonical roadmap | [0020](adr/0020-one-canonical-roadmap.md) |
-| D20 | Proactive Builder execution and model policy | [0021](adr/0021-proactive-builder-execution.md) |
+| D20 | Proactive Builder execution and model policy — default/proactive activation suspended by D41 | [0021](adr/0021-proactive-builder-execution.md) |
 | D21 | Retire the D10 local-only privacy boundary | [0022](adr/0022-retire-privacy-boundary.md) |
-| D22 | Session-end recommendations carry forward in checkpoint | [0023](adr/0023-session-end-carry-forward-recommendations.md) |
+| D22 | Session-end recommendations carry forward in checkpoint — automatic carry-forward suspended by D41 | [0023](adr/0023-session-end-carry-forward-recommendations.md) |
 | D23 | KittyBuilder has an independent operator application | [0024](adr/0024-independent-kittybuilder-operator-application.md) |
 | D24 | Session learning without a second backlog | [0025](adr/0025-session-learning-without-a-second-backlog.md) |
 | D25 | Measured KB effectiveness and single execution ownership | [0026](adr/0026-measured-kb-effectiveness-and-execution-ownership.md) |
@@ -46,5 +46,6 @@ A plan, issue, packet, report, metric, or chat statement does not become archite
 | D38 | Native Kitty owns the canonical product surface; Open WebUI is compatibility/reference software | [0039](adr/0039-kitty-native-product-surface.md) |
 | D39 | Image Lab uses FLUX.2-first intent compilation and native references | [0040](adr/0040-image-lab-flux2-execution-architecture.md) |
 | D40 | Sensitive scope clears deterministically; human approval is reserved for irreversible scope | [0042](adr/0042-deterministic-sensitive-scope-approval.md) |
+| D41 | Builder default execution and GAR mandatory lifecycle/recall are suspended as an operational experiment | [0043](adr/0043-suspend-builder-gar-defaults.md) |
 
 The full status/date index is in [`docs/adr/README.md`](adr/README.md). Older combined decision material remains historical in [`docs/retired/DECISIONS_AND_ROADMAP.md`](retired/DECISIONS_AND_ROADMAP.md).

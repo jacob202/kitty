@@ -26,11 +26,11 @@ report the contradiction rather than blending the claims.
 | `prevention_mechanisms` | `docs/reference/PREVENTION_MECHANISMS.md` | Enforceable prevention mechanisms for the repository: red-main freeze, lane limits, freshness, overlap detection, stale-draft policy, independent review, evidence requirements | Implementation details of CI workflows |
 | `live_status` | `docs/PROJECT_STATUS.md` | Dated shipped-capability and limitation evidence at its stated SHAs; retained under the stable `live_status` concern ID for receipt compatibility | Live runtime state, current priority, or unverified present state |
 | `active_mission` | `docs/ACTIVE_MISSION.md` | The canonical mission record and acceptance contract. Its status may be terminal; a terminal record means no running mission exists until Jacob explicitly approves a replacement. | Builder task/run truth |
-| `interactive_continuity` | `workspace_global` via the Global Agent Room CLI/MCP | Primary mutable cross-agent and cross-session handoffs, questions, reviews, results, and status. Read the relevant inbox/thread and acknowledge received messages. | Product architecture, roadmap authority, Git publication truth, or Builder execution state |
-| `session_checkpoint` | `.claude/STATE.md` | Legacy compatibility checkpoint used only through the validated fallback path when current GAR continuity is unavailable or no durable GAR locator exists and the receipt requires it | Current interactive continuity when GAR is available, historical checkpoints, or product purpose |
-| `continuation` | `.claude/HANDOFF.md` | Legacy compatibility handoff used only through the validated fallback path when its metadata remains valid | Current GAR handoff/thread, append-only history, or authority after invalidation |
-| `builder_state` | `data/kittybuilder/builder_queue.db` | Initiatives, packets, tasks, attempts, leases, runs, evidence, and publication state, read only through supported CLI/API projections | Product intent or personal data |
-| `builder_interfaces` | `docs/KITTYBUILDER_QUICKSTART.md` | Supported operator commands and execution safety rails | Live queue contents |
+| `interactive_continuity` | Current assignment plus live Git/GitHub/runtime evidence under ADR 0043 | Ordinary resume/orientation truth during the Builder/GAR suspension experiment. GAR may be consulted explicitly for archaeology or a known handoff, but is not mandatory recall. | Product architecture, roadmap authority, historical GAR traffic, or Builder execution state |
+| `session_checkpoint` | `.claude/STATE.md` | Historical compatibility snapshot preserved for rollback/archaeology during ADR 0043 | Current assignment, ownership, branch, next action, or project truth |
+| `continuation` | `.claude/HANDOFF.md` | Historical compatibility handoff preserved for rollback/archaeology during ADR 0043 | Current assignment, ownership, branch, next action, or project truth |
+| `builder_state` | `data/kittybuilder/builder_queue.db` | Preserved Builder initiatives, packets, tasks, attempts, leases, runs, evidence, and publication state when Builder is explicitly invoked or audited | Ordinary execution selection during ADR 0043, product intent, or personal data |
+| `builder_interfaces` | `docs/KITTYBUILDER_QUICKSTART.md` | Preserved explicit-use/rollback Builder operator commands and safety rails | Ordinary startup, automatic work selection, or live queue contents |
 | `historical_records` | `Git history` | Prior checkpoints, changes, and superseded claims | Current truth until re-verified |
 | `historical_docs` | `docs/archive/README.md` | Archived narrative and retired operating material | Current instructions |
 
@@ -48,9 +48,11 @@ A candidate plan, packet, or manifest becomes active only through explicit curre
 approval plus live ownership/coordination evidence. Historical catalog membership
 never activates work.
 
-Builder state must be read through supported Python/CLI projections. Do not
-interpret SQLite tables from prose and do not introduce a second Builder state
-machine. Runtime files under `data/` are local and are never committed.
+Builder state must be read through supported Python/CLI projections when an
+explicit Builder/audit task requires it. ADR 0043 suspends Builder as the normal
+execution selector; preserved Builder rows do not activate work. Do not interpret
+SQLite tables from prose and do not introduce a second Builder state machine.
+Runtime files under `data/` are local and are never committed.
 
 ## Conflict rules
 
@@ -64,11 +66,13 @@ machine. Runtime files under `data/` are local and are never committed.
    Older plans are inputs until explicitly absorbed, rejected, or archived.
 5. `docs/PROJECT_STATUS.md` may summarize shipped work but cannot redefine an
    ADR, roadmap, Mission, or live runtime fact.
-6. `workspace_global` is the primary mutable interactive-continuity source. The
-   `.claude/STATE.md` / `.claude/HANDOFF.md` pair is legacy compatibility fallback
-   only and is invalid when its recorded Git identity, mission, path, or
-   invalidation conditions no longer match.
-7. Missing or unverifiable facts are `unknown`; they are never filled from an
+6. ADR 0043 suspends GAR as mandatory interactive continuity and Builder as the
+   default executor. Ordinary work resumes from the current assignment plus live
+   Git/GitHub/runtime evidence. GAR and `.claude/STATE.md` / `.claude/HANDOFF.md`
+   remain historical/explicit-use sources only.
+7. ADR 0043 is the later accepted decision when older Builder/session-end ADRs
+   prescribe proactive/default behavior that the suspension explicitly pauses.
+8. Missing or unverifiable facts are `unknown`; they are never filled from an
    old handoff, report, or plausible guess.
 
 ### Product-surface authority resolution (2026-08-23)

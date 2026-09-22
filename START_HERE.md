@@ -9,68 +9,34 @@ live evidence; it does not duplicate current state.
    `git worktree list --porcelain`. The worktree must share Git state with
    `~/Projects/kitty`; Desktop copies are invalid.
 2. Inspect `git status --short --branch`, branch, HEAD, `origin/main`, and
-   recent commits. Do not fetch, switch, stash, or clean merely to simplify
-   output. Before any substantial implementation, also read
-   `docs/reference/MULTI_AGENT_COORDINATION.md`, check its live coordination
-   issue, and inspect the relevant Builder/local ownership state before
-   claiming an implementation lane.
-3. Prove `workspace_global` access by loading the shared Room Briefing first:
-   `./kitty room briefing --as <identity> --session-id <current-session> --json`.
-   The briefing is a scoped view of Kitty's shared orientation domain; clients
-   must not rebuild assignment, KX, Builder, Git, runtime, presence, or GAR truth
-   independently. Participant-wide direct messages are attention only unless
-   exact structural correlation independently resolves the assignment. Presence
-   is liveness only and never grants assignment or ownership. If the briefing
-   resolves or identifies a durable locator for an exact thread or handoff, load
-   that exact conversation with `room_thread` or `./kitty room thread <message_id> --json`.
-   Use `./kitty room inbox --as <identity> --unread --direct-only --json` only
-   to inspect unread direct attention/receipt items after briefing; MCP clients
-   use `room_inbox(unread_only=True, direct_only=True)` for that same attention
-   surface. Participant-wide directs remain attention, not assignment authority.
-   Acknowledge only
-   messages actually consumed. If the room or any required source is
-   unavailable, keep that state explicit rather than treating it as empty
-   success.
-4. Use the shared orientation result to choose any additional context receipt:
-   - For code work with a valid GAR continuation, use `./kitty context --agent
-     --skip-legacy-continuity`; informational/planning work may add `--compact
-     --skip-builder`.
-   - If Room Briefing cannot resolve a continuation and the legacy checkpoint is
-     genuinely required as a temporary fallback, run the strict `./kitty
-     context --agent` receipt and use that checkpoint only when validation
-     succeeds.
-   - If GAR is unavailable, use the strict compatibility receipt and report the
-     room as unavailable.
-   A failed, unknown, stale, or contradictory required source remains
-   unverified; handoff prose cannot repair it. Native cloud ChatGPT cannot know
-   local Kitty state before invoking the local bridge, so the first Kitty work
-   turn must invoke that bridge and obtain Room Briefing rather than assuming
-   repository or room state.
-5. Read only the authority files required by the task, using the receipt's
-   order. For code changes, use the complete order below.
-6. Read `docs/ACTIVE_MISSION.md` when the task is product or implementation
-   work. Confirm scope, approval, base SHA, evidence, and authorization.
-7. Inspect Builder through supported read-only commands only when Builder
-   state, execution ownership, or collision risk matters.
-8. Immediately before mutation, re-check live branch/HEAD, scope, owner,
+   recent commits. Do not stash, clean, switch, or overwrite unrelated work to
+   simplify the checkout.
+3. Read only the authority and code required by the task. For code changes, use
+   the canonical order below as needed; live Git/GitHub/runtime state outranks
+   stale handoff prose.
+4. Before mutation, inspect current worktrees and local claims:
+   `python3 scripts/work_claim.py status`.
+5. Acquire one explicit claim covering the paths you intend to change:
+   `python3 scripts/work_claim.py claim --owner <id> --task <task> --path <scope>`.
+   Overlapping active scopes are blocked; non-overlapping work remains allowed.
+   If scope grows, use `python3 scripts/work_claim.py extend --path <scope>` so
+   existing ownership is never released just to add paths.
+6. Do not use Builder or GAR during ordinary startup. Inspect either only for an
+   explicit Builder/GAR task, rollback, or historical evidence request.
+7. Immediately before mutation, re-check branch, HEAD, dirty paths, scope,
    authorization, and the exact files to change.
 
 ## Task routing
 
-- Informational: run the receipt and load the directly relevant authority.
-- Planning: add `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and a known
-  `workspace_global` thread/handoff when one exists; use legacy checkpoint files
-  only through the strict validated compatibility fallback above.
-- Code change: load the full order, then the outcome contract and narrow code or
-  test surface. Run focused verification after each coherent change.
-- Builder work: use explicit intent (`builder status`, `builder next`,
-  `review builder`, or a named task). Bare `next` never selects or runs a
-  Builder packet.
-- Completion: when a substantial assigned task is genuinely verified complete,
-  automatically execute `.agents/skills/session-end/SKILL.md` before the final
-  closeout response. Do not wait for the user to say `session end`; explicit
-  `session end`, `wrap up`, or equivalent also triggers the same closeout. Do
-  not close while work, review, CI, or required acceptance remains pending.
+- Informational: load only the directly relevant authority and live evidence.
+- Planning: use current conversation plus verified repository/runtime state;
+  do not require GAR or legacy checkpoints.
+- Code change: claim the intended paths, load the narrow code/test surface, and
+  run focused verification after each coherent change.
+- Builder work: only an explicit Builder request may inspect or run preserved
+  Builder machinery. Bare `next` never selects or runs a Builder packet.
+- Completion: verify the requested outcome, release the local claim when safe,
+  report exact evidence, and stop. No mandatory session-end workflow follows.
 
 ## Canonical reading order
 
@@ -86,15 +52,14 @@ live evidence; it does not duplicate current state.
 9. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md) — one approved mission
 <!-- kitty-reading-order:end -->
 
-`workspace_global` is the primary mutable cross-agent handoff and communication
-surface and is checked separately because it is runtime state, not versioned
-document authority. `.claude/STATE.md` and `.claude/HANDOFF.md` are legacy
-compatibility checkpoints: they are not mandatory reading, and they must never
-override fresher room, Git, GitHub, Builder, or runtime evidence.
+GAR is preserved historical/optional evidence, not a mandatory startup or
+handoff surface. `.claude/STATE.md` and `.claude/HANDOFF.md` are compatibility
+snapshots only and must not establish current assignment, ownership, branch, or
+next action.
 
-`docs/reference/MULTI_AGENT_COORDINATION.md` is an operational coordination
-supplement, not another authority file. Its live issue is mutable campaign
-state and must be revalidated against current GitHub/Builder/Mac truth.
+`docs/reference/MULTI_AGENT_COORDINATION.md` is historical/operational reference.
+The active collision boundary for ordinary work is the shared Git worktree claim
+state plus live Git/GitHub evidence.
 
 `docs/reference/CONTEXT_ENGINEERING.md` provides staged-loading detail by task
 type (what to load for informational, planning, and code-change work). This
@@ -105,17 +70,15 @@ not duplicate the staged-load procedure.
 
 ```bash
 git status --short --branch
-./kitty room briefing --as <identity> --session-id <current-session> --json
-# If briefing identifies an exact handoff/thread, load it before mutation.
-# Then use a legacy-skipping context receipt for a valid GAR continuation:
-./kitty context --agent --compact --skip-builder --skip-legacy-continuity
-# No GAR locator yet, or GAR unavailable and legacy fallback is required:
-./kitty context --agent
+git worktree list --porcelain
+python3 scripts/work_claim.py status
+python3 scripts/work_claim.py claim --owner <id> --task <task> --path <scope>
+python3 scripts/work_claim.py extend --path <additional-scope>
 ```
 
-Use `./kitty builder initiative doctor --json` only for Builder-relevant work.
 Use focused tests for focused changes; reserve full quality gates for an
-explicit `/qg`, CI, or user request.
+explicit `/qg`, CI, or user request. Builder/GAR commands are compatibility
+tools and are not part of normal startup.
 
 Push, merge, deletion, history rewrite, credentials, auth/env changes, paid
 execution, and heavy dependencies remain approval-gated.

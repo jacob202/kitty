@@ -1,4 +1,4 @@
-"""Cold-model acceptance using repository authorities plus GAR-first context."""
+"""Cold-model acceptance using repository authorities plus live Git state."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def _section_body(document: str, heading: str) -> str:
 
 
 def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
-    """GAR-first cold start must not depend on inherited model/checkpoint state."""
+    """Cold start must not depend on GAR or inherited checkpoint state."""
     receipt = build_context_receipt(
         ROOT,
         expected_canonical=_canonical_worktree(),
@@ -66,9 +66,8 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert {key: authorities[key] for key in required_sources} == required_sources
     assert all(path in reading_order for path in required_sources.values())
 
-    # Live cross-agent continuity is runtime state in workspace_global, not a
-    # mandatory versioned-document read. Legacy checkpoints remain addressable
-    # for compatibility but must not return to the default cold-start payload.
+    # Legacy checkpoints remain addressable for compatibility but must not
+    # return to the default cold-start payload or establish current work.
     assert authorities["session_checkpoint"] == ".claude/STATE.md"
     assert authorities["continuation"] == ".claude/HANDOFF.md"
     assert ".claude/STATE.md" not in reading_order
@@ -80,10 +79,10 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert receipt["evidence"]["checkpoint_source"] == []
 
     start_here = (ROOT / "START_HERE.md").read_text(encoding="utf-8")
-    assert "workspace_global" in start_here
-    assert "--unread" in start_here
-    assert "room_thread" in start_here
-    assert "--skip-legacy-continuity" in start_here
+    assert "scripts/work_claim.py status" in start_here
+    assert "Do not use Builder or GAR during ordinary startup" in start_here
+    assert "workspace_global" not in start_here
+    assert "room briefing" not in start_here.lower()
 
     documents = {
         concern: (ROOT / path).read_text(encoding="utf-8")
@@ -113,10 +112,9 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     }
     terminal_statuses = {"succeeded", "failed", "cancelled", "superseded"}
     assert mission_status in active_statuses | terminal_statuses
-    # 6. What is next? The receipt deliberately does not answer this in GAR mode;
-    # START_HERE routes continuation through unread/direct room handoffs or a
-    # known durable thread locator, with legacy checkpoint fallback only while
-    # scoped room retrieval is still being built.
+    # 6. What is next? The compatibility receipt deliberately does not invent a
+    # continuation. START_HERE resolves work from the current assignment and live
+    # repository state instead of GAR or legacy checkpoints.
     assert receipt["next_action"] is None
     # 7. What is stale or uncertain?
     assert receipt["unknowns"]

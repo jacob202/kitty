@@ -43,14 +43,15 @@ typecheck:
 
 ci: lint typecheck test-ci test-integration-ci ui-test ui-build
 
-# Point git at scripts/hooks/ so coordination pre-commit + pre-push gates survive clone and reinstall.
+# Point git at tracked hooks so the local worktree-claim pre-commit fence and
+# existing pre-push safety gate survive clone and reinstall.
 # core.hooksPath is per-clone config, so this is not automatic -- run it once.
 hooks:
 	git config core.hooksPath .githooks
 	@if [ -z "$$(git config --get core.sshCommand || true)" ]; then \
 		git config core.sshCommand "ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=30"; \
 	fi
-	@echo "coordination pre-commit + pre-push gates installed. SSH keepalive configured when no custom core.sshCommand exists."
+	@echo "worktree-claim pre-commit + pre-push gates installed. SSH keepalive configured when no custom core.sshCommand exists."
 	@echo "Bypass a single push with: git push --no-verify"
 
 smoke-test: ui-build

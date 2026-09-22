@@ -210,19 +210,16 @@ def test_skip_survives_an_unwritable_log_directory(tmp_path: Path) -> None:
     assert result.returncode == 0
 
 
-def test_settings_wires_both_gates_after_kitty_hooks() -> None:
-    """Kitty's own hooks must evaluate before the third-party gates."""
+def test_settings_keep_evidence_lint_but_remove_turn_end_gate() -> None:
+    """Evidence truth remains; non-safety completion blocking does not."""
     import json
 
     settings = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
 
     commands = [h["command"] for group in settings["hooks"]["PreToolUse"] for h in group["hooks"]]
     evidence_lint = next(i for i, c in enumerate(commands) if "evidence-lint.py" in c)
-    # Compare enumerated positions, not list.index(): scan-secrets.sh appears in
-    # two groups, so index() would report the first occurrence for both and the
-    # assertion would still pass with the gate moved ahead of the second scanner.
     scanners = [i for i, c in enumerate(commands) if "scan-secrets.sh" in c]
-    assert len(scanners) == 2, "expected scan-secrets.sh in both the Bash and Write|Edit groups"
+    assert len(scanners) == 2
     assert max(scanners) < evidence_lint
 
     stop_commands = [
@@ -231,16 +228,16 @@ def test_settings_wires_both_gates_after_kitty_hooks() -> None:
         for h in group["hooks"]
         if h.get("type") == "command"
     ]
-    assert stop_commands.index("bash .claude/hooks/session-stop.sh") < next(
-        i for i, c in enumerate(stop_commands) if "turn-end-gate.py" in c
-    )
+    assert stop_commands == ["bash .claude/hooks/warn-unpushed.sh"]
+    assert not any("turn-end-gate.py" in command for command in stop_commands)
+    assert not any("session-stop.sh" in command for command in stop_commands)
 
 
-def test_session_start_reports_gate_availability() -> None:
-    """Fail-open must not be silent: session start says when the gates are off."""
+def test_session_start_does_not_check_unwired_turn_end_gate() -> None:
     import json
 
     settings = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
     commands = [h["command"] for group in settings["hooks"]["SessionStart"] for h in group["hooks"]]
 
-    assert "bash .claude/hooks/build-it-hook.sh --check" in commands
+    assert commands == ["bash .claude/hooks/session-start.sh"]
+    assert not any("build-it-hook.sh --check" in command for command in commands)

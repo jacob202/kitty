@@ -52,6 +52,7 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0040 | [Image Lab Uses FLUX.2-First Intent Compilation And Native References](0040-image-lab-flux2-execution-architecture.md) | Accepted | 2026-08-18 |
 | 0041 | [Attributable Agent Identity for Human-Only Controls](0041-attributable-agent-identity.md) | Proposed | 2026-09-13 |
 | 0042 | [Deterministic Approval for Sensitive Scope; Human Approval Reserved for Irreversible Scope](0042-deterministic-sensitive-scope-approval.md) | Accepted | 2026-09-15 |
+| 0043 | [Suspend Builder And GAR As Defaults](0043-suspend-builder-gar-defaults.md) | Accepted — operational suspension experiment | 2026-09-22 |
 
 ## Cross-cutting decisions
 

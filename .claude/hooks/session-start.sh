@@ -1,5 +1,9 @@
 #!/bin/bash
-# Injects dynamic project context at session start.
+# Lightweight Git context only.
+# Builder/GAR default execution and lifecycle recall are suspended.
+# Startup must not write continuity state, query GAR, or require Builder.
+
+set -uo pipefail
 
 manifest_hash() {
   {
@@ -20,135 +24,41 @@ if [ "${DOTCLAUDE_FINGERPRINT:-0}" = "1" ]; then
 fi
 
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
-
-HOOK_INPUT=$(cat 2>/dev/null || true)
-SESSION_ID=""
-if command -v jq >/dev/null 2>&1 && [ -n "$HOOK_INPUT" ]; then
-  SESSION_ID=$(printf '%s' "$HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
-fi
-SAFE_SESSION_ID=$(printf '%s' "$SESSION_ID" | tr -cd 'A-Za-z0-9._-')
-GAR_STATE_DIR="${KITTY_GAR_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/kitty/gar-lifecycle}"
-GAR_OUTBOX_DIR="${KITTY_GAR_OUTBOX_DIR:-$GAR_STATE_DIR/outbox}"
-if [ -n "$SAFE_SESSION_ID" ]; then
-  mkdir -p "$GAR_STATE_DIR" 2>/dev/null || true
-  date +%s > "$GAR_STATE_DIR/$SAFE_SESSION_ID.start" 2>/dev/null || true
-fi
-
 VERBOSE="${DOTCLAUDE_SESSION_VERBOSE:-0}"
 CONTEXT=""
-BRANCH=$(git branch --show-current 2>/dev/null)
+BRANCH=$(git branch --show-current 2>/dev/null || true)
 if [ -n "$BRANCH" ]; then
   CONTEXT="Branch: $BRANCH"
 else
-  SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null)
+  SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null || true)
   [ -n "$SHORT_SHA" ] && CONTEXT="HEAD: detached at $SHORT_SHA"
 fi
+
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
   CONTEXT="$CONTEXT | dirty"
 fi
 
 META="${DOTCLAUDE_META:-.claude/.dotclaude.json}"
 if [ -f "$META" ]; then
-  SAVED=$(grep -o '"manifest_hash"[: ]*"[^"]*"' "$META" 2>/dev/null | grep -o '"[^"]*"$' | tr -d '"')
+  SAVED=$(grep -o '"manifest_hash"[: ]*"[^"]*"' "$META" 2>/dev/null | grep -o '"[^"]*"$' | tr -d '"' || true)
   if [ -n "$SAVED" ] && [ "$(manifest_hash)" != "$SAVED" ]; then
     DRIFT="config drift: project manifests changed since setup. Re-run /setupdotclaude to re-tune"
     if [ -n "$CONTEXT" ]; then CONTEXT="$CONTEXT | $DRIFT"; else CONTEXT="$DRIFT"; fi
   fi
 fi
-
 if [ "$VERBOSE" = "1" ]; then
-  LAST_COMMIT=$(git log --oneline -1 2>/dev/null)
+  LAST_COMMIT=$(git log --oneline -1 2>/dev/null || true)
   [ -n "$LAST_COMMIT" ] && CONTEXT="$CONTEXT | Last: $LAST_COMMIT"
   CHANGES=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
-  [ "$CHANGES" -gt 0 ] 2>/dev/null && CONTEXT="$CONTEXT | $CHANGES files changed"
+  [ "${CHANGES:-0}" -gt 0 ] 2>/dev/null && CONTEXT="$CONTEXT | $CHANGES files changed"
   if ! git diff --cached --quiet 2>/dev/null; then CONTEXT="$CONTEXT | staged"; fi
   STASH_COUNT=$(git stash list 2>/dev/null | wc -l | tr -d ' ')
-  [ "$STASH_COUNT" -gt 0 ] 2>/dev/null && CONTEXT="$CONTEXT | $STASH_COUNT stash(es)"
+  [ "${STASH_COUNT:-0}" -gt 0 ] 2>/dev/null && CONTEXT="$CONTEXT | $STASH_COUNT stash(es)"
   if command -v gh >/dev/null 2>&1; then
-    PR_INFO=$(gh pr view --json number,title,state --jq '"PR #\(.number): \(.title) (\(.state))"' 2>/dev/null)
+    PR_INFO=$(gh pr view --json number,title,state --jq '"PR #\(.number): \(.title) (\(.state))"' 2>/dev/null || true)
     [ -n "$PR_INFO" ] && CONTEXT="$CONTEXT | $PR_INFO"
   fi
 fi
+
 [ -n "$CONTEXT" ] && echo "$CONTEXT"
-
-PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-ROOM_CLI="${KITTY_ROOM_CLI:-$PROJECT_ROOT/kitty}"
-
-# Replay durable SessionEnd fallbacks before reading new room context.
-if [ -x "$ROOM_CLI" ] && [ -d "$GAR_OUTBOX_DIR" ] && command -v jq >/dev/null 2>&1; then
-  for queued in "$GAR_OUTBOX_DIR"/*.json; do
-    [ -f "$queued" ] || continue
-    QUEUED_CONTENT=$(jq -r '.content // empty' "$queued" 2>/dev/null || true)
-    if [ -n "$QUEUED_CONTENT" ] && "$ROOM_CLI" room post --as claude --kind handoff "$QUEUED_CONTENT" >/dev/null 2>&1; then
-      rm -f "$queued" 2>/dev/null || true
-    fi
-  done
-fi
-
-bounded_messages() {
-  # Bound both per-message and total injected context. CLI text starts each
-  # message with its durable message id, so one physical line is one message.
-  awk '{ line=$0; if (length(line)>900) line=substr(line,1,900) "…"; print line }' \
-    | head -n 8 | head -c 6000
-}
-
-if [ -x "$ROOM_CLI" ] && command -v jq >/dev/null 2>&1; then
-  # Shared orientation comes from Room Briefing exactly once. Assignment, KX,
-  # Builder, Git, runtime, presence and GAR truth are projected there; this
-  # client must not rebuild them from room recent, participant-wide directs or
-  # presence, which are attention/liveness surfaces only.
-  BRIEF_ERR=$(mktemp "${TMPDIR:-/tmp}/kitty-gar-brief.XXXXXX")
-  if [ -n "$SAFE_SESSION_ID" ]; then
-    BRIEFING=$("$ROOM_CLI" room briefing --as claude --session-id "$SAFE_SESSION_ID" --json 2>"$BRIEF_ERR")
-  else
-    BRIEFING=$("$ROOM_CLI" room briefing --as claude --json 2>"$BRIEF_ERR")
-  fi
-  BRIEF_RC=$?
-  if [ "$BRIEF_RC" -eq 0 ] && printf '%s' "$BRIEFING" | jq -e 'type == "object" and .kind == "room_briefing" and .schema_version == 1 and (.assignment | type == "object")' >/dev/null 2>&1; then
-    echo ""
-    echo "[GAR] shared briefing (the only shared orientation view; do not reconstruct assignment, KX, Builder, Git, runtime or presence truth yourself):"
-    printf '%s' "$BRIEFING" | jq -r '
-      (if (.assignment.state // "") != "" then "assignment.state: \(.assignment.state)" else empty end),
-      (if (.assignment.scope // null) == null then "assignment.scope: none (no explicit scope)" else "assignment.scope: \(.assignment.scope|tostring)" end),
-      (if (.assignment.authority_source // null) == null then "assignment.authority: none" else "assignment.authority: \(.assignment.authority_source|tostring)" end),
-      (if (.assignment.reason // "") != "" then "assignment.reason: \(.assignment.reason)" else empty end),
-      (if ((.degraded // []) | if type == "array" then length > 0 else . == true end) then "degraded: \(.degraded|tostring) — these sources are unknown, not healthy" else empty end),
-      ((.sources // {}) | to_entries[] | "source \(.key): \(if (.value|type)=="object" then (.value.state // .value.status // "present") else (.value|tostring) end)"),
-      (if (.next_continuation // null) == null then empty else "next_continuation: \(.next_continuation|tostring)" end),
-      ((.attention // [])[:6][] | "attention \(.kind) \(.message_id) <- \(.sender_id) [\(.trust)]: \(.reason)")
-    ' 2>/dev/null | awk '{ line=$0; if (length(line)>400) line=substr(line,1,400) "…"; print line }' | head -n 24 | head -c 6000
-    echo "[GAR] Exact thread/handoff content is loaded only when the briefing resolves or names its locator."
-    if [ -n "$SAFE_SESSION_ID" ]; then
-      echo "[GAR] session receipt token: gar-session:$SAFE_SESSION_ID"
-      echo "[GAR] When substantial assigned work finishes, run /session-end and include that token in the workspace_global handoff/result. Do not wait for Jacob to say session end."
-    fi
-    echo "[GAR] Unread direct below is an attention/receipt surface only. It never grants assignment or ownership."
-    DIRECT_ERR=$(mktemp "${TMPDIR:-/tmp}/kitty-gar-direct.XXXXXX")
-    DIRECT=$("$ROOM_CLI" room inbox --as claude --unread --direct-only --limit 8 2>"$DIRECT_ERR")
-    DIRECT_RC=$?
-    if [ "$DIRECT_RC" -eq 0 ]; then
-      DIRECT_BOUNDED=$(printf '%s\n' "$DIRECT" | bounded_messages)
-      echo "[GAR] unread direct for claude (attention/receipt only):"
-      [ -n "$DIRECT_BOUNDED" ] && echo "$DIRECT_BOUNDED" || echo "(none)"
-      echo "[GAR] After consuming a direct: reply in-thread (records receipt), or run: $ROOM_CLI room ack --as claude <message_id>"
-      echo "[GAR] Do not ACK unread work you did not consume. ACK means receipt, not task completion. Builder executes work; #490 owns collisions."
-    else
-      DIRECT_DIAG=$(head -c 500 "$DIRECT_ERR" 2>/dev/null || true)
-      echo "[GAR] direct inbox failed (exit $DIRECT_RC): ${DIRECT_DIAG:-no diagnostic output}"
-    fi
-    rm -f "$DIRECT_ERR" 2>/dev/null || true
-  else
-    echo ""
-    echo "[GAR] shared briefing unavailable at session start; do not treat this as an empty room or as an absence of work."
-    BRIEF_DIAG=$(head -c 500 "$BRIEF_ERR" 2>/dev/null || true)
-    echo "[GAR] briefing failed (exit $BRIEF_RC): ${BRIEF_DIAG:-no diagnostic output}"
-    echo "[GAR] Do not reconstruct assignment from room recent, participant-wide directs, or presence."
-    echo "[GAR] Exact thread/handoff content is loaded only when the briefing resolves or names its locator."
-    echo "[GAR] Any queued SessionEnd handoffs remain durable in $GAR_OUTBOX_DIR."
-  fi
-  rm -f "$BRIEF_ERR" 2>/dev/null || true
-else
-  echo "[GAR] workspace_global unavailable at session start; Kitty room CLI or jq not found."
-fi
-
 exit 0

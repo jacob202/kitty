@@ -1,7 +1,6 @@
 ---
 name: catchup
-description: Rebuild working context fast after /clear or a fresh session — reads the handoff note and the branch's changes, then summarizes where work stands. Add `handoff` to write the note before stopping.
-argument-hint: "[handoff | focus area]"
+description: Rebuild working context from live Git and the current assignment after /clear or a fresh session.
 disable-model-invocation: true
 allowed-tools:
   - Read
@@ -10,61 +9,41 @@ allowed-tools:
   - Bash(git diff *)
   - Bash(git branch *)
   - Bash(git merge-base *)
+  - Bash(python3 scripts/work_claim.py *)
 ---
 
-Two modes. `$ARGUMENTS` containing `handoff` → write the handoff note (end of session). Anything else → catch up (start of session), treating any remaining arguments as a focus area.
+# Catch Up
 
-## Catch up (default)
+Catchup is read-only. It does not post to GAR, write handoff files, select
+Builder work, or create continuity state.
 
-Rebuild context in four steps, cheapest first. Read; never modify anything.
+## Procedure
 
-1. **Handoff note (legacy fallback hint only)**: if `.claude/HANDOFF.md` exists, read it as a hint — but it NEVER beats fresher Git, the Global Agent Room (`workspace_global`), Builder, or runtime evidence. `.claude/HANDOFF.md` and `.claude/STATE.md` are legacy compatibility checkpoints, not authority; if the note's recorded branch/HEAD/path/mission no longer matches live state, treat it as stale, flag it, and skip it. For the authority order see `docs/AUTHORITY_MAP.md` and `START_HERE.md` — catchup is a quick read-only survey, not the cold-start receipt, so do not re-run the full receipt procedure here.
-2. **Branch state**:
-   - `git status` — uncommitted/staged work in flight
-   - `git log --oneline $(git merge-base HEAD origin/HEAD 2>/dev/null || echo HEAD~10)..HEAD` — what this branch did
-   - `git diff --stat $(git merge-base HEAD origin/HEAD 2>/dev/null || echo HEAD~10)..HEAD` — where the change mass is
-3. **Read the changed files** — the diff hunks, not whole files. If more than ~15 files changed, read the 5 with the most churn plus anything matching the focus area, and list the rest by name.
-4. **Summarize** in this shape, terse:
+1. Read the current conversation/assignment available to this session.
+2. Inspect live Git state:
 
+```bash
+git status --short --branch
+git log --oneline $(git merge-base HEAD origin/HEAD 2>/dev/null || echo HEAD~10)..HEAD
+git diff --stat $(git merge-base HEAD origin/HEAD 2>/dev/null || echo HEAD~10)..HEAD
+python3 scripts/work_claim.py status
 ```
+
+3. Read only the changed files needed to explain the current work.
+4. If mutable facts matter, refresh their authoritative source.
+5. Summarize:
+
+```text
 ## Catchup: <branch>
-
-**Goal** (from handoff or inferred): <one line>
-**Done**: <commits/changes, 2-4 bullets>
-**In flight**: <uncommitted work, or "clean">
-**Next** (from handoff, or inferred): <one line>
-**Watch out**: <gotchas from the handoff, if any>
+Goal: <one line>
+Done: <2-4 verified bullets>
+In flight: <current dirty/unfinished work or clean>
+Next: <single concrete action supported by live state>
+Watch out: <real collision/blocker, if any>
 ```
 
-If there's no handoff note and no branch divergence (fresh clone, main at origin), say so and ask what to work on instead of inventing a summary.
+If there is no current assignment and no branch work to resume, say so. Do not
+invent a task from ROADMAP, Builder, GAR, STATE.md, or HANDOFF.md.
 
-## Handoff (when `$ARGUMENTS` contains `handoff`)
-
-Write `.claude/HANDOFF.md` capturing THIS session for the next one. Keep it under 30 lines — it's a note, not a transcript:
-
-```markdown
-# Handoff — <date> — <branch>
-
-## Goal
-<what this work is trying to achieve, one line>
-
-## State
-- Done: <completed + verified>
-- In flight: <started, not finished — exact file/function>
-- Untouched: <known remaining scope>
-
-## Gotchas
-- <what failed and why, dead ends not to repeat, surprising constraints>
-
-## Next step
-<the single concrete action to take first>
-```
-
-Show the note and confirm before writing. Overwrite any existing note (it described an older state). Suggest adding `.claude/HANDOFF.md` to `.gitignore` if it isn't there — it's personal session state, like `CLAUDE.local.md`.
-
-## Rules
-
-- Catchup mode is strictly read-only.
-- Never paste large diffs into the summary — reference `file:line` and characterize.
-- The handoff captures decisions and dead ends, not narrative. "Tried X, broke Y, use Z instead" is the gold standard line.
-- `.claude/HANDOFF.md` and `.claude/STATE.md` are legacy fallback hints only and never override fresher Git/GAR/Builder/runtime evidence; see `docs/AUTHORITY_MAP.md`.
+`.claude/STATE.md` and `.claude/HANDOFF.md` are preserved compatibility
+snapshots only. They are not catchup inputs.
