@@ -12,6 +12,7 @@ a partial rewrite would leave the router in a state nobody designed for.
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import time
@@ -28,12 +29,20 @@ _AGENTROUTER_DEFAULT_ORIGINATOR = "kitty"
 _AGENTROUTER_DEFAULT_VERSION = "1.0"
 
 router = APIRouter(tags=["providers"])
+logger = logging.getLogger("kitty.routes.providers")
 
 CONFIG_PATH = ROOT / "gateway" / "litellm_config.yaml"
 LITELLM_HEALTH_URL = "http://127.0.0.1:8001/health/liveliness"
 LITELLM_LAUNCHD_LABEL = "com.kitty.litellm"
 
 _KITTY_MODELS = ("kitty-default", "kitty-sonnet", "kitty-small", "kitty-vision")
+
+# Restart failures carry host paths, uids and launchd/urllib internals. Clients get
+# these fixed strings and a pointer to the log; the detail goes to `logger` only.
+_RESTART_FAILED_DETAIL = "Could not restart LiteLLM via launchctl. Check logs/litellm.log."
+_RESTART_UNHEALTHY_DETAIL = (
+    "LiteLLM restarted but did not become healthy within 20s. Check logs/litellm.log."
+)
 
 # Upstream model per kitty alias per provider. Keep in sync with what each
 # provider actually serves (AgentRouter live list verified 2026-07-27).
@@ -186,40 +195,34 @@ def _restart_litellm() -> None:
             text=True,
             timeout=15,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Could not restart LiteLLM via launchctl: {exc}",
-        ) from exc
+    except (OSError, subprocess.TimeoutExpired):
+        # `from None` keeps the launchctl command line and errno out of any
+        # traceback rendering of the HTTPException; the log keeps them.
+        logger.exception("launchctl kickstart %s could not be run", domain)
+        raise HTTPException(status_code=500, detail=_RESTART_FAILED_DETAIL) from None
     if proc.returncode != 0:
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                f"launchctl kickstart {domain} exited {proc.returncode}: "
-                f"{proc.stderr.strip() or proc.stdout.strip()}"
-            ),
+        output = proc.stderr.strip() or proc.stdout.strip()
+        logger.error(
+            "launchctl kickstart %s exited %s: %s",
+            domain,
+            proc.returncode,
+            output,
         )
+        raise HTTPException(status_code=500, detail=_RESTART_FAILED_DETAIL)
 
     import urllib.request
 
     deadline = time.monotonic() + 20
-    last_error = "no attempt made"
     while time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(LITELLM_HEALTH_URL, timeout=3) as resp:
                 if resp.status == 200:
                     return
-            last_error = f"HTTP {resp.status}"
-        except Exception as exc:  # noqa: BLE001 — surfaced verbatim below
-            last_error = str(exc)
+            logger.warning("LiteLLM health probe returned HTTP %s", resp.status)
+        except Exception:  # noqa: BLE001 — log diagnostics without exposing them to clients
+            logger.exception("LiteLLM health probe failed")
         time.sleep(1)
-    raise HTTPException(
-        status_code=500,
-        detail=(
-            "LiteLLM restarted but did not become healthy within 20s "
-            f"(last error: {last_error}). Check logs/litellm.log."
-        ),
-    )
+    raise HTTPException(status_code=500, detail=_RESTART_UNHEALTHY_DETAIL)
 
 
 @router.get("/api/providers/active")
