@@ -39,9 +39,9 @@ _KITTY_MODELS = ("kitty-default", "kitty-sonnet", "kitty-small", "kitty-vision")
 
 # Restart failures carry host paths, uids and launchd/urllib internals. Clients get
 # these fixed strings and a pointer to the log; the detail goes to `logger` only.
-_RESTART_FAILED_DETAIL = "Could not restart LiteLLM via launchctl. Check logs/litellm.log."
+_RESTART_FAILED_DETAIL = "Could not restart LiteLLM via launchctl. Check logs/gateway.log."
 _RESTART_UNHEALTHY_DETAIL = (
-    "LiteLLM restarted but did not become healthy within 20s. Check logs/litellm.log."
+    "LiteLLM restarted but did not become healthy within 20s. Check logs/gateway.log."
 )
 
 # Upstream model per kitty alias per provider. Keep in sync with what each
@@ -213,14 +213,23 @@ def _restart_litellm() -> None:
     import urllib.request
 
     deadline = time.monotonic() + 20
+    attempt = 0
     while time.monotonic() < deadline:
+        attempt += 1
         try:
             with urllib.request.urlopen(LITELLM_HEALTH_URL, timeout=3) as resp:
                 if resp.status == 200:
                     return
-            logger.warning("LiteLLM health probe returned HTTP %s", resp.status)
+            logger.warning(
+                "LiteLLM health probe attempt %s returned HTTP %s; retrying",
+                attempt,
+                resp.status,
+            )
         except Exception:  # noqa: BLE001 — log diagnostics without exposing them to clients
-            logger.exception("LiteLLM health probe failed")
+            logger.exception(
+                "LiteLLM health probe attempt %s failed; retrying",
+                attempt,
+            )
         time.sleep(1)
     raise HTTPException(status_code=500, detail=_RESTART_UNHEALTHY_DETAIL)
 

@@ -6,13 +6,22 @@ import logging
 import subprocess
 import urllib.error
 import urllib.request
+from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
 from gateway.routes import providers
 
 LOGGER_NAME = "kitty.routes.providers"
+
+
+@pytest.fixture
+def provider_client():
+    app = FastAPI()
+    app.include_router(providers.router)
+    return TestClient(app)
 
 
 def _completed(returncode=0, stdout="", stderr=""):
@@ -101,6 +110,55 @@ def test_health_probe_exception_is_logged_without_leaking(
     assert raised.value.status_code == 500
     assert raised.value.detail == providers._RESTART_UNHEALTHY_DETAIL
     assert sentinel not in raised.value.detail
+    assert sentinel in caplog.text
+    assert "attempt 1" in caplog.text
+    assert "retrying" in caplog.text
+
+
+def test_switch_endpoint_hides_launchctl_failure(
+    monkeypatch, caplog, provider_client
+):
+    sentinel = "SENTINEL_ENDPOINT_LAUNCHCTL_2a4e"
+    monkeypatch.setattr(providers, "_active_state", lambda: {"active": "openrouter"})
+    monkeypatch.setattr(providers, "_rewrite_config", lambda _target: None)
+    monkeypatch.setattr(providers.subprocess, "run", _raiser(OSError(sentinel)))
+
+    with caplog.at_level(logging.ERROR, logger=LOGGER_NAME):
+        response = provider_client.post(
+            "/api/providers/switch", json={"target": "agentrouter"}
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": providers._RESTART_FAILED_DETAIL}
+    assert sentinel not in response.text
+    assert sentinel in caplog.text
+
+
+def test_switch_endpoint_hides_health_probe_failure(
+    monkeypatch, caplog, provider_client
+):
+    sentinel = "SENTINEL_ENDPOINT_HEALTH_70bf"
+    monkeypatch.setattr(providers, "_active_state", lambda: {"active": "openrouter"})
+    monkeypatch.setattr(providers, "_rewrite_config", lambda _target: None)
+    monkeypatch.setattr(providers.subprocess, "run", lambda *args, **kwargs: _completed())
+    monkeypatch.setattr(urllib.request, "urlopen", _raiser(urllib.error.URLError(sentinel)))
+    monkeypatch.setattr(
+        providers,
+        "time",
+        SimpleNamespace(
+            monotonic=iter([0.0, 1.0, 21.0]).__next__,
+            sleep=lambda _seconds: None,
+        ),
+    )
+
+    with caplog.at_level(logging.WARNING, logger=LOGGER_NAME):
+        response = provider_client.post(
+            "/api/providers/switch", json={"target": "agentrouter"}
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": providers._RESTART_UNHEALTHY_DETAIL}
+    assert sentinel not in response.text
     assert sentinel in caplog.text
 
 
