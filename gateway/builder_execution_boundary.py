@@ -50,6 +50,10 @@ def build_child_environment(
         TMPDIR=str(tmp),
         TMP=str(tmp),
         TEMP=str(tmp),
+        # Claude Code resolves its own per-uid temp root from CLAUDE_CODE_TMPDIR
+        # and ignores TMPDIR, so it would mkdir /tmp/claude-<uid>. Seatbelt
+        # denies that and the child dies on EPERM before reporting anything.
+        CLAUDE_CODE_TMPDIR=str(tmp),
         XDG_CONFIG_HOME=str(home / ".config"),
         XDG_DATA_HOME=str(home / ".local" / "share"),
         XDG_CACHE_HOME=str(home / ".cache"),

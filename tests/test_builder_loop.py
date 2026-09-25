@@ -1857,6 +1857,82 @@ class TestRecoveryBudget:
         ]
         assert failures[-1]["payload"]["reason"] == result["reason"]
 
+    def test_provider_exhaustion_surfaces_the_worker_own_explanation(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """The operator sees why, not just that -- with secrets stripped.
+
+        Before this, every exhaustion was reported identically regardless of
+        cause; the worker's own explanation sat unread in combined.log. The
+        fixed ``reason`` string this test also checks is what the free-to-paid
+        lane switch and crash-streak grouping match on, so it must not change
+        shape even though ``failure_detail`` now rides beside it.
+        """
+        task_id = _apply(db_path, repo_root=repo)
+        unavailable = _script(
+            tmp_path,
+            "paid-provider-unavailable-explained.sh",
+            'echo "not authenticated; CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-leaktest" >&2\n'
+            "exit 75\n",
+        )
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=unavailable,
+            repo_root=repo,
+            db_path=db_path,
+            governor_db=tmp_path / "governor-paid-detail" / "receipts.db",
+            model="openrouter/deepseek/deepseek-v4-flash",
+            provider="openrouter",
+            governor_requested_route="cheap",
+        )
+
+        assert result["outcome"] == bl.LOOP_PROVIDER_EXHAUSTED
+        # Unchanged: this exact string is what the lane-switch and
+        # crash-grouping logic match against.
+        assert result["reason"] == "all configured paid worker providers were unavailable"
+        assert "not authenticated" in result["failure_detail"]
+        assert "sk-ant-oat01-leaktest" not in result["failure_detail"]
+        assert "CLAUDE_CODE_OAUTH_TOKEN=" not in result["failure_detail"]
+        assert "[REDACTED]" in result["failure_detail"]
+
+        failures = [
+            event for event in bq.list_events(task_id, db_path=db_path)
+            if event["type"] == "infrastructure_failed"
+        ]
+        assert failures[-1]["payload"]["reason"] == result["reason"]
+        assert "not authenticated" in failures[-1]["payload"]["detail"]
+        assert "sk-ant-oat01-leaktest" not in failures[-1]["payload"]["detail"]
+
+    def test_crash_grouping_ignores_the_variable_detail(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Two crashes with the same cause but different log text still group.
+
+        This is the regression the detail field could have caused: if the
+        variable worker explanation had leaked into ``reason`` itself instead
+        of riding beside it, every crash would look like a new failure mode
+        and the recovery budget would never trip.
+        """
+        task_id = _apply(db_path, repo_root=repo, max_attempts=1)
+        for line in ("first crash detail", "second crash, different text"):
+            bq.append_event(
+                task_id,
+                "infrastructure_failed",
+                payload={
+                    "reason": "all configured paid worker providers were unavailable",
+                    "detail": line,
+                    "counts_toward_budget": False,
+                },
+                db_path=db_path,
+            )
+        count, reason = bl._consecutive_identical_crashes(task_id, db_path=db_path)
+        assert (count, reason) == (
+            2,
+            "all configured paid worker providers were unavailable",
+        )
+
     def test_non_identical_crashes_do_not_stop_the_run(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
@@ -4421,3 +4497,28 @@ def test_independent_readonly_review_executor_uses_builder_route_and_contains_ho
         capture_output=True,
         text=True,
     ).stdout == "?? .env\n"
+
+
+@pytest.mark.parametrize(
+    ("line", "secret"),
+    [
+        ("CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-leaktest", "sk-ant-oat01-leaktest"),
+        ("key sk-or-v1-0123456789abcdef0123 rejected", "sk-or-v1-0123456789abcdef0123"),
+        ('{"OPENROUTER_API_KEY": "plainvalue123"}', "plainvalue123"),
+        ("OPENROUTER_API_KEY: plainvalue123", "plainvalue123"),
+        ("openrouter_api_key = 'plainvalue123'", "plainvalue123"),
+        ("Authorization: Bearer abc.def-ghi_jkl", "abc.def-ghi_jkl"),
+    ],
+)
+def test_worker_log_redaction_covers_common_credential_forms(line: str, secret: str):
+    redacted = bl._redact_secrets(f"worker failed: {line}")
+    assert secret not in redacted
+    assert "[REDACTED]" in redacted
+    assert redacted.startswith("worker failed: ")
+
+
+def test_unreadable_worker_log_says_so(tmp_path: Path):
+    """A missing log must not read as 'the worker said nothing'."""
+    detail = bl._tail_worker_log(str(tmp_path / "missing" / "combined.log"))
+    assert detail.startswith("(worker log unreadable: FileNotFoundError")
+    assert bl._tail_worker_log(None) == ""

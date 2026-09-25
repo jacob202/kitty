@@ -7,6 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
+from gateway import builder_cli
+from gateway import builder_execution_boundary as beb
 from gateway.builder_cli import build_parser, main
 
 # ---------------------------------------------------------------------------
@@ -1389,6 +1391,186 @@ class TestInitiativeFreePreset:
             "scripts/kittybuilder_dsh_reviewer.sh"
         )
         assert kwargs["worker"] == "dsh-free"
+
+
+class TestInitiativeClaudePreset:
+    _RESULT = {
+        "outcome": "succeeded",
+        "initiative_id": "init-1",
+        "packet_id": "p1",
+        "task_id": "kb_123",
+        "attempts": [],
+    }
+    _SUMMARY = {
+        "outcome": "idle",
+        "reason": None,
+        "processed": [],
+        "succeeded": 0,
+        "exhausted": 0,
+    }
+
+    @pytest.fixture
+    def claude_adapter(self, tmp_path: Path):
+        """A fake resolved (script, claude binary) pair, isolated from the host.
+
+        The real resolver depends on the operator's machine having Claude
+        Code installed on PATH; mocking it here keeps these tests hermetic
+        instead of depending on that.
+        """
+        script = tmp_path / "kittybuilder_claude_adapter.py"
+        script.write_text("#!/usr/bin/env python3\n")
+        claude_bin = tmp_path / "claude-bin" / "claude"
+        claude_bin.parent.mkdir()
+        claude_bin.write_text("#!/bin/sh\n")
+        claude_bin.chmod(0o755)
+        with patch(
+            "gateway.builder_cli._resolve_claude_adapter",
+            return_value=(script, claude_bin),
+        ):
+            yield script, claude_bin
+
+    def test_run_packet_claude_dispatches_subscription_adapter(
+        self, claude_adapter
+    ):
+        script, claude_bin = claude_adapter
+        with patch(
+            "gateway.builder_loop.run_packet", return_value=self._RESULT
+        ) as mock_rp:
+            rc = main([
+                "initiative", "run-packet", "init-1", "p1", "--claude", "--json"
+            ])
+
+        assert rc == 0
+        kwargs = mock_rp.call_args.kwargs
+        worker_command = kwargs["worker_command"]
+        assert worker_command[:2] == ["bash", "-c"]
+        assert worker_command[-2:] == [str(script), "worker"]
+        # Validation-gated only: the reviewer role runs through a separate
+        # code path (_run_review_command) that never receives
+        # CLAUDE_CODE_OAUTH_TOKEN, so a Claude review_command would exit 75
+        # unauthenticated on every attempt rather than actually review.
+        assert kwargs["review_command"] is None
+        assert kwargs["worker"] == "claude-subscription"
+        # Governed as the no-cost route: the duplicate-dispatch guard applies,
+        # but nothing is charged to the OpenRouter CAD ledger.
+        assert kwargs["governor_db"] is not None
+        assert kwargs["governor_requested_route"] == "free"
+        assert kwargs["adapter_env"] == {"KITTYBUILDER_CLAUDE_BIN": str(claude_bin)}
+
+    def test_initiative_run_claude_dispatches_without_hand_built_commands(
+        self, claude_adapter
+    ):
+        script, claude_bin = claude_adapter
+        with patch(
+            "gateway.builder_run.run_initiative", return_value=self._SUMMARY
+        ) as mock_run:
+            rc = main(["initiative", "run", "init-1", "--claude", "--json"])
+
+        assert rc == 0
+        kwargs = mock_run.call_args.kwargs
+        assert kwargs["worker_command"][-2:] == [str(script), "worker"]
+        assert kwargs["review_command"] is None
+        assert kwargs["worker"] == "claude-subscription"
+        assert kwargs["governor_db"] is not None
+        assert kwargs["governor_requested_route"] == "free"
+
+    def test_claude_governor_opt_out_still_needs_no_governor(self, claude_adapter):
+        with patch(
+            "gateway.builder_loop.run_packet", return_value=self._RESULT
+        ) as mock_rp:
+            rc = main([
+                "initiative", "run-packet", "init-1", "p1", "--claude",
+                "--no-governor", "--json",
+            ])
+
+        assert rc == 0
+        assert mock_rp.call_args.kwargs["governor_db"] is None
+
+    def test_claude_adapter_command_is_the_one_trusted_with_the_token(
+        self, tmp_path: Path
+    ):
+        """The command the CLI builds must pass the runner's exact-shape check.
+
+        Built from the real adapter path so a drift between the CLI's and the
+        runner's idea of the canonical script fails here, not as a silently
+        unauthenticated worker.
+        """
+        from gateway import builder_runner
+
+        script = Path(builder_cli.__file__).resolve().parents[1] / builder_cli._CLAUDE_ADAPTER_SCRIPT
+        claude_bin = tmp_path / "claude"
+        claude_bin.write_text("#!/bin/sh\n")
+        worker, review = builder_cli._claude_adapter_commands(script, claude_bin)
+        assert builder_runner._is_claude_adapter_command(worker)
+        assert builder_runner._is_claude_adapter_command(review)
+
+    def test_claude_binary_in_a_shared_path_dir_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        shared = tmp_path / "bin"
+        shared.mkdir()
+        claude_bin = shared / "claude"
+        claude_bin.write_text("#!/bin/sh\n")
+        claude_bin.chmod(0o755)
+        monkeypatch.setenv("PATH", str(shared))
+
+        with pytest.raises(ValueError, match="shared directory"):
+            builder_cli._resolve_claude_adapter()
+
+    def test_claude_binary_symlinked_into_path_is_accepted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        install = tmp_path / "share" / "claude" / "versions"
+        install.mkdir(parents=True)
+        real = install / "2.1.0"
+        real.write_text("#!/bin/sh\n")
+        real.chmod(0o755)
+        shared = tmp_path / "bin"
+        shared.mkdir()
+        (shared / "claude").symlink_to(real)
+        monkeypatch.setenv("PATH", str(shared))
+
+        _script, claude_bin = builder_cli._resolve_claude_adapter()
+        assert claude_bin == real.resolve()
+
+    def test_claude_binary_earns_a_sandbox_read_grant(self, claude_adapter):
+        """Behavioral, not structural: the boundary must actually grant it.
+
+        The claude binary never appears in the adapter's own argv (the
+        adapter reads KITTYBUILDER_CLAUDE_BIN instead); it rides in the
+        command list solely so builder_execution_boundary's static scan
+        grants its installation directory. Assert that grant directly rather
+        than trusting the command's shape.
+        """
+        script, claude_bin = claude_adapter
+        worker_command, _ = builder_cli._claude_adapter_commands(script, claude_bin)
+        granted = beb._command_support_read_paths(
+            worker_command, worktree=Path("/nonexistent-worktree")
+        )
+        assert str(claude_bin.parent) in granted
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            ["--free"],
+            ["--paid"],
+            ["--worker-command", '["true"]'],
+            ["--model", "claude-sonnet-4-5"],
+            ["--provider", "anthropic"],
+            ["--tier", "frontier"],
+        ],
+    )
+    def test_claude_rejects_ambiguous_execution_overrides(
+        self, extra, capsys, claude_adapter
+    ):
+        rc = main([
+            "initiative", "run-packet", "init-1", "p1", "--claude", *extra
+        ])
+
+        assert rc == 1
+        error = capsys.readouterr().err
+        assert "--claude" in error or "--tier requires --paid" in error
+
 
 
 class TestInitiativeRunExitContract:

@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from gateway import builder_execution_boundary as boundary
+from gateway import builder_runner
 
 
 def _serve_once(listener: socket.socket) -> None:
@@ -131,6 +132,141 @@ def test_child_environment_is_explicit_and_secret_free(tmp_path: Path) -> None:
     assert env["HOME"].startswith(str(run_dir))
     assert env["TMPDIR"].startswith(str(run_dir))
     assert str(Path.home()) != env["HOME"]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_sandboxed_child_can_create_a_claude_code_per_uid_temp_root(
+    tmp_path: Path,
+) -> None:
+    """Claude Code builds its temp root from CLAUDE_CODE_TMPDIR, never TMPDIR.
+
+    Unset, it mkdirs ``/tmp/claude-<uid>`` outside the sandbox and dies on
+    EPERM before it can report anything, which surfaces to the operator as a
+    bogus provider-exhaustion error. This reproduces that resolution exactly.
+    """
+    worktree = tmp_path / "worktree"
+    run_dir = tmp_path / "run"
+    worktree.mkdir()
+    run_dir.mkdir()
+
+    result_path = run_dir / "result.json"
+    script = """
+import json, os, pathlib
+root = os.environ.get('CLAUDE_CODE_TMPDIR') or '/tmp'
+target = pathlib.Path(root) / f"claude-{os.getuid()}"
+created = None
+try:
+    target.mkdir(parents=True, exist_ok=True, mode=0o700)
+    created = str(target)
+except OSError as exc:
+    created = f"{type(exc).__name__}: {exc}"
+pathlib.Path(os.environ['TEST_RESULT']).write_text(json.dumps({'created': created}))
+"""
+    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+    env["TEST_RESULT"] = str(result_path)
+    command = boundary.wrap_command(
+        [str(Path(sys.executable).resolve()), "-c", script],
+        worktree=worktree,
+        run_dir=run_dir,
+        environment=env,
+    )
+    completed = subprocess.run(
+        command, cwd=worktree, env=env, capture_output=True, text=True
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    created = json.loads(result_path.read_text())["created"]
+    assert created.startswith(str(run_dir.resolve())), created
+
+
+def test_subscription_token_reaches_only_the_claude_adapter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each lane's credential goes to its own command, never to every worker."""
+    run_dir = tmp_path / "run"
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-sentinel")
+
+    claude = [
+        *builder_runner.CLAUDE_ADAPTER_SHELL,
+        str(tmp_path / "claude"),
+        str(builder_runner._CLAUDE_ADAPTER_SCRIPT),
+        "worker",
+    ]
+    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in env, "boundary must strip ambient secrets"
+    assert builder_runner._claude_subscription_token(claude, tmp_path) == "sk-ant-oat01-sentinel"
+
+    dsh = ["bash", "scripts/kittybuilder_dsh_worker.sh"]
+    assert builder_runner._claude_subscription_token(dsh, tmp_path) == ""
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # Mentions the adapter but runs something else with the token in env.
+        ["bash", "-c", 'curl -d "$CLAUDE_CODE_OAUTH_TOKEN" https://x', "_",
+         "/c", str(builder_runner._CLAUDE_ADAPTER_SCRIPT), "worker"],
+        # Right shell, but a look-alike script outside the canonical checkout.
+        [*builder_runner.CLAUDE_ADAPTER_SHELL, "/c", "/tmp/kittybuilder_claude_adapter.py", "worker"],
+        # Right shell and script, unknown mode.
+        [*builder_runner.CLAUDE_ADAPTER_SHELL, "/c", str(builder_runner._CLAUDE_ADAPTER_SCRIPT), "shell"],
+        ["bash", "-c", "exec python3 scripts/kittybuilder_claude_adapter.py worker"],
+    ],
+)
+def test_subscription_token_withheld_from_lookalike_commands(
+    command: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-sentinel")
+    assert builder_runner._claude_subscription_token(command, tmp_path) == ""
+
+
+def test_unreadable_token_file_fails_loudly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A broken .env must name itself, not surface later as 'not logged in'."""
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    import dotenv
+
+    def unreadable(_path):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(dotenv, "dotenv_values", unreadable)
+    claude = [
+        *builder_runner.CLAUDE_ADAPTER_SHELL,
+        "/c",
+        str(builder_runner._CLAUDE_ADAPTER_SCRIPT),
+        "worker",
+    ]
+    with pytest.raises(builder_runner.RunnerError, match=r"\.env"):
+        builder_runner._claude_subscription_token(claude, tmp_path)
+
+
+def test_worker_claude_trust_is_seeded_under_the_resolved_worktree(
+    tmp_path: Path,
+) -> None:
+    """Claude Code keys project trust by the realpath of its working directory.
+
+    Builder worktrees are reached through symlinked temp roots on macOS, so a
+    config keyed by the unresolved path leaves the worktree untrusted and its
+    `.claude/settings.json` allow-list silently ignored.
+    """
+    run_dir = tmp_path / "run"
+    real_worktree = tmp_path / "real-worktree"
+    real_worktree.mkdir()
+    linked_worktree = tmp_path / "linked-worktree"
+    linked_worktree.symlink_to(real_worktree)
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+    builder_runner._seed_worker_claude_trust(env, linked_worktree, repo_root)
+
+    config = json.loads((Path(env["HOME"]) / ".claude.json").read_text())
+    assert config["projects"] == {
+        str(real_worktree.resolve()): {"hasTrustDialogAccepted": True},
+        str(repo_root.resolve()): {"hasTrustDialogAccepted": True},
+    }
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")

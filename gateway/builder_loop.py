@@ -32,6 +32,7 @@ import json
 import logging
 import math
 import os
+import re
 import shlex
 import subprocess
 import tempfile
@@ -764,6 +765,53 @@ def _text_evidence(value: str) -> dict[str, int | str]:
     return {"sha256": hashlib.sha256(encoded).hexdigest(), "length": len(value)}
 
 
+# Matches a provider key (sk-ant-*, sk-or-*, ...), a bearer token, or a
+# credential-named assignment in shell (NAME=value), YAML (NAME: value) or JSON
+# ("NAME": "value") form, so a worker log tail can be shown to an operator
+# without also handing them whatever the sandboxed child had in its environment.
+_SECRET_PATTERN = re.compile(
+    r"\bsk-[A-Za-z0-9_-]{16,}"
+    r"|\bBearer\s+[A-Za-z0-9._~+/=-]+"
+    r"|\b[A-Za-z_][A-Za-z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)[A-Za-z0-9_]*"
+    r"[\"']?\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|\S+)",
+    re.IGNORECASE,
+)
+
+
+def _redact_secrets(text: str) -> str:
+    return _SECRET_PATTERN.sub("[REDACTED]", text)
+
+
+def _tail_worker_log(log_path: str | None, *, max_bytes: int = 4000) -> str:
+    """Bounded, redacted tail of a worker's own stdout/stderr.
+
+    Every "providers unavailable" and "worker did not write a result" message
+    reported to the operator is a guess built from routing metadata --
+    combined.log holds the worker's own explanation and is normally never
+    read. combined.log is unbounded and a sandboxed child's environment can
+    carry a live credential, so this seeks from the end rather than reading
+    the whole file and strips token-shaped substrings before anything is
+    returned.
+    """
+    if not log_path:
+        return ""
+    path = Path(log_path)
+    try:
+        with path.open("rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            size = fh.tell()
+            fh.seek(max(0, size - max_bytes))
+            raw = fh.read().decode("utf-8", errors="replace")
+    except OSError as exc:
+        # An empty detail would read as "the worker said nothing"; say instead
+        # that its explanation exists but could not be read, and why.
+        return f"(worker log unreadable: {type(exc).__name__}: {exc.strerror or exc})"
+    if size > max_bytes:
+        # The seek point likely landed mid-line; that partial line is noise.
+        raw = raw.split("\n", 1)[-1]
+    return _redact_secrets(raw.strip())
+
+
 def _close_bound_attempt(
     attempt: dict[str, Any],
     lease: dict[str, Any],
@@ -789,12 +837,21 @@ def _record_infrastructure_failure(
     phase: str,
     attempt_id: int | None,
     db_path: Path | None,
+    detail: str = "",
 ) -> None:
+    # ``reason`` is exact-matched elsewhere (_consecutive_identical_crashes'
+    # equality check, and the free-to-paid lane-switch prefix/suffix check at
+    # its one caller) to group and act on repeated crashes, so it must stay
+    # byte-identical across runs of the same failure. ``detail`` carries the
+    # worker's own explanation for a human to read without touching that
+    # matching -- an ignored extra key here, never compared.
     payload: dict[str, Any] = {
         "reason": reason,
         "counts_toward_budget": False,
         "phase": phase,
     }
+    if detail:
+        payload["detail"] = detail
     if attempt_id is not None:
         payload["attempt_id"] = attempt_id
     bq.append_event(
@@ -819,10 +876,19 @@ def _close_provider_exhaustion(
     reason: str,
     phase: str,
     db_path: Path | None,
+    detail: str = "",
 ) -> dict[str, Any]:
-    """Close a clean provider outage without charging the implementation budget."""
+    """Close a clean provider outage without charging the implementation budget.
+
+    ``reason`` is a fixed, lane-derived string that must stay byte-identical
+    across runs so consecutive identical crashes are recognized as such and
+    the free-to-paid lane switch keeps matching it; see
+    ``_record_infrastructure_failure``. ``detail`` is the variable part --
+    the worker's own explanation -- carried alongside it, never in it.
+    """
     entry["outcome"] = ba.ATTEMPT_CRASHED
     entry["failure"] = reason
+    entry["failure_detail"] = detail
     entry["provider_exhausted"] = True
     manifest["outcome"] = LOOP_PROVIDER_EXHAUSTED
     manifest["failure"] = _text_evidence(reason)
@@ -834,6 +900,7 @@ def _close_provider_exhaustion(
         phase=phase,
         attempt_id=attempt["id"],
         db_path=db_path,
+        detail=detail,
     )
     task = bq.get_task(task_id, db_path=db_path)
     if task is not None and task["state"] == bq.BLOCKED:
@@ -850,6 +917,7 @@ def _close_provider_exhaustion(
         "task_id": task_id,
         "task_state": final_task["state"] if final_task else None,
         "reason": reason,
+        "failure_detail": detail,
         "attempts": history,
     }
 
@@ -1882,10 +1950,20 @@ def _skipped_local_shadow_receipt(
     )
 
 
-def _read_contract(path: Path, kind: str) -> tuple[dict[str, Any] | None, str | None]:
-    """Read a contract file. Returns (contract, error)."""
+def _read_contract(
+    path: Path, kind: str, *, log_tail: str = ""
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Read a contract file. Returns (contract, error).
+
+    ``log_tail`` -- the worker's own last output -- rides along on the missing-
+    file error only. Nothing string-matches this message elsewhere, unlike the
+    provider-exhaustion ``reason`` strings, so it is safe to enrich in place.
+    """
     if not path.is_file():
-        return None, f"worker did not write a {kind} result to {path}"
+        message = f"worker did not write a {kind} result to {path}"
+        if log_tail:
+            message += f" -- last worker output: {log_tail}"
+        return None, message
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -3046,6 +3124,7 @@ def run_packet(
                 ),
                 phase="worker_provider_exhaustion",
                 db_path=db_path,
+                detail=_tail_worker_log(run_report.get("log_path")),
             )
 
         failure: str | None = None
@@ -3177,7 +3256,11 @@ def run_packet(
                 }
 
         if failure is None:
-            impl, error = _read_contract(result_path, "implementation")
+            impl, error = _read_contract(
+                result_path,
+                "implementation",
+                log_tail=_tail_worker_log(run_report.get("log_path")),
+            )
             if impl is not None:
                 try:
                     ba.record_implementation_result(attempt_id, impl, db_path=db_path)
@@ -3529,6 +3612,14 @@ def run_packet(
                 ),
                     phase="review_provider_exhaustion",
                     db_path=db_path,
+                    # review_error is already "review command exited 75: <tail>"
+                    # (_run_review_command captured it directly, no log file);
+                    # take the part after the fixed prefix.
+                    detail=_redact_secrets(
+                        review_error.split(":", 1)[1].strip()
+                        if ":" in review_error
+                        else ""
+                    ),
                 )
             if review_error is not None:
                 failure = review_error

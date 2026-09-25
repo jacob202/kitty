@@ -23,6 +23,7 @@ import argparse
 import datetime as _dt
 import json
 import os
+import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -66,6 +67,7 @@ _FREE_ADAPTER_SCRIPTS = (
     "scripts/kittybuilder_dsh_worker.sh",
     "scripts/kittybuilder_dsh_reviewer.sh",
 )
+_CLAUDE_ADAPTER_SCRIPT = "scripts/kittybuilder_claude_adapter.py"
 
 
 def _free_adapter_commands() -> tuple[list[str], list[str]]:
@@ -78,6 +80,74 @@ def _free_adapter_commands() -> tuple[list[str], list[str]]:
             raise ValueError(f"free adapter script missing: {script}")
         commands.append(["bash", str(script)])
     return commands[0], commands[1]
+
+
+def _resolve_claude_adapter() -> tuple[Path, Path]:
+    """Resolve the canonical adapter script and the real claude binary.
+
+    Both are resolved on the host process, not left to the adapter's own
+    fallbacks: the Seatbelt boundary's PATH is a fixed safe list that excludes
+    ~/.local/bin, so the adapter's own ``shutil.which("claude")`` finds
+    nothing once sandboxed -- proven empirically, not assumed: the worker
+    exits 75 "no usable claude executable" without this. And a packet
+    worktree's own copy of the adapter script is pinned at whatever base SHA
+    the packet started from, which can predate a fix here.
+    """
+    root = Path(__file__).resolve().parents[1]
+    script = root / _CLAUDE_ADAPTER_SCRIPT
+    if not script.is_file():
+        raise ValueError(f"Claude adapter script missing: {script}")
+    claude_bin_raw = shutil.which("claude")
+    if not claude_bin_raw:
+        raise ValueError("claude executable not found on PATH")
+    claude_bin = Path(claude_bin_raw).resolve()
+    if not claude_bin.is_file():
+        raise ValueError(f"resolved claude binary missing: {claude_bin}")
+    # The sandbox grants read access to this binary's whole directory. That is
+    # Claude's own install dir for every supported installer (the PATH entry is
+    # a symlink into it); a binary copied straight into a shared PATH dir or
+    # $HOME would expose its neighbours instead, so refuse that layout.
+    shared_dirs = {
+        Path(entry).expanduser().resolve()
+        for entry in os.environ.get("PATH", "").split(os.pathsep)
+        if entry
+    } | {Path.home().resolve()}
+    if claude_bin.parent in shared_dirs:
+        raise ValueError(
+            f"claude binary {claude_bin} sits directly in a shared directory; "
+            "install it with Claude Code's own installer so it lives in its own directory"
+        )
+    return script, claude_bin
+
+
+def _claude_adapter_commands(
+    script: Path, claude_bin: Path
+) -> tuple[list[str], list[str]]:
+    """Build worker/review commands for the fixed-model Claude adapter.
+
+    The Seatbelt boundary grants read access only to a directory whose file
+    appears as an explicit command argument (see
+    ``_command_support_read_paths`` in builder_execution_boundary.py), so
+    ``claude_bin`` rides along as an argument the script never reads, purely
+    to earn that grant for Claude Code's own installation directory -- the
+    adapter itself locates the binary through KITTYBUILDER_CLAUDE_BIN, set
+    separately by ``_claude_adapter_env``. Wrapped in ``bash -c`` because the
+    adapter's own argparse has exactly one positional (``mode``) and would
+    reject an extra one. ``python3``, not ``sys.executable``, matches the
+    worktree's own validation toolchain (see ``_validation_toolchain``)
+    instead of pinning whatever interpreter happens to launch this CLI.
+    """
+
+    from gateway.builder_runner import CLAUDE_ADAPTER_SHELL
+
+    def build(mode: str) -> list[str]:
+        return [*CLAUDE_ADAPTER_SHELL, str(claude_bin), str(script), mode]
+
+    return build("worker"), build("review")
+
+
+def _claude_adapter_env(claude_bin: Path) -> dict[str, str]:
+    return {"KITTYBUILDER_CLAUDE_BIN": str(claude_bin)}
 
 
 def _free_adapter_env(model: str | None = None) -> dict[str, str]:
@@ -113,8 +183,10 @@ def _resolve_loop_commands(
     args: argparse.Namespace,
 ) -> tuple[list[str], list[str] | None, Any | None, dict[str, str]]:
     """Resolve loop commands plus child-only adapter environment."""
-    if args.free and args.paid:
-        raise ValueError("--free and --paid are mutually exclusive")
+    claude = bool(getattr(args, "claude", False))
+    selected_presets = int(bool(args.free)) + int(bool(args.paid)) + int(claude)
+    if selected_presets > 1:
+        raise ValueError("--free, --paid, and --claude are mutually exclusive")
     if args.paid:
         if getattr(args, "no_governor", False):
             raise ValueError("--paid requires the compute governor; remove --no-governor")
@@ -140,13 +212,33 @@ def _resolve_loop_commands(
             )
         worker_command, review_command = _free_adapter_commands()
         return worker_command, review_command, None, _free_adapter_env(args.model)
+    if claude:
+        if args.worker_command or args.review_command or args.model or args.provider:
+            raise ValueError(
+                "--claude selects the fixed Claude subscription worker; "
+                "drop --worker-command/--review-command/--model/--provider or drop --claude"
+            )
+        if args.tier != "cheap":
+            raise ValueError("--tier requires --paid")
+        script, claude_bin = _resolve_claude_adapter()
+        worker_command, _unused_review_command = _claude_adapter_commands(
+            script, claude_bin
+        )
+        # Validation-gated only, not --review-command=None as an oversight:
+        # the reviewer role runs through a separate code path
+        # (_run_review_command in builder_loop.py) that builds its own child
+        # environment and never receives CLAUDE_CODE_OAUTH_TOKEN, so a Claude
+        # reviewer here would exit 75 unauthenticated on every attempt. This
+        # is the shape already proven end to end (KX-CURATION-F821-02,
+        # 2026-09-17); wiring the token into that path is a separate change.
+        return worker_command, None, None, _claude_adapter_env(claude_bin)
     if args.tier != "cheap":
         raise ValueError("--tier requires --paid")
     custom_worker_command = _parse_json_array(args.worker_command)
     custom_review_command = _parse_json_array(args.review_command)
     if not custom_worker_command:
         raise ValueError(
-            "provide --free, --paid, or a non-empty --worker-command JSON array"
+            "provide --free, --paid, --claude, or a non-empty --worker-command JSON array"
         )
     return custom_worker_command, custom_review_command, None, {}
 
@@ -1507,6 +1599,8 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
     worker = args.worker
     if args.free and worker == "packet-loop":
         worker = "dsh-free"
+    elif getattr(args, "claude", False) and worker == "packet-loop":
+        worker = "claude-subscription"
     elif paid_route is not None and worker == "packet-loop":
         worker = f"dsh-paid-{paid_route.tier}"
     selected_model = paid_route.worker_model if paid_route is not None else args.model
@@ -1536,7 +1630,10 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             governor_requested_route=(
                 paid_route.governor_route
                 if paid_route is not None
-                else ("free" if args.free else None)
+                # Claude runs on the subscription, not the CAD ledger: govern
+                # it as the no-cost route so the duplicate-dispatch guard still
+                # applies without charging OpenRouter budget.
+                else ("free" if args.free or getattr(args, "claude", False) else None)
             ),
             timeout_seconds=args.timeout,
             # Governed by default at the CLI boundary: a real dispatch pays real
@@ -1579,6 +1676,8 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
     worker = args.worker
     if args.free and worker == "packet-loop":
         worker = "dsh-free"
+    elif getattr(args, "claude", False) and worker == "packet-loop":
+        worker = "claude-subscription"
     elif paid_route is not None and worker == "packet-loop":
         worker = f"dsh-paid-{paid_route.tier}"
     selected_model = paid_route.worker_model if paid_route is not None else args.model
@@ -1604,7 +1703,10 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             governor_requested_route=(
                 paid_route.governor_route
                 if paid_route is not None
-                else ("free" if args.free else None)
+                # Claude runs on the subscription, not the CAD ledger: govern
+                # it as the no-cost route so the duplicate-dispatch guard still
+                # applies without charging OpenRouter budget.
+                else ("free" if args.free or getattr(args, "claude", False) else None)
             ),
             timeout_seconds=args.timeout,
             publish=args.publish,
@@ -2109,6 +2211,7 @@ COMMANDS: list[CommandSpec] = [
                  _a("packet", "packet ID"),
                  _a("--free", "use the free DSH adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
                  _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
+                 _a("--claude", "use the fixed-model Claude subscription worker (Sonnet); validation-gated only, no reviewer yet", action="store_true"),
                  _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--publish", "after a succeeded packet, attach its final report under the task lease fence and push its branch + PR; a publication failure keeps the worktree and never reclassifies the packet", action="store_true"),
                  _a("--gate", "with --publish: 'manual' only — the PR parks at awaiting_review for a human merge; auto-merge is available on the operator 'initiative run' path, not this one", choices=["manual"], default="manual"),
@@ -2142,6 +2245,7 @@ COMMANDS: list[CommandSpec] = [
                 [_a("id", "initiative ID"),
                  _a("--free", "use the free DSH adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
                  _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
+                 _a("--claude", "use the fixed-model Claude subscription worker (Sonnet); validation-gated only, no reviewer yet", action="store_true"),
                  _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
                  _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),

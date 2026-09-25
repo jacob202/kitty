@@ -50,7 +50,8 @@ def _python_files() -> list[Path]:
         if not root.is_dir():
             continue
         for path in root.rglob("*.py"):
-            if SKIP_PARTS.isdisjoint(path.parts):
+            # Relative parts: this checkout may itself live under .worktrees/.
+            if SKIP_PARTS.isdisjoint(path.relative_to(ROOT).parts):
                 files.append(path)
     return files
 

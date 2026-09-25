@@ -78,11 +78,18 @@ SESSION_STATE_RESIDUE = frozenset({".claude/STATE.md", ".claude/HANDOFF.md"})
 # <attempt_id>.json at the worktree root so the model can read them via a
 # relative path, and cleans them up before finishing. A run that's killed or
 # inspected mid-attempt can still show these as changed paths.
+#
+# The Claude adapter (scripts/kittybuilder_claude_adapter.py) stages the same
+# way under its own .kittybuilder-claude-<kind>-<attempt_id>.json names, which
+# this list did not cover: the live worktree monitor read them as scope drift
+# and killed the worker mid-attempt, so the adapter's cleanup never ran and the
+# residue it was killed for persisted. One prefix covers all six of its kinds.
 WORKER_STAGING_PREFIXES = (
     ".kittybuilder-bundle-",
+    ".kittybuilder-claude-",
     ".kittybuilder-context-",
-    ".kittybuilder-result-",
     ".kittybuilder-prompt-",
+    ".kittybuilder-result-",
 )
 
 # OpenCode writes a per-run continuation receipt in the worktree while a worker

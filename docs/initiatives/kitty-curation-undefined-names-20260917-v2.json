@@ -1,0 +1,31 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-curation-undefined-names-20260917-v2",
+  "title": "The curation worker crashes on undefined names",
+  "description": "Payload chosen because it is verified before authoring, which the previous packet was not. `ruff check scripts/curation/curation_worker.py --select F821` reports two undefined names on current HEAD; both are reached on ordinary paths, so the script raises NameError rather than misbehaving subtly. Small, mechanical, and provable by the same command that found it.",
+  "packets": [
+    {
+      "id": "KX-CURATION-F821-02",
+      "title": "Resolve the two undefined names in the curation worker",
+      "objective": "scripts/curation/curation_worker.py references two names that are never bound. Line 80, `update_db_status`, calls sqlite3.connect(DB_PATH) but DB_PATH is defined nowhere in the module. Line 165 reads creds['url'] to build a knowledge-base URL, but creds is not bound in that scope. Both are on ordinary execution paths, so the worker raises NameError the moment either is reached. Work out what each name is supposed to be by reading how the surrounding code and its sibling scripts in scripts/curation/ resolve the same values -- the database path and the service credentials are already obtained elsewhere in this codebase -- and bind them the same way rather than inventing a new convention or a new config source. Do not restructure the script, change its CLI, or fix the unrelated undefined `pypdf` in the other curation scripts; they are outside this packet's fence.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "`python -m ruff check scripts/curation/curation_worker.py --select F821` reports no errors.",
+        "DB_PATH resolves to the same database this repository already uses for curation state, obtained the way sibling code obtains it, not a new hardcoded literal invented for this fix.",
+        "The credentials read at the former line 165 come from the same source the surrounding code already uses for that service.",
+        "The module still imports cleanly: `python -c \"import ast,sys; ast.parse(open('scripts/curation/curation_worker.py').read())\"` succeeds.",
+        "No behaviour outside binding these two names is changed; the CLI, the prompt text, and the control flow are untouched."
+      ],
+      "allowed_paths": [
+        "scripts/curation/curation_worker.py"
+      ],
+      "policy": {
+        "max_attempts": 4,
+        "priority": 100
+      },
+      "validation_commands": [
+        "python -m ruff check scripts/curation/curation_worker.py"
+      ]
+    }
+  ]
+}
