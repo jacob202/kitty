@@ -613,13 +613,20 @@ def propose(
     try:
         repo_tools.repo_root()
         base_sha = repo_tools.repo_head()
-    except Exception as exc:
+    except Exception:
+        logger.exception("conversation propose could not resolve the repository base")
         return receipt(
             "conversation_propose",
             ok=False,
             state="unavailable",
             error_code="repo_unavailable",
-            error=f"{type(exc).__name__}: {exc}",
+            # Same copy the HTTP route maps this code to
+            # (gateway/routes/conversation_handoff.py): a receipt can reach a
+            # person, so it never carries the exception class or its text.
+            error=(
+                "Kitty could not reach the repository to prepare this job. "
+                "Try again in a moment."
+            ),
             next_action="Resolve the repository/base-SHA error before proposing work.",
         )
 
@@ -687,13 +694,17 @@ def propose(
                 expected_dependency_sha=design["commit_sha"],
                 agent_session_id=planning_session_id,
             )
-    except Exception as exc:
+    except Exception:
+        logger.exception("conversation propose could not write its planning artifact")
         return receipt(
             "conversation_propose",
             ok=False,
             state="needs_decision",
             error_code="planning_artifact_failed",
-            error=f"{type(exc).__name__}: {exc}",
+            error=(
+                "Kitty could not save this proposal's plan. Try again, or ask to "
+                "resolve the coordination lock if this keeps happening."
+            ),
             next_action="Resolve the planning-artifact error and propose again.",
         )
 

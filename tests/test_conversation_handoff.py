@@ -12,6 +12,7 @@ hold through the new surface.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from gateway import builder_loop, conversation_handoff, memory_mission, mission_
 from gateway import builder_queue as bq
 from mcp.builder import commands as mcp_commands
 from mcp.builder import context as mcp_context
+from mcp.builder import repo_tools
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -920,3 +922,64 @@ def test_propose_refuses_an_unknown_conversation_instead_of_dropping_it(repo: Pa
 
     assert result["ok"] is False
     assert result["error_code"] == "origin_invalid"
+
+
+def test_generic_failures_keep_raw_exception_text_out_of_the_receipt(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Both generic-catch codes must carry plain copy, never the exception.
+
+    A receipt reaches the chat surface and non-UI consumers alike, so the
+    receipt may name the cause and the next step but never the exception class
+    or its text; the full failure still reaches the log.
+    """
+
+    class RepoHeadUnavailable(RuntimeError):
+        pass
+
+    head_calls = {"count": 0}
+
+    def _flaky_repo_head() -> str:
+        head_calls["count"] += 1
+        if head_calls["count"] == 1:
+            raise RepoHeadUnavailable("SENTINEL repo head exploded under /private/secret")
+        return _git(repo, "rev-parse", "HEAD")
+
+    monkeypatch.setattr(repo_tools, "repo_head", _flaky_repo_head)
+    caplog.set_level(logging.ERROR, logger="kitty.conversation_handoff")
+
+    unavailable = conversation_handoff.propose(**_task())
+
+    assert unavailable["ok"] is False
+    assert unavailable["error_code"] == "repo_unavailable"
+    assert unavailable["state"] == "unavailable"
+    assert unavailable["next_action"] == (
+        "Resolve the repository/base-SHA error before proposing work."
+    )
+    assert "RepoHeadUnavailable" not in unavailable["error"]
+    assert "SENTINEL" not in unavailable["error"]
+
+    class PlanningWriteDenied(RuntimeError):
+        pass
+
+    def _denied_planning_write(**_kwargs: object) -> dict:
+        raise PlanningWriteDenied("SENTINEL planning write exploded under /private/secret")
+
+    monkeypatch.setattr(repo_tools, "write_planning_artifact", _denied_planning_write)
+
+    planning = conversation_handoff.propose(**_task())
+
+    assert planning["ok"] is False
+    assert planning["error_code"] == "planning_artifact_failed"
+    assert planning["state"] == "needs_decision"
+    assert planning["next_action"] == (
+        "Resolve the planning-artifact error and propose again."
+    )
+    assert "PlanningWriteDenied" not in planning["error"]
+    assert "SENTINEL" not in planning["error"]
+
+    assert any(record.exc_info for record in caplog.records), (
+        "the swallowed failure must be logged with its traceback"
+    )
+    assert "SENTINEL repo head exploded" in caplog.text
+    assert "SENTINEL planning write exploded" in caplog.text
