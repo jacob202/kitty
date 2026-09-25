@@ -79,6 +79,7 @@ class _FakeClient:
         self.posted_url = None
         self.posted_headers = None
         self.posted_payload = None
+        self.post_calls = 0
         self.get_urls = []
 
     async def __aenter__(self):
@@ -88,6 +89,7 @@ class _FakeClient:
         return False
 
     async def post(self, url, *, headers=None, json=None):
+        self.post_calls += 1
         self.posted_url = url
         self.posted_headers = headers
         self.posted_payload = json
@@ -303,9 +305,10 @@ class TestTxt2ImgEndpoint:
                     raise httpx.ReadTimeout("poll response lost")
                 return await super().get(url, headers=headers)
 
+        client = PollFailsClient(submit, {})
         monkeypatch.setattr(
             "httpx.AsyncClient",
-            lambda *a, **k: PollFailsClient(submit, {}),
+            lambda *a, **k: client,
         )
 
         with pytest.raises(ImageRunnerError):
@@ -318,6 +321,9 @@ class TestTxt2ImgEndpoint:
                 reserved_cost_usd=0.014,
             )
 
+        assert client.post_calls == 1, (
+            "a failed poll must never resubmit: exactly one paid submission per attempt"
+        )
         owned = image_sessions.list_session_jobs(session.session_id)
         assert len(owned) == 1
         assert owned[0].status is image_jobs.ImageJobStatus.UNKNOWN
@@ -353,6 +359,9 @@ class TestTxt2ImgEndpoint:
             )
 
         assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
+        assert client.post_calls == 1, (
+            "a failed poll must never resubmit: exactly one paid submission per attempt"
+        )
         job = image_jobs.list_recent(limit=1)[0]
         assert job.status is image_jobs.ImageJobStatus.UNKNOWN
         assert job.provider_job_id == "bfl-request-abc"
@@ -469,6 +478,9 @@ class TestFailureModes:
                 compiled_request=compiled,
             )
         assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
+        assert client.post_calls == 1, (
+            "a polling timeout must never resubmit: exactly one paid submission per attempt"
+        )
         job = image_jobs.list_recent(limit=1)[0]
         assert job.status is image_jobs.ImageJobStatus.UNKNOWN
         assert job.provider_job_id == "bfl-timeout"
