@@ -900,6 +900,7 @@ async def studio_generate(req: StudioGenerateRequest):
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     paid_attempt_reserved = False
+    paid_reservation_id: str | None = None
     if estimated_cost > 0:
         if not req.session_id:
             raise HTTPException(
@@ -919,13 +920,14 @@ async def studio_generate(req: StudioGenerateRequest):
 
         budget = AgentBudget()
         try:
-            reserve_attempt(
+            reservation = reserve_attempt(
                 req.session_id,
                 cost_usd=estimated_cost,
                 max_attempts=budget.max_attempts,
                 max_spend_usd=budget.max_spend_usd,
             )
             paid_attempt_reserved = True
+            paid_reservation_id = reservation.reservation_id
         except SessionBudgetExceededError as exc:
             raise HTTPException(status_code=429, detail=str(exc))
         except ImageSessionError as exc:
@@ -962,6 +964,7 @@ async def studio_generate(req: StudioGenerateRequest):
                 intent_json=job_intent_json,
                 session_id=req.session_id if paid_attempt_reserved else None,
                 reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
+                reservation_id=paid_reservation_id,
                 quality_tier=req.quality,
             )
         elif operation == "img2img":
@@ -995,6 +998,7 @@ async def studio_generate(req: StudioGenerateRequest):
                     intent_json=job_intent_json,
                     session_id=req.session_id if paid_attempt_reserved else None,
                     reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
+                    reservation_id=paid_reservation_id,
                     quality_tier=req.quality,
                 )
             else:
@@ -1027,6 +1031,7 @@ async def studio_generate(req: StudioGenerateRequest):
                 intent_json=job_intent_json,
                 session_id=req.session_id if paid_attempt_reserved else None,
                 reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
+                reservation_id=paid_reservation_id,
             )
         # Bind the render back to its conversation so a restart can replay it
         # and "use this" has something to anchor on. A failure to bind is
@@ -1041,10 +1046,14 @@ async def studio_generate(req: StudioGenerateRequest):
             )
 
             try:
-                if paid_attempt_reserved and result.cost_usd is not None:
+                if (
+                    paid_attempt_reserved
+                    and paid_reservation_id is not None
+                    and result.cost_usd is not None
+                ):
                     reconcile_reserved_attempt_cost(
                         req.session_id,
-                        reserved_cost_usd=estimated_cost,
+                        reservation_id=paid_reservation_id,
                         actual_cost_usd=result.cost_usd,
                     )
                 attach_job(req.session_id, result.job_id)
@@ -1063,7 +1072,7 @@ async def studio_generate(req: StudioGenerateRequest):
             "session_id": req.session_id,
         }
     except ImageDispatchNotSubmittedError as e:
-        if paid_attempt_reserved and req.session_id:
+        if paid_attempt_reserved and req.session_id and paid_reservation_id is not None:
             from gateway.image_sessions import (
                 ImageSessionError,
                 release_reserved_attempt_cost,
@@ -1071,7 +1080,7 @@ async def studio_generate(req: StudioGenerateRequest):
 
             try:
                 release_reserved_attempt_cost(
-                    req.session_id, reserved_cost_usd=estimated_cost
+                    req.session_id, reservation_id=paid_reservation_id
                 )
             except ImageSessionError as release_exc:
                 raise HTTPException(status_code=500, detail=str(release_exc)) from release_exc

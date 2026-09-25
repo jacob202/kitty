@@ -152,6 +152,56 @@ def test_conflicting_exact_head_builder_rejection_blocks_agent_approval() -> Non
     assert "blocking" in reason.lower() or "request" in reason.lower()
 
 
+def test_a_later_builder_approve_supersedes_an_earlier_reject_for_the_same_head() -> None:
+    # Reproduces: the gate scanned for ANY blocking verdict before ever
+    # checking for an approval, so a corrected "approve" comment posted
+    # after an earlier "reject" for the exact same head could never clear
+    # it. Comments arrive in creation order; the later one must win.
+    reject_body = "\n".join([
+        pr_review_gate.BUILDER_REVIEW_MARKER,
+        "# KittyBuilder review note",
+        f"- Reviewed commit: `{SHA}`",
+        "- Verdict: reject",
+    ])
+    approve_body = "\n".join([
+        pr_review_gate.BUILDER_REVIEW_MARKER,
+        "# KittyBuilder review note",
+        f"- Reviewed commit: `{SHA}`",
+        "- Verdict: approve",
+    ])
+    reject_comment = _comment(reject_body, "jacob202")
+    approve_comment = _comment(approve_body, "jacob202")
+    pr = {"head": {"sha": SHA}, "body": "", "labels": []}
+
+    ok, reason = pr_review_gate.evaluate_review_gate(
+        pr, [reject_comment, approve_comment], repo_owner="jacob202"
+    )
+    assert ok, reason
+
+
+def test_a_later_builder_reject_still_supersedes_an_earlier_approve() -> None:
+    approve_body = "\n".join([
+        pr_review_gate.BUILDER_REVIEW_MARKER,
+        "# KittyBuilder review note",
+        f"- Reviewed commit: `{SHA}`",
+        "- Verdict: approve",
+    ])
+    reject_body = "\n".join([
+        pr_review_gate.BUILDER_REVIEW_MARKER,
+        "# KittyBuilder review note",
+        f"- Reviewed commit: `{SHA}`",
+        "- Verdict: reject",
+    ])
+    approve_comment = _comment(approve_body, "jacob202")
+    reject_comment = _comment(reject_body, "jacob202")
+    pr = {"head": {"sha": SHA}, "body": "", "labels": []}
+
+    ok, reason = pr_review_gate.evaluate_review_gate(
+        pr, [approve_comment, reject_comment], repo_owner="jacob202"
+    )
+    assert not ok
+
+
 def test_stalled_review_is_reported_as_no_verdict_not_a_finding() -> None:
     """A truncated review must not be reported as a defect that was found.
 

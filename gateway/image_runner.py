@@ -16,7 +16,10 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Callable
+
+if TYPE_CHECKING:
+    import httpx
 
 from gateway import image_jobs
 from gateway.image_jobs import ImageJobStatus
@@ -99,6 +102,7 @@ async def run(
     intent_json: str | None = None,
     session_id: str | None = None,
     reserved_cost_usd: float | None = None,
+    reservation_id: str | None = None,
 ) -> JobResult:
     """Generate an image through the specified engine.
 
@@ -128,6 +132,7 @@ async def run(
             prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
             project_id=project_id, plan_id=plan_id, intent_json=intent_json,
             session_id=session_id, reserved_cost_usd=reserved_cost_usd,
+            reservation_id=reservation_id,
         )
 
     if engine == "flux2":
@@ -144,6 +149,7 @@ async def run(
             intent_json=intent_json,
             session_id=session_id,
             reserved_cost_usd=reserved_cost_usd,
+            reservation_id=reservation_id,
         )
 
     if engine == "openai":
@@ -686,16 +692,86 @@ def _persist_bfl_receipt(
     return polling_url
 
 
-def _attach_job_to_session_before_dispatch(job_id: str, session_id: str | None) -> None:
+def _attach_job_to_session_before_dispatch(
+    job_id: str, session_id: str | None, reservation_id: str | None = None
+) -> None:
     """Persist Studio ownership before any provider call can become billable."""
     if session_id is None:
         return
-    from gateway.image_sessions import ImageSessionError, attach_job
+    from gateway.image_sessions import (
+        ImageSessionError,
+        attach_job,
+        bind_reservation_to_job,
+    )
 
     try:
         attach_job(session_id, job_id)
+        if reservation_id is not None:
+            # Bind the paid attempt to the job that will actually incur the
+            # charge, so a later recovery settles this reservation by identity
+            # instead of guessing from an amount.
+            bind_reservation_to_job(session_id, reservation_id, job_id)
     except ImageSessionError as exc:
         raise ImageDispatchNotSubmittedError(str(exc)) from exc
+
+
+_BFL_POLL_DEADLINE_SECONDS = 900.0
+"""Wall-clock ceiling for BFL polling, up from a fixed 150*2s=300s. A
+legitimately slow render must get more time, not get misclassified as
+ImageProviderOutcomeUnknownError just because it outran an iteration count."""
+
+_BFL_POLL_MAX_DELAY_SECONDS = 10.0
+
+
+def _monotonic_seconds() -> float:
+    """Wall clock for polling deadlines, indirected so tests can drive time."""
+    return time.monotonic()
+
+
+async def _poll_bfl_until_done(
+    client: "httpx.AsyncClient",
+    polling_url: str,
+    headers: dict[str, str],
+    *,
+    is_running,
+    raise_for_status: bool = False,
+    clock: Callable[[], float] | None = None,
+    deadline_seconds: float = _BFL_POLL_DEADLINE_SECONDS,
+) -> tuple[dict[str, Any], str, bool]:
+    """Poll a BFL job until it leaves a running state or the deadline passes.
+
+    Backs off from 2s up to ``_BFL_POLL_MAX_DELAY_SECONDS`` between polls
+    instead of hammering the provider at a fixed 2s cadence. The deadline is
+    wall-clock: time spent awaiting each ``client.get`` counts against the
+    budget exactly like a sleep does. Summing only intended sleeps let a slow
+    provider hold a request open for hours -- every response may consume up to
+    the client's 180s HTTP timeout without advancing the nominal budget at
+    all. ``clock`` is injectable so timeout tests advance the deadline
+    deterministically instead of mocking ``asyncio.sleep`` into a busy loop
+    that never reaches real time. Returns ``(state, status, timed_out)``;
+    callers keep their own error handling and timeout messaging.
+    """
+    wall_clock = clock if clock is not None else _monotonic_seconds
+    deadline = wall_clock() + deadline_seconds
+    delay = 2.0
+    state: dict[str, Any] = {}
+    status = ""
+    while True:
+        remaining = deadline - wall_clock()
+        if remaining <= 0:
+            return state, status, True
+        poll = await client.get(polling_url, headers=headers)
+        if raise_for_status:
+            poll.raise_for_status()
+        state = poll.json()
+        status = str(state.get("status") or "")
+        if not is_running(status):
+            return state, status, False
+        remaining = deadline - wall_clock()
+        if remaining <= 0:
+            return state, status, True
+        await asyncio.sleep(min(delay, remaining))
+        delay = min(delay * 1.5, _BFL_POLL_MAX_DELAY_SECONDS)
 
 
 async def recover_bfl_job(job_id: str) -> JobResult:
@@ -738,15 +814,14 @@ async def recover_bfl_job(job_id: str) -> JobResult:
     headers = {"x-key": api_key}
     try:
         async with httpx.AsyncClient(timeout=180) as client:
-            for _ in range(150):
-                poll = await client.get(polling_url, headers=headers)
-                poll.raise_for_status()
-                state = poll.json()
-                status = str(state.get("status") or "")
-                if status not in {"Pending", "Queued", "Processing"}:
-                    break
-                await asyncio.sleep(2)
-            else:
+            state, status, timed_out = await _poll_bfl_until_done(
+                client,
+                polling_url,
+                headers,
+                is_running=lambda s: s in {"Pending", "Queued", "Processing"},
+                raise_for_status=True,
+            )
+            if timed_out:
                 message = f"job {job_id!r} BFL reconciliation timed out; outcome remains unknown"
                 _mark_unknown(job_id, message)
                 raise ImageProviderOutcomeUnknownError(message)
@@ -1422,6 +1497,7 @@ async def _run_flux(
     intent_json: str | None = None,
     session_id: str | None = None,
     reserved_cost_usd: float | None = None,
+    reservation_id: str | None = None,
 ) -> JobResult:
     """Black Forest Labs lane, on the shared job lifecycle.
 
@@ -1429,7 +1505,6 @@ async def _run_flux(
     comes back as a status rather than an error — both are surfaced verbatim so
     a refusal never reads as a crash.
     """
-    import asyncio as _asyncio
     import base64
 
     import httpx
@@ -1460,7 +1535,7 @@ async def _run_flux(
     )
 
     try:
-        _attach_job_to_session_before_dispatch(job.job_id, session_id)
+        _attach_job_to_session_before_dispatch(job.job_id, session_id, reservation_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
         headers = {"x-key": os.environ["BFL_API_KEY"], "Content-Type": "application/json"}
         async with httpx.AsyncClient(timeout=180) as client:
@@ -1497,16 +1572,13 @@ async def _run_flux(
 
             image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
             try:
-                for _ in range(150):
-                    poll = await client.get(
-                        polling_url, headers={"x-key": headers["x-key"]}
-                    )
-                    state = poll.json()
-                    status = state.get("status")
-                    if status not in {"Pending", "Queued", "Processing"}:
-                        break
-                    await _asyncio.sleep(2)
-                else:
+                state, status, timed_out = await _poll_bfl_until_done(
+                    client,
+                    polling_url,
+                    {"x-key": headers["x-key"]},
+                    is_running=lambda s: s in {"Pending", "Queued", "Processing"},
+                )
+                if timed_out:
                     message = "Flux provider outcome unknown after polling timeout"
                     _mark_unknown(job.job_id, message)
                     raise ImageProviderOutcomeUnknownError(message)
@@ -1559,6 +1631,7 @@ async def _run_flux2(
     intent_json: str | None = None,
     session_id: str | None = None,
     reserved_cost_usd: float | None = None,
+    reservation_id: str | None = None,
 ) -> JobResult:
     """Hosted FLUX.2 (BFL Direct) lane on the shared job lifecycle.
 
@@ -1570,8 +1643,6 @@ async def _run_flux2(
     never reach BFL Direct — even in a retry or reroute — and this lane never
     silently falls back to another hosted engine.
     """
-    import asyncio as _asyncio
-
     import httpx
 
     from gateway import flux2_transport
@@ -1607,7 +1678,7 @@ async def _run_flux2(
     )
 
     try:
-        _attach_job_to_session_before_dispatch(job.job_id, session_id)
+        _attach_job_to_session_before_dispatch(job.job_id, session_id, reservation_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
         headers = flux2_transport.submit_headers()
         async with httpx.AsyncClient(timeout=180) as client:
@@ -1642,16 +1713,13 @@ async def _run_flux2(
 
             image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
             try:
-                for _ in range(150):
-                    poll = await client.get(
-                        polling_url, headers={"x-key": headers["x-key"]}
-                    )
-                    state = poll.json()
-                    status = state.get("status", "")
-                    if not flux2_transport.is_running_status(status):
-                        break
-                    await _asyncio.sleep(2)
-                else:
+                state, status, timed_out = await _poll_bfl_until_done(
+                    client,
+                    polling_url,
+                    {"x-key": headers["x-key"]},
+                    is_running=flux2_transport.is_running_status,
+                )
+                if timed_out:
                     message = "BFL Direct provider outcome unknown after polling timeout"
                     _mark_unknown(job.job_id, message)
                     raise ImageProviderOutcomeUnknownError(message)

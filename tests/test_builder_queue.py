@@ -1506,6 +1506,52 @@ class TestRecoverExpiredLeases:
         )
         assert bq.get_task(active_task["id"], db_path=db_path)["state"] == bq.CLAIMED
 
+    def test_recovering_a_running_task_frees_its_run_for_a_new_claim(self, db_path):
+        # Reproduces: idx_runs_one_active_per_task has no reaper of its own.
+        # Recovering the TASK's stale lease must also close out the RUN row
+        # still sitting in an active state, or create_run rejects every
+        # future run for this task forever.
+        task = bq.create_task("stuck", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        run = bq.create_run(
+            task["id"],
+            ["worker"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.worker_transition_task(
+            task["id"], bq.RUNNING, claimed["lease_token"], claimed["claim_version"], db_path=db_path
+        )
+        bq.update_run(
+            run["id"],
+            state=bq.RUN_RUNNING,
+            pid=999999,
+            mark_started=True,
+            expected_states=frozenset({bq.RUN_STARTING}),
+            db_path=db_path,
+        )
+        _set_task_fields(db_path, task["id"], lease_expires_at="2000-01-01 00:00:00")
+
+        counts = bq.recover_expired_leases(db_path=db_path)
+        assert counts == {"claimed_requeued": 0, "running_blocked": 1, "total": 1}
+
+        stale_run = bq.get_run(run["id"], db_path=db_path)
+        assert stale_run["state"] == "lease_lost"
+
+        # The task is now BLOCKED(stale_heartbeat); an operator/reconciler
+        # requeues it so a fresh worker can claim it and start a new run.
+        _set_task_fields(db_path, task["id"], state=bq.QUEUED, lease_owner=None, lease_token=None)
+        reclaimed = bq.claim_task(task["id"], "worker-b", db_path=db_path)
+        new_run = bq.create_run(
+            task["id"],
+            ["worker"],
+            lease_token=reclaimed["lease_token"],
+            claim_version=reclaimed["claim_version"],
+            db_path=db_path,
+        )
+        assert new_run["id"] != run["id"]
+
 
 # ---------------------------------------------------------------------------
 # Concurrent claim_next

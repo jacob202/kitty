@@ -41,12 +41,20 @@ async def test_studio_generate_returns_provider_reported_actual_cost(monkeypatch
             project_id=None, protected_traits=[], requested_changes=[]
         ),
     )
-    monkeypatch.setattr(image_sessions, "reserve_attempt", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        image_sessions,
+        "reserve_attempt",
+        lambda *_args, **_kwargs: SimpleNamespace(reservation_id="res_test"),
+    )
     monkeypatch.setattr(image_sessions, "attach_job", lambda *_args, **_kwargs: None)
-    reconciled: dict[str, float] = {}
+    reconciled: dict[str, object] = {}
 
-    def fake_reconcile(_session_id: str, *, reserved_cost_usd: float, actual_cost_usd: float):
-        reconciled.update(reserved=reserved_cost_usd, actual=actual_cost_usd)
+    def fake_reconcile(
+        _session_id: str, *, reservation_id: str, actual_cost_usd: float
+    ) -> None:
+        reconciled.update(
+            reservation_id=reservation_id, actual=actual_cost_usd
+        )
 
     monkeypatch.setattr(image_sessions, "reconcile_reserved_attempt_cost", fake_reconcile)
 
@@ -54,7 +62,7 @@ async def test_studio_generate_returns_provider_reported_actual_cost(monkeypatch
 
     assert result["actual_cost_usd"] == pytest.approx(0.041)
     assert result["actual_cost_source"] == "provider_reported"
-    assert reconciled == {"reserved": pytest.approx(0.15), "actual": pytest.approx(0.041)}
+    assert reconciled == {"reservation_id": "res_test", "actual": pytest.approx(0.041)}
 
 
 @pytest.mark.asyncio

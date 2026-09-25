@@ -35,6 +35,7 @@ from gateway.paths import DB_MIGRATIONS_DIR
 
 _MIGRATION_FILE = DB_MIGRATIONS_DIR / "029_image_sessions.sql"
 _PROJECTS_MIGRATION_FILE = DB_MIGRATIONS_DIR / "010_projects.sql"
+_RESERVATIONS_MIGRATION_FILE = DB_MIGRATIONS_DIR / "063_image_session_reservations.sql"
 
 _MAX_JSON_BYTES = 65_536
 _MAX_TEXT_BYTES = 10_240
@@ -264,6 +265,30 @@ def _ensure_project_column(conn: Any) -> None:
     )
 
 
+def _backfill_legacy_reservations(conn: Any) -> None:
+    """Carry pre-ledger aggregate exposure into per-reservation rows.
+
+    A database upgraded mid-flight must not silently forget a reservation that
+    is still counted against a session's budget. ``_ensure_db`` replays its
+    migrations on every call, so the "no rows for this session yet" guard is
+    part of the statement: a replay can never duplicate a session's exposure.
+    """
+    conn.execute(
+        """
+        INSERT INTO image_session_reservations
+            (reservation_id, session_id, job_id, cost_usd, state, created_at, updated_at)
+        SELECT 'legacy_' || session_id, session_id, NULL, reserved_spend_usd, 'reserved',
+               updated_at, updated_at
+          FROM image_sessions
+         WHERE reserved_spend_usd > 0
+           AND NOT EXISTS (
+               SELECT 1 FROM image_session_reservations existing
+                WHERE existing.session_id = image_sessions.session_id
+           )
+        """
+    )
+
+
 def _ensure_db(conn: Any = None) -> None:
     """Apply this module's migration, plus the schemas it references."""
     def _apply(c: Any) -> None:
@@ -274,6 +299,13 @@ def _ensure_db(conn: Any = None) -> None:
         _ensure_session_column(c)
         _ensure_spend_columns(c)
         _ensure_project_column(c)
+        # After the columns it reads exist: the reservations DDL is replayed
+        # on every call, and the backfill needs `reserved_spend_usd`.
+        c.executescript(_RESERVATIONS_MIGRATION_FILE.read_text(encoding="utf-8"))
+        _backfill_legacy_reservations(c)
+        # The INSERT above opens an implicit transaction on the caller's
+        # connection; leave it clean so the next BEGIN IMMEDIATE is legal.
+        c.commit()
 
     if conn is not None:
         _apply(conn)
@@ -638,14 +670,178 @@ def update_session(
     return require_session(session_id)
 
 
+RESERVATION_STALE_AFTER_SECONDS = 600
+"""How long a reservation that never reached a dispatch may sit before it is
+treated as abandoned: the caller crashed between ``reserve_attempt`` and the
+provider call, so nothing can ever come back to settle it."""
+
+RESERVATION_JOB_GRACE_SECONDS = 1_800
+"""How long a dispatch-bound reservation may stay un-settled before it is
+treated as unrecoverable. Must comfortably exceed
+``image_runner._BFL_POLL_DEADLINE_SECONDS`` (900s): a legitimate BFL render
+polls the provider that long and its exposure has to keep counting against the
+session budget the whole time. Recovery then gets a further window. Only past
+this does the budget self-heal from a settle that will never arrive."""
+
+
+@dataclass(frozen=True)
+class SessionReservation:
+    """A reserved paid attempt plus the identity its settlement requires.
+
+    ``ImageSession.reserved_spend_usd`` stays the materialized session total;
+    this handle is what ``reconcile_reserved_attempt_cost`` and
+    ``release_reserved_attempt_cost`` take, so settling one attempt can never
+    subtract another attempt's exposure.
+    """
+
+    session: ImageSession
+    reservation_id: str
+    cost_usd: float
+
+
+def _outstanding_reservations(conn: Any, session_id: str) -> list[Any]:
+    return conn.execute(
+        "SELECT reservation_id, job_id, cost_usd, created_at, updated_at "
+        "FROM image_session_reservations "
+        "WHERE session_id = ? AND state = 'reserved'",
+        (session_id,),
+    ).fetchall()
+
+
+def _reservation_age_seconds(row: Any, now: datetime) -> float:
+    stamp = row["updated_at"] or row["created_at"]
+    try:
+        touched = datetime.fromisoformat(str(stamp))
+    except (TypeError, ValueError):
+        return 0.0
+    if touched.tzinfo is None:
+        touched = touched.replace(tzinfo=timezone.utc)
+    return (now - touched).total_seconds()
+
+
+def _reservation_is_abandoned(conn: Any, row: Any, *, now: datetime) -> bool:
+    """Judge one reservation against its owning dispatch, never the session clock.
+
+    A session-wide timestamp cannot distinguish "the caller crashed" from "the
+    provider is still working": a live BFL job may poll for 900s without
+    touching the session at all.
+    """
+    age = _reservation_age_seconds(row, now)
+    job_id = row["job_id"]
+    if not job_id:
+        # Never dispatched, so no provider charge can materialize.
+        return age > RESERVATION_STALE_AFTER_SECONDS
+    job = conn.execute(
+        "SELECT status FROM image_jobs WHERE job_id = ?", (job_id,)
+    ).fetchone()
+    if job is None:
+        return age > RESERVATION_STALE_AFTER_SECONDS
+    status = str(job["status"] or "")
+    if status in {"failed", "cancelled"}:
+        return True
+    # succeeded / submitted / running / unknown: while the dispatch can still
+    # bill or be settled, the exposure stays counted. Past the grace window
+    # nothing will settle it (provider polling and the recovery attempt have
+    # both expired), so the budget self-heals instead of deadlocking on a
+    # crashed settle.
+    return age > RESERVATION_JOB_GRACE_SECONDS
+
+
+def _sweep_stale_reservations(conn: Any, session_id: str) -> float:
+    """Abandon only genuinely abandoned reservations; return the live total.
+
+    The session-wide ``reserved_spend_usd`` column is then reconciled to the
+    sum of the rows that are still live, so a total can never outlive the
+    reservation that justified it.
+    """
+    now = datetime.now(timezone.utc)
+    live = 0.0
+    for row in _outstanding_reservations(conn, session_id):
+        if _reservation_is_abandoned(conn, row, now=now):
+            conn.execute(
+                "UPDATE image_session_reservations "
+                "SET state = 'abandoned', updated_at = ? "
+                "WHERE reservation_id = ? AND state = 'reserved'",
+                (_now_iso(), row["reservation_id"]),
+            )
+            continue
+        live += float(row["cost_usd"] or 0.0)
+    return live
+
+
+def _claim_outstanding_reservation(
+    conn: Any, session_id: str, reservation_id: str, *, settlement: str
+) -> float:
+    """Transition one outstanding reservation to *settlement* and return its cost."""
+    row = conn.execute(
+        "SELECT reservation_id, cost_usd, state FROM image_session_reservations "
+        "WHERE reservation_id = ? AND session_id = ?",
+        (reservation_id, session_id),
+    ).fetchone()
+    if row is None:
+        raise ImageSessionError(
+            f"no reservation {reservation_id!r} for session {session_id!r}"
+        )
+    if row["state"] != "reserved":
+        raise ImageSessionError(
+            f"reservation {reservation_id!r} is {row['state']!r}, not outstanding"
+        )
+    conn.execute(
+        "UPDATE image_session_reservations SET state = ?, updated_at = ? "
+        "WHERE reservation_id = ? AND state = 'reserved'",
+        (settlement, _now_iso(), reservation_id),
+    )
+    return float(row["cost_usd"] or 0.0)
+
+
+def _reserved_total(conn: Any, session_id: str) -> float:
+    row = conn.execute(
+        "SELECT reserved_spend_usd FROM image_sessions WHERE session_id = ?",
+        (session_id,),
+    ).fetchone()
+    if row is None:
+        raise SessionNotFoundError(f"no image session {session_id!r}")
+    return float(row["reserved_spend_usd"] or 0.0)
+
+
+def bind_reservation_to_job(
+    session_id: str, reservation_id: str, job_id: str
+) -> None:
+    """Tie a reservation to the dispatch it paid for, before the provider call.
+
+    The job id is the durable identity a later recovery uses to settle this
+    attempt without guessing by amount.
+    """
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.execute(
+            "UPDATE image_session_reservations SET job_id = ?, updated_at = ? "
+            "WHERE reservation_id = ? AND session_id = ? AND state = 'reserved'",
+            (job_id, _now_iso(), reservation_id, session_id),
+        )
+        if cursor.rowcount != 1:
+            raise ImageSessionError(
+                f"reservation {reservation_id!r} for session {session_id!r} "
+                "is not outstanding and cannot be bound to a dispatch"
+            )
+        conn.commit()
+
+
 def reserve_attempt(
     session_id: str,
     *,
     cost_usd: float,
     max_attempts: int,
     max_spend_usd: float,
-) -> ImageSession:
-    """Atomically reserve one render attempt before a paid provider is called."""
+) -> SessionReservation:
+    """Atomically reserve one render attempt before a paid provider is called.
+
+    Returns the handle whose ``reservation_id`` settles this attempt and no
+    other. Admission counts only live reservations: one abandoned row can no
+    longer erase a concurrent attempt's exposure, and one settled attempt can
+    no longer consume another's.
+    """
     if cost_usd < 0:
         raise ImageSessionError(f"cost_usd must not be negative, got {cost_usd}")
     if max_attempts <= 0:
@@ -659,8 +855,8 @@ def reserve_attempt(
         _ensure_db(conn)
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            "SELECT status, attempt_count, spend_usd, reserved_spend_usd FROM image_sessions "
-            "WHERE session_id = ?",
+            "SELECT status, attempt_count, spend_usd, reserved_spend_usd, updated_at "
+            "FROM image_sessions WHERE session_id = ?",
             (session_id,),
         ).fetchone()
         if row is None:
@@ -669,7 +865,7 @@ def reserve_attempt(
             raise SessionEndedError(f"session {session_id!r} has ended")
         attempts = int(row["attempt_count"] or 0)
         spend = float(row["spend_usd"] or 0.0)
-        reserved = float(row["reserved_spend_usd"] or 0.0)
+        reserved = _sweep_stale_reservations(conn, session_id)
         if attempts >= max_attempts:
             raise SessionBudgetExceededError(
                 f"session {session_id!r} has used {attempts} of "
@@ -681,74 +877,80 @@ def reserve_attempt(
                 f"session {session_id!r} would spend ${projected:.3f}, above its "
                 f"${max_spend_usd:.2f} allowance; generate refused"
             )
+        reservation_id = f"res_{uuid.uuid4().hex}"
+        now = _now_iso()
+        conn.execute(
+            "INSERT INTO image_session_reservations "
+            "(reservation_id, session_id, job_id, cost_usd, state, created_at, updated_at) "
+            "VALUES (?, ?, NULL, ?, 'reserved', ?, ?)",
+            (reservation_id, session_id, cost_usd, now, now),
+        )
         conn.execute(
             "UPDATE image_sessions SET attempt_count = attempt_count + 1, "
-            "reserved_spend_usd = reserved_spend_usd + ?, updated_at = ? WHERE session_id = ?",
-            (cost_usd, _now_iso(), session_id),
+            "reserved_spend_usd = ?, updated_at = ? WHERE session_id = ?",
+            (reserved + cost_usd, now, session_id),
         )
-    return require_session(session_id)
+        conn.commit()
+    return SessionReservation(
+        session=require_session(session_id),
+        reservation_id=reservation_id,
+        cost_usd=cost_usd,
+    )
 
 
 def reconcile_reserved_attempt_cost(
     session_id: str,
     *,
-    reserved_cost_usd: float,
+    reservation_id: str,
     actual_cost_usd: float,
 ) -> ImageSession:
-    """Replace one conservative paid reservation with provider-reported cost."""
-    if reserved_cost_usd < 0 or actual_cost_usd < 0:
-        raise ImageSessionError("reserved and actual cost must not be negative")
+    """Replace one identified conservative reservation with provider-reported cost."""
+    if actual_cost_usd < 0:
+        raise ImageSessionError("actual cost must not be negative")
 
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute(
-            "SELECT spend_usd, reserved_spend_usd FROM image_sessions WHERE session_id = ?",
-            (session_id,),
-        ).fetchone()
-        if row is None:
-            raise SessionNotFoundError(f"no image session {session_id!r}")
-        reserved = float(row["reserved_spend_usd"] or 0.0)
-        if reserved + 1e-12 < reserved_cost_usd:
+        reserved_cost = _claim_outstanding_reservation(
+            conn, session_id, reservation_id, settlement="settled"
+        )
+        reserved = _reserved_total(conn, session_id)
+        if reserved + 1e-12 < reserved_cost:
             raise ImageSessionError(
                 f"session {session_id!r} reserved exposure ${reserved:.3f} is below the "
-                f"${reserved_cost_usd:.3f} reservation being reconciled"
+                f"${reserved_cost:.3f} reservation being reconciled"
             )
         conn.execute(
             "UPDATE image_sessions SET reserved_spend_usd = reserved_spend_usd - ?, "
             "spend_usd = spend_usd + ?, updated_at = ? WHERE session_id = ?",
-            (reserved_cost_usd, actual_cost_usd, _now_iso(), session_id),
+            (reserved_cost, actual_cost_usd, _now_iso(), session_id),
         )
+        conn.commit()
     return require_session(session_id)
 
 
 def release_reserved_attempt_cost(
-    session_id: str, *, reserved_cost_usd: float
+    session_id: str, *, reservation_id: str
 ) -> ImageSession:
-    """Release one reservation only when dispatch is known not to have happened."""
-    if reserved_cost_usd < 0:
-        raise ImageSessionError("reserved cost must not be negative")
-
+    """Release one identified reservation when dispatch is known not to have happened."""
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute(
-            "SELECT reserved_spend_usd FROM image_sessions WHERE session_id = ?",
-            (session_id,),
-        ).fetchone()
-        if row is None:
-            raise SessionNotFoundError(f"no image session {session_id!r}")
-        reserved = float(row["reserved_spend_usd"] or 0.0)
-        if reserved + 1e-12 < reserved_cost_usd:
+        reserved_cost = _claim_outstanding_reservation(
+            conn, session_id, reservation_id, settlement="released"
+        )
+        reserved = _reserved_total(conn, session_id)
+        if reserved + 1e-12 < reserved_cost:
             raise ImageSessionError(
                 f"session {session_id!r} reserved exposure ${reserved:.3f} is below the "
-                f"${reserved_cost_usd:.3f} reservation being released"
+                f"${reserved_cost:.3f} reservation being released"
             )
         conn.execute(
             "UPDATE image_sessions SET reserved_spend_usd = reserved_spend_usd - ?, "
             "updated_at = ? WHERE session_id = ?",
-            (reserved_cost_usd, _now_iso(), session_id),
+            (reserved_cost, _now_iso(), session_id),
         )
+        conn.commit()
     return require_session(session_id)
 
 
@@ -766,12 +968,6 @@ def finalize_recovered_paid_job(
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         conn.execute("BEGIN IMMEDIATE")
-        session = conn.execute(
-            "SELECT reserved_spend_usd FROM image_sessions WHERE session_id = ?",
-            (session_id,),
-        ).fetchone()
-        if session is None:
-            raise SessionNotFoundError(f"no image session {session_id!r}")
         job = conn.execute(
             "SELECT session_id, status, output_path, canonical_artifact_id "
             "FROM image_jobs WHERE job_id = ?",
@@ -791,23 +987,55 @@ def finalize_recovered_paid_job(
             raise ImageSessionError(
                 f"job {job_id!r} cannot be finalized before canonical artifact commit"
             )
-        reserved = float(session["reserved_spend_usd"] or 0.0)
-        if reserved + 1e-12 < reserved_cost_usd:
+        reservation = conn.execute(
+            "SELECT reservation_id, cost_usd FROM image_session_reservations "
+            "WHERE job_id = ? AND session_id = ? AND state = 'reserved' "
+            "ORDER BY created_at ASC, rowid ASC LIMIT 1",
+            (job_id, session_id),
+        ).fetchone()
+        if reservation is None:
+            # Receipts written before reservations were dispatch-bound carry
+            # only the amount. Match the session's oldest outstanding
+            # reservation and refuse on any mismatch rather than settling a
+            # different attempt's exposure.
+            reservation = conn.execute(
+                "SELECT reservation_id, cost_usd FROM image_session_reservations "
+                "WHERE session_id = ? AND job_id IS NULL AND state = 'reserved' "
+                "ORDER BY created_at ASC, rowid ASC LIMIT 1",
+                (session_id,),
+            ).fetchone()
+        if reservation is None:
+            raise ImageSessionError(
+                f"no outstanding reservation for job {job_id!r} in session {session_id!r}"
+            )
+        held = float(reservation["cost_usd"] or 0.0)
+        if abs(held - reserved_cost_usd) > 1e-9:
+            raise ImageSessionError(
+                f"job {job_id!r} carries a ${reserved_cost_usd:.3f} reserved receipt but "
+                f"reservation {reservation['reservation_id']!r} holds ${held:.3f}; "
+                "refusing to settle a different attempt"
+            )
+        reserved_cost = _claim_outstanding_reservation(
+            conn, session_id, str(reservation["reservation_id"]), settlement="settled"
+        )
+        reserved = _reserved_total(conn, session_id)
+        if reserved + 1e-12 < reserved_cost:
             raise ImageSessionError(
                 f"session {session_id!r} reserved exposure ${reserved:.3f} is below the "
-                f"${reserved_cost_usd:.3f} recovered reservation"
+                f"${reserved_cost:.3f} recovered reservation"
             )
         now = _now_iso()
         conn.execute(
             "UPDATE image_sessions SET reserved_spend_usd = reserved_spend_usd - ?, "
             "spend_usd = spend_usd + ?, updated_at = ? WHERE session_id = ?",
-            (reserved_cost_usd, actual_cost_usd, now, session_id),
+            (reserved_cost, actual_cost_usd, now, session_id),
         )
         conn.execute(
             "UPDATE image_jobs SET status = 'succeeded', normalized_error = NULL, "
             "updated_at = ?, finished_at = ? WHERE job_id = ?",
             (now, now, job_id),
         )
+        conn.commit()
     return require_session(session_id)
 
 

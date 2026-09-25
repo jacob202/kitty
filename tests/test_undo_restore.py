@@ -258,3 +258,104 @@ def test_automation_update_undo_restores_previous_schedule(_db):
     restored = next(row for row in cron.list_schedules() if row["id"] == sid)
     assert restored["name"] == "Morning"
     assert restored["schedule_value"] == "07:00"
+
+
+def test_concurrent_undo_of_the_same_entry_has_exactly_one_winner(_db):
+    # Reproduces: undo() previously spanned four separate unlocked
+    # connections with no atomic claim, so two concurrent undo() calls on
+    # the same journal_id could both pass the checks and both execute
+    # _restore()'s side effects before either marked the row undone.
+    import threading
+
+    from gateway import image_characters, undo_journal
+
+    char = image_characters.create_character(
+        "Aria", description="a musician", identity_preset="balanced"
+    )
+    journal_id = undo_journal.update_character_with_undo(
+        char.character_id, name="Aria v2", description="a painter"
+    )
+
+    barrier = threading.Barrier(2)
+    results: list[object] = []
+    errors: list[BaseException] = []
+    lock = threading.Lock()
+
+    def run_undo() -> None:
+        try:
+            barrier.wait(timeout=5)
+            result = undo_journal.undo(journal_id)
+            with lock:
+                results.append(result)
+        except BaseException as exc:  # noqa: BLE001 - asserted below
+            with lock:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=run_undo) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+
+    assert len(results) == 1, f"expected exactly one winner, got {len(results)}"
+    assert len(errors) == 1
+    assert isinstance(errors[0], undo_journal.UndoError)
+
+    restored = image_characters.get_character(char.character_id)
+    assert restored.name == "Aria"
+    assert restored.description == "a musician"
+
+
+def test_older_undo_is_refused_while_a_newer_entry_is_still_restoring(_db, monkeypatch):
+    # Reproduces: the atomic claim flipped `undone` before _restore() had
+    # finished, so a newer entry that was mid-restoration no longer matched
+    # the conflict guard's `undone = 0` predicate. An older undo then ran
+    # concurrently and the entity landed in whichever restoration wrote
+    # last, not in journal order. An in-progress restoration must keep
+    # blocking exactly like a pending one.
+    import threading
+
+    from gateway import image_characters, undo_journal
+
+    char = image_characters.create_character(
+        "Aria", description="a musician", identity_preset="balanced"
+    )
+    older = undo_journal.update_character_with_undo(
+        char.character_id, description="a painter"
+    )
+    newer = undo_journal.update_character_with_undo(
+        char.character_id, description="an architect"
+    )
+
+    inside_restore = threading.Event()
+    resume = threading.Event()
+    original_restore = undo_journal._restore
+
+    def gated_restore(entry):
+        inside_restore.set()
+        assert resume.wait(timeout=5), "test never released the restoration gate"
+        return original_restore(entry)
+
+    monkeypatch.setattr(undo_journal, "_restore", gated_restore)
+
+    outcome: dict[str, object] = {}
+
+    def undo_newer() -> None:
+        try:
+            outcome["result"] = undo_journal.undo(newer)
+        except BaseException as exc:  # noqa: BLE001 - asserted below
+            outcome["error"] = exc
+
+    thread = threading.Thread(target=undo_newer)
+    thread.start()
+    try:
+        assert inside_restore.wait(timeout=5), "newer undo never reached restoration"
+        with pytest.raises(undo_journal.UndoConflict):
+            undo_journal.undo(older)
+    finally:
+        resume.set()
+        thread.join(timeout=5)
+
+    assert "error" not in outcome, outcome.get("error")
+    restored = image_characters.get_character(char.character_id)
+    assert restored.description == "a painter"
