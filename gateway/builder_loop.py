@@ -765,12 +765,15 @@ def _text_evidence(value: str) -> dict[str, int | str]:
     return {"sha256": hashlib.sha256(encoded).hexdigest(), "length": len(value)}
 
 
-# Matches an Anthropic subscription token or a NAME=value pair whose name looks
-# like a credential, so a worker log tail can be shown to an operator without
-# also handing them whatever the sandboxed child had in its environment.
+# Matches a provider key (sk-ant-*, sk-or-*, ...), a bearer token, or a
+# credential-named assignment in shell (NAME=value), YAML (NAME: value) or JSON
+# ("NAME": "value") form, so a worker log tail can be shown to an operator
+# without also handing them whatever the sandboxed child had in its environment.
 _SECRET_PATTERN = re.compile(
-    r"sk-ant-[A-Za-z0-9_-]+"
-    r"|\b[A-Za-z_][A-Za-z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)[A-Za-z0-9_]*=\S+",
+    r"\bsk-[A-Za-z0-9_-]{16,}"
+    r"|\bBearer\s+[A-Za-z0-9._~+/=-]+"
+    r"|\b[A-Za-z_][A-Za-z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)[A-Za-z0-9_]*"
+    r"[\"']?\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|\S+)",
     re.IGNORECASE,
 )
 
@@ -799,8 +802,10 @@ def _tail_worker_log(log_path: str | None, *, max_bytes: int = 4000) -> str:
             size = fh.tell()
             fh.seek(max(0, size - max_bytes))
             raw = fh.read().decode("utf-8", errors="replace")
-    except OSError:
-        return ""
+    except OSError as exc:
+        # An empty detail would read as "the worker said nothing"; say instead
+        # that its explanation exists but could not be read, and why.
+        return f"(worker log unreadable: {type(exc).__name__}: {exc.strerror or exc})"
     if size > max_bytes:
         # The seek point likely landed mid-line; that partial line is noise.
         raw = raw.split("\n", 1)[-1]

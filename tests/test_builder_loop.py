@@ -4497,3 +4497,28 @@ def test_independent_readonly_review_executor_uses_builder_route_and_contains_ho
         capture_output=True,
         text=True,
     ).stdout == "?? .env\n"
+
+
+@pytest.mark.parametrize(
+    ("line", "secret"),
+    [
+        ("CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-leaktest", "sk-ant-oat01-leaktest"),
+        ("key sk-or-v1-0123456789abcdef0123 rejected", "sk-or-v1-0123456789abcdef0123"),
+        ('{"OPENROUTER_API_KEY": "plainvalue123"}', "plainvalue123"),
+        ("OPENROUTER_API_KEY: plainvalue123", "plainvalue123"),
+        ("openrouter_api_key = 'plainvalue123'", "plainvalue123"),
+        ("Authorization: Bearer abc.def-ghi_jkl", "abc.def-ghi_jkl"),
+    ],
+)
+def test_worker_log_redaction_covers_common_credential_forms(line: str, secret: str):
+    redacted = bl._redact_secrets(f"worker failed: {line}")
+    assert secret not in redacted
+    assert "[REDACTED]" in redacted
+    assert redacted.startswith("worker failed: ")
+
+
+def test_unreadable_worker_log_says_so(tmp_path: Path):
+    """A missing log must not read as 'the worker said nothing'."""
+    detail = bl._tail_worker_log(str(tmp_path / "missing" / "combined.log"))
+    assert detail.startswith("(worker log unreadable: FileNotFoundError")
+    assert bl._tail_worker_log(None) == ""

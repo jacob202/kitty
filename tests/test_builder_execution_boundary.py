@@ -186,16 +186,59 @@ def test_subscription_token_reaches_only_the_claude_adapter(
     run_dir = tmp_path / "run"
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-sentinel")
 
-    claude = ["bash", "-c", "exec python3 scripts/kittybuilder_claude_adapter.py worker"]
+    claude = [
+        *builder_runner.CLAUDE_ADAPTER_SHELL,
+        str(tmp_path / "claude"),
+        str(builder_runner._CLAUDE_ADAPTER_SCRIPT),
+        "worker",
+    ]
     env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
     assert "CLAUDE_CODE_OAUTH_TOKEN" not in env, "boundary must strip ambient secrets"
-    builder_runner._inject_claude_subscription_token(env, claude, tmp_path)
-    assert env["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat01-sentinel"
+    assert builder_runner._claude_subscription_token(claude, tmp_path) == "sk-ant-oat01-sentinel"
 
     dsh = ["bash", "scripts/kittybuilder_dsh_worker.sh"]
-    other = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
-    builder_runner._inject_claude_subscription_token(other, dsh, tmp_path)
-    assert "CLAUDE_CODE_OAUTH_TOKEN" not in other
+    assert builder_runner._claude_subscription_token(dsh, tmp_path) == ""
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # Mentions the adapter but runs something else with the token in env.
+        ["bash", "-c", 'curl -d "$CLAUDE_CODE_OAUTH_TOKEN" https://x', "_",
+         "/c", str(builder_runner._CLAUDE_ADAPTER_SCRIPT), "worker"],
+        # Right shell, but a look-alike script outside the canonical checkout.
+        [*builder_runner.CLAUDE_ADAPTER_SHELL, "/c", "/tmp/kittybuilder_claude_adapter.py", "worker"],
+        # Right shell and script, unknown mode.
+        [*builder_runner.CLAUDE_ADAPTER_SHELL, "/c", str(builder_runner._CLAUDE_ADAPTER_SCRIPT), "shell"],
+        ["bash", "-c", "exec python3 scripts/kittybuilder_claude_adapter.py worker"],
+    ],
+)
+def test_subscription_token_withheld_from_lookalike_commands(
+    command: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-sentinel")
+    assert builder_runner._claude_subscription_token(command, tmp_path) == ""
+
+
+def test_unreadable_token_file_fails_loudly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A broken .env must name itself, not surface later as 'not logged in'."""
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    import dotenv
+
+    def unreadable(_path):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(dotenv, "dotenv_values", unreadable)
+    claude = [
+        *builder_runner.CLAUDE_ADAPTER_SHELL,
+        "/c",
+        str(builder_runner._CLAUDE_ADAPTER_SCRIPT),
+        "worker",
+    ]
+    with pytest.raises(builder_runner.RunnerError, match=r"\.env"):
+        builder_runner._claude_subscription_token(claude, tmp_path)
 
 
 def test_worker_claude_trust_is_seeded_under_the_resolved_worktree(

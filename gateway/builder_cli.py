@@ -103,6 +103,20 @@ def _resolve_claude_adapter() -> tuple[Path, Path]:
     claude_bin = Path(claude_bin_raw).resolve()
     if not claude_bin.is_file():
         raise ValueError(f"resolved claude binary missing: {claude_bin}")
+    # The sandbox grants read access to this binary's whole directory. That is
+    # Claude's own install dir for every supported installer (the PATH entry is
+    # a symlink into it); a binary copied straight into a shared PATH dir or
+    # $HOME would expose its neighbours instead, so refuse that layout.
+    shared_dirs = {
+        Path(entry).expanduser().resolve()
+        for entry in os.environ.get("PATH", "").split(os.pathsep)
+        if entry
+    } | {Path.home().resolve()}
+    if claude_bin.parent in shared_dirs:
+        raise ValueError(
+            f"claude binary {claude_bin} sits directly in a shared directory; "
+            "install it with Claude Code's own installer so it lives in its own directory"
+        )
     return script, claude_bin
 
 
@@ -124,11 +138,10 @@ def _claude_adapter_commands(
     instead of pinning whatever interpreter happens to launch this CLI.
     """
 
+    from gateway.builder_runner import CLAUDE_ADAPTER_SHELL
+
     def build(mode: str) -> list[str]:
-        return [
-            "bash", "-c", 'exec python3 "$2" "$3"',
-            "_", str(claude_bin), str(script), mode,
-        ]
+        return [*CLAUDE_ADAPTER_SHELL, str(claude_bin), str(script), mode]
 
     return build("worker"), build("review")
 
@@ -1617,14 +1630,15 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             governor_requested_route=(
                 paid_route.governor_route
                 if paid_route is not None
-                else ("free" if args.free else None)
+                # Claude runs on the subscription, not the CAD ledger: govern
+                # it as the no-cost route so the duplicate-dispatch guard still
+                # applies without charging OpenRouter budget.
+                else ("free" if args.free or getattr(args, "claude", False) else None)
             ),
             timeout_seconds=args.timeout,
             # Governed by default at the CLI boundary: a real dispatch pays real
             # money, so the receipt check is opt-out, not opt-in.
-            governor_db=(
-                None if args.no_governor or getattr(args, "claude", False) else _governor_db_path(args)
-            ),
+            governor_db=None if args.no_governor else _governor_db_path(args),
             governor_override=args.governor_override,
             publish=args.publish,
         )
@@ -1689,7 +1703,10 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             governor_requested_route=(
                 paid_route.governor_route
                 if paid_route is not None
-                else ("free" if args.free else None)
+                # Claude runs on the subscription, not the CAD ledger: govern
+                # it as the no-cost route so the duplicate-dispatch guard still
+                # applies without charging OpenRouter budget.
+                else ("free" if args.free or getattr(args, "claude", False) else None)
             ),
             timeout_seconds=args.timeout,
             publish=args.publish,
@@ -1698,9 +1715,7 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             max_runtime_seconds=args.max_runtime,
             # The autonomous runner is the path most likely to repeat itself:
             # it picks the next eligible packet without a human in the loop.
-            governor_db=(
-                None if args.no_governor or getattr(args, "claude", False) else _governor_db_path(args)
-            ),
+            governor_db=None if args.no_governor else _governor_db_path(args),
         )
     except (ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)

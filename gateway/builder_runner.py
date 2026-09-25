@@ -90,36 +90,62 @@ class RunnerError(RuntimeError):
     """Raised for worktree or run-orchestration failures."""
 
 
-_CLAUDE_ADAPTER_MARKER = "kittybuilder_claude_adapter"
+# The exact argv shape builder_cli builds for the Claude adapter:
+# [*CLAUDE_ADAPTER_SHELL, <claude binary>, <adapter script>, <mode>]. Shared so
+# the token check below matches the one command that is trusted with it.
+CLAUDE_ADAPTER_SHELL = ("bash", "-c", 'exec python3 "$2" "$3"', "_")
+_CLAUDE_ADAPTER_SCRIPT = (
+    Path(__file__).resolve().parents[1] / "scripts" / "kittybuilder_claude_adapter.py"
+)
+_CLAUDE_ADAPTER_MODES = frozenset({"worker", "review"})
 
 
-def _inject_claude_subscription_token(
-    child_env: dict[str, str], command: list[str], repo_root: Path
-) -> None:
-    """Hand the Claude adapter its inference-scoped subscription token.
+def _is_claude_adapter_command(command: list[str]) -> bool:
+    """True only for the exact trusted Claude adapter invocation.
+
+    Worker commands are caller-supplied and the sandbox allows outbound
+    network, so a substring match would hand the subscription token to any
+    custom command that merely mentions the adapter.
+    """
+    if len(command) != len(CLAUDE_ADAPTER_SHELL) + 3:
+        return False
+    if tuple(command[: len(CLAUDE_ADAPTER_SHELL)]) != CLAUDE_ADAPTER_SHELL:
+        return False
+    _claude_bin, script, mode = command[len(CLAUDE_ADAPTER_SHELL):]
+    return mode in _CLAUDE_ADAPTER_MODES and Path(script).resolve() == _CLAUDE_ADAPTER_SCRIPT
+
+
+def _claude_subscription_token(command: list[str], repo_root: Path) -> str:
+    """Return the Claude adapter's inference-scoped subscription token, if any.
 
     The boundary strips every ambient secret, so each lane's own credential is
     re-supplied explicitly — the same shape as the OpenRouter key injection in
     ``builder_loop``, and scoped here to the one command that needs it. The
     token comes from ``claude setup-token``; it can do nothing but inference,
     and no worker ever reads the operator's ``~/.claude`` credential store.
-    """
-    if not any(_CLAUDE_ADAPTER_MARKER in part for part in command):
-        return
-    token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").strip()
-    if not token:
-        # Unattended launches do not inherit an operator shell, so fall back to
-        # the repo .env that already carries OPENROUTER_API_KEY for the DSH lane.
-        try:
-            from dotenv import dotenv_values
 
-            token = (
-                dotenv_values(repo_root / ".env").get("CLAUDE_CODE_OAUTH_TOKEN") or ""
-            ).strip()
-        except Exception:  # noqa: BLE001 - absent/unreadable .env is not fatal
-            token = ""
+    Raises RunnerError when the repo .env exists but cannot be read, so the
+    run is recorded as a setup failure naming the cause instead of reaching
+    the adapter and reporting a generic "not authenticated".
+    """
+    if not _is_claude_adapter_command(command):
+        return ""
+    token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "").strip()
     if token:
-        child_env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+        return token
+    # Unattended launches do not inherit an operator shell, so fall back to
+    # the repo .env that already carries OPENROUTER_API_KEY for the DSH lane.
+    # A missing .env is normal and yields {}; only a broken one raises.
+    try:
+        from dotenv import dotenv_values
+
+        values = dotenv_values(repo_root / ".env")
+    except Exception as exc:  # noqa: BLE001 - re-raised with the cause named
+        raise RunnerError(
+            f"cannot read CLAUDE_CODE_OAUTH_TOKEN from {repo_root / '.env'}: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    return (values.get("CLAUDE_CODE_OAUTH_TOKEN") or "").strip()
 
 
 def _seed_worker_claude_trust(
@@ -1565,6 +1591,10 @@ def run_worker(
                     f"context injection failed for run {run_id}: {exc}"
                 ) from exc
 
+        # Resolved before the task turns RUNNING so an unreadable token file
+        # lands as a recorded setup failure, not a stuck running task.
+        claude_token = _claude_subscription_token(command, root)
+
         bq.worker_transition_task(
             task_id,
             bq.RUNNING,
@@ -1666,7 +1696,8 @@ def run_worker(
 
     child_env = beb.build_child_environment(os.environ, run_dir=run_dir)
     _seed_worker_claude_trust(child_env, wt_path, root)
-    _inject_claude_subscription_token(child_env, command, root)
+    if claude_token:
+        child_env["CLAUDE_CODE_OAUTH_TOKEN"] = claude_token
     validation_venv, validation_read_roots = _validation_toolchain(root)
     child_env["GH_CONFIG_DIR"] = str(gh_config_dir)
     child_env["GIT_CONFIG_GLOBAL"] = os.devnull
